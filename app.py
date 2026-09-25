@@ -39,7 +39,7 @@ except ImportError:
     pass
 
 # Importar componentes modulares
-from components.market_data import cargar_datos_mercado
+from components.market_data import cargar_datos_mercado, actualizar_precios_mt5
 from components.top_bar import renderizar_barra_superior
 from components.watchlist import renderizar_watchlist
 from components.central_panel import renderizar_panel_central
@@ -117,15 +117,38 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 1. Cargar y actualizar datos seguros del mercado
+# Carga inicial de datos de mercado (estructura + primeros precios)
 cargar_datos_mercado()
-# 2. Renderizar barra superior de FAVORITOS (activos elegidos por el usuario)
-renderizar_barra_favoritos()
-# 3. Distribución principal de 3 columnas
+
+# ==========================================
+# NÚMEROS EN VIVO (auto-refresco ligero cada 2 s)
+# Solo se auto-refrescan las TARJETAS de precios (favoritos y lista de activos).
+# El gráfico central NO está en un fragmento: se actualiza solo por su JavaScript
+# (polling a servidor_datos.py). Las noticias/chat quedan fuera (no llaman a la IA).
+# ==========================================
+INTERVALO_PRECIOS = "2s"
+
+# 1. Barra superior de FAVORITOS (precios en vivo)
+@st.fragment(run_every=INTERVALO_PRECIOS)
+def _favoritos_en_vivo():
+    actualizar_precios_mt5()  # actualización ligera de precios MT5
+    renderizar_barra_favoritos()
+
+_favoritos_en_vivo()
+
+# 2. Distribución principal de 3 columnas
 col_left, col_center, col_right = st.columns([1, 2.1, 1.3])
+
 with col_left:
-    renderizar_watchlist()
+    @st.fragment(run_every=INTERVALO_PRECIOS)
+    def _watchlist_en_vivo():
+        actualizar_precios_mt5()  # precios MT5 al día
+        renderizar_watchlist()
+    _watchlist_en_vivo()
+
 with col_center:
+    # El gráfico se actualiza solo por JavaScript (no necesita fragmento de Streamlit)
     renderizar_panel_central(main)
+
 with col_right:
     renderizar_panel_noticias(main)

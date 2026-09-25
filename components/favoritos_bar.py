@@ -93,7 +93,7 @@ def renderizar_barra_favoritos():
                 with c_x:
                     if st.button("✕", key=f"quitar_fav_{tk}", help=f"Quitar {nombre}"):
                         quitar_favorito(tk)
-                        st.rerun()
+                        st.rerun(scope="fragment")
 
     # Selector para agregar un nuevo favorito, dentro de la misma barra
     if puede_agregar:
@@ -115,6 +115,6 @@ def renderizar_barra_favoritos():
             )
             if sel:
                 agregar_favorito(sel)
-                st.rerun()
+                st.rerun(scope="fragment")
 
     st.markdown("---")
