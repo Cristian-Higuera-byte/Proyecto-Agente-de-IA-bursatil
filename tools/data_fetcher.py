@@ -9,7 +9,6 @@ fundamentales, dividendos, etc.) para un ticker dado.
 import pandas as pd  # type: ignore[import-untyped]
 import yfinance as yf  # type: ignore[import-untyped]
 
-
 def obtener_datos_historicos(ticker: str, periodo: str = "6mo", intervalo: str = "1d") -> pd.DataFrame:
     """
     Descarga el historial de precios de un activo desde Yahoo Finance.
@@ -32,7 +31,6 @@ def obtener_datos_historicos(ticker: str, periodo: str = "6mo", intervalo: str =
         raise ValueError(f"No se encontraron datos para el ticker '{ticker}'.")
 
     return historico
-
 
 def obtener_info_general(ticker: str) -> dict:
     """
@@ -90,39 +88,39 @@ def obtener_precio_en_fecha(ticker: str, fecha: str) -> float:
 def obtener_noticias_activo(ticker: str, limite: int = 5) -> list:
     """
     Obtiene las noticias y titulares recientes de un activo utilizando yfinance.
-    
+
     Parámetros:
         ticker (str): Símbolo bursátil (ej. AAPL, TSLA).
         limite (int): Cantidad máxima de noticias a retornar.
-        
+
     Retorna:
         list: Lista de diccionarios con título, fuente y enlace de cada noticia.
     """
     try:
         tk = yf.Ticker(ticker)
         noticias = tk.news
-        
+
         if not noticias:
             return [{"titulo": "No hay noticias recientes disponibles para este ticker."}]
-            
+
         resultados = []
         for item in noticias[:limite]:
             # yfinance maneja la estructura de diccionarios (puede variar según la versión)
             contenido_noticia = item.get("content", item)
-            
+
             titulo = contenido_noticia.get("title", "Sin título")
             publisher = contenido_noticia.get("publisher", "Desconocido")
-            
+
             # Extraer enlace si está disponible
             link_obj = contenido_noticia.get("clickThroughUrl", {})
             link = link_obj.get("url", "#") if isinstance(link_obj, dict) else "#"
-            
+
             resultados.append({
                 "titulo": titulo,
                 "fuente": publisher,
                 "enlace": link
             })
-            
+
         return resultados
     except Exception as e:
         return [{"error": f"No se pudieron obtener noticias para {ticker}: {str(e)}"}]
@@ -130,7 +128,7 @@ def obtener_noticias_activo(ticker: str, limite: int = 5) -> list:
 def obtener_indicadores_macro() -> dict:
     """
     Obtiene los principales indicadores macroeconómicos globales utilizando proxies de mercado en yfinance.
-    
+
     Retorna:
         dict: Valores actuales del Bono del Tesoro (Tasas), Oro (Inflación/Refugio), y Petróleo (Energía).
     """
@@ -139,9 +137,9 @@ def obtener_indicadores_macro() -> dict:
         "GC=F": "Oro (Refugio / Inflación)",
         "CL=F": "Petróleo Crudo (Costos Energéticos)"
     }
-    
+
     resultados_macro = {}
-    
+
     try:
         for ticker, descripcion in indicadores.items():
             tk = yf.Ticker(ticker)
@@ -150,7 +148,7 @@ def obtener_indicadores_macro() -> dict:
                 precio_actual = float(hist["Close"].iloc[-1])
                 precio_anterior = float(hist["Close"].iloc[-2]) if len(hist) > 1 else precio_actual
                 variacion_pct = ((precio_actual - precio_anterior) / precio_anterior) * 100
-                
+
                 resultados_macro[ticker] = {
                     "nombre": descripcion,
                     "valor_actual": round(precio_actual, 2),
@@ -158,11 +156,10 @@ def obtener_indicadores_macro() -> dict:
                 }
             else:
                 resultados_macro[ticker] = {"nombre": descripcion, "error": "Sin datos recientes"}
-                
+
         return resultados_macro
     except Exception as e:
         return {"error": f"No se pudieron obtener los indicadores macroeconómicos: {str(e)}"}
-
 
 if __name__ == "__main__":
     # Prueba rápida del módulo

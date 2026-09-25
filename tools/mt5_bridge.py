@@ -5,11 +5,22 @@ Módulo encargado de la comunicación directa con MetaTrader 5 (MT5)
 para extracción de datos en tiempo real, histórico y ejecución de órdenes.
 """
 
+import os
 from datetime import datetime
 from typing import Optional
 
 import MetaTrader5 as mt5  # type: ignore[import-untyped]
 import pandas as pd  # type: ignore[import-untyped]
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Ruta al ejecutable del terminal MetaTrader 5.
+# Se puede sobrescribir en el .env con MT5_PATH; si no, usa la ruta estándar.
+RUTA_TERMINAL_MT5 = os.getenv(
+    "MT5_PATH",
+    r"C:\Program Files\MetaTrader 5\terminal64.exe",
+)
 
 
 def inicializar_mt5(
@@ -19,9 +30,10 @@ def inicializar_mt5(
 ) -> bool:
     """
     Inicializa y conecta con el terminal de MetaTrader 5.
-    Si no se pasan credenciales, intenta conectar al terminal abierto localmente.
+    Se engancha al terminal indicado en RUTA_TERMINAL_MT5 (lo abre si está cerrado).
+    Si no se pasan credenciales, usa la cuenta ya logueada en el terminal.
     """
-    if not mt5.initialize():
+    if not mt5.initialize(path=RUTA_TERMINAL_MT5):
         print(f"Error al inicializar MT5, código de error: {mt5.last_error()}")
         return False
 

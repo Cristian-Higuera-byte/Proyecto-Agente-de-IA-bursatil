@@ -1,0 +1,32 @@
+# === Secretos y credenciales (NUNCA subir) ===
+.env
+*.env
+
+# === Entorno virtual de Python ===
+env/
+venv/
+.venv/
+
+# === Cache de Python ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+
+# === Symlinks de skills creados por Streamlit ===
+.agents/
+.claude/skills/
+
+# === Archivos generados por el programa ===
+outputs/
+downloads/
+data/*.json
+
+# === Respaldos locales ===
+_backup_pre_mt5_*/
+
+# === Sistema operativo / editor ===
+.DS_Store
+Thumbs.db
+.vscode/
+*.log

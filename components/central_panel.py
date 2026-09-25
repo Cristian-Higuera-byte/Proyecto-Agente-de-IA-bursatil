@@ -6,7 +6,9 @@ import matplotlib.pyplot as plt
 import MetaTrader5 as mt5  # type: ignore[import-untyped]
 import numpy as np
 import pandas as pd  # type: ignore[import-untyped]
+import json
 import streamlit as st
+import streamlit.components.v1 as components
 
 # Importar las funciones del puente de MetaTrader 5
 from tools.mt5_bridge import (
@@ -15,12 +17,38 @@ from tools.mt5_bridge import (
     obtener_precio_actual,
 )
 
+# Plantilla HTML del gráfico estilo TradingView (Lightweight Charts desde CDN)
+_CHART_TEMPLATE = """
+<div id="c" style="width:100%;height:430px;"></div>
+<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<script>
+(function(){
+  function draw(){
+    if(!window.LightweightCharts){ setTimeout(draw, 60); return; }
+    var chart = LightweightCharts.createChart(document.getElementById('c'), {
+      autoSize: true,
+      layout: { background: { color: '#0d1117' }, textColor: '#d1d4dc', fontSize: 12 },
+      grid: { vertLines: { color: '#1b2430' }, horzLines: { color: '#1b2430' } },
+      timeScale: { borderColor: '#30363d', timeVisible: true, secondsVisible: false },
+      rightPriceScale: { borderColor: '#30363d' },
+      crosshair: { mode: 0 }
+    });
+    var s = __SERIES__;
+    s.setData(__DATA__);
+    chart.timeScale().fitContent();
+  }
+  draw();
+})();
+</script>
+"""
+
 def renderizar_panel_central(main: Optional[ModuleType]):
     # Asegurar conexión a MT5 al cargar el panel
     inicializar_mt5()
 
     # Obtener activo actual seleccionado en la interfaz
-    activo_actual = st.session_state.get("activo_seleccionado", "EURUSD")
+    activo_actual = st.session_state.get("activo_seleccionado", "EURUSD...")
+    activo_visible = activo_actual.replace("...", "")
     
     # Obtener cotización en tiempo real (Tick) desde MT5
     info_tick = obtener_precio_actual(activo_actual)
@@ -42,7 +70,7 @@ def renderizar_panel_central(main: Optional[ModuleType]):
         <div style='background-color: #161b22; padding: 20px; border-radius: 8px; border: 1px solid #30363d; margin-bottom: 12px;'>
             <div style='display: flex; justify-content: space-between; align-items: center;'>
                 <div>
-                    <span style='font-size: 24px; font-weight: bold; color: #ffffff;'>{activo_actual}</span>
+                    <span style='font-size: 24px; font-weight: bold; color: #ffffff;'>{activo_visible}</span>
                     <span style='background: #30363d; color: #8b949e; padding: 4px 10px; border-radius: 4px; font-size: 14px; margin-left: 10px;'>MT5 Broker &nbsp; Live Feed</span>
                 </div>
                 <div style='font-size: 18px; color: #8b949e; font-weight: 600; display: flex; align-items: center; gap: 8px;'>
@@ -50,8 +78,8 @@ def renderizar_panel_central(main: Optional[ModuleType]):
                 </div>
             </div>
             <div style='margin-top: 12px;'>
-                <span style='font-size: 42px; font-weight: bold; font-family: monospace; color: #ffffff;'>${precio_actual:,.5f}</span>
-                <span style='font-size: 18px; font-weight: bold; color: {color_var_activo}; margin-left: 14px;'>Bid: {info_tick.get('bid', 0)} | Ask: {info_tick.get('ask', 0)}</span>
+                <span style='font-size: 28px; font-weight: bold; font-family: monospace; color: #ffffff;'>${precio_actual:,.5f}</span>
+                <span style='font-size: 18px; font-weight: bold; color: {color_var_activo}; margin-left: 14px;'>Bid: {float(info_tick.get('bid', 0)):,.5f} | Ask: {float(info_tick.get('ask', 0)):,.5f}</span>
             </div>
         </div>
     """, unsafe_allow_html=True)
@@ -89,54 +117,39 @@ def renderizar_panel_central(main: Optional[ModuleType]):
     # --- EXTRACCIÓN DE DATOS REALES HISTÓRICOS DESDE MT5 ---
     df_historico = obtener_datos_historicos(activo_actual, timeframe=mt5_tf, n_velas=150)
 
-    # Renderizado de gráfico técnico principal con datos de MT5
-    plt.style.use('dark_background')
-    fig, ax = plt.subplots(figsize=(10, 4.5))
-    fig.patch.set_facecolor('#0d1117')
-    ax.set_facecolor('#161b22')
-
-    if not df_historico.empty:
-        tiempos = df_historico.index
-        apertura = df_historico['open']
-        cierre = df_historico['close']
-        maximos = df_historico['high']
-        minimos = df_historico['low']
-        volumenes = df_historico['tick_volume']
+    # --- Gráfico estilo TradingView (Lightweight Charts vía components.html + CDN) ---
+    if df_historico.empty:
+        st.warning(f"⚠️ No hay datos disponibles en MT5 para '{activo_visible}'.")
+    else:
+        tiempos = [int(t.timestamp()) for t in df_historico.index]
 
         if tipo_grafico == "Velas":
-            for i in range(len(df_historico)):
-                color = '#3fb950' if cierre.iloc[i] >= apertura.iloc[i] else '#f85149'
-                ax.vlines(x=i, ymin=minimos.iloc[i], ymax=maximos.iloc[i], color=color, linewidth=1.5)
-                ax.bar(i, height=abs(cierre.iloc[i] - apertura.iloc[i]), bottom=min(apertura.iloc[i], cierre.iloc[i]), color=color, width=0.6)
-                
-            ax.set_title(f"Gráfico de Velas (MT5) — {activo_actual} [{temporalidad_elegida}]", color='#ffffff', fontsize=14, fontweight='bold', pad=12)
-            ax.set_ylabel("Precio", color='#8b949e', fontsize=12, fontweight='bold')
-            ax.set_xlabel("Barras Históricas", color='#8b949e', fontsize=12, fontweight='bold')
-
+            data = [
+                {"time": tiempos[i],
+                 "open": round(float(df_historico['open'].iloc[i]), 5),
+                 "high": round(float(df_historico['high'].iloc[i]), 5),
+                 "low": round(float(df_historico['low'].iloc[i]), 5),
+                 "close": round(float(df_historico['close'].iloc[i]), 5)}
+                for i in range(len(df_historico))
+            ]
+            series_js = ("chart.addCandlestickSeries({upColor:'#3fb950',downColor:'#f85149',"
+                         "borderUpColor:'#3fb950',borderDownColor:'#f85149',"
+                         "wickUpColor:'#3fb950',wickDownColor:'#f85149'})")
         elif tipo_grafico == "Líneas":
-            ax.plot(range(len(df_historico)), cierre, color='#3fb950', linewidth=2.2, label=f"Cierre {activo_actual}")
-            ax.fill_between(range(len(df_historico)), cierre, cierre.min() * 0.99, color='#238636', alpha=0.15)
-            ax.set_title(f"Evolución de Línea (MT5) — {activo_actual} [{temporalidad_elegida}]", color='#ffffff', fontsize=14, fontweight='bold', pad=12)
-            ax.set_ylabel("Precio", color='#8b949e', fontsize=12, fontweight='bold')
-            ax.set_xlabel(f"Línea de Tiempo ({temporalidad_elegida})", color='#8b949e', fontsize=12, fontweight='bold')
-            ax.legend(loc='upper left', frameon=True, facecolor='#161b22', edgecolor='#30363d')
+            data = [{"time": tiempos[i], "value": round(float(df_historico['close'].iloc[i]), 5)} for i in range(len(df_historico))]
+            series_js = ("chart.addAreaSeries({lineColor:'#3fb950',lineWidth:2,"
+                         "topColor:'rgba(63,185,80,0.35)',bottomColor:'rgba(63,185,80,0.0)'})")
+        else:  # Barras -> Volumen
+            data = [
+                {"time": tiempos[i],
+                 "value": float(df_historico['tick_volume'].iloc[i]),
+                 "color": "#3fb950" if df_historico['close'].iloc[i] >= df_historico['open'].iloc[i] else "#f85149"}
+                for i in range(len(df_historico))
+            ]
+            series_js = "chart.addHistogramSeries({priceFormat:{type:'volume'}})"
 
-        elif tipo_grafico == "Barras":
-            ax.bar(range(len(df_historico)), volumenes, color='#58a6ff', alpha=0.8, width=0.6)
-            ax.set_title(f"Volumen Operativo (MT5) — {activo_actual} [{temporalidad_elegida}]", color='#ffffff', fontsize=14, fontweight='bold', pad=12)
-            ax.set_ylabel("Volumen (Ticks)", color='#8b949e', fontsize=12, fontweight='bold')
-            ax.set_xlabel("Sesiones MT5", color='#8b949e', fontsize=12, fontweight='bold')
-    else:
-        ax.text(0.5, 0.5, f"No hay datos disponibles en MT5 para '{activo_actual}'", color='#f85149', fontsize=14, ha='center', va='center', transform=ax.transAxes)
-
-    ax.grid(True, color='#30363d', linestyle='--', alpha=0.5)
-    ax.tick_params(colors='#8b949e', labelsize=11)
-    for spine in ax.spines.values():
-        spine.set_edgecolor('#30363d')
-
-    plt.tight_layout()
-    st.pyplot(fig)
-    plt.close(fig)
+        html_chart = _CHART_TEMPLATE.replace("__SERIES__", series_js).replace("__DATA__", json.dumps(data))
+        components.html(html_chart, height=445)
 
     # --- ZONA DE CHAT INFERIOR CONECTADA A main.py (Intacta) ---
     st.markdown("---")
