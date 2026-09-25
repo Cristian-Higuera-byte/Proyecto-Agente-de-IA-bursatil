@@ -58,6 +58,7 @@ def obtener_volatilidad(ticker, periodo="6mo", ventana=20):
     return {"ticker": ticker, "periodo": periodo, "ventana": ventana,
             "volatilidad_anualizada": float(retornos.std() * (252 ** 0.5))}
 
+
 HERRAMIENTAS = [
     {
         "type": "function",
@@ -396,6 +397,7 @@ NOMBRES_VALIDOS = {
     "graficar_predictivo",
     "genera_grafico_prediccion",
 }
+
 
 def ejecutar_herramienta(nombre_funcion: str, argumentos: dict):
     if nombre_funcion == "obtener_resumen_activo":

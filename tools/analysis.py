@@ -23,7 +23,6 @@ def calcular_media_movil(datos: pd.DataFrame, ventana: int = 20) -> pd.Series:
     """
     return datos["Close"].rolling(window=ventana).mean()
 
-
 def calcular_rendimiento(datos: pd.DataFrame) -> pd.Series:
     """
     Calcula el rendimiento porcentual diario del activo.
@@ -35,7 +34,6 @@ def calcular_rendimiento(datos: pd.DataFrame) -> pd.Series:
         pd.Series: Rendimientos diarios en porcentaje.
     """
     return datos["Close"].pct_change() * 100
-
 
 def calcular_volatilidad(datos: pd.DataFrame, ventana: int = 20) -> float:
     """
@@ -53,7 +51,6 @@ def calcular_volatilidad(datos: pd.DataFrame, ventana: int = 20) -> float:
     volatilidad_diaria = rendimientos.std()
     volatilidad_anualizada = volatilidad_diaria * (252 ** 0.5)  # 252 días hábiles/año
     return round(volatilidad_anualizada, 2)
-
 
 def resumen_basico(datos: pd.DataFrame) -> dict:
     """
@@ -99,7 +96,6 @@ def comparar_precio_historico(ticker: str, fecha: str) -> dict:
         "diferencia_absoluta": diferencia_absoluta,
         "diferencia_%": diferencia_pct,
     }
-
 
 def calcular_rendimiento_periodo(ticker: str, fecha_inicio: str, fecha_fin: str) -> dict:
     """
@@ -164,63 +160,61 @@ def obtener_volatilidad(ticker: str, periodo: str = "6mo", ventana: int = 20) ->
 def calcular_rsi(datos: pd.DataFrame, ventana: int = 14) -> float:
     """
     Calcula el Índice de Fuerza Relativa (RSI) actual del activo.
-    
+
     Parámetros:
         datos (pd.DataFrame): DataFrame con datos históricos OHLCV.
         ventana (int): Periodos para el cálculo del RSI (por defecto 14).
-        
+
     Retorna:
         float: Valor actual del RSI redondeado a 2 decimales.
     """
     delta = datos["Close"].diff()
     ganancia = (delta.where(delta > 0, 0)).rolling(window=ventana).mean()
     perdida = (-delta.where(delta < 0, 0)).rolling(window=ventana).mean()
-    
+
     rs = ganancia / perdida
     rsi = 100 - (100 / (1 + rs))
-    
+
     valor_actual = rsi.iloc[-1]
     if pd.isna(valor_actual):
         raise ValueError("No hay suficientes datos para calcular el RSI.")
     return round(float(valor_actual), 2)
 
-
 def calcular_macd(datos: pd.DataFrame, span_rapido: int = 12, span_lento: int = 26, señal: int = 9) -> dict:
     """
     Calcula el indicador MACD (Moving Average Convergence Divergence).
-    
+
     Parámetros:
         datos (pd.DataFrame): DataFrame con datos históricos OHLCV.
         span_rapido (int): Media móvil exponencial rápida (por defecto 12).
         span_lento (int): Media móvil exponencial lenta (por defecto 26).
         señal (int): Línea de señal (por defecto 9).
-        
+
     Retorna:
         dict: Valores actuales de la línea MACD, la línea de señal y el histograma.
     """
     ema_rapida = datos["Close"].ewm(span=span_rapido, adjust=False).mean()
     ema_lenta = datos["Close"].ewm(span=span_lento, adjust=False).mean()
-    
+
     linea_macd = ema_rapida - ema_lenta
     linea_señal = linea_macd.ewm(span=señal, adjust=False).mean()
     histograma = linea_macd - linea_señal
-    
+
     return {
         "macd": round(float(linea_macd.iloc[-1]), 2),
         "señal": round(float(linea_señal.iloc[-1]), 2),
         "histograma": round(float(histograma.iloc[-1]), 2),
     }
 
-
 def calcular_soportes_resistencias(datos: pd.DataFrame, ventana: int = 20) -> dict:
     """
-    Calcula niveles aproximados de soporte y resistencia basados en los 
+    Calcula niveles aproximados de soporte y resistencia basados en los
     mínimos y máximos locales de un período reciente.
-    
+
     Parámetros:
         datos (pd.DataFrame): DataFrame con datos históricos OHLCV.
         ventana (int): Días recientes a evaluar.
-        
+
     Retorna:
         dict: Soporte y resistencia estimados.
     """
@@ -228,7 +222,7 @@ def calcular_soportes_resistencias(datos: pd.DataFrame, ventana: int = 20) -> di
     soporte = round(float(recientes["Low"].min()), 2)
     resistencia = round(float(recientes["High"].max()), 2)
     precio_actual = round(float(datos["Close"].iloc[-1]), 2)
-    
+
     return {
         "precio_actual": precio_actual,
         "soporte_estimado": soporte,
@@ -239,13 +233,13 @@ def calcular_soportes_resistencias(datos: pd.DataFrame, ventana: int = 20) -> di
 def comparar_multi_activos(tickers: list, periodo: str = "1mo") -> dict:
     """
     Compara el precio actual y el rendimiento porcentual de una lista de tickers en un período dado.
-    
+
     Parámetros:
         tickers (list): Lista de símbolos bursátiles (ej. ["TSLA", "AAPL", "NVDA"]).
         periodo (str): Período de análisis (ej. "1mo", "6mo", "1y").
     """
     resultados = {}
-    
+
     for ticker in tickers:
         t = ticker.upper().strip()
         try:
@@ -255,7 +249,7 @@ def comparar_multi_activos(tickers: list, periodo: str = "1mo") -> dict:
                 precio_inicio = float(hist["Close"].iloc[0])
                 precio_fin = float(hist["Close"].iloc[-1])
                 rendimiento_pct = ((precio_fin - precio_inicio) / precio_inicio) * 100
-                
+
                 resultados[t] = {
                     "precio_actual": round(precio_fin, 2),
                     "rendimiento_pct": round(rendimiento_pct, 2),
@@ -265,7 +259,7 @@ def comparar_multi_activos(tickers: list, periodo: str = "1mo") -> dict:
                 resultados[t] = {"error": "No hay datos históricos disponibles para el período."}
         except Exception as e:
             resultados[t] = {"error": str(e)}
-            
+
     return resultados
 
 def screening_rapido_mercado(tickers: list) -> str:
@@ -273,7 +267,7 @@ def screening_rapido_mercado(tickers: list) -> str:
     Realiza un barrido o screening básico sobre una lista de activos para evaluar su tendencia actual.
     """
     reporte = f"--- SCREENING DE MERCADO ({len(tickers)} activos analizados) ---\n"
-    
+
     for ticker in tickers:
         t = ticker.upper().strip()
         try:
@@ -283,10 +277,10 @@ def screening_rapido_mercado(tickers: list) -> str:
                 actual = float(hist["Close"].iloc[-1])
                 previo_mes = float(hist["Close"].iloc[0])
                 cambio = ((actual - previo_mes) / previo_mes) * 100
-                
+
                 tendencia = "📈 Alcista" if cambio > 0 else "📉 Bajista"
                 reporte += f"• {t}: Actual ${actual:.2f} | Cambio mensual: {cambio:+.2f}% ({tendencia})\n"
         except Exception:
             reporte += f"• {t}: Error al procesar datos.\n"
-            
+
     return reporte

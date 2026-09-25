@@ -8,7 +8,6 @@ reportes o históricos ya se han generado.
 
 import os
 
-
 def listar_archivos(directorio: str = ".") -> dict:
     """
     Lista los archivos y carpetas contenidos en un directorio dado.

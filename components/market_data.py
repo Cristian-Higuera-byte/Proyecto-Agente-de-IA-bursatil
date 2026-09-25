@@ -48,17 +48,17 @@ def cargar_datos_mercado():
 
     # 2. Carga segura de datos de mercado (Watchlist)
     # Soportando tickers tradicionales y activos directos de MT5 (como EURUSD, GBPUSD, etc.)
-    tickers_watchlist = ["EURUSD", "GBPUSD", "USDJPY", "META", "MSFT", "NVDA", "AAPL"]
+    tickers_watchlist = ["EURUSD...", "GBPUSD...", "USDJPY...", "XAUUSD...", "BTCUSD", "ETHUSD", "US30"]
 
     if "datos_mercado_real" not in st.session_state:
         st.session_state.datos_mercado_real = {
-            "EURUSD": {"nombre": "Euro / US Dollar", "mercado": "FOREX", "precio": 1.0850, "var": "+0.0012 (+0.11%)", "sube": True},
-            "GBPUSD": {"nombre": "British Pound / US Dollar", "mercado": "FOREX", "precio": 1.3020, "var": "-0.0025 (-0.19%)", "sube": False},
-            "USDJPY": {"nombre": "US Dollar / Japanese Yen", "mercado": "FOREX", "precio": 155.40, "var": "+0.45 (+0.29%)", "sube": True},
-            "META": {"nombre": "Meta Platforms, Inc.", "mercado": "NASDAQ", "precio": 738.71, "var": "-2.54 (-0.34%)", "sube": False},
-            "MSFT": {"nombre": "Microsoft Corporation", "mercado": "NASDAQ", "precio": 498.38, "var": "-3.23 (-0.64%)", "sube": False},
-            "NVDA": {"nombre": "NVIDIA Corporation", "mercado": "NASDAQ", "precio": 1024.58, "var": "+1.97 (+0.87%)", "sube": True},
-            "AAPL": {"nombre": "Apple Inc.", "mercado": "NASDAQ", "precio": 340.17, "var": "+1.19 (+0.35%)", "sube": True}
+            "EURUSD...": {"nombre": "Euro / US Dollar", "mercado": "FOREX", "precio": 1.0850, "var": "+0.0012 (+0.11%)", "sube": True},
+            "GBPUSD...": {"nombre": "British Pound / US Dollar", "mercado": "FOREX", "precio": 1.3020, "var": "-0.0025 (-0.19%)", "sube": False},
+            "USDJPY...": {"nombre": "US Dollar / Japanese Yen", "mercado": "FOREX", "precio": 155.40, "var": "+0.45 (+0.29%)", "sube": True},
+            "XAUUSD...": {"nombre": "Oro / US Dollar", "mercado": "METALES", "precio": 2350.00, "var": "+5.40 (+0.23%)", "sube": True},
+            "BTCUSD": {"nombre": "Bitcoin / US Dollar", "mercado": "CRIPTO", "precio": 67204.00, "var": "+900.00 (+1.35%)", "sube": True},
+            "ETHUSD": {"nombre": "Ethereum / US Dollar", "mercado": "CRIPTO", "precio": 2712.00, "var": "-15.00 (-0.55%)", "sube": False},
+            "US30": {"nombre": "Dow Jones 30", "mercado": "ÍNDICE", "precio": 39310.44, "var": "-120.00 (-0.31%)", "sube": False}
         }
 
     for ticker in tickers_watchlist:

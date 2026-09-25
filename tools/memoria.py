@@ -12,7 +12,6 @@ from datetime import datetime
 
 ARCHIVO_MEMORIA = "data/consultas_guardadas.json"
 
-
 def guardar_consulta(pregunta: str, resultado: dict) -> dict:
     """
     Agrega una nueva consulta o actualiza la existente si la pregunta
@@ -69,5 +68,5 @@ def limpiar_memoria() -> dict:
     if os.path.exists(ARCHIVO_MEMORIA):
         # Opción 1: Borrar el archivo físicamente
         os.remove(ARCHIVO_MEMORIA)
-    
+
     return {"estado": "limpiado", "mensaje": "El historial de consultas guardadas ha sido borrado exitosamente."}
