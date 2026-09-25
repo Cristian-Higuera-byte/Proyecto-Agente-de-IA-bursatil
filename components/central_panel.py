@@ -17,14 +17,21 @@ from tools.mt5_bridge import (
     obtener_precio_actual,
 )
 
-# Plantilla HTML del gráfico estilo TradingView (Lightweight Charts desde CDN)
+# Plantilla HTML del gráfico EN TIEMPO REAL:
+# Lightweight Charts (CDN) + polling al servidor de datos (servidor_datos.py).
+# El gráfico se crea una sola vez y avanza solo llamando a serie.update(),
+# igual que las plataformas de trading (sin recargar Streamlit).
 _CHART_TEMPLATE = """
-<div id="c" style="width:100%;height:430px;"></div>
+<div id="c" style="width:100%;height:445px;"></div>
 <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 <script>
 (function(){
-  function draw(){
-    if(!window.LightweightCharts){ setTimeout(draw, 60); return; }
+  var API = "http://localhost:8000";
+  var SIMBOLO = "__SIMBOLO__";
+  var TF = "__TF__";
+  var TIPO = "__TIPO__";
+  function iniciar(){
+    if(!window.LightweightCharts){ setTimeout(iniciar, 60); return; }
     var chart = LightweightCharts.createChart(document.getElementById('c'), {
       autoSize: true,
       layout: { background: { color: '#0d1117' }, textColor: '#d1d4dc', fontSize: 12 },
@@ -33,11 +40,32 @@ _CHART_TEMPLATE = """
       rightPriceScale: { borderColor: '#30363d' },
       crosshair: { mode: 0 }
     });
-    var s = __SERIES__;
-    s.setData(__DATA__);
-    chart.timeScale().fitContent();
+    var serie;
+    if(TIPO === "Líneas") serie = chart.addAreaSeries({lineColor:'#3fb950',lineWidth:2,topColor:'rgba(63,185,80,0.35)',bottomColor:'rgba(63,185,80,0.0)'});
+    else if(TIPO === "Barras") serie = chart.addHistogramSeries({priceFormat:{type:'volume'}});
+    else serie = chart.addCandlestickSeries({upColor:'#3fb950',downColor:'#f85149',borderUpColor:'#3fb950',borderDownColor:'#f85149',wickUpColor:'#3fb950',wickDownColor:'#f85149'});
+
+    function aPunto(v){
+      if(TIPO === "Líneas") return {time:v.time, value:v.close};
+      if(TIPO === "Barras") return {time:v.time, value:v.volume, color:(v.close>=v.open?'#3fb950':'#f85149')};
+      return {time:v.time, open:v.open, high:v.high, low:v.low, close:v.close};
+    }
+
+    // 1) Carga inicial de las velas históricas
+    fetch(API + "/velas/" + encodeURIComponent(SIMBOLO) + "?tf=" + TF + "&n=150")
+      .then(function(r){ return r.json(); })
+      .then(function(velas){ if(velas && velas.length){ serie.setData(velas.map(aPunto)); chart.timeScale().fitContent(); } })
+      .catch(function(){});
+
+    // 2) EN VIVO: cada 1.5 s pide la última vela y avanza el gráfico
+    setInterval(function(){
+      fetch(API + "/ultima/" + encodeURIComponent(SIMBOLO) + "?tf=" + TF)
+        .then(function(r){ return r.json(); })
+        .then(function(v){ if(v && v.time){ serie.update(aPunto(v)); } })
+        .catch(function(){});
+    }, 1500);
   }
-  draw();
+  iniciar();
 })();
 </script>
 """
@@ -50,39 +78,41 @@ def renderizar_panel_central(main: Optional[ModuleType]):
     activo_actual = st.session_state.get("activo_seleccionado", "EURUSD...")
     activo_visible = activo_actual.replace("...", "")
     
-    # Obtener cotización en tiempo real (Tick) desde MT5
-    info_tick = obtener_precio_actual(activo_actual)
-    
-    if "error" not in info_tick:
-        precio_actual = info_tick['last'] if info_tick['last'] > 0 else info_tick['bid']
-        # Calcular variación o usar un estimado si el tick no lo provee directamente
-        var_str = "+0.45%" 
-        sube_activo = True
-    else:
-        precio_actual = 1.0850  # Valor fallback por seguridad
-        var_str = "0.00%"
-        sube_activo = True
-
-    color_var_activo = "#3fb950" if sube_activo else "#f85149"
-
-    # Cabecera conectada a MT5
-    st.markdown(f"""
-        <div style='background-color: #161b22; padding: 20px; border-radius: 8px; border: 1px solid #30363d; margin-bottom: 12px;'>
-            <div style='display: flex; justify-content: space-between; align-items: center;'>
-                <div>
-                    <span style='font-size: 24px; font-weight: bold; color: #ffffff;'>{activo_visible}</span>
-                    <span style='background: #30363d; color: #8b949e; padding: 4px 10px; border-radius: 4px; font-size: 14px; margin-left: 10px;'>MT5 Broker &nbsp; Live Feed</span>
+    # Cabecera con PRECIO EN VIVO: se refresca sola cada 2 s (sin recargar el gráfico ni el chat)
+    @st.fragment(run_every="2s")
+    def _cabecera_precio():
+        info_tick = obtener_precio_actual(activo_actual)
+        if "error" not in info_tick:
+            precio_actual = info_tick.get("last", 0) if info_tick.get("last", 0) > 0 else info_tick.get("bid", 0)
+        else:
+            precio_actual = 0.0
+        # Color según el precio suba o baje respecto a la lectura anterior
+        clave = f"_prev_precio_{activo_actual}"
+        anterior = st.session_state.get(clave, precio_actual)
+        sube_activo = precio_actual >= anterior
+        st.session_state[clave] = precio_actual
+        color_var_activo = "#3fb950" if sube_activo else "#f85149"
+        bid = float(info_tick.get("bid", 0))
+        ask = float(info_tick.get("ask", 0))
+        st.markdown(f"""
+            <div style='background-color: #161b22; padding: 20px; border-radius: 8px; border: 1px solid #30363d; margin-bottom: 12px;'>
+                <div style='display: flex; justify-content: space-between; align-items: center;'>
+                    <div>
+                        <span style='font-size: 24px; font-weight: bold; color: #ffffff;'>{activo_visible}</span>
+                        <span style='background: #30363d; color: #8b949e; padding: 4px 10px; border-radius: 4px; font-size: 14px; margin-left: 10px;'>MT5 Broker &nbsp; Live Feed</span>
+                    </div>
+                    <div style='font-size: 18px; color: #8b949e; font-weight: 600; display: flex; align-items: center; gap: 8px;'>
+                        Conectado a MT5 <span style='color: #3fb950; font-size: 20px;'>●</span>
+                    </div>
                 </div>
-                <div style='font-size: 18px; color: #8b949e; font-weight: 600; display: flex; align-items: center; gap: 8px;'>
-                    Conectado a MT5 <span style='color: #3fb950; font-size: 20px;'>●</span>
+                <div style='margin-top: 12px;'>
+                    <span style='font-size: 28px; font-weight: bold; font-family: monospace; color: {color_var_activo};'>${precio_actual:,.5f}</span>
+                    <span style='font-size: 18px; font-weight: bold; color: {color_var_activo}; margin-left: 14px;'>Bid: {bid:,.5f} | Ask: {ask:,.5f}</span>
                 </div>
             </div>
-            <div style='margin-top: 12px;'>
-                <span style='font-size: 28px; font-weight: bold; font-family: monospace; color: #ffffff;'>${precio_actual:,.5f}</span>
-                <span style='font-size: 18px; font-weight: bold; color: {color_var_activo}; margin-left: 14px;'>Bid: {float(info_tick.get('bid', 0)):,.5f} | Ask: {float(info_tick.get('ask', 0)):,.5f}</span>
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
+
+    _cabecera_precio()
 
     col_peridos, col_tipos = st.columns([1.5, 1])
 
@@ -103,53 +133,17 @@ def renderizar_panel_central(main: Optional[ModuleType]):
             key=f"tipo_grafico_{activo_actual}"
         )
 
-    # Mapeo de string a constantes de MT5
-    tf_map = {
-        "M1": mt5.TIMEFRAME_M1,
-        "M5": mt5.TIMEFRAME_M5,
-        "M15": mt5.TIMEFRAME_M15,
-        "H1": mt5.TIMEFRAME_H1,
-        "H4": mt5.TIMEFRAME_H4,
-        "D1": mt5.TIMEFRAME_D1,
-    }
-    mt5_tf = tf_map.get(temporalidad_elegida, mt5.TIMEFRAME_H1)
-
-    # --- EXTRACCIÓN DE DATOS REALES HISTÓRICOS DESDE MT5 ---
-    df_historico = obtener_datos_historicos(activo_actual, timeframe=mt5_tf, n_velas=150)
-
-    # --- Gráfico estilo TradingView (Lightweight Charts vía components.html + CDN) ---
-    if df_historico.empty:
-        st.warning(f"⚠️ No hay datos disponibles en MT5 para '{activo_visible}'.")
-    else:
-        tiempos = [int(t.timestamp()) for t in df_historico.index]
-
-        if tipo_grafico == "Velas":
-            data = [
-                {"time": tiempos[i],
-                 "open": round(float(df_historico['open'].iloc[i]), 5),
-                 "high": round(float(df_historico['high'].iloc[i]), 5),
-                 "low": round(float(df_historico['low'].iloc[i]), 5),
-                 "close": round(float(df_historico['close'].iloc[i]), 5)}
-                for i in range(len(df_historico))
-            ]
-            series_js = ("chart.addCandlestickSeries({upColor:'#3fb950',downColor:'#f85149',"
-                         "borderUpColor:'#3fb950',borderDownColor:'#f85149',"
-                         "wickUpColor:'#3fb950',wickDownColor:'#f85149'})")
-        elif tipo_grafico == "Líneas":
-            data = [{"time": tiempos[i], "value": round(float(df_historico['close'].iloc[i]), 5)} for i in range(len(df_historico))]
-            series_js = ("chart.addAreaSeries({lineColor:'#3fb950',lineWidth:2,"
-                         "topColor:'rgba(63,185,80,0.35)',bottomColor:'rgba(63,185,80,0.0)'})")
-        else:  # Barras -> Volumen
-            data = [
-                {"time": tiempos[i],
-                 "value": float(df_historico['tick_volume'].iloc[i]),
-                 "color": "#3fb950" if df_historico['close'].iloc[i] >= df_historico['open'].iloc[i] else "#f85149"}
-                for i in range(len(df_historico))
-            ]
-            series_js = "chart.addHistogramSeries({priceFormat:{type:'volume'}})"
-
-        html_chart = _CHART_TEMPLATE.replace("__SERIES__", series_js).replace("__DATA__", json.dumps(data))
-        components.html(html_chart, height=445)
+    # --- Gráfico EN TIEMPO REAL (Lightweight Charts + polling a servidor_datos.py) ---
+    # El gráfico se alimenta solo desde el servidor de datos: aquí únicamente se le
+    # indica qué símbolo, temporalidad y tipo mostrar. Su JavaScript hace la carga
+    # inicial y luego actualiza la última vela cada 1.5 s (avanza como TradingView).
+    html_chart = (
+        _CHART_TEMPLATE
+        .replace("__SIMBOLO__", activo_actual)
+        .replace("__TF__", temporalidad_elegida)
+        .replace("__TIPO__", tipo_grafico)
+    )
+    components.html(html_chart, height=475)
 
     # --- ZONA DE CHAT INFERIOR CONECTADA A main.py (Intacta) ---
     st.markdown("---")

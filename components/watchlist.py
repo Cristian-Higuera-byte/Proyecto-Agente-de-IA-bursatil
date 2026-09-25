@@ -62,7 +62,7 @@ def renderizar_watchlist():
                     quitar_favorito(ticker)
                 else:
                     agregar_favorito(ticker)
-                st.rerun()
+                st.rerun(scope="fragment")  # refresco local rápido (no recarga toda la app)
 
     st.markdown("---")
     if st.button("+ Add Holdings", use_container_width=True):

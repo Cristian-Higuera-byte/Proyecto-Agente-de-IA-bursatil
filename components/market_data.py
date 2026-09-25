@@ -111,3 +111,27 @@ def cargar_datos_mercado():
                     st.session_state.datos_mercado_real[ticker]["sube"] = sube
         except Exception:
             pass
+
+def actualizar_precios_mt5():
+    """
+    Actualización LIGERA y rápida de los precios de la watchlist desde MT5
+    (solo tick en vivo, sin yfinance). Pensada para el auto-refresco en tiempo real.
+    Actualiza st.session_state.datos_mercado_real en su lugar.
+    """
+    inicializar_mt5()
+    datos = st.session_state.get("datos_mercado_real")
+    if not datos:
+        return
+    for ticker in list(datos.keys()):
+        try:
+            info_tick = obtener_precio_actual(ticker)
+            if "error" in info_tick:
+                continue
+            precio_actual = info_tick.get("last", 0) if info_tick.get("last", 0) > 0 else info_tick.get("bid", 0)
+            if precio_actual and precio_actual > 0:
+                precio_anterior = datos[ticker].get("precio", precio_actual)
+                sube = (precio_actual - precio_anterior) >= 0
+                datos[ticker]["precio"] = precio_actual
+                datos[ticker]["sube"] = sube
+        except Exception:
+            pass
