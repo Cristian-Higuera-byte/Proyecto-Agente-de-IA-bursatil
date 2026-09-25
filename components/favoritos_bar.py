@@ -84,7 +84,8 @@ def renderizar_barra_favoritos():
                 c_info, c_x = st.columns([4, 1], gap="small")
                 with c_info:
                     st.markdown(
-                        f"<div style='font-size:13px; font-weight:700; color:#ffffff;'>{nombre}</div>"
+                        f"<div style='display:flex; align-items:center; gap:6px;'>{icono_activo(tk)}"
+                        f"<span style='font-size:13px; font-weight:700; color:#ffffff;'>{nombre}</span></div>"
                         f"<div style='font-family:monospace; font-size:16px; font-weight:bold; color:#ffffff;'>{precio_fmt}</div>"
                         f"<div style='font-size:11px; font-weight:bold; color:{color};'>{var}</div>",
                         unsafe_allow_html=True,

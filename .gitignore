@@ -13,9 +13,9 @@ __pycache__/
 *$py.class
 *.pyc
 
-# === Symlinks de skills creados por Streamlit ===
+# === Carpetas de herramientas de IA / skills (NO subir) ===
 .agents/
-.claude/skills/
+.claude/
 
 # === Archivos generados por el programa ===
 outputs/
