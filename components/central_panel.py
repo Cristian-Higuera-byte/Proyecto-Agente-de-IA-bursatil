@@ -17,12 +17,109 @@ from tools.mt5_bridge import (
     obtener_precio_actual,
 )
 
-# Plantilla HTML del gráfico EN TIEMPO REAL:
-# Lightweight Charts (CDN) + polling al servidor de datos (servidor_datos.py).
-# El gráfico se crea una sola vez y avanza solo llamando a serie.update(),
-# igual que las plataformas de trading (sin recargar Streamlit).
+# ==========================================================================
+# Plantilla HTML del gráfico estilo TradingView (Lightweight Charts + polling
+# al servidor local de MT5: servidor_datos.py).
+#
+# Funcional: velas/línea/histograma, panel de volumen permanente, leyenda
+#            OHLC dinámica, selector de rango inferior, indicador SMA(20),
+#            captura de imagen y pantalla completa.
+# Decorativo (marcado "Próximamente"): iconos de dibujo de la barra
+#            izquierda -- lightweight-charts no incluye herramientas de
+#            dibujo nativas, eso requeriría un desarrollo aparte.
+# ==========================================================================
 _CHART_TEMPLATE = """
-<div id="c" style="width:100%;height:445px;"></div>
+<style>
+    #tv-wrap { background:#0d1117; border:1px solid #30363d; border-radius:8px; overflow:hidden; }
+    #tv-topbar {
+        display:flex; align-items:center; justify-content:space-between;
+        padding:8px 12px; border-bottom:1px solid #1b2430; background:#0d1117;
+        font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+    }
+    #tv-legend { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+    #tv-legend .tv-sym { font-size:14px; font-weight:700; color:#ffffff; }
+    #tv-legend .tv-ohlc { font-size:12px; color:#8b949e; font-family:monospace; }
+    #tv-legend .tv-ohlc b { font-weight:700; }
+    #tv-legend .tv-vol { font-size:12px; color:#8b949e; font-family:monospace; }
+
+    #tv-actions { display:flex; align-items:center; gap:4px; }
+    .tvbtn {
+        display:flex; align-items:center; gap:6px;
+        background:transparent; border:1px solid transparent; color:#8b949e;
+        font-size:12px; padding:5px 9px; border-radius:6px; cursor:pointer;
+        transition: background .15s ease, color .15s ease;
+    }
+    .tvbtn:hover { background:rgba(255,255,255,0.08); color:#ffffff; }
+    .tvbtn.activo { background:rgba(139,92,246,0.15); color:#a78bfa; border-color:rgba(139,92,246,0.4); }
+
+    #tv-body { display:flex; }
+    #tv-toolbar-left {
+        display:flex; flex-direction:column; align-items:center; gap:4px;
+        padding:8px 3px; border-right:1px solid #1b2430; background:#0d1117;
+    }
+    .tvtool {
+        width:28px; height:28px; display:flex; align-items:center; justify-content:center;
+        background:transparent; border:none; color:#8b949e; font-size:14px;
+        border-radius:6px; cursor:pointer; transition: background .15s ease, color .15s ease;
+    }
+    .tvtool:hover { background:rgba(255,255,255,0.08); color:#ffffff; }
+    .tvtool.active { background:rgba(139,92,246,0.18); color:#a78bfa; }
+
+    #c { flex:1; height:480px; }
+
+    #tv-rangebar {
+        display:flex; align-items:center; gap:2px; padding:6px 10px;
+        border-top:1px solid #1b2430; background:#0d1117;
+        font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+    }
+    .tvrange {
+        background:transparent; border:none; color:#8b949e; font-size:12px;
+        font-weight:600; padding:5px 10px; border-radius:5px; cursor:pointer;
+    }
+    .tvrange:hover { background:rgba(255,255,255,0.08); color:#ffffff; }
+    .tvrange.active { background:rgba(88,166,255,0.15); color:#58a6ff; }
+</style>
+
+<div id="tv-wrap">
+    <div id="tv-topbar">
+        <div id="tv-legend">
+            <span class="tv-sym">__SIMBOLO__</span>
+            <span class="tv-ohlc" id="tv-ohlc-vals">Cargando…</span>
+            <span class="tv-vol" id="tv-vol-val"></span>
+        </div>
+        <div id="tv-actions">
+            <button class="tvbtn" id="btn-ind" title="Activar/desactivar media móvil SMA 20">📈 Indicadores</button>
+            <button class="tvbtn" id="btn-shot" title="Descargar imagen del gráfico">📷</button>
+            <button class="tvbtn" id="btn-full" title="Pantalla completa">⛶</button>
+        </div>
+    </div>
+    <div id="tv-body">
+        <div id="tv-toolbar-left">
+            <button class="tvtool active" id="tool-cross" title="Cursor / Cruz">✛</button>
+            <button class="tvtool" title="Línea de tendencia (próximamente)">📈</button>
+            <button class="tvtool" title="Línea horizontal (próximamente)">➖</button>
+            <button class="tvtool" title="Fibonacci (próximamente)">🔢</button>
+            <button class="tvtool" title="Texto (próximamente)">🔤</button>
+            <button class="tvtool" title="Pincel (próximamente)">🖌️</button>
+            <button class="tvtool" title="Regla / medir (próximamente)">📏</button>
+            <button class="tvtool" title="Bloquear dibujos (próximamente)">🔒</button>
+            <button class="tvtool" title="Borrar dibujos (próximamente)">🗑️</button>
+        </div>
+        <div id="c"></div>
+    </div>
+    <div id="tv-rangebar">
+        <button class="tvrange" data-range="1D">1D</button>
+        <button class="tvrange" data-range="5D">5D</button>
+        <button class="tvrange" data-range="1M">1M</button>
+        <button class="tvrange" data-range="3M">3M</button>
+        <button class="tvrange" data-range="6M">6M</button>
+        <button class="tvrange" data-range="YTD">YTD</button>
+        <button class="tvrange" data-range="1A">1A</button>
+        <button class="tvrange" data-range="5A">5A</button>
+        <button class="tvrange active" data-range="Todos">Todos</button>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 <script>
 (function(){
@@ -30,40 +127,196 @@ _CHART_TEMPLATE = """
   var SIMBOLO = "__SIMBOLO__";
   var TF = "__TF__";
   var TIPO = "__TIPO__";
+
+  var BARS_POR_DIA = { M1: 1440, M5: 288, M15: 96, H1: 24, H4: 6, D1: 1 }[TF] || 24;
+
   function iniciar(){
     if(!window.LightweightCharts){ setTimeout(iniciar, 60); return; }
+
     var chart = LightweightCharts.createChart(document.getElementById('c'), {
       autoSize: true,
       layout: { background: { color: '#0d1117' }, textColor: '#d1d4dc', fontSize: 12 },
-      grid: { vertLines: { color: '#1b2430' }, horzLines: { color: '#1b2430' } },
+      grid: { vertLines: { color: '#161b22' }, horzLines: { color: '#161b22' } },
       timeScale: { borderColor: '#30363d', timeVisible: true, secondsVisible: false },
       rightPriceScale: { borderColor: '#30363d' },
-      crosshair: { mode: 0 }
+      crosshair: { mode: 1 }
     });
+
+    // --- Serie principal (según el tipo elegido) ---
     var serie;
-    if(TIPO === "Líneas") serie = chart.addAreaSeries({lineColor:'#3fb950',lineWidth:2,topColor:'rgba(63,185,80,0.35)',bottomColor:'rgba(63,185,80,0.0)'});
-    else if(TIPO === "Barras") serie = chart.addHistogramSeries({priceFormat:{type:'volume'}});
-    else serie = chart.addCandlestickSeries({upColor:'#3fb950',downColor:'#f85149',borderUpColor:'#3fb950',borderDownColor:'#f85149',wickUpColor:'#3fb950',wickDownColor:'#f85149'});
+    if (TIPO === "Líneas") {
+      serie = chart.addAreaSeries({ lineColor:'#3fb950', lineWidth:2, topColor:'rgba(63,185,80,0.35)', bottomColor:'rgba(63,185,80,0.0)' });
+    } else if (TIPO === "Barras") {
+      serie = chart.addHistogramSeries({ priceFormat: { type: 'volume' } });
+    } else {
+      serie = chart.addCandlestickSeries({ upColor:'#3fb950', downColor:'#f85149', borderUpColor:'#3fb950', borderDownColor:'#f85149', wickUpColor:'#3fb950', wickDownColor:'#f85149' });
+    }
+    serie.priceScale().applyOptions({ scaleMargins: { top: 0.08, bottom: 0.22 } });
+
+    // --- Panel de volumen permanente, debajo del precio (como TradingView) ---
+    var serieVolumen = chart.addHistogramSeries({
+      priceFormat: { type: 'volume' },
+      priceScaleId: 'vol',
+      color: 'rgba(63,185,80,0.5)'
+    });
+    chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
+
+    var lineaSMA = null;
+    var indicadoresActivos = false;
+    var datosActuales = [];
 
     function aPunto(v){
-      if(TIPO === "Líneas") return {time:v.time, value:v.close};
-      if(TIPO === "Barras") return {time:v.time, value:v.volume, color:(v.close>=v.open?'#3fb950':'#f85149')};
-      return {time:v.time, open:v.open, high:v.high, low:v.low, close:v.close};
+      if (TIPO === "Líneas") return { time: v.time, value: v.close };
+      if (TIPO === "Barras") return { time: v.time, value: v.volume, color: (v.close >= v.open ? '#3fb950' : '#f85149') };
+      return { time: v.time, open: v.open, high: v.high, low: v.low, close: v.close };
+    }
+    function aPuntoVolumen(v){
+      return { time: v.time, value: v.volume || 0, color: (v.close >= v.open ? 'rgba(63,185,80,0.5)' : 'rgba(248,81,73,0.5)') };
+    }
+    function fmtVol(v){
+      v = v || 0;
+      if (v >= 1e9) return (v/1e9).toFixed(2) + 'B';
+      if (v >= 1e6) return (v/1e6).toFixed(2) + 'M';
+      if (v >= 1e3) return (v/1e3).toFixed(2) + 'K';
+      return String(v);
+    }
+    function calcularSMA(datos, periodo){
+      var out = [];
+      for (var i = periodo - 1; i < datos.length; i++){
+        var suma = 0;
+        for (var j = i - periodo + 1; j <= i; j++){ suma += datos[j].close; }
+        out.push({ time: datos[i].time, value: suma / periodo });
+      }
+      return out;
     }
 
-    // 1) Carga inicial de las velas históricas
-    fetch(API + "/velas/" + encodeURIComponent(SIMBOLO) + "?tf=" + TF + "&n=150")
-      .then(function(r){ return r.json(); })
-      .then(function(velas){ if(velas && velas.length){ serie.setData(velas.map(aPunto)); chart.timeScale().fitContent(); } })
-      .catch(function(){});
+    function actualizarLeyenda(v){
+      if (!v) return;
+      var elOhlc = document.getElementById('tv-ohlc-vals');
+      var elVol = document.getElementById('tv-vol-val');
+      if (!elOhlc) return;
+      var sube = v.close >= v.open;
+      var color = sube ? '#3fb950' : '#f85149';
+      var variacion = v.open ? (((v.close - v.open) / v.open) * 100) : 0;
+      elOhlc.innerHTML =
+        'O<b style="color:' + color + '">' + v.open.toFixed(5) + '</b> ' +
+        'H<b style="color:' + color + '">' + v.high.toFixed(5) + '</b> ' +
+        'L<b style="color:' + color + '">' + v.low.toFixed(5) + '</b> ' +
+        'C<b style="color:' + color + '">' + v.close.toFixed(5) + '</b> ' +
+        '<b style="color:' + color + '">' + (variacion >= 0 ? '+' : '') + variacion.toFixed(2) + '%</b>';
+      if (elVol) elVol.innerText = 'Vol. ' + fmtVol(v.volume);
+    }
+
+    function aplicarSMA(){
+      if (lineaSMA) { chart.removeSeries(lineaSMA); lineaSMA = null; }
+      lineaSMA = chart.addLineSeries({ color: '#f5c518', lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
+      lineaSMA.setData(calcularSMA(datosActuales, 20));
+    }
+
+    function cargar(n){
+      fetch(API + "/velas/" + encodeURIComponent(SIMBOLO) + "?tf=" + TF + "&n=" + n)
+        .then(function(r){ return r.json(); })
+        .then(function(velas){
+          if (velas && velas.length){
+            datosActuales = velas;
+            serie.setData(velas.map(aPunto));
+            serieVolumen.setData(velas.map(aPuntoVolumen));
+            chart.timeScale().fitContent();
+            actualizarLeyenda(velas[velas.length - 1]);
+            if (indicadoresActivos) aplicarSMA();
+          }
+        })
+        .catch(function(){});
+    }
+
+    // 1) Carga inicial
+    cargar(150);
 
     // 2) EN VIVO: cada 1.5 s pide la última vela y avanza el gráfico
     setInterval(function(){
       fetch(API + "/ultima/" + encodeURIComponent(SIMBOLO) + "?tf=" + TF)
         .then(function(r){ return r.json(); })
-        .then(function(v){ if(v && v.time){ serie.update(aPunto(v)); } })
+        .then(function(v){
+          if (v && v.time){
+            serie.update(aPunto(v));
+            serieVolumen.update(aPuntoVolumen(v));
+            if (datosActuales.length && datosActuales[datosActuales.length - 1].time === v.time){
+              datosActuales[datosActuales.length - 1] = v;
+            } else {
+              datosActuales.push(v);
+            }
+            actualizarLeyenda(v);
+          }
+        })
         .catch(function(){});
     }, 1500);
+
+    // Leyenda dinámica al pasar el cursor sobre el gráfico
+    chart.subscribeCrosshairMove(function(param){
+      if (!param || !param.time){
+        if (datosActuales.length) actualizarLeyenda(datosActuales[datosActuales.length - 1]);
+        return;
+      }
+      var idx = datosActuales.findIndex(function(d){ return d.time === param.time; });
+      if (idx >= 0) actualizarLeyenda(datosActuales[idx]);
+    });
+
+    // Selector de rango inferior: vuelve a consultar el servidor con más/menos velas
+    var diasPorRango = { "1D": 1, "5D": 5, "1M": 22, "3M": 66, "6M": 132, "1A": 252, "5A": 1260 };
+    document.querySelectorAll('.tvrange').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        document.querySelectorAll('.tvrange').forEach(function(b){ b.classList.remove('active'); });
+        btn.classList.add('active');
+        var rango = btn.getAttribute('data-range');
+        if (rango === 'Todos'){ cargar(5000); return; }
+        if (rango === 'YTD'){
+          var inicioAnio = Date.UTC(new Date().getUTCFullYear(), 0, 1) / 1000;
+          var dias = Math.max(1, Math.ceil((Date.now() / 1000 - inicioAnio) / 86400));
+          cargar(Math.min(5000, dias * BARS_POR_DIA));
+          return;
+        }
+        var dias = diasPorRango[rango] || 30;
+        cargar(Math.min(5000, Math.max(10, dias * BARS_POR_DIA)));
+      });
+    });
+
+    // Indicador SMA(20) activable
+    var btnInd = document.getElementById('btn-ind');
+    if (btnInd){
+      btnInd.addEventListener('click', function(){
+        indicadoresActivos = !indicadoresActivos;
+        btnInd.classList.toggle('activo', indicadoresActivos);
+        if (indicadoresActivos) aplicarSMA();
+        else if (lineaSMA){ chart.removeSeries(lineaSMA); lineaSMA = null; }
+      });
+    }
+
+    // Captura de imagen del gráfico
+    var btnShot = document.getElementById('btn-shot');
+    if (btnShot){
+      btnShot.addEventListener('click', function(){
+        try {
+          var canvas = chart.takeScreenshot();
+          var enlace = document.createElement('a');
+          enlace.download = SIMBOLO + '_grafico.png';
+          enlace.href = canvas.toDataURL();
+          enlace.click();
+        } catch (e) {}
+      });
+    }
+
+    // Pantalla completa
+    var btnFull = document.getElementById('btn-full');
+    var wrap = document.getElementById('tv-wrap');
+    if (btnFull && wrap){
+      btnFull.addEventListener('click', function(){
+        if (!document.fullscreenElement){
+          if (wrap.requestFullscreen) wrap.requestFullscreen();
+        } else {
+          document.exitFullscreen();
+        }
+      });
+    }
   }
   iniciar();
 })();
@@ -74,20 +327,20 @@ def renderizar_panel_central(main: Optional[ModuleType]):
     # Asegurar conexión a MT5 al cargar el panel
     inicializar_mt5()
 
-    # Obtener activo actual seleccionado en la interfaz
+    # Obtener activo actual seleccionado y limpiar los puntos suspensivos para MT5
     activo_actual = st.session_state.get("activo_seleccionado", "EURUSD...")
-    activo_visible = activo_actual.replace("...", "")
-    
-    # Cabecera con PRECIO EN VIVO: se refresca sola cada 2 s (sin recargar el gráfico ni el chat)
+    activo_visible = activo_actual.replace("...", "").strip()
+
+    # Cabecera con PRECIO EN VIVO: se refresca sola cada 2 s usando el símbolo limpio
     @st.fragment(run_every="2s")
     def _cabecera_precio():
-        info_tick = obtener_precio_actual(activo_actual)
+        info_tick = obtener_precio_actual(activo_visible)
         if "error" not in info_tick:
             precio_actual = info_tick.get("last", 0) if info_tick.get("last", 0) > 0 else info_tick.get("bid", 0)
         else:
             precio_actual = 0.0
         # Color según el precio suba o baje respecto a la lectura anterior
-        clave = f"_prev_precio_{activo_actual}"
+        clave = f"_prev_precio_{activo_visible}"
         anterior = st.session_state.get(clave, precio_actual)
         sube_activo = precio_actual >= anterior
         st.session_state[clave] = precio_actual
@@ -117,35 +370,31 @@ def renderizar_panel_central(main: Optional[ModuleType]):
     col_peridos, col_tipos = st.columns([1.5, 1])
 
     with col_peridos:
-        # Mapeo de temporalidades adaptadas a MetaTrader 5
         opciones_tf = ["M1", "M5", "M15", "H1", "H4", "D1"]
         temporalidad_elegida = st.selectbox(
             "Temporalidad (MT5 Timeframe)",
             options=opciones_tf,
-            index=3, # Por defecto H1
-            key=f"tf_temporal_{activo_actual}"
+            index=3,
+            key=f"tf_temporal_{activo_visible}"
         )
 
     with col_tipos:
         tipo_grafico = st.selectbox(
             "Tipo de Gráfico",
             options=["Velas", "Líneas", "Barras"],
-            key=f"tipo_grafico_{activo_actual}"
+            key=f"tipo_grafico_{activo_visible}"
         )
 
-    # --- Gráfico EN TIEMPO REAL (Lightweight Charts + polling a servidor_datos.py) ---
-    # El gráfico se alimenta solo desde el servidor de datos: aquí únicamente se le
-    # indica qué símbolo, temporalidad y tipo mostrar. Su JavaScript hace la carga
-    # inicial y luego actualiza la última vela cada 1.5 s (avanza como TradingView).
+    # --- Gráfico EN TIEMPO REAL, estilo TradingView, usando el símbolo limpio ---
     html_chart = (
         _CHART_TEMPLATE
-        .replace("__SIMBOLO__", activo_actual)
+        .replace("__SIMBOLO__", activo_visible)
         .replace("__TF__", temporalidad_elegida)
         .replace("__TIPO__", tipo_grafico)
     )
-    components.html(html_chart, height=475)
+    components.html(html_chart, height=600)
 
-    # --- ZONA DE CHAT INFERIOR CONECTADA A main.py (Intacta) ---
+    # --- ZONA DE CHAT INFERIOR CONECTADA A main.py ---
     st.markdown("---")
     st.markdown("### 🤖 Asistente IA Analítico (Consola, Gráficos e Imágenes)")
     st.caption("Interactúa libremente con el agente bursátil. Mantiene contexto, herramientas, gráficos interactivos e imágenes renderizadas.")
@@ -154,7 +403,7 @@ def renderizar_panel_central(main: Optional[ModuleType]):
         st.session_state.mensajes_ui = [
             {"role": "assistant", "content": "¡Hola! Estoy listo. Pregúntame sobre cualquier activo, mercado o pídeme gráficos y su respectiva imagen renderizada."}
         ]
-    
+
     if "historial_tecnico_agente" not in st.session_state:
         st.session_state.historial_tecnico_agente = None
 
@@ -177,7 +426,7 @@ def renderizar_panel_central(main: Optional[ModuleType]):
         with contenedor_chat_central:
             with st.chat_message("assistant"):
                 with st.spinner("El agente está procesando la solicitud y generando la imagen del gráfico..."):
-                    
+
                     respuesta_final = ""
                     chart_data_resultado = None
                     imagen_resultado_path = None
@@ -186,7 +435,7 @@ def renderizar_panel_central(main: Optional[ModuleType]):
                     if main is not None and hasattr(main, "chat_agente"):
                         try:
                             respuesta_final, st.session_state.historial_tecnico_agente = main.chat_agente(
-                                prompt_usuario, 
+                                prompt_usuario,
                                 st.session_state.historial_tecnico_agente
                             )
                         except Exception as e:
@@ -195,9 +444,8 @@ def renderizar_panel_central(main: Optional[ModuleType]):
                         respuesta_final = "No se pudo importar la función `chat_agente` desde `main.py`."
 
                     if any(kw in prompt_lower for kw in ["gráfico", "grafico", "graficar", "imagen", "figura", "tendencia", "rendimiento", "evolución"]):
-                        activo_encontrado = activo_actual
-                        
-                        # Extraer datos reales de MT5 para el gráfico que pide el usuario en el chat
+                        activo_encontrado = activo_visible
+
                         df_chat = obtener_datos_historicos(activo_encontrado, timeframe=mt5.TIMEFRAME_H1, n_velas=30)
                         if not df_chat.empty:
                             valores = df_chat['close'].values
@@ -212,12 +460,12 @@ def renderizar_panel_central(main: Optional[ModuleType]):
                             ax.set_ylabel("Precio", color='#8b949e')
                             ax.grid(True, color='#30363d', linestyle='--', alpha=0.5)
                             ax.legend(loc='upper left')
-                            
+
                             os.makedirs("downloads", exist_ok=True)
                             imagen_filename = f"downloads/grafico_{activo_encontrado.lower()}.png"
                             plt.savefig(imagen_filename, dpi=200, bbox_inches='tight')
                             plt.close(fig)
-                            
+
                             imagen_resultado_path = imagen_filename
                             respuesta_final += f"\n\n*Gráfico interactivo e imagen renderizada con datos de MetaTrader 5 para **{activo_encontrado}**.*"
 
@@ -228,11 +476,11 @@ def renderizar_panel_central(main: Optional[ModuleType]):
                         st.image(imagen_resultado_path, caption=f"Imagen renderizada del análisis", use_container_width=True)
 
                     st.session_state.mensajes_ui.append({
-                        "role": "user", 
+                        "role": "user",
                         "content": prompt_usuario
                     })
                     st.session_state.mensajes_ui.append({
-                        "role": "assistant", 
+                        "role": "assistant",
                         "content": respuesta_final,
                         "chart_data": chart_data_resultado,
                         "imagen_path": imagen_resultado_path

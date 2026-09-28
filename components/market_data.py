@@ -79,20 +79,25 @@ def cargar_datos_mercado():
             }
 
         # Intento 1: Consultar cotización en tiempo real vía MetaTrader 5
+        # (se limpian los "..." -- son solo un marcador visual para la UI,
+        # MT5 necesita el símbolo real, p. ej. "EURUSD" y no "EURUSD...")
+        simbolo_mt5 = ticker.replace("...", "").strip()
         try:
-            info_tick = obtener_precio_actual(ticker)
+            info_tick = obtener_precio_actual(simbolo_mt5)
             if "error" not in info_tick:
                 precio_actual = info_tick['last'] if info_tick['last'] > 0 else info_tick['bid']
                 if precio_actual > 0:
-                    # Si MT5 responde correctamente, actualizamos su precio en vivo
+                    # Si MT5 responde correctamente, actualizamos precio y variación en vivo
                     datos_antiguos = st.session_state.datos_mercado_real[ticker]
                     precio_anterior = datos_antiguos.get("precio", precio_actual)
                     cambio = precio_actual - precio_anterior
                     porcentaje = (cambio / precio_anterior * 100) if precio_anterior != 0 else 0.0
                     sube = cambio >= 0
+                    decimales = 2 if precio_actual > 100 else 5
 
                     st.session_state.datos_mercado_real[ticker]["precio"] = precio_actual
                     st.session_state.datos_mercado_real[ticker]["sube"] = sube
+                    st.session_state.datos_mercado_real[ticker]["var"] = f"{cambio:+.{decimales}f} ({porcentaje:+.2f}%)"
                     continue
         except Exception:
             pass
@@ -132,15 +137,26 @@ def actualizar_precios_mt5():
     if not datos:
         return
     for ticker in list(datos.keys()):
+        # Limpiar "..." -- es solo un marcador visual para la UI, MT5 necesita
+        # el símbolo real (p. ej. "EURUSD", no "EURUSD...")
+        simbolo_mt5 = ticker.replace("...", "").strip()
         try:
-            info_tick = obtener_precio_actual(ticker)
+            info_tick = obtener_precio_actual(simbolo_mt5)
             if "error" in info_tick:
                 continue
             precio_actual = info_tick.get("last", 0) if info_tick.get("last", 0) > 0 else info_tick.get("bid", 0)
             if precio_actual and precio_actual > 0:
                 precio_anterior = datos[ticker].get("precio", precio_actual)
-                sube = (precio_actual - precio_anterior) >= 0
+                cambio = precio_actual - precio_anterior
+                porcentaje = (cambio / precio_anterior * 100) if precio_anterior else 0.0
+                sube = cambio >= 0
+                decimales = 2 if precio_actual > 100 else 5
+
                 datos[ticker]["precio"] = precio_actual
                 datos[ticker]["sube"] = sube
+                # Solo se pisa la variación cuando sí hubo un cambio real,
+                # para no mostrar "+0.00 (+0.00%)" entre un tick y otro
+                if cambio != 0:
+                    datos[ticker]["var"] = f"{cambio:+.{decimales}f} ({porcentaje:+.2f}%)"
         except Exception:
             pass

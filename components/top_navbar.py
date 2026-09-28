@@ -2,8 +2,7 @@
 top_navbar.py
 -------------
 Barra de navegación superior del dashboard (estilo terminal de trading).
-- Logo a la izquierda (sin nombre aún, por definir).
-- Buscador (visual por ahora).
+- Buscador (visual por ahora) en la posición del antiguo logo.
 - Íconos de tema/notificaciones.
 - Usuario a la derecha: al hacer clic en el nombre se despliega un menú
   (perfil / configuración / cerrar sesión) — con <details>, sin recargar.
@@ -14,13 +13,6 @@ La barra queda FIJA arriba y a todo el ancho gracias al contenedor
 import streamlit as st
 
 from components.buscador import dialogo_buscador
-
-# Logo P&J (estilo del de Cristian: texto naranja en negrita)
-_LOGO_PYJ = (
-    "<span style='font-size:22px; font-weight:800; color:#ff6b35; "
-    "letter-spacing:1px; font-family:-apple-system,\"Segoe UI\",Roboto,Arial,sans-serif;'>"
-    "P&amp;J</span>"
-)
 
 # --- Íconos de línea (estilo Lucide/Feather), heredan color con currentColor ---
 _IC_BUSCAR = (
@@ -62,7 +54,7 @@ def renderizar_barra_navegacion(usuario: str = "Emilio Fuentes",
         "</div>"
     )
 
-    # Estilos de la navbar + del botón buscador (parece una barra de búsqueda)
+    # Estilos de la navbar + del botón buscador
     st.markdown(
         """
         <style>
@@ -73,16 +65,15 @@ def renderizar_barra_navegacion(usuario: str = "Emilio Fuentes",
             .nav-ico { color:#8b949e; cursor:pointer; display:flex; align-items:center;
                        transition: color .15s ease; }
             .nav-ico:hover { color:#e6edf3; }
-            /* Centrado vertical robusto: alinear las 3 columnas y su contenido */
+            /* Centrado vertical robusto */
             .st-key-barra_nav_fija [data-testid="stHorizontalBlock"] { align-items:center !important; }
             .st-key-barra_nav_fija [data-testid="stColumn"] {
                 display:flex !important; flex-direction:column; justify-content:center !important;
             }
             .st-key-barra_nav_fija [data-testid="stColumn"] [data-testid="stMarkdownContainer"] { margin:0 !important; }
             .st-key-barra_nav_fija .stButton { margin:0 !important; }
-            /* Colapsar el contenedor del bloque <style> (ocupa alto y descentra) */
             .st-key-barra_nav_fija [data-testid="stElementContainer"]:has(style) { display:none !important; }
-            /* Botón que abre el buscador: se ve como una barra de búsqueda */
+            /* Botón que abre el buscador: se expande para aprovechar el espacio del antiguo logo */
             [class*="st-key-btn_abrir_buscador"] button {
                 background:#161b22 !important; border:1px solid #30363d !important;
                 border-radius:20px !important; color:#8b949e !important;
@@ -132,12 +123,8 @@ def renderizar_barra_navegacion(usuario: str = "Emilio Fuentes",
         </div>
     """
 
-    c_logo, c_buscar, c_der = st.columns([1, 2.2, 2], vertical_alignment="center")
-    with c_logo:
-        st.markdown(
-            f"<div style='display:flex; align-items:center;'>{_LOGO_PYJ}</div>",
-            unsafe_allow_html=True,
-        )
+    # Ajustado a 2 columnas principales: el buscador toma más espacio y la derecha mantiene el saldo/usuario
+    c_buscar, c_der = st.columns([3.2, 2], vertical_alignment="center")
     with c_buscar:
         if st.button("Buscar activo, par o ticker...", icon=":material/search:",
                      key="btn_abrir_buscador", width="stretch"):
