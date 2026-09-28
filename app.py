@@ -2,14 +2,12 @@
 app.py
 ------
 Dashboard interactivo de Piña & Jara - Financial Terminal,
-diseñado con distribución de 3 columnas de forma limpia y modularizada.
+diseñado con distribución modular avanzada y alineación visual precisa.
 """
 import os
 import sys
 
 # --- Arreglo de certificado SSL para rutas con tildes ---
-# La ruta del proyecto contiene caracteres no ASCII ("análisis bursátiles"),
-# lo que impide a curl_cffi (yfinance) leer el cacert.pem (error 77).
 try:
     import certifi
     import shutil
@@ -37,12 +35,12 @@ except ImportError:
     pass
 
 # Importar componentes modulares
-from components.market_data import cargar_datos_mercado, actualizar_precios_mt5
-from components.watchlist import renderizar_watchlist
 from components.central_panel import renderizar_panel_central
-from components.news_panel import renderizar_panel_noticias
 from components.favoritos_bar import renderizar_barra_favoritos
-from components.top_navbar import renderizar_barra_navegacion
+from components.market_data import actualizar_precios_mt5, cargar_datos_mercado
+from components.watchlist import renderizar_watchlist
+from components.nav_bar import renderizar_barra_navegacion as renderizar_nav_lateral
+from components.top_navbar import renderizar_barra_navegacion as renderizar_nav_superior
 from components.login import requerir_login
 
 # Configuración inicial de la página
@@ -57,11 +55,15 @@ st.set_page_config(
 # ==========================================
 st.markdown("""
     <style>
-        /* Ocultar la barra propia de Streamlit (Deploy/Stop/⋮) — solo dejamos la nuestra */
+        /* Ocultar la barra propia de Streamlit */
         [data-testid="stHeader"] { display: none; }
         [data-testid="stToolbar"] { display: none; }
-        /* Espacio arriba para que la barra fija no tape el contenido */
-        .block-container { padding-top: 4.5rem; padding-bottom: 2rem; max-width: 100%; }
+
+        /* Ajuste de márgenes generales de la página */
+        .block-container {
+            padding: 4.8rem 1.5rem 2rem 1.2rem !important;
+            max-width: 100%;
+        }
 
         /* Fondo y tipografía base */
         .stApp { background-color: #0b0f19; color: #e6edf3; }
@@ -70,8 +72,7 @@ st.markdown("""
         /* Jerarquía de títulos discreta */
         h1 { font-size: 24px !important; font-weight: 700 !important; }
         h2 { font-size: 20px !important; font-weight: 700 !important; }
-        h3 { font-size: 16px !important; font-weight: 700 !important; }
-        p, span, label { font-size: 14px; }
+        h3 { font-size: 18px !important; font-weight: 700 !important; }
 
         /* Botones oscuros y compactos */
         div.stButton > button {
@@ -91,40 +92,26 @@ st.markdown("""
 
         /* Métricas */
         [data-testid="stMetricValue"] { font-size: 22px !important; }
-        [data-testid="stMetricLabel"] { font-size: 13px !important; color: #8b949e !important; }
-
-        /* Columnas más juntas */
-        [data-testid="column"] { padding: 0 4px; }
+        [data-testid="stMetricLabel"] { font-size: 18px !important; color: #8b949e !important; }
 
         /* Entrada del chat */
         .stChatInput textarea { background-color: #161b22 !important; }
 
-        /* Tarjetas con borde (favoritos y contenedores) en tema oscuro */
+        /* Tarjetas con borde */
         div[data-testid="stVerticalBlockBorderWrapper"] {
             background-color: #161b22;
             border-radius: 8px;
         }
 
-        /* Botón ✕ dentro de la tarjeta de favorito: minimalista (sin caja) */
-        [class*="st-key-quitar_fav_"] button {
-            background: transparent !important; border: none !important;
-            color: #8b949e !important; padding: 0 !important;
-            min-height: 0 !important; height: auto !important; font-size: 14px !important;
-        }
-        [class*="st-key-quitar_fav_"] button:hover { color: #f85149 !important; background: transparent !important; }
-
-        /* Alinear "Seleccionar" y la estrella a la misma altura */
-        [class*="st-key-btn_wl_real_"] button, [class*="st-key-btn_fav_"] button { height: 38px; }
-
-        /* Barra de navegación FIJA arriba y a TODO EL ANCHO */
+        /* Barra de navegación superior FIJA */
         .st-key-barra_nav_fija {
             position: fixed !important;
-            top: 0; left: 0; right: 0;
-            width: 100% !important;
+            top: 0; left: 70px; right: 0;
+            width: calc(100% - 70px) !important;
             z-index: 100000;
             background: #0d1117;
             border-bottom: 1px solid #1b2430;
-            padding: 10px 48px;  /* vertical simétrico para centrar el contenido */
+            padding: 10px 24px;
             box-sizing: border-box;
         }
         .st-key-barra_nav_fija [data-testid="stVerticalBlock"] { gap: 0 !important; }
@@ -134,18 +121,32 @@ st.markdown("""
             border: none !important;
             border-radius: 0 !important;
         }
+
+        /* Barra lateral izquierda extendida sin forzar paddings excesivos */
+        div[data-testid="stColumn"]:has(.pj-nav),
+        div[data-testid="column"]:has(.pj-nav) {
+            background: #0d1117 !important;
+            border-right: 1px solid #30363d;
+            min-height: 100vh;
+            margin-top: -4.8rem !important;
+            padding-top: 0 !important;
+            z-index: 100001;
+        }
+
+        /* Baja el logo P&J para alinearlo con el buscador de la barra superior.
+           Ajusta este valor (1.6rem) si necesitas subirlo o bajarlo un poco más. */
+        .pj-logo {
+            margin-top: 1.6rem !important;
+        }
     </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# LOGIN (Supabase): si no hay sesión, muestra el login y detiene la app.
-# Si hay sesión, devuelve el usuario ({id, nombre, email}).
+# LOGIN (Supabase): protege el acceso al dashboard
 # ==========================================
 usuario_actual = requerir_login()
 
-# Overlay de carga a pantalla completa: SOLO en la primera carga (tras el login),
-# para tapar el login mientras el dashboard se arma. En reruns posteriores (abrir
-# el buscador, etc.) no aparece, así no parece que "refresca".
+# Overlay de carga a pantalla completa en la primera entrada
 _primera_carga = not st.session_state.get("datos_cargados", False)
 _overlay = st.empty()
 if _primera_carga:
@@ -158,22 +159,22 @@ if _primera_carga:
         </div>
     """, unsafe_allow_html=True)
 
-# Saldo total (equity) de la cuenta MT5 para mostrarlo en la barra superior
+# Obtener saldo MT5 para mostrarlo en la barra superior
 from tools.mt5_bridge import inicializar_mt5, obtener_info_cuenta
 inicializar_mt5()
 _info_cuenta = obtener_info_cuenta()
 _saldo_mt5 = _info_cuenta.get("equity") if "error" not in _info_cuenta else None
 _moneda_mt5 = _info_cuenta.get("currency", "USD") if "error" not in _info_cuenta else "USD"
 
-# Barra de navegación superior (logo + buscador + usuario + saldo) — FIJA arriba
+# 1. Barra superior fija
 with st.container(key="barra_nav_fija"):
-    renderizar_barra_navegacion(
+    renderizar_nav_superior(
         usuario=usuario_actual.get("nombre", "Usuario"),
         saldo=_saldo_mt5,
         moneda=_moneda_mt5,
     )
 
-# Carga inicial de datos de mercado (estructura + primeros precios)
+# Carga inicial de datos de mercado
 cargar_datos_mercado()
 
 # ==========================================
@@ -181,30 +182,43 @@ cargar_datos_mercado()
 # ==========================================
 INTERVALO_PRECIOS = "2s"
 
-# 1. Barra superior de FAVORITOS (precios en vivo)
+
 @st.fragment(run_every=INTERVALO_PRECIOS)
 def _favoritos_en_vivo():
     actualizar_precios_mt5()
     renderizar_barra_favoritos()
 
-_favoritos_en_vivo()
 
-# 2. Distribución principal de 3 columnas
-col_left, col_center, col_right = st.columns([1, 2.1, 1.3])
+@st.fragment(run_every=INTERVALO_PRECIOS)
+def _watchlist_en_vivo():
+    actualizar_precios_mt5()
+    renderizar_watchlist()
 
-with col_left:
-    @st.fragment(run_every=INTERVALO_PRECIOS)
-    def _watchlist_en_vivo():
-        actualizar_precios_mt5()
-        renderizar_watchlist()
-    _watchlist_en_vivo()
 
-with col_center:
-    renderizar_panel_central(main)
+# ==========================================
+# LAYOUT PRINCIPAL: Barra Lateral + Contenido
+# ==========================================
+col_nav, col_main = st.columns([0.5, 11.5], gap="small")
 
-# Panel ya visible: quitamos el overlay de carga (las noticias, más lentas por
-# DeepSeek, se cargan después en su columna sin tapar nada).
+# 2. Barra lateral izquierda extendida (nav_bar.py)
+with col_nav:
+    renderizar_nav_lateral()
+
+# 3. Área de contenido principal
+with col_main:
+    st.markdown("<div style='height: 0.2rem'></div>", unsafe_allow_html=True)
+
+    # Barra superior de FAVORITOS (precios en vivo)
+    _favoritos_en_vivo()
+
+    # Watchlist y Panel Central
+    col_watchlist, col_center = st.columns([1.4, 3.4])
+
+    with col_watchlist:
+        _watchlist_en_vivo()
+
+    with col_center:
+        renderizar_panel_central(main)
+
+# Quitamos el overlay de carga una vez renderizado todo
 _overlay.empty()
-
-with col_right:
-    renderizar_panel_noticias(main)
