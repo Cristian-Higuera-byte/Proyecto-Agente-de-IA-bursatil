@@ -14,5 +14,21 @@
         "valor_objetivo": 250.0,
         "fecha_creacion": "2026-09-22 10:19:01",
         "activa": true
+    },
+    {
+        "id": 3,
+        "ticker": "RBLX",
+        "condicion": "menor",
+        "valor_objetivo": 43.0,
+        "fecha_creacion": "2026-09-28 11:54:00",
+        "activa": true
+    },
+    {
+        "id": 4,
+        "ticker": "RBLX",
+        "condicion": "menor",
+        "valor_objetivo": 38.0,
+        "fecha_creacion": "2026-09-28 11:54:00",
+        "activa": true
     }
 ]

@@ -7,6 +7,12 @@ def cargar_datos_mercado():
     # Inicializar conexión a MT5 de forma segura al cargar el mercado
     inicializar_mt5()
 
+    # Si ya se cargó una vez, NO repetir el fetch pesado (yfinance): los
+    # fragmentos (actualizar_precios_mt5) mantienen los precios en vivo. Así,
+    # interactuar (abrir el buscador, etc.) no dispara una recarga lenta.
+    if st.session_state.get("datos_cargados"):
+        return
+
     # 1. Obtención dinámica de índices globales (barra superior)
     if "datos_indices_globales" not in st.session_state:
         st.session_state.datos_indices_globales = {
@@ -111,6 +117,9 @@ def cargar_datos_mercado():
                     st.session_state.datos_mercado_real[ticker]["sube"] = sube
         except Exception:
             pass
+
+    # Marcar como cargado para no repetir el fetch pesado en cada rerun
+    st.session_state.datos_cargados = True
 
 def actualizar_precios_mt5():
     """
