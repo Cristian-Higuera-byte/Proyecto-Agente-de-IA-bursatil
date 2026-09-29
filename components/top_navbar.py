@@ -12,7 +12,7 @@ La barra queda FIJA arriba y a todo el ancho gracias al contenedor
 """
 import streamlit as st
 
-from components.buscador import dialogo_buscador
+from components.buscador import abrir_buscador
 
 # --- Íconos de línea (estilo Lucide/Feather), heredan color con currentColor ---
 _IC_BUSCAR = (
@@ -145,7 +145,8 @@ def renderizar_barra_navegacion(usuario: str = "Emilio Fuentes",
     with c_buscar:
         if st.button("Buscar activo, par o ticker...", icon=":material/search:",
                      key="btn_abrir_buscador", width="stretch"):
-            dialogo_buscador()
+            abrir_buscador()
+            st.rerun()
     with c_spacer:
         st.empty()
     with c_der:

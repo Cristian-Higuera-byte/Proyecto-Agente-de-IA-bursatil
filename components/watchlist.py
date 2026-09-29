@@ -80,7 +80,7 @@ _CSS = """
     }
     .wl-row {
         display: flex; align-items: center; gap: 12px;
-        padding: 11px 52px 11px 14px;
+        padding: 11px 84px 11px 14px;
         border-bottom: 1px solid #1a2130;
         box-sizing: border-box;
     }
@@ -164,6 +164,26 @@ _CSS = """
         color: #f5c518 !important;
     }
 
+    /* Botón ✕ (quitar de la lista): a la izquierda de la estrella */
+    [class*="st-key-wlrm_"] {
+        position: absolute !important;
+        right: 44px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 30px !important;
+        margin: 0 !important;
+        z-index: 3;
+    }
+    [class*="st-key-wlrm_"] button {
+        width: 30px !important; height: 30px !important; min-height: 30px !important;
+        padding: 0 !important; background: transparent !important; border: none !important;
+        box-shadow: none !important; color: #586174 !important; border-radius: 8px !important;
+    }
+    [class*="st-key-wlrm_"] button p { font-size: 16px !important; line-height: 1 !important; }
+    [class*="st-key-wlrm_"] button:hover {
+        background: rgba(255,255,255,0.08) !important; color: #f85149 !important;
+    }
+
     /* Botón inferior */
     .st-key-wl_add { padding: 12px 14px 14px; }
     .st-key-wl_add button {
@@ -190,12 +210,29 @@ def _icono_html(base: str) -> str:
     )
 
 
-def renderizar_watchlist():
-    # Lista de activos oficiales extraídos directamente de MetaTrader 5 o respaldados en la sesión
-    tickers_watchlist = ["EURUSD...", "GBPUSD...", "USDJPY...", "XAUUSD...", "BTCUSD", "ETHUSD", "US30"]
+def _quitar_de_lista(ticker: str):
+    """Quita un símbolo de la watchlist del usuario (Supabase + sesión)."""
+    from tools import watchlist_manager as wl
+    uid = (st.session_state.get("usuario_info") or {}).get("id")
+    wl.quitar_simbolo(uid, ticker)
+    st.session_state.get("datos_mercado_real", {}).pop(ticker, None)
+    lst = st.session_state.get("watchlist_simbolos", [])
+    if ticker in lst:
+        lst.remove(ticker)
+    favs = st.session_state.get("favoritos", [])
+    if ticker in favs:
+        favs.remove(ticker)
+    if st.session_state.get("activo_seleccionado") == ticker:
+        restantes = list(st.session_state.get("datos_mercado_real", {}).keys())
+        st.session_state.activo_seleccionado = restantes[0] if restantes else "EURUSD..."
 
-    # Asegurar que existan datos en session_state para estos símbolos
+
+def renderizar_watchlist():
+    from tools import watchlist_manager as wl
+
+    # Lista de activos del USUARIO (los que tenga en su watchlist de Supabase)
     info_activos_real = st.session_state.get("datos_mercado_real", {})
+    tickers_watchlist = st.session_state.get("watchlist_simbolos") or list(info_activos_real.keys())
 
     st.markdown(_CSS, unsafe_allow_html=True)
 
@@ -224,7 +261,7 @@ def renderizar_watchlist():
                     "sube": True
                 })
 
-                base = ticker.replace("...", "")
+                base = wl.nombre_visible(ticker)
                 slug = re.sub(r"\W", "", ticker)
                 is_selected = (st.session_state.activo_seleccionado == ticker)
                 color_var = "#2ebd85" if item.get("sube", True) else "#f6465d"
@@ -279,6 +316,13 @@ def renderizar_watchlist():
                             agregar_favorito(ticker)
                         st.rerun(scope="app")
 
+                    # Quitar de mi lista (✕)
+                    if st.button(":material/close:", key=f"wlrm_{slug}", help="Quitar de mi lista"):
+                        _quitar_de_lista(ticker)
+                        st.rerun(scope="app")
+
         with st.container(key="wl_add"):
-            if st.button("+ Add Holdings", use_container_width=True):
-                st.toast("Función para agregar nuevos símbolos de MT5 próximamente.")
+            if st.button("➕ Agregar activo", use_container_width=True):
+                from components.buscador import abrir_buscador
+                abrir_buscador()
+                st.rerun()  # app scope: para que app.py renderice el diálogo

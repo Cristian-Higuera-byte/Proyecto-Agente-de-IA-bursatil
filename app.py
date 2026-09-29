@@ -190,7 +190,7 @@ cargar_datos_mercado()
 # ==========================================
 # NÚMEROS EN VIVO (auto-refresco ligero cada 2 s)
 # ==========================================
-INTERVALO_PRECIOS = "2s"
+INTERVALO_PRECIOS = "1s"
 
 
 @st.fragment(run_every=INTERVALO_PRECIOS)
@@ -238,3 +238,8 @@ with col_main:
 
 # Quitamos el overlay de carga una vez renderizado todo
 _overlay.empty()
+
+# Diálogo del buscador (se abre con la bandera `mostrar_buscador`). Se renderiza
+# aquí, en el script principal, para que no choque con los fragmentos en vivo.
+from components.buscador import render_buscador
+render_buscador()
