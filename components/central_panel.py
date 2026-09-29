@@ -124,7 +124,7 @@ _CHART_TEMPLATE = """
 <script>
 (function(){
   var API = "http://localhost:8000";
-  var SIMBOLO = "__SIMBOLO__";
+  var SIMBOLO = "__SIMBOLO_API__";
   var TF = "__TF__";
   var TIPO = "__TIPO__";
 
@@ -334,7 +334,9 @@ def renderizar_panel_central(main: Optional[ModuleType]):
     # Cabecera con PRECIO EN VIVO: se refresca sola cada 2 s usando el símbolo limpio
     @st.fragment(run_every="2s")
     def _cabecera_precio():
-        info_tick = obtener_precio_actual(activo_visible)
+        # Usar el símbolo COMPLETO (con "...") para MT5: el broker nombra así
+        # los pares de Forex/metales. Con el símbolo "limpio" no los encuentra.
+        info_tick = obtener_precio_actual(activo_actual)
         if "error" not in info_tick:
             precio_actual = info_tick.get("last", 0) if info_tick.get("last", 0) > 0 else info_tick.get("bid", 0)
         else:
@@ -388,7 +390,8 @@ def renderizar_panel_central(main: Optional[ModuleType]):
     # --- Gráfico EN TIEMPO REAL, estilo TradingView, usando el símbolo limpio ---
     html_chart = (
         _CHART_TEMPLATE
-        .replace("__SIMBOLO__", activo_visible)
+        .replace("__SIMBOLO_API__", activo_actual)   # símbolo COMPLETO para pedir datos a MT5
+        .replace("__SIMBOLO__", activo_visible)       # nombre limpio solo para mostrar en la leyenda
         .replace("__TF__", temporalidad_elegida)
         .replace("__TIPO__", tipo_grafico)
     )
@@ -444,9 +447,10 @@ def renderizar_panel_central(main: Optional[ModuleType]):
                         respuesta_final = "No se pudo importar la función `chat_agente` desde `main.py`."
 
                     if any(kw in prompt_lower for kw in ["gráfico", "grafico", "graficar", "imagen", "figura", "tendencia", "rendimiento", "evolución"]):
-                        activo_encontrado = activo_visible
+                        activo_encontrado = activo_visible  # nombre para mostrar
 
-                        df_chat = obtener_datos_historicos(activo_encontrado, timeframe=mt5.TIMEFRAME_H1, n_velas=30)
+                        # Datos con el símbolo COMPLETO (con "...") para que MT5 lo encuentre
+                        df_chat = obtener_datos_historicos(activo_actual, timeframe=mt5.TIMEFRAME_H1, n_velas=30)
                         if not df_chat.empty:
                             valores = df_chat['close'].values
                             chart_data_resultado = pd.DataFrame(valores, columns=[f'Rendimiento - {activo_encontrado}'])
