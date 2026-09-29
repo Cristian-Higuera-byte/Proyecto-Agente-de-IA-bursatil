@@ -7,8 +7,10 @@ El usuario agrega activos desde aquí (selector ➕) o desde la Lista de Activos
 """
 import streamlit as st
 
+from tools import watchlist_manager as wl
+
 FAVORITOS_MAX = 5
-FAVORITOS_DEFAULT = ["BTCUSD", "ETHUSD", "XAUUSD...", "EURUSD...", "US30"]
+FAVORITOS_DEFAULT = wl.FAVORITOS_DEFAULT
 
 # Íconos por activo: logos de cripto y banderas de divisas/índices (desde CDN)
 _CRIPTO = {"BTCUSD": "btc", "ETHUSD": "eth", "LTCUSD": "ltc", "XRPUSD": "xrp"}
@@ -35,9 +37,16 @@ def icono_activo(ticker: str) -> str:
     return "<span style='font-size:16px;'>💱</span>"
 
 
+def _uid():
+    usuario = st.session_state.get("usuario_info") or {}
+    return usuario.get("id") if isinstance(usuario, dict) else None
+
+
 def _init_favoritos():
+    """Carga los favoritos del usuario desde Supabase (una vez por sesión)."""
     if "favoritos" not in st.session_state:
-        st.session_state.favoritos = list(FAVORITOS_DEFAULT)
+        favs = wl.obtener_favoritos(_uid())
+        st.session_state.favoritos = favs if favs else list(FAVORITOS_DEFAULT)
 
 
 def agregar_favorito(ticker: str):
@@ -51,6 +60,7 @@ def agregar_favorito(ticker: str):
         st.toast(f"⚠️ Máximo {FAVORITOS_MAX} favoritos. Quita uno primero.")
         return
     st.session_state.favoritos.append(ticker)
+    wl.marcar_favorito(_uid(), ticker, True)
     st.toast(f"⭐ {limpio} agregado a favoritos")
 
 
@@ -58,13 +68,18 @@ def quitar_favorito(ticker: str):
     _init_favoritos()
     if ticker in st.session_state.favoritos:
         st.session_state.favoritos.remove(ticker)
+        wl.marcar_favorito(_uid(), ticker, False)
 
 
 def renderizar_barra_favoritos():
     _init_favoritos()
     datos = st.session_state.get("datos_mercado_real", {})
     favs = st.session_state.favoritos
-    disponibles = [t for t in datos.keys() if t not in favs]
+    # Las opciones salen de la LISTA del usuario (watchlist_simbolos), que es la
+    # fuente de verdad que actualiza el buscador; así aparecen los activos recién
+    # agregados. Si aún no está poblada, se usa datos_mercado_real como respaldo.
+    lista = st.session_state.get("watchlist_simbolos") or list(datos.keys())
+    disponibles = [t for t in lista if t not in favs]
 
     puede_agregar = len(favs) < FAVORITOS_MAX and bool(disponibles)
     total_cols = max(len(favs) + (1 if puede_agregar else 0), 1)

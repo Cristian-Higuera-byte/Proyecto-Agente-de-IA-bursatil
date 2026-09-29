@@ -2,38 +2,57 @@ import math
 import streamlit as st
 import MetaTrader5 as mt5  # type: ignore[import-untyped]
 from tools.mt5_bridge import inicializar_mt5, obtener_precio_actual
+from tools import watchlist_manager as wl
+
+
+def construir_entrada(simbolo: str) -> dict:
+    """Arma la entrada de un símbolo para la watchlist (nombre, categoría, precio)
+    usando el nombre EXACTO de MT5 (sin limpiar los '...')."""
+    try:
+        mt5.symbol_select(simbolo, True)
+        info = mt5.symbol_info(simbolo)
+    except Exception:
+        info = None
+    nombre = (info.description if info and getattr(info, "description", "") else wl.nombre_visible(simbolo))
+    mercado = wl.categoria_simbolo(getattr(info, "path", "") if info else "", simbolo)
+    precio = 0.0
+    try:
+        tick = obtener_precio_actual(simbolo)
+        if "error" not in tick:
+            precio = tick.get("last", 0) if tick.get("last", 0) > 0 else tick.get("bid", 0)
+    except Exception:
+        pass
+    return {
+        "nombre": nombre,
+        "mercado": mercado,
+        "precio": float(precio or 0.0),
+        "var": "+0.00 (0.00%)",
+        "sube": True,
+    }
+
 
 def cargar_datos_mercado():
     # Inicializar conexión a MT5 de forma segura al cargar el mercado
     inicializar_mt5()
 
-    # Si ya se cargó una vez, NO repetir el fetch pesado (yfinance): los
-    # fragmentos (actualizar_precios_mt5) mantienen los precios en vivo. Así,
-    # interactuar (abrir el buscador, etc.) no dispara una recarga lenta.
+    # Si ya se cargó una vez, no repetir el fetch pesado; los fragmentos
+    # (actualizar_precios_mt5) mantienen los precios en vivo.
     if st.session_state.get("datos_cargados"):
         return
 
-    # 1. Obtención dinámica de índices globales (barra superior)
+    # 1. Índices globales (barra superior) — se mantiene con yfinance
     if "datos_indices_globales" not in st.session_state:
         st.session_state.datos_indices_globales = {
             "SP500": {"valor": 5432.18, "var": "+0.84%", "sube": True},
             "NASDAQ": {"valor": 17742.90, "var": "+1.22%", "sube": True},
             "DOW": {"valor": 39310.44, "var": "-0.31%", "sube": False},
-            "BTC": {"valor": 67204.00, "var": "+2.90%", "sube": True}
+            "BTC": {"valor": 67204.00, "var": "+2.90%", "sube": True},
         }
-
-    # Intentar actualizar índices globales con MT5 o yfinance
     try:
         import yfinance as yf  # type: ignore[import-untyped]
-        simbolos_indices = {
-            "SP500": "^GSPC",
-            "NASDAQ": "^IXIC",
-            "DOW": "^DJI",
-            "BTC": "BTC-USD"
-        }
+        simbolos_indices = {"SP500": "^GSPC", "NASDAQ": "^IXIC", "DOW": "^DJI", "BTC": "BTC-USD"}
         for key, sym in simbolos_indices.items():
-            t_obj = yf.Ticker(sym)
-            hist = t_obj.history(period="3d")
+            hist = yf.Ticker(sym).history(period="3d")
             if not hist.empty and "Close" in hist.columns:
                 val = hist["Close"].iloc[-1]
                 if not math.isnan(float(val)):
@@ -42,121 +61,49 @@ def cargar_datos_mercado():
                     anterior = float(anterior_val) if not math.isnan(float(anterior_val)) else actual
                     cambio = actual - anterior
                     porc = (cambio / anterior * 100) if anterior != 0 else 0.0
-                    sube = cambio >= 0
-                    
                     st.session_state.datos_indices_globales[key] = {
-                        "valor": actual,
-                        "var": f"{'+' if sube else ''}{porc:.2f}%",
-                        "sube": sube
-                    }
+                        "valor": actual, "var": f"{'+' if cambio >= 0 else ''}{porc:.2f}%", "sube": cambio >= 0}
     except Exception:
         pass
 
-    # 2. Carga segura de datos de mercado (Watchlist)
-    # Soportando tickers tradicionales y activos directos de MT5 (como EURUSD, GBPUSD, etc.)
-    tickers_watchlist = ["EURUSD...", "GBPUSD...", "USDJPY...", "XAUUSD...", "BTCUSD", "ETHUSD", "US30"]
+    # 2. Watchlist del USUARIO (desde Supabase; si es nuevo, se siembra el default)
+    usuario = st.session_state.get("usuario_info", {})
+    uid = usuario.get("id") if isinstance(usuario, dict) else None
+    simbolos = wl.obtener_watchlist(uid)
+    if not simbolos:
+        simbolos = wl.sembrar_defaults(uid)
+    st.session_state.watchlist_simbolos = simbolos
 
-    if "datos_mercado_real" not in st.session_state:
-        st.session_state.datos_mercado_real = {
-            "EURUSD...": {"nombre": "Euro / US Dollar", "mercado": "FOREX", "precio": 1.0850, "var": "+0.0012 (+0.11%)", "sube": True},
-            "GBPUSD...": {"nombre": "British Pound / US Dollar", "mercado": "FOREX", "precio": 1.3020, "var": "-0.0025 (-0.19%)", "sube": False},
-            "USDJPY...": {"nombre": "US Dollar / Japanese Yen", "mercado": "FOREX", "precio": 155.40, "var": "+0.45 (+0.29%)", "sube": True},
-            "XAUUSD...": {"nombre": "Oro / US Dollar", "mercado": "METALES", "precio": 2350.00, "var": "+5.40 (+0.23%)", "sube": True},
-            "BTCUSD": {"nombre": "Bitcoin / US Dollar", "mercado": "CRIPTO", "precio": 67204.00, "var": "+900.00 (+1.35%)", "sube": True},
-            "ETHUSD": {"nombre": "Ethereum / US Dollar", "mercado": "CRIPTO", "precio": 2712.00, "var": "-15.00 (-0.55%)", "sube": False},
-            "US30": {"nombre": "Dow Jones 30", "mercado": "ÍNDICE", "precio": 39310.44, "var": "-120.00 (-0.31%)", "sube": False}
-        }
+    # 3. Construir los datos de mercado de esos símbolos (nombre EXACTO para MT5)
+    datos = {}
+    for sym in simbolos:
+        datos[sym] = construir_entrada(sym)
+    st.session_state.datos_mercado_real = datos
 
-    for ticker in tickers_watchlist:
-        # Asegurar que el ticker exista en el estado inicial
-        if ticker not in st.session_state.datos_mercado_real:
-            st.session_state.datos_mercado_real[ticker] = {
-                "nombre": ticker,
-                "mercado": "MT5 / General",
-                "precio": 100.0,
-                "var": "+0.00 (0.00%)",
-                "sube": True,
-            }
-
-        # Intento 1: Consultar cotización en tiempo real vía MetaTrader 5
-        # (se limpian los "..." -- son solo un marcador visual para la UI,
-        # MT5 necesita el símbolo real, p. ej. "EURUSD" y no "EURUSD...")
-        simbolo_mt5 = ticker.replace("...", "").strip()
-        try:
-            info_tick = obtener_precio_actual(simbolo_mt5)
-            if "error" not in info_tick:
-                precio_actual = info_tick['last'] if info_tick['last'] > 0 else info_tick['bid']
-                if precio_actual > 0:
-                    # Si MT5 responde correctamente, actualizamos precio y variación en vivo
-                    datos_antiguos = st.session_state.datos_mercado_real[ticker]
-                    precio_anterior = datos_antiguos.get("precio", precio_actual)
-                    cambio = precio_actual - precio_anterior
-                    porcentaje = (cambio / precio_anterior * 100) if precio_anterior != 0 else 0.0
-                    sube = cambio >= 0
-                    decimales = 2 if precio_actual > 100 else 5
-
-                    st.session_state.datos_mercado_real[ticker]["precio"] = precio_actual
-                    st.session_state.datos_mercado_real[ticker]["sube"] = sube
-                    st.session_state.datos_mercado_real[ticker]["var"] = f"{cambio:+.{decimales}f} ({porcentaje:+.2f}%)"
-                    continue
-        except Exception:
-            pass
-
-        # Intento 2: Respaldo con yfinance para acciones tradicionales si MT5 no las tiene activas
-        try:
-            import yfinance as yf  # type: ignore[import-untyped]
-            t_obj = yf.Ticker(ticker)
-            hist = t_obj.history(period="5d")
-            if not hist.empty and "Close" in hist.columns:
-                val = hist["Close"].iloc[-1]
-                if not math.isnan(float(val)):
-                    precio_actual = float(val)
-                    valor_anterior = hist["Close"].iloc[-2] if len(hist) > 1 else val
-                    precio_anterior = float(valor_anterior) if not math.isnan(float(valor_anterior)) else precio_actual
-                    cambio = precio_actual - precio_anterior
-                    porcentaje = (cambio / precio_anterior * 100) if precio_anterior != 0 else 0.0
-                    sube = cambio >= 0
-
-                    st.session_state.datos_mercado_real[ticker]["precio"] = precio_actual
-                    st.session_state.datos_mercado_real[ticker]["var"] = f"{'+' if sube else ''}{cambio:.2f} ({'+' if sube else ''}{porcentaje:.2f}%)"
-                    st.session_state.datos_mercado_real[ticker]["sube"] = sube
-        except Exception:
-            pass
-
-    # Marcar como cargado para no repetir el fetch pesado en cada rerun
     st.session_state.datos_cargados = True
 
+
 def actualizar_precios_mt5():
-    """
-    Actualización LIGERA y rápida de los precios de la watchlist desde MT5
-    (solo tick en vivo, sin yfinance). Pensada para el auto-refresco en tiempo real.
-    Actualiza st.session_state.datos_mercado_real en su lugar.
-    """
+    """Actualización LIGERA de precios de la watchlist desde MT5 (tick en vivo).
+    Usa el nombre EXACTO del símbolo (con '...') — sin limpiarlo."""
     inicializar_mt5()
     datos = st.session_state.get("datos_mercado_real")
     if not datos:
         return
-    for ticker in list(datos.keys()):
-        # Limpiar "..." -- es solo un marcador visual para la UI, MT5 necesita
-        # el símbolo real (p. ej. "EURUSD", no "EURUSD...")
-        simbolo_mt5 = ticker.replace("...", "").strip()
+    for simbolo in list(datos.keys()):
         try:
-            info_tick = obtener_precio_actual(simbolo_mt5)
+            info_tick = obtener_precio_actual(simbolo)
             if "error" in info_tick:
                 continue
             precio_actual = info_tick.get("last", 0) if info_tick.get("last", 0) > 0 else info_tick.get("bid", 0)
             if precio_actual and precio_actual > 0:
-                precio_anterior = datos[ticker].get("precio", precio_actual)
+                precio_anterior = datos[simbolo].get("precio", precio_actual)
                 cambio = precio_actual - precio_anterior
                 porcentaje = (cambio / precio_anterior * 100) if precio_anterior else 0.0
-                sube = cambio >= 0
                 decimales = 2 if precio_actual > 100 else 5
-
-                datos[ticker]["precio"] = precio_actual
-                datos[ticker]["sube"] = sube
-                # Solo se pisa la variación cuando sí hubo un cambio real,
-                # para no mostrar "+0.00 (+0.00%)" entre un tick y otro
+                datos[simbolo]["precio"] = precio_actual
+                datos[simbolo]["sube"] = cambio >= 0
                 if cambio != 0:
-                    datos[ticker]["var"] = f"{cambio:+.{decimales}f} ({porcentaje:+.2f}%)"
+                    datos[simbolo]["var"] = f"{cambio:+.{decimales}f} ({porcentaje:+.2f}%)"
         except Exception:
             pass
