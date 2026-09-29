@@ -41,6 +41,7 @@ from components.market_data import actualizar_precios_mt5, cargar_datos_mercado
 from components.watchlist import renderizar_watchlist
 from components.nav_bar import renderizar_barra_navegacion as renderizar_nav_lateral
 from components.top_navbar import renderizar_barra_navegacion as renderizar_nav_superior
+from components.news_panel import renderizar_panel_noticias
 from components.login import requerir_login
 
 # Configuración inicial de la página
@@ -136,7 +137,7 @@ st.markdown("""
         /* Baja el logo P&J para alinearlo con el buscador de la barra superior.
            Ajusta este valor (1.6rem) si necesitas subirlo o bajarlo un poco más. */
         .pj-logo {
-            margin-top: 1.6rem !important;
+            margin-top: -0.5rem !important;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -165,6 +166,15 @@ inicializar_mt5()
 _info_cuenta = obtener_info_cuenta()
 _saldo_mt5 = _info_cuenta.get("equity") if "error" not in _info_cuenta else None
 _moneda_mt5 = _info_cuenta.get("currency", "USD") if "error" not in _info_cuenta else "USD"
+
+# Desplazamiento de la barra superior según el ancho de la barra lateral
+# (colapsada 70px / expandida 220px) para que no se solapen.
+_sidebar_w = 220 if st.session_state.get("sidebar_expandido", False) else 70
+st.markdown(
+    f"<style>.st-key-barra_nav_fija {{ left:{_sidebar_w}px !important; "
+    f"width:calc(100% - {_sidebar_w}px) !important; }}</style>",
+    unsafe_allow_html=True,
+)
 
 # 1. Barra superior fija
 with st.container(key="barra_nav_fija"):
@@ -204,21 +214,27 @@ col_nav, col_main = st.columns([0.5, 11.5], gap="small")
 with col_nav:
     renderizar_nav_lateral()
 
-# 3. Área de contenido principal
+# 3. Área de contenido principal — cambia según la vista de la barra lateral
 with col_main:
     st.markdown("<div style='height: 0.2rem'></div>", unsafe_allow_html=True)
 
-    # Barra superior de FAVORITOS (precios en vivo)
-    _favoritos_en_vivo()
+    if st.session_state.get("nav_activo") == "noticias":
+        # --- VISTA DE NOTICIAS (se mantiene el navbar y la barra lateral) ---
+        # Para volver al panel, se presiona el botón Home de la barra lateral.
+        renderizar_panel_noticias(main)
+    else:
+        # --- PANEL PRINCIPAL (dashboard) ---
+        # Barra superior de FAVORITOS (precios en vivo)
+        _favoritos_en_vivo()
 
-    # Watchlist y Panel Central
-    col_watchlist, col_center = st.columns([1.4, 3.4])
+        # Watchlist y Panel Central
+        col_watchlist, col_center = st.columns([1.4, 3.4])
 
-    with col_watchlist:
-        _watchlist_en_vivo()
+        with col_watchlist:
+            _watchlist_en_vivo()
 
-    with col_center:
-        renderizar_panel_central(main)
+        with col_center:
+            renderizar_panel_central(main)
 
 # Quitamos el overlay de carga una vez renderizado todo
 _overlay.empty()

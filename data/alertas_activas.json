@@ -30,5 +30,13 @@
         "valor_objetivo": 38.0,
         "fecha_creacion": "2026-09-28 11:54:00",
         "activa": true
+    },
+    {
+        "id": 5,
+        "ticker": "VGZ",
+        "condicion": "menor",
+        "valor_objetivo": 2.3,
+        "fecha_creacion": "2026-09-29 09:24:04",
+        "activa": true
     }
 ]

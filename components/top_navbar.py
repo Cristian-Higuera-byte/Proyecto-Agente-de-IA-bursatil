@@ -83,6 +83,18 @@ def renderizar_barra_navegacion(usuario: str = "Emilio Fuentes",
             [class*="st-key-btn_abrir_buscador"] button:hover {
                 border-color:#58a6ff !important; color:#e6edf3 !important;
             }
+            /* Botón ☰ que expande/colapsa la barra lateral (estilo SIGMA) */
+            [class*="st-key-top_toggle"] button {
+                background:transparent !important; border:none !important; box-shadow:none !important;
+                color:#8b949e !important; padding:0 !important; height:40px; min-height:40px !important;
+                width:40px !important; border-radius:8px !important;
+            }
+            [class*="st-key-top_toggle"] button:hover {
+                color:#e6edf3 !important; background:rgba(255,255,255,0.06) !important;
+            }
+            [class*="st-key-top_toggle"] button p,
+            [class*="st-key-top_toggle"] button p *,
+            [class*="st-key-top_toggle"] button span[data-testid="stIconMaterial"] { font-size:28px !important; }
         </style>
         """,
         unsafe_allow_html=True,
@@ -123,11 +135,18 @@ def renderizar_barra_navegacion(usuario: str = "Emilio Fuentes",
         </div>
     """
 
-    # Ajustado a 2 columnas principales: el buscador toma más espacio y la derecha mantiene el saldo/usuario
-    c_buscar, c_der = st.columns([3.2, 2], vertical_alignment="center")
+    # ☰ + buscador (corto, a la izquierda) + espacio + derecha (saldo/usuario)
+    c_toggle, c_buscar, c_spacer, c_der = st.columns(
+        [0.2, 1.3, 1.3, 2.0], vertical_alignment="center")
+    with c_toggle:
+        if st.button(":material/menu:", key="top_toggle"):
+            st.session_state.sidebar_expandido = not st.session_state.get("sidebar_expandido", False)
+            st.rerun()
     with c_buscar:
         if st.button("Buscar activo, par o ticker...", icon=":material/search:",
                      key="btn_abrir_buscador", width="stretch"):
             dialogo_buscador()
+    with c_spacer:
+        st.empty()
     with c_der:
         st.markdown(right_html, unsafe_allow_html=True)
