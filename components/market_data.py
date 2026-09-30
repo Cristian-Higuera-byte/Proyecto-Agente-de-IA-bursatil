@@ -1,29 +1,54 @@
 import math
 import streamlit as st
 import MetaTrader5 as mt5  # type: ignore[import-untyped]
-from tools.mt5_bridge import inicializar_mt5, obtener_precio_actual, resolver_simbolo
+from tools.mt5_bridge import inicializar_mt5, obtener_precio_actual
 from tools import watchlist_manager as wl
 
 
+def obtener_simbolo_mt5_real(simbolo: str) -> str:
+    """Busca y valida el nombre real del símbolo en MT5 usando coincidencias generales,
+    resolviendo problemas con sufijos o puntos suspensivos (...)."""
+    if not mt5.initialize():
+        return simbolo
+    
+    # 1. Intentar primero con el nombre exacto por si acaso
+    if mt5.symbol_info(simbolo) is not None:
+        return simbolo
+    
+    # 2. Si falla, limpiar el símbolo (quitar '...' y sufijos) usando watchlist_manager
+    base = wl.nombre_visible(simbolo)
+    
+    # 3. Búsqueda por coincidencia general en MT5 (ej. *EURUSD*)
+    coincidencias = mt5.symbols_get(f"*{base}*")
+    if coincidencias:
+        return coincidencias[0].name
+        
+    return simbolo
+
+
 def construir_entrada(simbolo: str) -> dict:
-    """Arma la entrada de un símbolo para la watchlist (nombre, categoría, precio)
-    usando el nombre EXACTO de MT5 (sin limpiar los '...')."""
+    """Arma la entrada de un símbolo para la watchlist resolviendo el nombre real en MT5."""
+    simbolo_real = obtener_simbolo_mt5_real(simbolo)
+    
     try:
-        sim_real = resolver_simbolo(simbolo)  # nombre real en ESTE terminal (con/sin '...')
-        mt5.symbol_select(sim_real, True)
-        info = mt5.symbol_info(sim_real)
+        mt5.symbol_select(simbolo_real, True)
+        info = mt5.symbol_info(simbolo_real)
     except Exception:
         info = None
+        
     nombre = (info.description if info and getattr(info, "description", "") else wl.nombre_visible(simbolo))
-    mercado = wl.categoria_simbolo(getattr(info, "path", "") if info else "", simbolo)
+    mercado = wl.categoria_simbolo(getattr(info, "path", "") if info else "", simbolo_real)
     precio = 0.0
+    
     try:
-        tick = obtener_precio_actual(simbolo)
+        tick = obtener_precio_actual(simbolo_real)
         if "error" not in tick:
             precio = tick.get("last", 0) if tick.get("last", 0) > 0 else tick.get("bid", 0)
     except Exception:
         pass
+        
     return {
+        "simbolo_real": simbolo_real,
         "nombre": nombre,
         "mercado": mercado,
         "precio": float(precio or 0.0),
@@ -36,12 +61,10 @@ def cargar_datos_mercado():
     # Inicializar conexión a MT5 de forma segura al cargar el mercado
     inicializar_mt5()
 
-    # Si ya se cargó una vez, no repetir el fetch pesado; los fragmentos
-    # (actualizar_precios_mt5) mantienen los precios en vivo.
     if st.session_state.get("datos_cargados"):
         return
 
-    # 1. Índices globales (barra superior) — se mantiene con yfinance
+    # 1. Índices globales (barra superior)
     if "datos_indices_globales" not in st.session_state:
         st.session_state.datos_indices_globales = {
             "SP500": {"valor": 5432.18, "var": "+0.84%", "sube": True},
@@ -67,7 +90,7 @@ def cargar_datos_mercado():
     except Exception:
         pass
 
-    # 2. Watchlist del USUARIO (desde Supabase; si es nuevo, se siembra el default)
+    # 2. Watchlist del USUARIO
     usuario = st.session_state.get("usuario_info", {})
     uid = usuario.get("id") if isinstance(usuario, dict) else None
     simbolos = wl.obtener_watchlist(uid)
@@ -75,7 +98,7 @@ def cargar_datos_mercado():
         simbolos = wl.sembrar_defaults(uid)
     st.session_state.watchlist_simbolos = simbolos
 
-    # 3. Construir los datos de mercado de esos símbolos (nombre EXACTO para MT5)
+    # 3. Construir los datos de mercado usando la resolución de nombres generales
     datos = {}
     for sym in simbolos:
         datos[sym] = construir_entrada(sym)
@@ -85,15 +108,16 @@ def cargar_datos_mercado():
 
 
 def actualizar_precios_mt5():
-    """Actualización LIGERA de precios de la watchlist desde MT5 (tick en vivo).
-    Usa el nombre EXACTO del símbolo (con '...') — sin limpiarlo."""
+    """Actualización LIGERA de precios de la watchlist usando coincidencias generales de MT5."""
     inicializar_mt5()
     datos = st.session_state.get("datos_mercado_real")
     if not datos:
         return
     for simbolo in list(datos.keys()):
         try:
-            info_tick = obtener_precio_actual(simbolo)
+            # Resolver el símbolo real en cada iteración por seguridad
+            simbolo_real = datos[simbolo].get("simbolo_real") or obtener_simbolo_mt5_real(simbolo)
+            info_tick = obtener_precio_actual(simbolo_real)
             if "error" in info_tick:
                 continue
             precio_actual = info_tick.get("last", 0) if info_tick.get("last", 0) > 0 else info_tick.get("bid", 0)
