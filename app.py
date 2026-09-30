@@ -60,9 +60,12 @@ st.markdown("""
         [data-testid="stHeader"] { display: none; }
         [data-testid="stToolbar"] { display: none; }
 
-        /* Ajuste de márgenes generales de la página */
+        /* Ajuste de márgenes generales de la página.
+           1er valor (padding-top) = hueco bajo la barra superior fija.
+           Súbelo/bájalo para más/menos espacio; debe ir acoplado con el
+           margin-top negativo de la barra lateral (más abajo, mismo número). */
         .block-container {
-            padding: 4.8rem 1.5rem 2rem 1.2rem !important;
+            padding: 1.5rem 1.5rem 2rem 1.2rem !important;
             max-width: 100%;
         }
 
@@ -129,7 +132,7 @@ st.markdown("""
             background: #0d1117 !important;
             border-right: 1px solid #30363d;
             min-height: 100vh;
-            margin-top: -4.8rem !important;
+            margin-top: -3.9rem !important;  /* = padding-top de .block-container */
             padding-top: 0 !important;
             z-index: 100001;
         }
@@ -222,6 +225,10 @@ with col_main:
         # --- VISTA DE NOTICIAS (se mantiene el navbar y la barra lateral) ---
         # Para volver al panel, se presiona el botón Home de la barra lateral.
         renderizar_panel_noticias(main)
+    elif st.session_state.get("nav_activo") == "mercados":
+        # --- VISTA DE MERCADOS (tablas estilo Investing) ---
+        from components.mercados_panel import renderizar_panel_mercados
+        renderizar_panel_mercados(main)
     else:
         # --- PANEL PRINCIPAL (dashboard) ---
         # Barra superior de FAVORITOS (precios en vivo)
