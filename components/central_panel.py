@@ -15,6 +15,7 @@ from tools.mt5_bridge import (
     inicializar_mt5,
     obtener_datos_historicos,
     obtener_precio_actual,
+    resolver_simbolo,
 )
 
 # ==========================================================================
@@ -330,6 +331,9 @@ def renderizar_panel_central(main: Optional[ModuleType]):
     # Obtener activo actual seleccionado y limpiar los puntos suspensivos para MT5
     activo_actual = st.session_state.get("activo_seleccionado", "EURUSD...")
     activo_visible = activo_actual.replace("...", "").strip()
+    # Nombre REAL en este terminal (con o sin "..."): funciona en el MT5 de Emilio
+    # (EURUSD...) y en el de Cristian (EURUSD). Se usa para pedir precio/gráfico.
+    simbolo_api = resolver_simbolo(activo_actual)
 
     # Cabecera con PRECIO EN VIVO: se refresca sola cada 2 s usando el símbolo limpio
     @st.fragment(run_every="2s")
@@ -390,7 +394,7 @@ def renderizar_panel_central(main: Optional[ModuleType]):
     # --- Gráfico EN TIEMPO REAL, estilo TradingView, usando el símbolo limpio ---
     html_chart = (
         _CHART_TEMPLATE
-        .replace("__SIMBOLO_API__", activo_actual)   # símbolo COMPLETO para pedir datos a MT5
+        .replace("__SIMBOLO_API__", simbolo_api)     # nombre real del terminal (con/sin '...')
         .replace("__SIMBOLO__", activo_visible)       # nombre limpio solo para mostrar en la leyenda
         .replace("__TF__", temporalidad_elegida)
         .replace("__TIPO__", tipo_grafico)

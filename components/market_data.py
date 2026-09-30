@@ -1,7 +1,7 @@
 import math
 import streamlit as st
 import MetaTrader5 as mt5  # type: ignore[import-untyped]
-from tools.mt5_bridge import inicializar_mt5, obtener_precio_actual
+from tools.mt5_bridge import inicializar_mt5, obtener_precio_actual, resolver_simbolo
 from tools import watchlist_manager as wl
 
 
@@ -9,8 +9,9 @@ def construir_entrada(simbolo: str) -> dict:
     """Arma la entrada de un símbolo para la watchlist (nombre, categoría, precio)
     usando el nombre EXACTO de MT5 (sin limpiar los '...')."""
     try:
-        mt5.symbol_select(simbolo, True)
-        info = mt5.symbol_info(simbolo)
+        sim_real = resolver_simbolo(simbolo)  # nombre real en ESTE terminal (con/sin '...')
+        mt5.symbol_select(sim_real, True)
+        info = mt5.symbol_info(sim_real)
     except Exception:
         info = None
     nombre = (info.description if info and getattr(info, "description", "") else wl.nombre_visible(simbolo))
