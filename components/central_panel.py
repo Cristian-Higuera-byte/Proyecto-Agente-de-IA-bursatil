@@ -14,6 +14,7 @@ from tools.mt5_bridge import (
     inicializar_mt5,
     obtener_datos_historicos,
     obtener_precio_actual,
+    resolver_simbolo,
 )
 
 # ==========================================================================
@@ -809,6 +810,9 @@ def renderizar_panel_central(main: Optional[ModuleType]):
 
     activo_actual = st.session_state.get("activo_seleccionado", "EURUSD...")
     activo_visible = activo_actual.replace("...", "").strip()
+    # Nombre REAL en este terminal (con o sin "..."): funciona en el MT5 de Emilio
+    # (EURUSD...) y en el de Cristian (EURUSD). Se usa para pedir precio/gráfico.
+    simbolo_api = resolver_simbolo(activo_actual)
 
     @st.fragment(run_every="2s")
     def _cabecera_precio():
@@ -842,8 +846,33 @@ def renderizar_panel_central(main: Optional[ModuleType]):
 
     _cabecera_precio()
 
-    html_chart = _CHART_TEMPLATE.replace("__SIMBOLO__", activo_visible)
-    components.html(html_chart, height=750)
+    col_peridos, col_tipos = st.columns([1.5, 1])
+
+    with col_peridos:
+        opciones_tf = ["M1", "M5", "M15", "H1", "H4", "D1"]
+        temporalidad_elegida = st.selectbox(
+            "Temporalidad (MT5 Timeframe)",
+            options=opciones_tf,
+            index=3,
+            key=f"tf_temporal_{activo_visible}"
+        )
+
+    with col_tipos:
+        tipo_grafico = st.selectbox(
+            "Tipo de Gráfico",
+            options=["Velas", "Líneas", "Barras"],
+            key=f"tipo_grafico_{activo_visible}"
+        )
+
+    # --- Gráfico EN TIEMPO REAL, estilo TradingView, usando el símbolo limpio ---
+    html_chart = (
+        _CHART_TEMPLATE
+        .replace("__SIMBOLO_API__", simbolo_api)     # nombre real del terminal (con/sin '...')
+        .replace("__SIMBOLO__", activo_visible)       # nombre limpio solo para mostrar en la leyenda
+        .replace("__TF__", temporalidad_elegida)
+        .replace("__TIPO__", tipo_grafico)
+    )
+    components.html(html_chart, height=600)
 
     # --- ZONA DE CHAT INFERIOR CONECTADA A main.py ---
     st.markdown("---")
