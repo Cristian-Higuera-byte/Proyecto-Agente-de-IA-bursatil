@@ -1,7 +1,35 @@
 import math
 import streamlit as st
 import MetaTrader5 as mt5  # type: ignore[import-untyped]
-from tools.mt5_bridge import inicializar_mt5, obtener_precio_actual, resolver_simbolo
+from tools.mt5_bridge import (
+    inicializar_mt5, obtener_precio_actual, obtener_datos_historicos, resolver_simbolo,
+)
+
+# Puntos máximos del mini-gráfico (sparkline) por símbolo
+_SPARK_MAX = 40
+
+
+@st.cache_data(ttl=120, show_spinner=False)
+def _historial_sparkline(simbolo: str) -> list:
+    """Últimos ~30 cierres (M1) para sembrar el sparkline. Cacheado 2 min.
+    Se llama en la carga inicial (hilo principal), no en el refresco en vivo."""
+    try:
+        df = obtener_datos_historicos(simbolo, timeframe=mt5.TIMEFRAME_M1, n_velas=30)
+        if df is not None and not df.empty and "close" in df.columns:
+            return [float(x) for x in df["close"].tolist()][-_SPARK_MAX:]
+    except Exception:
+        pass
+    return []
+
+
+def _empujar_spark(simbolo: str, precio: float):
+    """Agrega un precio al buffer del sparkline (crece con el refresco en vivo)."""
+    if not precio or precio <= 0:
+        return
+    buf = st.session_state.setdefault("_spark", {}).setdefault(simbolo, [])
+    buf.append(float(precio))
+    if len(buf) > _SPARK_MAX:
+        del buf[:-_SPARK_MAX]
 from tools import watchlist_manager as wl
 
 
@@ -77,8 +105,12 @@ def cargar_datos_mercado():
 
     # 3. Construir los datos de mercado de esos símbolos (nombre EXACTO para MT5)
     datos = {}
+    spark = st.session_state.setdefault("_spark", {})
     for sym in simbolos:
         datos[sym] = construir_entrada(sym)
+        # Sembrar el sparkline con histórico M1 (una vez, en el hilo principal)
+        if sym not in spark:
+            spark[sym] = _historial_sparkline(sym)
     st.session_state.datos_mercado_real = datos
 
     st.session_state.datos_cargados = True
@@ -106,5 +138,6 @@ def actualizar_precios_mt5():
                 datos[simbolo]["sube"] = cambio >= 0
                 if cambio != 0:
                     datos[simbolo]["var"] = f"{cambio:+.{decimales}f} ({porcentaje:+.2f}%)"
+                _empujar_spark(simbolo, precio_actual)
         except Exception:
             pass

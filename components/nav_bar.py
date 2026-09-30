@@ -19,7 +19,7 @@ ANCHO_EXPANDIDO = 220
 
 def renderizar_barra_navegacion():
     if "nav_activo" not in st.session_state:
-        st.session_state.nav_activo = "mercados"
+        st.session_state.nav_activo = "home"
     expandido = st.session_state.get("sidebar_expandido", False)
     ancho = ANCHO_EXPANDIDO if expandido else 70
 
