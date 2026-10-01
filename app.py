@@ -221,27 +221,30 @@ with col_nav:
 with col_main:
     st.markdown("<div style='height: 0.2rem'></div>", unsafe_allow_html=True)
 
-    if st.session_state.get("nav_activo") == "noticias":
-        # --- VISTA DE NOTICIAS (se mantiene el navbar y la barra lateral) ---
-        # Para volver al panel, se presiona el botón Home de la barra lateral.
+    _nav = st.session_state.get("nav_activo")
+    if _nav == "noticias":
+        # --- VISTA DE NOTICIAS ---
         renderizar_panel_noticias(main)
-    elif st.session_state.get("nav_activo") == "mercados":
-        # --- VISTA DE MERCADOS (tablas estilo Investing) ---
+    elif _nav == "cotizaciones":
+        # --- VISTA DE COTIZACIONES (tablas estilo Investing) ---
         from components.mercados_panel import renderizar_panel_mercados
         renderizar_panel_mercados(main)
-    else:
-        # --- PANEL PRINCIPAL (dashboard) ---
-        # Barra superior de FAVORITOS (precios en vivo)
+    elif _nav == "copytrading":
+        # --- VISTA COPY TRADING (estrategias, MVP mock) ---
+        from components.copytrading_panel import renderizar_panel_copytrading
+        renderizar_panel_copytrading(main)
+    elif _nav == "trading":
+        # --- VISTA TRADING (dashboard: favoritos + watchlist + gráfico) ---
         _favoritos_en_vivo()
-
-        # Watchlist y Panel Central
         col_watchlist, col_center = st.columns([1.4, 3.4])
-
         with col_watchlist:
             _watchlist_en_vivo()
-
         with col_center:
             renderizar_panel_central(main)
+    else:
+        # --- VISTA INICIO (panel de cuenta estilo XM) — también para botones sin vista propia ---
+        from components.inicio_panel import renderizar_panel_inicio
+        renderizar_panel_inicio(main)
 
 # Quitamos el overlay de carga una vez renderizado todo
 _overlay.empty()

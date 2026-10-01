@@ -106,14 +106,42 @@ def obtener_info_cuenta() -> dict:
     if cuenta is None:
         return {"error": "No se pudo obtener información de la cuenta MT5"}
     
+    modo = getattr(cuenta, "trade_mode", 0)
+    tipo = "Real" if modo == 2 else ("Concurso" if modo == 1 else "Demo")
     return {
         "login": cuenta.login,
+        "nombre": getattr(cuenta, "name", ""),
+        "servidor": getattr(cuenta, "server", ""),
+        "tipo": tipo,                       # Real / Demo / Concurso
         "balance": cuenta.balance,
         "equity": cuenta.equity,
-        "profit": cuenta.profit,
+        "profit": cuenta.profit,            # P/G sin realizar
+        "margin": getattr(cuenta, "margin", 0.0),
         "margin_free": cuenta.margin_free,
-        "currency": cuenta.currency
+        "margin_level": getattr(cuenta, "margin_level", 0.0),
+        "credit": getattr(cuenta, "credit", 0.0),
+        "leverage": getattr(cuenta, "leverage", 0),
+        "currency": cuenta.currency,
     }
+
+
+def obtener_posiciones() -> list:
+    """Posiciones abiertas de la cuenta (para la 'Cartera'). Lista de dicts."""
+    try:
+        posiciones = mt5.positions_get()
+    except Exception:
+        posiciones = None
+    salida = []
+    for p in (posiciones or []):
+        salida.append({
+            "symbol": p.symbol,
+            "tipo": "Compra" if p.type == 0 else "Venta",
+            "volumen": p.volume,
+            "precio_apertura": p.price_open,
+            "precio_actual": p.price_current,
+            "profit": p.profit,
+        })
+    return salida
 
 def obtener_precio_actual(symbol: str) -> dict:
     """Obtiene el precio Bid, Ask y último tick de un símbolo.
