@@ -2,8 +2,10 @@ import streamlit as st
 
 # (icono material, clave, etiqueta visible al expandir)
 ITEMS = [
-    (":material/home:", "home", "Home"),
-    (":material/show_chart:", "mercados", "Mercados"),
+    (":material/home:", "home", "Inicio"),                       # panel de cuenta (estilo XM)
+    (":material/candlestick_chart:", "trading", "Trading"),      # dashboard: gráfico + listas
+    (":material/table_rows:", "cotizaciones", "Cotizaciones"),   # tablas estilo Investing
+    (":material/content_copy:", "copytrading", "Copy trading"),  # estrategias (mock)
     (":material/newspaper:", "noticias", "Noticias"),
     (":material/work:", "portafolio", "Portafolio"),
     (":material/assignment:", "ordenes", "Órdenes"),
@@ -19,7 +21,7 @@ ANCHO_EXPANDIDO = 220
 
 def renderizar_barra_navegacion():
     if "nav_activo" not in st.session_state:
-        st.session_state.nav_activo = "home"
+        st.session_state.nav_activo = "trading"  # al entrar, arranca en los gráficos
     expandido = st.session_state.get("sidebar_expandido", False)
     ancho = ANCHO_EXPANDIDO if expandido else 70
 
@@ -49,7 +51,7 @@ def renderizar_barra_navegacion():
             margin-top: 0 !important;   /* anula el -4.8rem de app.py (subía el logo fuera de pantalla) */
             height: 100vh !important;
             z-index: 100001;
-            overflow-y: auto;
+            overflow: hidden;   /* sin scroll */
             /* Ancho fijo = coincide con el desplazamiento del contenido y la barra superior */
             flex: 0 0 70px !important;
             width: 70px !important;
@@ -58,8 +60,11 @@ def renderizar_barra_navegacion():
         div[data-testid="stColumn"]:has(.pj-nav) > div,
         div[data-testid="column"]:has(.pj-nav) > div {{
             align-items: center;
-            gap: 6px;
+            gap: 4px;
+            height: 100%;              /* llena la columna para poder empujar Soporte al fondo */
         }}
+        /* Soporte pegado al fondo (sin espaciador fijo que causaba scroll) */
+        [class*="st-key-nav_soporte"] {{ margin-top: auto !important; }}
 
         /* Logo */
         .pj-logo {{
@@ -171,9 +176,7 @@ def renderizar_barra_navegacion():
             st.session_state.nav_activo = clave
             st.rerun()
 
-    # Espaciador: empuja el soporte hacia abajo
-    st.markdown("<div style='height: calc(100vh - 560px);'></div>", unsafe_allow_html=True)
-
+    # Soporte: se empuja al fondo con margin-top:auto (ver CSS), sin espaciador fijo.
     if expandido:
         clic_soporte = st.button("Soporte", icon=":material/headset_mic:", key="nav_soporte")
     else:
