@@ -183,37 +183,54 @@ def ejecutar_orden_mercado(symbol: str, tipo: str, volumen: float, sl: float = 0
     Ejecuta una orden de compra o venta a mercado en MT5.
     tipo: 'BUY' o 'SELL'
     """
+    symbol = resolver_simbolo(symbol)   # nombre real en este terminal (con/sin '...')
     mt5.symbol_select(symbol, True)
     sim_info = mt5.symbol_info(symbol)
     if sim_info is None:
         return {"error": f"Símbolo {symbol} no encontrado en MT5"}
 
     tipo_orden = mt5.ORDER_TYPE_BUY if tipo.upper() == 'BUY' else mt5.ORDER_TYPE_SELL
-    precio = sim_info.ask if tipo.upper() == 'BUY' else sim_info.bid
+    tick = mt5.symbol_info_tick(symbol)
+    precio = (tick.ask if tipo.upper() == 'BUY' else tick.bid) if tick else \
+             (sim_info.ask if tipo.upper() == 'BUY' else sim_info.bid)
+
+    # Modo de llenado soportado por el símbolo (evita "Unsupported filling mode")
+    fm = getattr(sim_info, "filling_mode", 0)
+    if fm & 1:        # SYMBOL_FILLING_FOK
+        filling = mt5.ORDER_FILLING_FOK
+    elif fm & 2:      # SYMBOL_FILLING_IOC
+        filling = mt5.ORDER_FILLING_IOC
+    else:
+        filling = mt5.ORDER_FILLING_RETURN
 
     request = {
         "action": mt5.TRADE_ACTION_DEAL,
         "symbol": symbol,
-        "volume": volumen,
+        "volume": float(volumen),
         "type": tipo_orden,
         "price": precio,
-        "sl": sl,
-        "tp": tp,
         "deviation": 20,
         "magic": 234000,
-        "comment": "Terminal IA Agent - Criss",
+        "comment": "Piña & Jara Terminal",
         "type_time": mt5.ORDER_TIME_GTC,
-        "type_filling": mt5.ORDER_FILLING_IOC,
+        "type_filling": filling,
     }
+    if sl and sl > 0:
+        request["sl"] = float(sl)
+    if tp and tp > 0:
+        request["tp"] = float(tp)
 
     resultado = mt5.order_send(request)
+    if resultado is None:
+        return {"error": f"order_send devolvió None: {mt5.last_error()}"}
     if resultado.retcode != mt5.TRADE_RETCODE_DONE:
-        return {"error": f"Fallo al enviar orden, retcode={resultado.retcode}"}
+        return {"error": f"Fallo al enviar orden (retcode {resultado.retcode}): "
+                         f"{getattr(resultado, 'comment', '')}"}
 
     return {
         "status": "success",
         "order": resultado.order,
         "price": resultado.price,
         "volume": resultado.volume,
-        "symbol": symbol
+        "symbol": symbol,
     }

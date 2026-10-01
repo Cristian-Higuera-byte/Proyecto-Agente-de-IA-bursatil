@@ -234,13 +234,16 @@ with col_main:
         from components.copytrading_panel import renderizar_panel_copytrading
         renderizar_panel_copytrading(main)
     elif _nav == "trading":
-        # --- VISTA TRADING (dashboard: favoritos + watchlist + gráfico) ---
+        # --- VISTA TRADING (favoritos + watchlist + gráfico + ticket de orden) ---
         _favoritos_en_vivo()
-        col_watchlist, col_center = st.columns([1.4, 3.4])
+        col_watchlist, col_center, col_orden = st.columns([1.2, 3.7, 0.95])
         with col_watchlist:
             _watchlist_en_vivo()
         with col_center:
             renderizar_panel_central(main)
+        with col_orden:
+            from components.order_panel import renderizar_panel_orden
+            renderizar_panel_orden(main)
     else:
         # --- VISTA INICIO (panel de cuenta estilo XM) — también para botones sin vista propia ---
         from components.inicio_panel import renderizar_panel_inicio
