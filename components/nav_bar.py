@@ -7,7 +7,7 @@ ITEMS = [
     (":material/table_rows:", "cotizaciones", "Cotizaciones"),   # tablas estilo Investing
     (":material/content_copy:", "copytrading", "Copy trading"),  # estrategias (mock)
     (":material/newspaper:", "noticias", "Noticias"),
-    (":material/work:", "portafolio", "Portafolio"),
+    (":material/work:", "portafolio", "Cartera"),
     (":material/assignment:", "ordenes", "Órdenes"),
     (":material/bar_chart:", "analisis", "Análisis"),
     (":material/rocket_launch:", "promociones", "Promociones"),

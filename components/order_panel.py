@@ -14,7 +14,7 @@ import streamlit as st
 import MetaTrader5 as mt5  # type: ignore[import-untyped]
 
 from tools.mt5_bridge import (
-    inicializar_mt5, obtener_precio_actual, resolver_simbolo, ejecutar_orden_mercado,
+    MT5_LOCK, inicializar_mt5, obtener_precio_actual, resolver_simbolo, ejecutar_orden_mercado,
 )
 
 _CSS = """
@@ -71,8 +71,9 @@ _CSS = """
 
 def _info_simbolo(real):
     try:
-        mt5.symbol_select(real, True)
-        return mt5.symbol_info(real)
+        with MT5_LOCK:
+            mt5.symbol_select(real, True)
+            return mt5.symbol_info(real)
     except Exception:
         return None
 
@@ -80,7 +81,8 @@ def _info_simbolo(real):
 def _margen(real, volumen, precio, tipo):
     try:
         action = mt5.ORDER_TYPE_BUY if tipo == "BUY" else mt5.ORDER_TYPE_SELL
-        return mt5.order_calc_margin(action, real, float(volumen), float(precio))
+        with MT5_LOCK:
+            return mt5.order_calc_margin(action, real, float(volumen), float(precio))
     except Exception:
         return None
 
@@ -197,6 +199,7 @@ def renderizar_panel_orden(main=None):
                 )
                 if st.button("ir", key="ord_ovplace"):
                     tipo = "SELL" if side == "SELL" else "BUY"
+                    st.session_state.pop("ord_result", None)  # limpia resultado previo
                     if oc:
                         _ejecutar(real, visible, tipo, vol, sl, tp)
                     else:
@@ -219,8 +222,10 @@ def renderizar_panel_orden(main=None):
                     st.session_state.ord_confirm = None
                     st.rerun(scope="fragment")
 
-            # Resultado
-            r = st.session_state.pop("ord_result", None)
+            # Resultado (persiste entre refrescos de 2s; se limpia al colocar
+            # una orden nueva). Antes se hacía pop() y el mensaje desaparecía al
+            # instante con el auto-refresco -> parecía que "no compraba".
+            r = st.session_state.get("ord_result")
             if r:
                 if r[0] == "ok":
                     st.success(r[1], icon=":material/check_circle:")

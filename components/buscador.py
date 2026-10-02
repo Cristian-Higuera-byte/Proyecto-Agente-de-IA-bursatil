@@ -9,7 +9,7 @@ puede "Abrir" (cargar en el gráfico) o "➕ Agregar" a la lista del usuario
 import streamlit as st
 import MetaTrader5 as mt5  # type: ignore[import-untyped]
 
-from tools.mt5_bridge import inicializar_mt5
+from tools.mt5_bridge import MT5_LOCK, inicializar_mt5
 from tools import watchlist_manager as wl
 
 _PASO_RESULTADOS = 40  # cuántos se revelan al inicio y por cada "Ver más"
@@ -19,7 +19,8 @@ _PASO_RESULTADOS = 40  # cuántos se revelan al inicio y por cada "Ver más"
 def cargar_simbolos_broker() -> list[dict]:
     """Todos los símbolos del broker MT5: {name, visible, desc, cat}. Cache 10 min."""
     inicializar_mt5()
-    simbolos = mt5.symbols_get()
+    with MT5_LOCK:
+        simbolos = mt5.symbols_get()
     salida: list[dict] = []
     if simbolos:
         for s in simbolos:

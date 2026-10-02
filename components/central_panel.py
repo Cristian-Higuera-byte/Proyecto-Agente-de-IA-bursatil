@@ -15,6 +15,7 @@ import streamlit.components.v1 as components
 
 # Importar las funciones del puente de MetaTrader 5
 from tools.mt5_bridge import (
+    MT5_LOCK,
     inicializar_mt5,
     obtener_datos_historicos,
     obtener_precio_actual,
@@ -1863,8 +1864,9 @@ def _info_simbolo(simbolo: str) -> Tuple[int, float]:
     digits = 5
     pip = 0.0
     try:
-        mt5.symbol_select(simbolo, True)
-        info = mt5.symbol_info(simbolo)
+        with MT5_LOCK:
+            mt5.symbol_select(simbolo, True)
+            info = mt5.symbol_info(simbolo)
         if info is not None:
             digits = int(info.digits)
             es_forex = info.trade_calc_mode == getattr(mt5, "SYMBOL_CALC_MODE_FOREX", 0)
@@ -2028,4 +2030,3 @@ def renderizar_panel_central(main: Optional[ModuleType]):
                         "chart_data": chart_data_resultado,
                         "imagen_path": imagen_resultado_path
                     })
-
