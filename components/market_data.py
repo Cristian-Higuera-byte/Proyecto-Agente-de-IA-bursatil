@@ -2,7 +2,7 @@ import math
 import streamlit as st
 import MetaTrader5 as mt5  # type: ignore[import-untyped]
 from tools.mt5_bridge import (
-    inicializar_mt5, obtener_precio_actual, obtener_datos_historicos, resolver_simbolo,
+    MT5_LOCK, inicializar_mt5, obtener_precio_actual, obtener_datos_historicos, resolver_simbolo,
 )
 
 # Puntos máximos del mini-gráfico (sparkline) por símbolo
@@ -38,8 +38,9 @@ def construir_entrada(simbolo: str) -> dict:
     usando el nombre EXACTO de MT5 (sin limpiar los '...')."""
     try:
         sim_real = resolver_simbolo(simbolo)  # nombre real en ESTE terminal (con/sin '...')
-        mt5.symbol_select(sim_real, True)
-        info = mt5.symbol_info(sim_real)
+        with MT5_LOCK:
+            mt5.symbol_select(sim_real, True)
+            info = mt5.symbol_info(sim_real)
     except Exception:
         info = None
     nombre = (info.description if info and getattr(info, "description", "") else wl.nombre_visible(simbolo))

@@ -16,7 +16,7 @@ import streamlit as st
 import MetaTrader5 as mt5  # type: ignore[import-untyped]
 
 from tools.mt5_bridge import (
-    inicializar_mt5, resolver_simbolo, obtener_datos_historicos,
+    MT5_LOCK, inicializar_mt5, resolver_simbolo, obtener_datos_historicos,
 )
 from components.favoritos_bar import icono_activo
 
@@ -138,13 +138,15 @@ def _fila(sym: str, label: str):
     """Fila de la tabla desde MT5, o None si el símbolo no existe en el bróker."""
     real = resolver_simbolo(sym)
     try:
-        mt5.symbol_select(real, True)
-        info = mt5.symbol_info(real)
+        with MT5_LOCK:
+            mt5.symbol_select(real, True)
+            info = mt5.symbol_info(real)
+            tick = mt5.symbol_info_tick(real) if info is not None else None
     except Exception:
         info = None
+        tick = None
     if info is None:
         return None
-    tick = mt5.symbol_info_tick(real)
 
     last = 0.0
     if tick is not None:
@@ -243,8 +245,9 @@ def _mostrar_ficha():
         return
 
     real = resolver_simbolo(sym)
-    mt5.symbol_select(real, True)
-    info0 = mt5.symbol_info(real)   # campos estáticos (dígitos, divisas, contrato)
+    with MT5_LOCK:
+        mt5.symbol_select(real, True)
+        info0 = mt5.symbol_info(real)   # campos estáticos (dígitos, divisas, contrato)
     if info0 is None:
         st.warning("No se pudo cargar la información del instrumento.")
         return
@@ -278,8 +281,9 @@ def _mostrar_ficha():
     # --- EN VIVO: precio + rangos (se refresca cada 2s) ---
     @st.fragment(run_every="2s")
     def _precio_vivo():
-        info = mt5.symbol_info(real)
-        tick = mt5.symbol_info_tick(real)
+        with MT5_LOCK:
+            info = mt5.symbol_info(real)
+            tick = mt5.symbol_info_tick(real)
         if info is None:
             return
         last = tick.last if (tick and getattr(tick, "last", 0) > 0) else (getattr(tick, "bid", 0) if tick else 0)
@@ -308,8 +312,9 @@ def _mostrar_ficha():
     # --- EN VIVO: rendimiento + tabla (se refresca cada 2s) ---
     @st.fragment(run_every="2s")
     def _datos_vivo():
-        info = mt5.symbol_info(real)
-        tick = mt5.symbol_info_tick(real)
+        with MT5_LOCK:
+            info = mt5.symbol_info(real)
+            tick = mt5.symbol_info_tick(real)
         if info is None:
             return
         last = tick.last if (tick and getattr(tick, "last", 0) > 0) else (getattr(tick, "bid", 0) if tick else 0)
@@ -380,7 +385,7 @@ def _mostrar_ficha():
     with a1:
         if st.button("Ver en gráfico", icon=":material/show_chart:", width="stretch"):
             st.session_state.activo_seleccionado = real
-            st.session_state.nav_activo = "home"
+            st.session_state.nav_activo = "trading"
             st.session_state.mkt_detalle = None
             st.rerun()
     with a2:

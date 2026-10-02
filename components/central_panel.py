@@ -15,6 +15,7 @@ import streamlit.components.v1 as components
 
 # Importar las funciones del puente de MetaTrader 5
 from tools.mt5_bridge import (
+    MT5_LOCK,
     inicializar_mt5,
     obtener_datos_historicos,
     obtener_precio_actual,
@@ -24,7 +25,7 @@ from tools.mt5_bridge import (
 API_URL = os.environ.get("MT5_API_URL", "http://localhost:8000")
 
 # ==========================================================================
-# Plantilla HTML del gráfico con Línea de Tendencia Interactiva Avanzada
+# Plantilla HTML del gráfico con Menú Desplegable de Líneas y Herramientas Pro
 # ==========================================================================
 _CHART_TEMPLATE = """
 <style>
@@ -44,23 +45,42 @@ _CHART_TEMPLATE = """
         font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
         flex-shrink: 0; z-index: 50;
     }
-    #tv-legend { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
-    #tv-legend .tv-sym { font-size:15px; font-weight:700; color:#ffffff; }
-    #tv-legend .tv-ohlc { font-size:12px; color:#8b949e; font-family:monospace; }
-    #tv-legend .tv-ohlc b { font-weight:700; }
-    #tv-legend .tv-vol { font-size:12px; color:#8b949e; font-family:monospace; }
+    #tv-legend {
+        position:absolute; top:8px; left:12px; z-index:15; pointer-events:none;
+        display:flex; flex-direction:column; gap:3px;
+        font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+        text-shadow:0 0 6px #0d1117, 0 0 3px #0d1117;
+    }
+    #tv-legend .lg-line { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:12px; }
+    #tv-legend .lg-sym { font-size:14px; font-weight:700; color:#ffffff; }
+    #tv-legend .lg-dot { color:#484f58; }
+    #tv-legend .lg-tf, #tv-legend .lg-feed { color:#8b949e; font-weight:500; }
+    #tv-legend .tv-ohlc { color:#8b949e; font-family:ui-monospace,Consolas,monospace; font-size:12px; }
+    #tv-legend .tv-ohlc b { font-weight:600; margin-right:8px; }
+    #tv-legend .tv-vol { color:#8b949e; font-family:ui-monospace,Consolas,monospace; font-size:12px; }
 
     #tv-actions { display:flex; align-items:center; gap:8px; }
     .tvbtn {
-        display:flex; align-items:center; gap:6px;
+        display:flex; align-items:center; gap:7px;
         background:rgba(255,255,255,0.04); border:1px solid #30363d; color:#c9d1d9;
-        font-size:13px; font-weight:500; padding:6px 12px; border-radius:6px; cursor:pointer;
+        font-size:13px; font-weight:500; padding:6px 11px; border-radius:6px; cursor:pointer;
         transition: background .15s ease, color .15s ease, border-color .15s ease;
     }
+    .tvbtn svg {
+        width:17px; height:17px; fill:none; stroke:currentColor;
+        stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; flex-shrink:0;
+    }
+    .tvbtn svg.caret { width:10px; height:10px; stroke-width:1.8; opacity:.7; }
+    .tvbtn.icon { padding:6px 8px; }
     .tvbtn:hover { background:rgba(255,255,255,0.08); color:#ffffff; border-color:#8b949e; }
     .tvbtn.activo { background:rgba(139,92,246,0.2); color:#a78bfa; border-color:rgba(139,92,246,0.5); }
+    .tv-drop-item .lbl { display:flex; align-items:center; gap:10px; }
+    .tv-drop-item svg {
+        width:16px; height:16px; fill:none; stroke:currentColor;
+        stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; flex-shrink:0;
+    }
 
-    /* Menús desplegables */
+    /* Menús desplegables superiores */
     .tv-dropdown { position: relative; display: inline-block; }
     .tv-dropdown-content {
         display: none; position: absolute; right: 0; top: 100%;
@@ -87,24 +107,47 @@ _CHART_TEMPLATE = """
         flex-shrink: 0; z-index: 20;
     }
     .tvtool {
-        width:30px; height:30px; display:flex; align-items:center; justify-content:center;
-        background:transparent; border:none; color:#8b949e; font-size:14px;
+        width:34px; height:34px; display:flex; align-items:center; justify-content:center;
+        background:transparent; border:none; color:#8b949e; padding:0;
         border-radius:6px; cursor:pointer; transition: background .15s ease, color .15s ease;
+        position: relative;
+    }
+    .tvtool svg {
+        width:20px; height:20px; fill:none; stroke:currentColor;
+        stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round;
+        pointer-events:none;
     }
     .tvtool:hover { background:rgba(255,255,255,0.08); color:#ffffff; }
     .tvtool.active { background:rgba(139,92,246,0.18); color:#a78bfa; }
+    .tvsep { width:22px; height:1px; background:#1b2430; margin:4px 0; flex-shrink:0; }
+
+    /* Menú flotante lateral para herramientas de línea (Estilo TradingView) */
+    .tvtool-group { position: relative; display: flex; align-items: center; }
+    .tvtool-arrow {
+        position: absolute; right: 2px; bottom: 2px; width: 8px; height: 8px;
+        font-size: 8px; color: #8b949e; pointer-events: none;
+    }
+    .tvtool-flyout {
+        display: none; position: absolute; left: 42px; top: 0;
+        background-color: #161b22; min-width: 200px;
+        box-shadow: 0px 8px 24px rgba(0,0,0,0.7);
+        z-index: 2000; border: 1px solid #30363d; border-radius: 6px; padding: 6px 0;
+    }
+    .tvtool-flyout.show { display: block; }
+    .tvtool-flyout-item {
+        color: #d1d4dc; padding: 8px 14px; display: flex; align-items: center; gap: 10px;
+        font-size: 13px; cursor: pointer; white-space: nowrap; transition: background 0.1s;
+    }
+    .tvtool-flyout-item:hover { background-color: rgba(139,92,246,0.2); color: #a78bfa; }
+    .tvtool-flyout-item svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.5; }
+    .tvtool-flyout { max-height: calc(100vh - 24px); overflow-y: auto; }
+    .tvtool-flyout-item svg { flex-shrink:0; }
 
     #chart-wrapper { flex:1; position: relative; width: 100%; height: 100%; display: flex; flex-direction: column; }
     #c { flex:1; width: 100%; height: 100%; }
     
     #drawing-canvas {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        pointer-events: none;
-        z-index: 10;
+        position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10;
     }
 
     #rsi-container { height: 110px; width: 100%; border-top: 1px solid #1b2430; display: none; }
@@ -135,11 +178,6 @@ _CHART_TEMPLATE = """
 
 <div id="tv-wrap">
     <div id="tv-topbar">
-        <div id="tv-legend">
-            <span class="tv-sym">__SIMBOLO_HTML__</span>
-            <span class="tv-ohlc" id="tv-ohlc-vals">Cargando…</span>
-            <span class="tv-vol" id="tv-vol-val"></span>
-        </div>
             <div id="tv-tf" title="Temporalidad">
             <button class="tvtf" data-tf="M1" data-n="1500">M1</button>
             <button class="tvtf" data-tf="M5" data-n="1500">M5</button>
@@ -154,20 +192,40 @@ _CHART_TEMPLATE = """
         <div id="tv-actions">
             <!-- Selector Tipo de Gráfico -->
             <div class="tv-dropdown" id="type-dropdown">
-                <button class="tvbtn activo" id="btn-type-select" title="Cambiar tipo de gráfico">🕯 Velas ▾</button>
+                <button class="tvbtn activo" id="btn-type-select" title="Cambiar tipo de gráfico">
+                    <svg viewBox="0 0 20 20"><path d="M6 3v3M6 14v3M14 5v2M14 15v2"/><rect x="4" y="6" width="4" height="8" rx=".6" fill="currentColor"/><rect x="12" y="7" width="4" height="8" rx=".6" fill="currentColor"/></svg>
+                    <span>Velas</span>
+                    <svg class="caret" viewBox="0 0 10 10"><path d="M2 3.5L5 6.5L8 3.5"/></svg>
+                </button>
                 <div class="tv-dropdown-content" id="type-menu">
-                    <div class="tv-drop-item" data-type="candlestick">🕯 Velas Japonesas</div>
-                    <div class="tv-drop-item" data-type="hollow">🕯 Velas Huecas</div>
-                    <div class="tv-drop-item" data-type="bars">📊 Barras (OHLC)</div>
-                    <div class="tv-drop-item" data-type="line">📈 Línea</div>
-                    <div class="tv-drop-item" data-type="area">📉 Área</div>
-                    <div class="tv-drop-item" data-type="heikin">🔥 Heikin Ashi</div>
+                    <div class="tv-drop-item" data-type="candlestick" data-label="Velas"><span class="lbl">
+                        <svg viewBox="0 0 20 20"><path d="M6 3v3M6 14v3M14 5v2M14 15v2"/><rect x="4" y="6" width="4" height="8" rx=".6" fill="currentColor"/><rect x="12" y="7" width="4" height="8" rx=".6" fill="currentColor"/></svg>
+                        Velas Japonesas</span></div>
+                    <div class="tv-drop-item" data-type="hollow" data-label="Velas huecas"><span class="lbl">
+                        <svg viewBox="0 0 20 20"><path d="M6 3v3M6 14v3M14 5v2M14 15v2"/><rect x="4" y="6" width="4" height="8" rx=".6"/><rect x="12" y="7" width="4" height="8" rx=".6"/></svg>
+                        Velas Huecas</span></div>
+                    <div class="tv-drop-item" data-type="bars" data-label="Barras"><span class="lbl">
+                        <svg viewBox="0 0 20 20"><path d="M6 3v14M6 7H3.5M6 13h2.5M14 4v13M14 8h-2.5M14 13h2.5"/></svg>
+                        Barras (OHLC)</span></div>
+                    <div class="tv-drop-item" data-type="line" data-label="Línea"><span class="lbl">
+                        <svg viewBox="0 0 20 20"><path d="M2.5 14l4.5-5 3.5 3L17.5 5"/></svg>
+                        Línea</span></div>
+                    <div class="tv-drop-item" data-type="area" data-label="Área"><span class="lbl">
+                        <svg viewBox="0 0 20 20"><path d="M2.5 14l4.5-5 3.5 3L17.5 5V17H2.5z" fill="currentColor" fill-opacity=".18" stroke="none"/><path d="M2.5 14l4.5-5 3.5 3L17.5 5"/></svg>
+                        Área</span></div>
+                    <div class="tv-drop-item" data-type="heikin" data-label="Heikin Ashi"><span class="lbl">
+                        <svg viewBox="0 0 20 20"><path d="M4.5 4v2M4.5 13v3M10 3v3M10 12v2M15.5 6v2M15.5 15v2"/><rect x="3" y="6" width="3" height="7" rx=".5"/><rect x="8.5" y="6" width="3" height="6" rx=".5" fill="currentColor"/><rect x="14" y="8" width="3" height="7" rx=".5"/></svg>
+                        Heikin Ashi</span></div>
                 </div>
             </div>
 
             <!-- Selector de Indicadores Funcionales -->
             <div class="tv-dropdown" id="ind-dropdown">
-                <button class="tvbtn" id="btn-ind-select" title="Añadir indicadores técnicos">📈 Indicadores ▾</button>
+                <button class="tvbtn" id="btn-ind-select" title="Añadir indicadores técnicos">
+                    <svg viewBox="0 0 20 20"><path d="M2.5 11c1.8-6 3.6-6 5.4 0s3.6 6 5.4 0 2.4-3 4.2-3"/></svg>
+                    <span>Indicadores</span>
+                    <svg class="caret" viewBox="0 0 10 10"><path d="M2 3.5L5 6.5L8 3.5"/></svg>
+                </button>
                 <div class="tv-dropdown-content" id="ind-menu">
                     <div class="tv-drop-item" data-ind="sma20"><span>SMA 20 (Media Simple)</span><span class="status" id="st-sma20">Off</span></div>
                     <div class="tv-drop-item" data-ind="sma50"><span>SMA 50 (Media Simple)</span><span class="status" id="st-sma50">Off</span></div>
@@ -177,26 +235,122 @@ _CHART_TEMPLATE = """
                 </div>
             </div>
 
-            <button class="tvbtn" id="btn-shot" title="Descargar imagen del gráfico">📷</button>
-            <button class="tvbtn" id="btn-full" title="Pantalla completa">⛶</button>
+            <button class="tvbtn icon" id="btn-shot" title="Descargar imagen del gráfico">
+                <svg viewBox="0 0 20 20"><path d="M3 7h2.8l1.2-2h6l1.2 2H17v9H3z"/><circle cx="10" cy="11.2" r="2.8"/></svg>
+            </button>
+            <button class="tvbtn icon" id="btn-full" title="Pantalla completa">
+                <svg viewBox="0 0 20 20"><path d="M3 7.5V3h4.5M12.5 3H17v4.5M17 12.5V17h-4.5M7.5 17H3v-4.5"/></svg>
+            </button>
         </div>
     </div>
     
     <div id="tv-body">
         <div id="tv-main-canvas-area">
             <div id="tv-toolbar-left">
-                <button class="tvtool active" id="tool-cross" data-tool="cross" title="Cursor / Cruz">✛</button>
-                <button class="tvtool" id="tool-trend" data-tool="trend" title="Línea de tendencia">📈</button>
-                <button class="tvtool" id="tool-hline" data-tool="hline" title="Línea horizontal">➖</button>
-                <button class="tvtool" id="tool-fib" data-tool="fib" title="Retrocesos de Fibonacci">🔢</button>
-                <button class="tvtool" id="tool-text" data-tool="text" title="Herramienta de Texto">🔤</button>
-                <button class="tvtool" id="tool-measure" data-tool="measure" title="Regla de medición">📏</button>
-                <button class="tvtool" id="tool-lock" data-tool="lock" title="Bloquear dibujos">🔒</button>
-                <button class="tvtool" id="tool-clear" data-tool="clear" title="Limpiar elementos">🗑</button>
+                <button class="tvtool active" id="tool-cross" data-tool="cross" title="Cursor / Cruz">
+                    <svg viewBox="0 0 20 20"><path d="M10 2.5v5M10 12.5v5M2.5 10h5M12.5 10h5"/></svg>
+                </button>
+                <div class="tvsep"></div>
+                
+                <!-- ============================================================
+                     HERRAMIENTAS DE DIBUJO
+                     ============================================================ -->
+
+                <!-- GRUPO: LÍNEAS -->
+                <div class="tvtool-group" id="group-lines">
+                    <button class="tvtool" id="tool-trend" data-tool="trend" title="Herramientas de líneas">
+                        <svg viewBox="0 0 20 20"><path d="M5.2 14.8L14.8 5.2"/><circle cx="4" cy="16" r="1.9"/><circle cx="16" cy="4" r="1.9"/></svg>
+                        <span class="tvtool-arrow">▼</span>
+                    </button>
+                    <div class="tvtool-flyout" id="lines-flyout">
+                        <div class="tvtool-flyout-item" data-tool="trend"><svg viewBox="0 0 20 20"><path d="M5.2 14.8L14.8 5.2"/><circle cx="4" cy="16" r="1.5"/><circle cx="16" cy="4" r="1.5"/></svg>Línea de tendencia</div>
+                        <div class="tvtool-flyout-item" data-tool="ray"><svg viewBox="0 0 20 20"><path d="M4 16L16 4M16 4h-4M16 4v4"/><circle cx="4" cy="16" r="1.5"/></svg>Rayo</div>
+                        <div class="tvtool-flyout-item" data-tool="extended"><svg viewBox="0 0 20 20"><path d="M2 17L18 3"/><circle cx="6" cy="14" r="1.5"/><circle cx="14" cy="6" r="1.5"/></svg>Línea extendida</div>
+                        <div class="tvtool-flyout-item" data-tool="angle"><svg viewBox="0 0 20 20"><path d="M4 16L16 6M4 16h13"/><path d="M8 16a4 4 0 0 1 2.5-3.7"/></svg>Ángulo de tendencia</div>
+                        <div class="tvtool-flyout-item" data-tool="hline"><svg viewBox="0 0 20 20"><path d="M2 10h16"/></svg>Línea horizontal</div>
+                        <div class="tvtool-flyout-item" data-tool="hray"><svg viewBox="0 0 20 20"><path d="M4 10h12M16 10l-3-2M16 10l-3 2"/><circle cx="4" cy="10" r="1.5"/></svg>Rayo horizontal</div>
+                        <div class="tvtool-flyout-item" data-tool="vline"><svg viewBox="0 0 20 20"><path d="M10 2v16"/></svg>Línea vertical</div>
+                        <div class="tvtool-flyout-item" data-tool="crossline"><svg viewBox="0 0 20 20"><path d="M10 2v16M2 10h16"/><circle cx="10" cy="10" r="2"/></svg>Cruz</div>
+                        <div class="tvtool-flyout-item" data-tool="channel"><svg viewBox="0 0 20 20"><path d="M3 12L15 4M5 16L17 8"/></svg>Canal paralelo</div>
+                    </div>
+                </div>
+
+                <!-- GRUPO: FIBONACCI -->
+                <div class="tvtool-group" id="group-fibonacci">
+                    <button class="tvtool" id="tool-fib" data-tool="fib" title="Herramientas Fibonacci">
+                        <svg viewBox="0 0 20 20"><path d="M3 4h14M3 9h14M3 14h14"/><path d="M5 17.5L15 2.5" stroke-dasharray="2 2"/></svg>
+                        <span class="tvtool-arrow">▼</span>
+                    </button>
+                    <div class="tvtool-flyout" id="fib-flyout">
+                        <div class="tvtool-flyout-item" data-tool="fib"><svg viewBox="0 0 20 20"><path d="M3 4h14M3 9h14M3 14h14"/><path d="M5 17.5L15 2.5" stroke-dasharray="2 2"/></svg>Retrocesos de Fibonacci</div>
+                        <div class="tvtool-flyout-item" data-tool="fib_extension"><svg viewBox="0 0 20 20"><path d="M3 14L8 7l5 4 4-6"/><path d="M3 4h14M3 9h14M3 14h14"/></svg>Extensión de Fibonacci</div>
+                        <div class="tvtool-flyout-item" data-tool="fib_channel"><svg viewBox="0 0 20 20"><path d="M3 14L16 6M3 17L16 9"/><path d="M5 14v3M9 11v3M13 8v3"/></svg>Canal de Fibonacci</div>
+                    </div>
+                </div>
+
+                <!-- GRUPO: GEOMETRÍA -->
+                <div class="tvtool-group" id="group-geometry">
+                    <button class="tvtool" id="tool-geometry" data-tool="rectangle" title="Formas geométricas">
+                        <svg viewBox="0 0 20 20"><rect x="3" y="4" width="14" height="12" rx="1"/></svg>
+                        <span class="tvtool-arrow">▼</span>
+                    </button>
+                    <div class="tvtool-flyout" id="geometry-flyout">
+                        <div class="tvtool-flyout-item" data-tool="rectangle"><svg viewBox="0 0 20 20"><rect x="3" y="4" width="14" height="12" rx="1"/></svg>Rectángulo</div>
+                        <div class="tvtool-flyout-item" data-tool="ellipse"><svg viewBox="0 0 20 20"><ellipse cx="10" cy="10" rx="7" ry="5.5"/></svg>Elipse</div>
+                        <div class="tvtool-flyout-item" data-tool="triangle"><svg viewBox="0 0 20 20"><path d="M10 3L17 16H3z"/></svg>Triángulo</div>
+                        <div class="tvtool-flyout-item" data-tool="arrow"><svg viewBox="0 0 20 20"><path d="M3 16L16 4M16 4h-5M16 4v5"/></svg>Flecha</div>
+                    </div>
+                </div>
+
+                <!-- ANOTACIÓN -->
+                <div class="tvtool-group" id="group-annotations">
+                    <button class="tvtool" id="tool-text" data-tool="text" title="Anotaciones">
+                        <svg viewBox="0 0 20 20"><path d="M4.5 4.5h11M10 4.5v11M7.5 15.5h5"/></svg>
+                        <span class="tvtool-arrow">▼</span>
+                    </button>
+                    <div class="tvtool-flyout" id="annotations-flyout">
+                        <div class="tvtool-flyout-item" data-tool="text"><svg viewBox="0 0 20 20"><path d="M4.5 4.5h11M10 4.5v11M7.5 15.5h5"/></svg>Texto</div>
+                    </div>
+                </div>
+
+                <div class="tvsep"></div>
+
+                <!-- MEDICIÓN -->
+                <div class="tvtool-group" id="group-measure">
+                    <button class="tvtool" id="tool-measure" data-tool="measure" title="Herramientas de medición">
+                        <svg viewBox="0 0 20 20"><g transform="rotate(-45 10 10)"><rect x="1.5" y="6.5" width="17" height="7" rx="1.2"/><path d="M5.5 6.5v2.6M8.5 6.5v1.6M11.5 6.5v2.6M14.5 6.5v1.6"/></g></svg>
+                        <span class="tvtool-arrow">▼</span>
+                    </button>
+                    <div class="tvtool-flyout" id="measure-flyout">
+                        <div class="tvtool-flyout-item" data-tool="measure"><svg viewBox="0 0 20 20"><g transform="rotate(-45 10 10)"><rect x="1.5" y="6.5" width="17" height="7" rx="1.2"/><path d="M5.5 6.5v2.6M8.5 6.5v1.6M11.5 6.5v2.6M14.5 6.5v1.6"/></g></svg>Regla de medición</div>
+                    </div>
+                </div>
+
+                <!-- UTILIDADES -->
+                <button class="tvtool" id="tool-magnet" data-tool="magnet" title="Magnetismo: activado">
+                    <svg viewBox="0 0 20 20"><path d="M4 4v7a6 6 0 0 0 12 0V4"/><path d="M4 4h4M12 4h4"/></svg>
+                </button>
+                <button class="tvtool" id="tool-keep" data-tool="keep" title="Mantener herramienta activa">
+                    <svg viewBox="0 0 20 20"><path d="M5 4h10v12H5z"/><path d="M8 4v4h4V4M8 12h4"/></svg>
+                </button>
+                <div class="tvsep"></div>
+                <button class="tvtool" id="tool-lock" data-tool="lock" title="Bloquear dibujos">
+                    <svg viewBox="0 0 20 20"><rect x="4.5" y="9" width="11" height="8" rx="1.6"/><path d="M7 9V6.5a3 3 0 0 1 6 0V9"/></svg>
+                </button>
+                <button class="tvtool" id="tool-clear" data-tool="clear" title="Limpiar elementos">
+                    <svg viewBox="0 0 20 20"><path d="M3.5 5.5h13M8 5.5V3.8h4v1.7M5.2 5.5l.8 11h8l.8-11M8.5 8.5v5M11.5 8.5v5"/></svg>
+                </button>
             </div>
             <div id="chart-wrapper">
                 <div id="c"></div>
                 <canvas id="drawing-canvas"></canvas>
+                <div id="tv-legend">
+                    <div class="lg-line">
+                        <span class="lg-sym">__SIMBOLO_HTML__</span><span class="lg-dot">·</span><span class="lg-tf" id="lg-tf">H1</span><span class="lg-dot">·</span><span class="lg-feed">XM</span>
+                        <span class="tv-ohlc" id="tv-ohlc-vals">Cargando…</span>
+                    </div>
+                    <div class="lg-line"><span class="tv-vol" id="tv-vol-val"></span></div>
+                </div>
             </div>
         </div>
         <div id="rsi-container"></div>
@@ -294,21 +448,21 @@ setTimeout(function(){
     crearSerie(tipoActual);
 
     // ==========================================================================
-    // SISTEMA DE DIBUJO PROFESIONAL (objetos editables, imán, deshacer, sin bloquear el gráfico)
+    // SISTEMA DE DIBUJO PROFESIONAL CON MENÚ FLOTANTE DE LÍNEAS
     // ==========================================================================
     var canvas = document.getElementById('drawing-canvas');
     var ctx = canvas.getContext('2d');
     var wrapEl = document.getElementById('chart-wrapper');
     var activeTool = 'cross';
     var bloqueado = false;
-    var imanActivo = true;           // Imán a OHLC (Ctrl lo invierte temporalmente, como TradingView)
+    var imanActivo = true;
 
-    var seleccionadoId = null;       // Índice del dibujo seleccionado
-    var hoverId = null;              // Índice del dibujo bajo el cursor
-    var dibujoEnCurso = null;        // Dibujo que se está creando
+    var seleccionadoId = null;
+    var hoverId = null;
+    var dibujoEnCurso = null;
     var esperandoSegundoClick = false;
-    var inicioClick = null;          // Posición (px) donde empezó el dibujo actual
-    var arrastre = null;             // Edición en curso: mover dibujo o extremo
+    var inicioClick = null;
+    var arrastre = null;
 
     var NIVELES_FIB = [
       { val: 0.0,   color: '#f85149' }, { val: 0.236, color: '#ff9800' },
@@ -317,7 +471,6 @@ setTimeout(function(){
       { val: 1.0,   color: '#f85149' }
     ];
 
-    // Cursores (la clase fuerza el cursor sobre los canvas internos del gráfico)
     var estiloCursor = document.createElement('style');
     estiloCursor.textContent =
       '#chart-wrapper.cur-mover, #chart-wrapper.cur-mover * { cursor: move !important; }' +
@@ -329,7 +482,6 @@ setTimeout(function(){
       if (cls) wrapEl.classList.add(cls);
     }
 
-    // --- Persistencia + historial (deshacer / rehacer) ---
     var storageKey = 'dibujos_' + SIMBOLO;
     var elementosDibujados = [];
     try {
@@ -360,7 +512,6 @@ setTimeout(function(){
     function deshacer(){ if (posHist > 0) { posHist--; restaurarHistorial(); } }
     function rehacer(){ if (posHist < historial.length - 1) { posHist++; restaurarHistorial(); } }
 
-    // --- Canvas ---
     var cssW = 0, cssH = 0;
     var sucio = true;
 
@@ -403,8 +554,6 @@ setTimeout(function(){
       return true;
     }
 
-    // --- Conversión tiempo <-> posición (permite dibujar más allá de las velas cargadas) ---
-    // Nota: asume que "time" de la API es un timestamp UNIX en segundos (como ya lo usa tu gráfico).
     var cacheSeg = { n: -1, t: -1, v: 60 };
     function segBarra(){
       var n = datosActuales.length;
@@ -460,7 +609,6 @@ setTimeout(function(){
 
     function magnetEfectivo(e){ return imanActivo !== !!(e && e.ctrlKey); }
 
-    // Convierte una posición del mouse en un punto {l, time, price}, con imán opcional a OHLC
     function puntoDesdeMouse(x, y, conIman){
       if (!serie || !datosActuales.length) return null;
       var l = chart.timeScale().coordinateToLogical(x);
@@ -487,11 +635,27 @@ setTimeout(function(){
       return { l: l, time: t, price: p };
     }
 
-    // --- Geometría y detección de clics (hit-test) ---
+    // --------------------------------------------------------------------------
+    // Motor geométrico de herramientas de dibujo
+    // --------------------------------------------------------------------------
+    function puntoVisual(el, n){
+      var t = el['time' + n], p = el['price' + n];
+      return { x: xDeTiempo(t), y: yDePrecio(p) };
+    }
+
     function geom(el){
       if (el.tipo === 'hline') return { y: yDePrecio(el.price) };
+      if (el.tipo === 'vline') return { x: xDeTiempo(el.time) };
       if (el.tipo === 'text') return { x: xDeTiempo(el.time), y: yDePrecio(el.price) };
-      return { x1: xDeTiempo(el.time1), y1: yDePrecio(el.price1), x2: xDeTiempo(el.time2), y2: yDePrecio(el.price2) };
+      if (el.tipo === 'crossline') return { x: xDeTiempo(el.time), y: yDePrecio(el.price) };
+      var g = {};
+      for (var n = 1; n <= 3; n++) {
+        if (el['time' + n] === undefined) break;
+        var q = puntoVisual(el, n);
+        g['x' + n] = q.x; g['y' + n] = q.y;
+      }
+      if (!ok(g.x1, g.y1, g.x2, g.y2)) return null;
+      return g;
     }
 
     function distSeg(px, py, x1, y1, x2, y2){
@@ -502,34 +666,87 @@ setTimeout(function(){
       return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
     }
 
-    // Devuelve null, 'p1', 'p2' o 'body'
+    function distanciaLineaInfinita(px, py, x1, y1, x2, y2){
+      var dx = x2 - x1, dy = y2 - y1;
+      var den = Math.hypot(dx, dy) || 1;
+      return Math.abs(dy * px - dx * py + x2 * y1 - y2 * x1) / den;
+    }
+
+    function offsetCanal(g){
+      if (!ok(g.x3, g.y3)) return { dx: 0, dy: g.y2 - g.y1 };
+      var dx = g.x2 - g.x1, dy = g.y2 - g.y1;
+      var len = Math.hypot(dx, dy) || 1;
+      var nx = -dy / len, ny = dx / len;
+      var signed = ((g.x3 - g.x1) * nx) + ((g.y3 - g.y1) * ny);
+      return { dx: nx * signed, dy: ny * signed };
+    }
+    // Extremos de rayo / línea extendida (se extienden en la dirección dibujada, no siempre a la derecha)
+    function extremosLinea(g, tipo){
+      var dx = g.x2 - g.x1, dy = g.y2 - g.y1, len = Math.hypot(dx, dy);
+      if (!len) return { ax: g.x1, ay: g.y1, bx: g.x2, by: g.y2 };
+      var k = (cssW + cssH + 4000) / len;
+      var r = { ax: g.x1, ay: g.y1, bx: g.x2 + dx * k, by: g.y2 + dy * k };
+      if (tipo === 'extended') { r.ax = g.x1 - dx * k; r.ay = g.y1 - dy * k; }
+      return r;
+    }
     function hitTest(el, x, y, seleccionado){
       var g = geom(el);
-      if (el.tipo === 'hline') return (ok(g.y) && Math.abs(y - g.y) <= 6) ? 'body' : null;
+      if (!g) return null;
+      if (el.tipo === 'hline') return Math.abs(y - g.y) <= 6 ? 'body' : null;
+      if (el.tipo === 'vline') return Math.abs(x - g.x) <= 6 ? 'body' : null;
+      if (el.tipo === 'crossline') return (Math.abs(x - g.x) <= 6 || Math.abs(y - g.y) <= 6) ? 'body' : null;
       if (el.tipo === 'text'){
-        if (!ok(g.x, g.y)) return null;
         ctx.font = '13px sans-serif';
         var w = ctx.measureText(el.texto || 'Texto').width;
         return (x >= g.x - 4 && x <= g.x + w + 4 && y >= g.y - 16 && y <= g.y + 6) ? 'body' : null;
       }
-      if (!ok(g.x1, g.y1, g.x2, g.y2)) return null;
       if (seleccionado){
         if (Math.hypot(x - g.x1, y - g.y1) <= 10) return 'p1';
         if (Math.hypot(x - g.x2, y - g.y2) <= 10) return 'p2';
+        if (ok(g.x3, g.y3) && Math.hypot(x - g.x3, y - g.y3) <= 10) return 'p3';
       }
-      if (el.tipo === 'trend') return distSeg(x, y, g.x1, g.y1, g.x2, g.y2) <= 6 ? 'body' : null;
+      if (['trend','angle','arrow'].indexOf(el.tipo) >= 0){
+        return distSeg(x, y, g.x1, g.y1, g.x2, g.y2) <= 7 ? 'body' : null;
+      }
+      if (el.tipo === 'ray' || el.tipo === 'extended'){
+        var ex = extremosLinea(g, el.tipo);
+        return distSeg(x, y, ex.ax, ex.ay, ex.bx, ex.by) <= 7 ? 'body' : null;
+      }
+      if (el.tipo === 'hray'){
+        if (x < g.x1 - 6) return null;
+        return Math.abs(y - g.y1) <= 7 ? 'body' : null;
+      }
+      if (el.tipo === 'channel'){
+        var off = offsetCanal(g);
+        var d1 = distSeg(x, y, g.x1, g.y1, g.x2, g.y2);
+        var d2 = distSeg(x, y, g.x1 + off.dx, g.y1 + off.dy, g.x2 + off.dx, g.y2 + off.dy);
+        return Math.min(d1, d2) <= 7 ? 'body' : null;
+      }
+      if (el.tipo === 'fib_channel'){
+        var oc = offsetCanal(g);
+        for (var fc = 0; fc < FIB_CHANNEL_LEVELS.length; fc++){
+          var lv = FIB_CHANNEL_LEVELS[fc].val;
+          var lx1 = g.x1 + oc.dx * lv, ly1 = g.y1 + oc.dy * lv;
+          var lx2 = g.x2 + oc.dx * lv, ly2 = g.y2 + oc.dy * lv;
+          if (distSeg(x, y, lx1, ly1, lx2, ly2) <= 6) return 'body';
+        }
+        return null;
+      }
       var xa = Math.min(g.x1, g.x2), xb = Math.max(g.x1, g.x2);
       var ya = Math.min(g.y1, g.y2), yb = Math.max(g.y1, g.y2);
-      if (el.tipo === 'measure'){
-        return (x >= xa - 4 && x <= xb + 4 && y >= ya - 4 && y <= yb + 4) ? 'body' : null;
+      if (el.tipo === 'measure' || el.tipo === 'rectangle' || el.tipo === 'ellipse' || el.tipo === 'triangle'){
+        return (x >= xa - 7 && x <= xb + 7 && y >= ya - 7 && y <= yb + 7) ? 'body' : null;
       }
-      if (el.tipo === 'fib'){
-        if (x < xa - 6 || x > xb + 6) return null;
-        for (var i = 0; i < NIVELES_FIB.length; i++){
-          var yn = g.y1 + (g.y2 - g.y1) * NIVELES_FIB[i].val;
+      if (el.tipo === 'fib' || el.tipo === 'fib_extension'){
+        if (x < xa - 8 || x > xb + 8) return null;
+        var niveles = el.tipo === 'fib' ? NIVELES_FIB : NIVELES_FIB_EXT;
+        for (var i = 0; i < niveles.length; i++){
+          var yn = el.tipo === 'fib'
+            ? g.y1 + (g.y2 - g.y1) * niveles[i].val
+            : (ok(g.y3) ? g.y3 + (g.y2 - g.y1) * niveles[i].val : g.y1 + (g.y2 - g.y1) * niveles[i].val);
           if (Math.abs(y - yn) <= 6) return 'body';
         }
-        return distSeg(x, y, g.x1, g.y1, g.x2, g.y2) <= 6 ? 'body' : null;
+        return null;
       }
       return null;
     }
@@ -546,133 +763,165 @@ setTimeout(function(){
       return null;
     }
 
-    // --- Render ---
     function dibujarHandle(c, x, y, col){
-      c.save();
-      c.fillStyle = '#ffffff'; c.strokeStyle = col; c.lineWidth = 2;
-      c.beginPath(); c.arc(x, y, 5, 0, 2 * Math.PI); c.fill(); c.stroke();
-      c.restore();
+      if (!ok(x,y)) return;
+      c.save(); c.fillStyle = '#ffffff'; c.strokeStyle = col; c.lineWidth = 2;
+      c.beginPath(); c.arc(x, y, 5, 0, 2 * Math.PI); c.fill(); c.stroke(); c.restore();
+    }
+
+    // Estilo del dibujo que se está pintando (lo fija dibujarElemento según color/grosor/trazo elegidos)
+    var trazoActual = { ancho: null, estilo: null, hover: 0 };
+    function dibujarLinea(c, x1, y1, x2, y2, col, width, dash){
+      c.strokeStyle = col; c.lineCap = 'round';
+      c.lineWidth = trazoActual.ancho ? trazoActual.ancho + trazoActual.hover : (width || 2);
+      var d = dash;
+      if (trazoActual.estilo === 'solid') d = [];
+      else if (trazoActual.estilo === 'dash') d = [8, 5];
+      else if (trazoActual.estilo === 'dot') d = [2, 4];
+      if (d) c.setLineDash(d);
+      c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke();
+      if (d) c.setLineDash([]);
     }
 
     function dibujarElemento(c, el, sel, hov){
-      var g = geom(el);
+      var g = geom(el); if (!g) return;
       c.save();
-      if (el.tipo === 'trend' && ok(g.x1, g.y1, g.x2, g.y2)) {
-        var col = el.color || '#2962ff';
-        c.strokeStyle = col;
-        c.lineWidth = (el.ancho || 2) + ((hov && !sel) ? 1 : 0);
-        c.lineCap = 'round';
-        c.beginPath(); c.moveTo(g.x1, g.y1); c.lineTo(g.x2, g.y2); c.stroke();
-        if (sel) { dibujarHandle(c, g.x1, g.y1, col); dibujarHandle(c, g.x2, g.y2, col); }
+      trazoActual.ancho = el.ancho || null; trazoActual.estilo = el.estilo || null; trazoActual.hover = (hov && !sel) ? 1 : 0;
+      var hoverExtra = (hov && !sel) ? 1 : 0;
 
-      } else if (el.tipo === 'hline' && ok(g.y)) {
-        var colH = el.color || '#f5c518';
-        c.strokeStyle = colH;
-        c.lineWidth = (el.ancho || 1.5) + ((hov && !sel) ? 1 : 0);
-        c.setLineDash([6, 4]);
-        c.beginPath(); c.moveTo(0, g.y); c.lineTo(cssW, g.y); c.stroke();
-        c.setLineDash([]);
-        if (sel) dibujarHandle(c, areaTrazado().w * 0.5, g.y, colH);
+      if (el.tipo === 'trend'){
+        var col = el.color || '#2962ff'; dibujarLinea(c,g.x1,g.y1,g.x2,g.y2,col,(el.ancho||2)+hoverExtra);
+        if (sel){ dibujarHandle(c,g.x1,g.y1,col); dibujarHandle(c,g.x2,g.y2,col); }
 
-      } else if (el.tipo === 'fib' && ok(g.x1, g.y1, g.x2, g.y2)) {
-        var xa = Math.min(g.x1, g.x2), xb = Math.max(g.x1, g.x2);
-        var dY = g.y2 - g.y1, dP = el.price2 - el.price1;
-        var nv = NIVELES_FIB.map(function(n){
-          return { n: n, y: g.y1 + dY * n.val, precio: el.price1 + dP * n.val };
+      } else if (el.tipo === 'ray'){
+        var colR = el.color || '#2962ff'; var exR = extremosLinea(g, 'ray');
+        dibujarLinea(c,exR.ax,exR.ay,exR.bx,exR.by,colR,(el.ancho||2)+hoverExtra);
+        if(sel){dibujarHandle(c,g.x1,g.y1,colR);dibujarHandle(c,g.x2,g.y2,colR);}
+
+      } else if (el.tipo === 'extended'){
+        var colE = el.color || '#2962ff'; var exE = extremosLinea(g, 'extended');
+        dibujarLinea(c,exE.ax,exE.ay,exE.bx,exE.by,colE,(el.ancho||2)+hoverExtra);
+        if(sel){dibujarHandle(c,g.x1,g.y1,colE);dibujarHandle(c,g.x2,g.y2,colE);}
+
+      } else if (el.tipo === 'angle'){
+        var colA=el.color||'#a78bfa'; dibujarLinea(c,g.x1,g.y1,g.x2,g.y2,colA,(el.ancho||2)+hoverExtra);
+        var base=Math.atan2(0,1), ang=Math.atan2(-(g.y2-g.y1),g.x2-g.x1)*180/Math.PI;
+        c.font='11px sans-serif'; c.fillStyle=colA; c.fillText((ang>=0?'+':'')+ang.toFixed(1)+'°',g.x2+7,g.y2-7);
+        if(sel){dibujarHandle(c,g.x1,g.y1,colA);dibujarHandle(c,g.x2,g.y2,colA);}
+
+      } else if (el.tipo === 'hline'){
+        var colH=el.color||'#f5c518'; dibujarLinea(c,0,g.y,cssW,g.y,colH,(el.ancho||1.5)+hoverExtra,[6,4]);
+        if(sel){c.fillStyle=colH;c.fillRect(0,g.y-4,6,8);}
+
+      } else if (el.tipo === 'hray'){
+        var colHR=el.color||'#f5c518'; dibujarLinea(c,g.x1,g.y1,cssW,g.y1,colHR,(el.ancho||1.5)+hoverExtra);
+        if(sel)dibujarHandle(c,g.x1,g.y1,colHR);
+
+      } else if (el.tipo === 'vline'){
+        var colV=el.color||'#58a6ff'; dibujarLinea(c,g.x,0,g.x,cssH,colV,1.5,[4,4]);
+        if(sel){c.fillStyle=colV;c.fillRect(g.x-4,0,8,6);}
+
+      } else if (el.tipo === 'crossline'){
+        var colX=el.color||'#8b949e'; dibujarLinea(c,g.x,0,g.x,cssH,colX,1,[4,4]); dibujarLinea(c,0,g.y,cssW,g.y,colX,1,[4,4]);
+        if(sel)dibujarHandle(c,g.x,g.y,colX);
+
+      } else if (el.tipo === 'channel'){
+        var colC=el.color||'#2962ff', oc=offsetCanal(g);
+        c.globalAlpha=.08;c.fillStyle=colC;c.beginPath();c.moveTo(g.x1,g.y1);c.lineTo(g.x2,g.y2);c.lineTo(g.x2+oc.dx,g.y2+oc.dy);c.lineTo(g.x1+oc.dx,g.y1+oc.dy);c.closePath();c.fill();c.globalAlpha=1;
+        dibujarLinea(c,g.x1,g.y1,g.x2,g.y2,colC,2+hoverExtra);dibujarLinea(c,g.x1+oc.dx,g.y1+oc.dy,g.x2+oc.dx,g.y2+oc.dy,colC,2+hoverExtra);
+        if(sel){dibujarHandle(c,g.x1,g.y1,colC);dibujarHandle(c,g.x2,g.y2,colC);dibujarHandle(c,g.x3,g.y3,colC);}
+
+      } else if (el.tipo === 'fib'){
+        var xa=Math.min(g.x1,g.x2), xb=Math.max(g.x1,g.x2), dY=g.y2-g.y1, dP=el.price2-el.price1;
+        var nv=NIVELES_FIB.map(function(n){return {n:n,y:g.y1+dY*n.val,precio:el.price1+dP*n.val};});
+        c.globalAlpha=.07; for(var fi=0;fi<nv.length-1;fi++){c.fillStyle=nv[fi+1].n.color;c.fillRect(xa,Math.min(nv[fi].y,nv[fi+1].y),xb-xa,Math.abs(nv[fi+1].y-nv[fi].y));} c.globalAlpha=1;
+        c.font='11px sans-serif'; nv.forEach(function(q){c.strokeStyle=q.n.color;c.fillStyle=q.n.color;c.beginPath();c.moveTo(xa,q.y);c.lineTo(xb,q.y);c.stroke();c.fillText(String(+q.n.val.toFixed(3))+' ('+q.precio.toFixed(DIGITS)+')',xa+5,q.y-3);});
+        dibujarLinea(c,g.x1,g.y1,g.x2,g.y2,'rgba(139,148,158,.8)',1,[4,4]);
+        if(sel){dibujarHandle(c,g.x1,g.y1,'#a78bfa');dibujarHandle(c,g.x2,g.y2,'#a78bfa');}
+
+      } else if (el.tipo === 'fib_extension'){
+        var exa=Math.min(g.x1,g.x2,g.x3), exb=Math.max(g.x1,g.x2,g.x3), baseDy=g.y2-g.y1;
+        c.font='11px sans-serif';
+        NIVELES_FIB_EXT.forEach(function(n){
+          var yy=g.y3+baseDy*n.val;
+          c.strokeStyle=n.color;c.fillStyle=n.color;c.beginPath();c.moveTo(exa,yy);c.lineTo(cssW,yy);c.stroke();
+          var precio=el.price3+(el.price2-el.price1)*n.val;
+          c.fillText(String(n.val)+' ('+precio.toFixed(DIGITS)+')',Math.max(4,exa+5),yy-3);
         });
-        c.globalAlpha = 0.07;
-        for (var i = 0; i < nv.length - 1; i++){
-          c.fillStyle = nv[i + 1].n.color;
-          c.fillRect(xa, Math.min(nv[i].y, nv[i + 1].y), xb - xa, Math.abs(nv[i + 1].y - nv[i].y));
-        }
-        c.globalAlpha = 1;
-        c.lineWidth = 1; c.font = '11px sans-serif';
-        nv.forEach(function(p){
-          c.strokeStyle = p.n.color; c.fillStyle = p.n.color;
-          c.beginPath(); c.moveTo(xa, p.y); c.lineTo(xb, p.y); c.stroke();
-          c.fillText(String(+p.n.val.toFixed(3)) + ' (' + p.precio.toFixed(DIGITS) + ')', xa + 5, p.y - 3);
+        dibujarLinea(c,g.x1,g.y1,g.x2,g.y2,'rgba(139,148,158,.8)',1,[4,4]);
+        dibujarLinea(c,g.x2,g.y2,g.x3,g.y3,'rgba(139,148,158,.8)',1,[4,4]);
+        if(sel){dibujarHandle(c,g.x1,g.y1,'#a78bfa');dibujarHandle(c,g.x2,g.y2,'#a78bfa');dibujarHandle(c,g.x3,g.y3,'#a78bfa');}
+
+      } else if (el.tipo === 'fib_channel'){
+        var ocf=offsetCanal(g); c.font='11px sans-serif';
+        FIB_CHANNEL_LEVELS.forEach(function(n){
+          var f=n.val, x1=g.x1+ocf.dx*f, y1=g.y1+ocf.dy*f, x2=g.x2+ocf.dx*f, y2=g.y2+ocf.dy*f;
+          dibujarLinea(c,x1,y1,x2,y2,n.color,1.2);
+          c.fillStyle=n.color;c.fillText(String(n.val),Math.min(x1,x2)+5,Math.min(y1,y2)-4);
         });
-        c.strokeStyle = 'rgba(139,148,158,0.8)'; c.setLineDash([4, 4]);
-        c.beginPath(); c.moveTo(g.x1, g.y1); c.lineTo(g.x2, g.y2); c.stroke();
-        c.setLineDash([]);
-        if (sel) { dibujarHandle(c, g.x1, g.y1, '#a78bfa'); dibujarHandle(c, g.x2, g.y2, '#a78bfa'); }
+        dibujarLinea(c,g.x1,g.y1,g.x2,g.y2,'rgba(139,148,158,.9)',2,[4,4]);
+        dibujarLinea(c,g.x1+ocf.dx,g.y1+ocf.dy,g.x2+ocf.dx,g.y2+ocf.dy,'rgba(139,148,158,.7)',1,[4,4]);
+        if(sel){dibujarHandle(c,g.x1,g.y1,'#a78bfa');dibujarHandle(c,g.x2,g.y2,'#a78bfa');dibujarHandle(c,g.x3,g.y3,'#a78bfa');}
 
-      } else if (el.tipo === 'text' && ok(g.x, g.y)) {
-        c.font = '13px sans-serif';
-        c.fillStyle = el.color || '#ffffff';
-        c.fillText(el.texto || 'Texto', g.x, g.y);
-        if (sel || hov) {
-          var tw = c.measureText(el.texto || 'Texto').width;
-          c.strokeStyle = 'rgba(88,166,255,0.8)'; c.lineWidth = 1; c.setLineDash([3, 3]);
-          c.strokeRect(g.x - 4, g.y - 16, tw + 8, 22);
-        }
+      } else if (el.tipo === 'rectangle'){
+        var colG=el.color||'#58a6ff'; var rw=g.x2-g.x1,rh=g.y2-g.y1;
+        c.globalAlpha=.08;c.fillStyle=colG;c.fillRect(Math.min(g.x1,g.x2),Math.min(g.y1,g.y2),Math.abs(rw),Math.abs(rh));c.globalAlpha=1;
+        c.strokeStyle=colG;c.lineWidth=(el.ancho||2)+hoverExtra;c.strokeRect(Math.min(g.x1,g.x2),Math.min(g.y1,g.y2),Math.abs(rw),Math.abs(rh));
+        if(sel){dibujarHandle(c,g.x1,g.y1,colG);dibujarHandle(c,g.x2,g.y2,colG);}
 
-      } else if (el.tipo === 'measure' && ok(g.x1, g.y1, g.x2, g.y2)) {
-        var sube = el.price2 >= el.price1;
-        var colM = sube ? '#2962ff' : '#f23645';
-        var mw = g.x2 - g.x1, mh = g.y2 - g.y1;
-        c.globalAlpha = 0.15; c.fillStyle = colM; c.fillRect(g.x1, g.y1, mw, mh);
-        c.globalAlpha = 1; c.strokeStyle = colM; c.lineWidth = 1;
-        c.strokeRect(g.x1, g.y1, mw, mh);
+      } else if (el.tipo === 'ellipse'){
+        var colEl=el.color||'#58a6ff'; var cx=(g.x1+g.x2)/2,cy=(g.y1+g.y2)/2,rx=Math.abs(g.x2-g.x1)/2,ry=Math.abs(g.y2-g.y1)/2;
+        c.globalAlpha=.08;c.fillStyle=colEl;c.beginPath();c.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);c.fill();c.globalAlpha=1;c.strokeStyle=colEl;c.lineWidth=(el.ancho||2)+hoverExtra;c.beginPath();c.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);c.stroke();
+        if(sel){dibujarHandle(c,g.x1,g.y1,colEl);dibujarHandle(c,g.x2,g.y2,colEl);}
 
-        var l1 = tiempoALogico(el.time1), l2 = tiempoALogico(el.time2);
-        var barras = (l1 === null || l2 === null) ? 0 : Math.abs(Math.round(l2 - l1));
-        var dif = el.price2 - el.price1;
-        var pct = el.price1 ? (dif / el.price1) * 100 : 0;
-        var textoDif = PIP > 0 ? (dif / PIP).toFixed(1) + ' pips' : dif.toFixed(DIGITS);
-        var txt = (dif >= 0 ? '+' : '') + textoDif + ' (' + (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%)  ·  ' + barras + ' barras';
-        c.font = '12px sans-serif';
-        var pw = c.measureText(txt).width + 16;
-        var px0 = (g.x1 + g.x2) / 2 - pw / 2;
-        var py0 = sube ? Math.min(g.y1, g.y2) - 28 : Math.max(g.y1, g.y2) + 8;
-        c.fillStyle = colM; c.fillRect(px0, py0, pw, 20);
-        c.fillStyle = '#ffffff'; c.textBaseline = 'middle';
-        c.fillText(txt, px0 + 8, py0 + 10);
-        if (sel) { dibujarHandle(c, g.x1, g.y1, colM); dibujarHandle(c, g.x2, g.y2, colM); }
+      } else if (el.tipo === 'triangle'){
+        var colT=el.color||'#58a6ff'; var tx1=g.x1,ty1=g.y1,tx2=g.x2,ty2=g.y2,tx3=g.x1,ty3=g.y2;
+        c.globalAlpha=.08;c.fillStyle=colT;c.beginPath();c.moveTo(tx1,ty1);c.lineTo(tx2,ty2);c.lineTo(tx3,ty3);c.closePath();c.fill();c.globalAlpha=1;c.strokeStyle=colT;c.lineWidth=(el.ancho||2)+hoverExtra;c.beginPath();c.moveTo(tx1,ty1);c.lineTo(tx2,ty2);c.lineTo(tx3,ty3);c.closePath();c.stroke();
+        if(sel){dibujarHandle(c,g.x1,g.y1,colT);dibujarHandle(c,g.x2,g.y2,colT);}
+
+      } else if (el.tipo === 'arrow'){
+        var colAr=el.color||'#3fb950';dibujarLinea(c,g.x1,g.y1,g.x2,g.y2,colAr,2+hoverExtra);var a=Math.atan2(g.y2-g.y1,g.x2-g.x1),hs=10;
+        c.fillStyle=colAr;c.beginPath();c.moveTo(g.x2,g.y2);c.lineTo(g.x2-hs*Math.cos(a-Math.PI/6),g.y2-hs*Math.sin(a-Math.PI/6));c.lineTo(g.x2-hs*Math.cos(a+Math.PI/6),g.y2-hs*Math.sin(a+Math.PI/6));c.closePath();c.fill();
+        if(sel){dibujarHandle(c,g.x1,g.y1,colAr);dibujarHandle(c,g.x2,g.y2,colAr);}
+
+      } else if (el.tipo === 'text'){
+        c.font='13px sans-serif';c.fillStyle=el.color||'#ffffff';c.fillText(el.texto||'Texto',g.x,g.y);
+        if(sel||hov){var tw=c.measureText(el.texto||'Texto').width;c.strokeStyle='rgba(88,166,255,.8)';c.lineWidth=1;c.setLineDash([3,3]);c.strokeRect(g.x-4,g.y-16,tw+8,22);c.setLineDash([]);}
+
+      } else if (el.tipo === 'measure'){
+        var sube=el.price2>=el.price1,colM=sube?'#2962ff':'#f23645',mw=g.x2-g.x1,mh=g.y2-g.y1;
+        c.globalAlpha=.15;c.fillStyle=colM;c.fillRect(g.x1,g.y1,mw,mh);c.globalAlpha=1;c.strokeStyle=colM;c.lineWidth=1;c.strokeRect(g.x1,g.y1,mw,mh);
+        var l1=tiempoALogico(el.time1),l2=tiempoALogico(el.time2),barras=(l1===null||l2===null)?0:Math.abs(Math.round(l2-l1));
+        var dif=el.price2-el.price1,pct=el.price1?(dif/el.price1)*100:0,textoDif=PIP>0?(dif/PIP).toFixed(1)+' pips':dif.toFixed(DIGITS);
+        var txt=(dif>=0?'+':'')+textoDif+' ('+(pct>=0?'+':'')+pct.toFixed(2)+'%) · '+barras+' barras';c.font='12px sans-serif';var pw=c.measureText(txt).width+16,px0=(g.x1+g.x2)/2-pw/2,py0=sube?Math.min(g.y1,g.y2)-28:Math.max(g.y1,g.y2)+8;
+        c.fillStyle=colM;c.fillRect(px0,py0,pw,20);c.fillStyle='#fff';c.textBaseline='middle';c.fillText(txt,px0+8,py0+10);
+        if(sel){dibujarHandle(c,g.x1,g.y1,colM);dibujarHandle(c,g.x2,g.y2,colM);}
       }
       c.restore();
     }
 
     function fmtTiempo(t){
-      var d = new Date(t * 1000);
-      function p(n){ return (n < 10 ? '0' : '') + n; }
-      return p(d.getUTCDate()) + '/' + p(d.getUTCMonth() + 1) + ' ' + p(d.getUTCHours()) + ':' + p(d.getUTCMinutes());
+      var d=new Date(t*1000); function p(n){return (n<10?'0':'')+n;}
+      return p(d.getUTCDate())+'/'+p(d.getUTCMonth()+1)+' '+p(d.getUTCHours())+':'+p(d.getUTCMinutes());
     }
 
-    function badgePrecio(c, y, precio, fondo, texto, ap){
-      if (!ok(y) || y < 0 || y > ap.h) return;
-      var w = cssW - ap.w;
-      c.save();
-      c.fillStyle = fondo; c.fillRect(ap.w, y - 10, w, 20);
-      c.fillStyle = texto; c.font = '11px sans-serif'; c.textBaseline = 'middle'; c.textAlign = 'left';
-      c.fillText(precio.toFixed(DIGITS), ap.w + 6, y);
-      c.restore();
+    function badgePrecio(c,y,precio,fondo,texto,ap){
+      if(!ok(y)||y<0||y>ap.h)return;var w=cssW-ap.w;c.save();c.fillStyle=fondo;c.fillRect(ap.w,y-10,w,20);c.fillStyle=texto;c.font='11px sans-serif';c.textBaseline='middle';c.textAlign='left';c.fillText(precio.toFixed(DIGITS),ap.w+6,y);c.restore();
     }
-
-    function badgeTiempo(c, x, t, fondo, ap){
-      var h = cssH - ap.h;
-      if (!ok(x) || x < 0 || x > ap.w || h < 10) return;
-      var w = 92;
-      var bx = Math.max(0, Math.min(ap.w - w, x - w / 2));
-      c.save();
-      c.fillStyle = fondo; c.fillRect(bx, ap.h, w, h);
-      c.fillStyle = '#ffffff'; c.font = '11px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
-      c.fillText(fmtTiempo(t), bx + w / 2, ap.h + h / 2);
-      c.restore();
+    function badgeTiempo(c,x,t,fondo,ap){
+      var h=cssH-ap.h;if(!ok(x)||x<0||x>ap.w||h<10)return;var w=92,bx=Math.max(0,Math.min(ap.w-w,x-w/2));c.save();c.fillStyle=fondo;c.fillRect(bx,ap.h,w,h);c.fillStyle='#fff';c.font='11px sans-serif';c.textAlign='center';c.textBaseline='middle';c.fillText(fmtTiempo(t),bx+w/2,ap.h+h/2);c.restore();
     }
-
-    // Etiquetas sobre los ejes (se pintan fuera del recorte del área de trazado)
-    function etiquetasEje(c, el, ap){
-      if (el.tipo === 'hline'){
-        badgePrecio(c, yDePrecio(el.price), el.price, el.color || '#f5c518', el.color ? '#ffffff' : '#0d1117', ap);
-        return;
-      }
-      if (el.tipo === 'text') return;
-      var col = el.tipo === 'fib' ? '#7c5cd6' : (el.tipo === 'measure' ? (el.price2 >= el.price1 ? '#2962ff' : '#f23645') : (el.color || '#2962ff'));
-      badgePrecio(c, yDePrecio(el.price1), el.price1, col, '#ffffff', ap);
-      badgePrecio(c, yDePrecio(el.price2), el.price2, col, '#ffffff', ap);
-      badgeTiempo(c, xDeTiempo(el.time1), el.time1, col, ap);
-      badgeTiempo(c, xDeTiempo(el.time2), el.time2, col, ap);
+    function etiquetasEje(c,el,ap){
+      if(el.tipo==='hline'){badgePrecio(c,yDePrecio(el.price),el.price,el.color||'#f5c518','#fff',ap);return;}
+      if(el.tipo==='vline'){badgeTiempo(c,xDeTiempo(el.time),el.time,el.color||'#58a6ff',ap);return;}
+      if(el.tipo==='hray'){badgePrecio(c,yDePrecio(el.price1),el.price1,el.color||'#f5c518','#fff',ap);return;}
+      if(el.tipo==='crossline'){badgePrecio(c,yDePrecio(el.price),el.price,el.color||'#8b949e','#fff',ap);badgeTiempo(c,xDeTiempo(el.time),el.time,el.color||'#8b949e',ap);return;}
+      if(el.tipo==='text')return;
+      var col=el.tipo.indexOf('fib')===0?'#7c5cd6':(el.tipo==='measure'?(el.price2>=el.price1?'#2962ff':'#f23645'):(el.color||'#2962ff'));
+      if(el.price1!==undefined)badgePrecio(c,yDePrecio(el.price1),el.price1,col,'#fff',ap);
+      if(el.price2!==undefined)badgePrecio(c,yDePrecio(el.price2),el.price2,col,'#fff',ap);
+      if(el.time1!==undefined)badgeTiempo(c,xDeTiempo(el.time1),el.time1,col,ap);
+      if(el.time2!==undefined)badgeTiempo(c,xDeTiempo(el.time2),el.time2,col,ap);
     }
 
     function pintar(){
@@ -690,7 +939,7 @@ setTimeout(function(){
       ctx.restore();
 
       elementosDibujados.forEach(function(el, idx){
-        if (idx === seleccionadoId || el.tipo === 'hline') etiquetasEje(ctx, el, ap);
+        if (idx === seleccionadoId || el.tipo === 'hline' || el.tipo === 'vline') etiquetasEje(ctx, el, ap);
       });
       if (dibujoEnCurso) etiquetasEje(ctx, dibujoEnCurso, ap);
     }
@@ -720,8 +969,6 @@ setTimeout(function(){
     }
     requestAnimationFrame(bucleRedibujo);
 
-    // --- Herramientas ---
-    // Bloquea el scroll/zoom del gráfico SOLO mientras se arrastra un dibujo
     function bloquearGrafico(b){
       try { chart.applyOptions({ handleScroll: !b, handleScale: !b }); } catch (e) {}
     }
@@ -731,241 +978,473 @@ setTimeout(function(){
       redibujarTodo();
     }
 
-    function activarHerramienta(toolName) {
-      if (dibujoEnCurso && toolName !== activeTool) cancelarDibujoEnCurso();
-      activeTool = toolName;
-      document.querySelectorAll('.tvtool').forEach(function(b){
-        var t = b.getAttribute('data-tool');
-        if (t !== 'clear' && t !== 'lock') {
-          if (t === toolName) { b.classList.add('active'); }
-          else { b.classList.remove('active'); }
-        }
+    // --------------------------------------------------------------------------
+    // Menús flotantes y configuración de herramientas
+    // --------------------------------------------------------------------------
+    var gruposFlyout = [
+      { boton:document.getElementById('tool-trend'), menu:document.getElementById('lines-flyout') },
+      { boton:document.getElementById('tool-fib'), menu:document.getElementById('fib-flyout') },
+      { boton:document.getElementById('tool-geometry'), menu:document.getElementById('geometry-flyout') },
+      { boton:document.getElementById('tool-text'), menu:document.getElementById('annotations-flyout') },
+      { boton:document.getElementById('tool-measure'), menu:document.getElementById('measure-flyout') }
+    ];
+    function cerrarFlyouts(excepto){ gruposFlyout.forEach(function(g){if(g.menu&&g.menu!==excepto)g.menu.classList.remove('show');}); }
+    gruposFlyout.forEach(function(g){
+      if(!g.boton||!g.menu)return;
+      g.boton.addEventListener('click',function(e){e.stopPropagation();var abierto=g.menu.classList.contains('show');cerrarFlyouts(g.menu);g.menu.classList.toggle('show',!abierto);});
+      g.menu.querySelectorAll('.tvtool-flyout-item').forEach(function(item){
+        item.addEventListener('click',function(e){e.stopPropagation();var tool=item.getAttribute('data-tool');g.menu.classList.remove('show');activarHerramienta(tool);var svg=item.querySelector('svg');if(svg)g.boton.innerHTML=svg.outerHTML+'<span class="tvtool-arrow">▼</span>';});
       });
-      setCursor(toolName === 'cross' ? '' : 'cur-dibujar');
+    });
+    window.addEventListener('click',function(){cerrarFlyouts(null);});
+
+    var NIVELES_FIB_EXT=[
+      {val:-0.272,color:'#8b949e'},{val:0,color:'#f85149'},{val:0.382,color:'#f5c518'},
+      {val:0.618,color:'#58a6ff'},{val:1,color:'#3fb950'},{val:1.272,color:'#ff9800'},
+      {val:1.618,color:'#a78bfa'},{val:2.618,color:'#f85149'}
+    ];
+    var FIB_CHANNEL_LEVELS=[
+      {val:-1,color:'#8b949e'},{val:0,color:'#f85149'},{val:0.382,color:'#f5c518'},
+      {val:0.618,color:'#58a6ff'},{val:1,color:'#3fb950'},{val:1.618,color:'#a78bfa'},{val:2.618,color:'#f85149'}
+    ];
+
+    var TOOL_POINTS={
+      trend:2,ray:2,extended:2,angle:2,hline:1,hray:1,vline:1,crossline:1,channel:3,
+      fib:2,fib_extension:3,fib_channel:3,rectangle:2,ellipse:2,triangle:2,arrow:2,
+      text:1,measure:2
+    };
+    function puntosHerramienta(tool){return TOOL_POINTS[tool]||2;}
+    var mantenerHerramienta=false;
+
+    function activarHerramienta(toolName){
+      if(dibujoEnCurso&&toolName!==activeTool)cancelarDibujoEnCurso();
+      activeTool=toolName;
+      document.querySelectorAll('.tvtool').forEach(function(b){
+        var t=b.getAttribute('data-tool');
+        if(t!=='clear'&&t!=='lock'&&t!=='magnet'&&t!=='keep')b.classList.toggle('active',t===toolName);
+      });
+      setCursor(toolName==='cross'?'':'cur-dibujar');
     }
 
     document.querySelectorAll('.tvtool').forEach(function(btn){
-      btn.addEventListener('click', function(){
-        var tool = btn.getAttribute('data-tool');
-        if (tool === 'clear') {
-          if (elementosDibujados.length && confirm("¿Deseas limpiar todos los dibujos de este gráfico?")) {
-            elementosDibujados = [];
-            seleccionadoId = null; hoverId = null;
-            confirmarCambio();
-          }
+      btn.addEventListener('click',function(){
+        var tool=btn.getAttribute('data-tool');
+        if(tool==='clear'){
+          if(elementosDibujados.length&&confirm('¿Deseas limpiar todos los dibujos de este gráfico?')){elementosDibujados=[];seleccionadoId=null;hoverId=null;confirmarCambio();}
           return;
         }
-        if (tool === 'lock') {
-          bloqueado = !bloqueado;
-          btn.style.color = bloqueado ? '#3fb950' : '#8b949e';
-          btn.title = bloqueado ? "Desbloquear dibujos" : "Bloquear dibujos";
-          if (bloqueado) { seleccionadoId = null; hoverId = null; activarHerramienta('cross'); redibujarTodo(); }
-          return;
+        if(tool==='lock'){
+          bloqueado=!bloqueado;btn.style.color=bloqueado?'#3fb950':'#8b949e';btn.title=bloqueado?'Desbloquear dibujos':'Bloquear dibujos';
+          if(bloqueado){seleccionadoId=null;hoverId=null;activarHerramienta('cross');redibujarTodo();} return;
         }
+        if(tool==='magnet'){
+          imanActivo=!imanActivo;btn.classList.toggle('active',imanActivo);btn.title='Magnetismo: '+(imanActivo?'activado':'desactivado');return;
+        }
+        if(tool==='keep'){
+          mantenerHerramienta=!mantenerHerramienta;btn.classList.toggle('active',mantenerHerramienta);btn.title=mantenerHerramienta?'Mantener herramienta activa: sí':'Mantener herramienta activa: no';return;
+        }
+        // Los botones con flyout no deben activar directamente la herramienta contenedora.
+        if(['tool-trend','tool-fib','tool-geometry','tool-text','tool-measure'].indexOf(btn.id)>=0)return;
         activarHerramienta(tool);
       });
     });
 
-    function posMouse(e){
-      var r = wrapEl.getBoundingClientRect();
-      return { x: e.clientX - r.left, y: e.clientY - r.top };
+    function posMouse(e){var r=wrapEl.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};}
+
+    function crearDibujoInicial(tool,pt){
+      var d={tipo:tool,time1:pt.time,price1:pt.price,time2:pt.time,price2:pt.price};
+      if(puntosHerramienta(tool)>=3){d.time3=pt.time;d.price3=pt.price;}
+      return d;
     }
 
-    function actualizarDibujoEnCurso(pos, e){
-      var pt = puntoDesdeMouse(pos.x, pos.y, magnetEfectivo(e));
-      if (!pt || !dibujoEnCurso) return;
-      dibujoEnCurso.time2 = pt.time;
-      dibujoEnCurso.price2 = pt.price;
-      redibujarTodo();
+    function actualizarDibujoEnCurso(pos,e){
+      if(!dibujoEnCurso)return;
+      var pt=puntoDesdeMouse(pos.x,pos.y,magnetEfectivo(e));if(!pt)return;
+      var n=dibujoEnCurso._puntoActual||2;
+      dibujoEnCurso['time'+n]=pt.time;dibujoEnCurso['price'+n]=pt.price;redibujarTodo();
     }
 
     function finalizarDibujo(valido){
-      if (!dibujoEnCurso) return;
-      var d = dibujoEnCurso;
-      dibujoEnCurso = null; esperandoSegundoClick = false; inicioClick = null;
-      var g = geom(d);
-      var largo = ok(g.x1, g.y1, g.x2, g.y2) ? Math.hypot(g.x2 - g.x1, g.y2 - g.y1) : 0;
-      if (valido && largo > 3) {
-        elementosDibujados.push(d);
-        seleccionadoId = elementosDibujados.length - 1;
-        confirmarCambio();
-      } else {
-        redibujarTodo();
-      }
-      activarHerramienta('cross');
+      if(!dibujoEnCurso)return;
+      var d=dibujoEnCurso;delete d._puntoActual;
+      dibujoEnCurso=null;esperandoSegundoClick=false;inicioClick=null;
+      var g=geom(d),largo=(g&&ok(g.x1,g.y1,g.x2,g.y2))?Math.hypot(g.x2-g.x1,g.y2-g.y1):0;
+      var suficiente=largo>3&&(puntosHerramienta(d.tipo)<3||ok(g.x3,g.y3));
+      if(valido&&suficiente){elementosDibujados.push(d);seleccionadoId=elementosDibujados.length-1;confirmarCambio();}
+      else redibujarTodo();
+      if(mantenerHerramienta){activarHerramienta(d.tipo);}else activarHerramienta('cross');
     }
 
     function anclasOriginales(el){
-      if (el.tipo === 'hline') return { price: el.price };
-      if (el.tipo === 'text') return { l: tiempoALogico(el.time), price: el.price };
-      return { l1: tiempoALogico(el.time1), price1: el.price1, l2: tiempoALogico(el.time2), price2: el.price2 };
+      if(el.tipo==='hline')return{price:el.price};
+      if(el.tipo==='vline')return{l:tiempoALogico(el.time)};
+      if(el.tipo==='crossline')return{l:tiempoALogico(el.time),price:el.price};
+      if(el.tipo==='text')return{l:tiempoALogico(el.time),price:el.price};
+      return{l1:tiempoALogico(el.time1),price1:el.price1,l2:tiempoALogico(el.time2),price2:el.price2,l3:el.time3!==undefined?tiempoALogico(el.time3):null,price3:el.price3};
     }
 
-    function aplicarArrastre(pos, e){
-      var el = elementosDibujados[arrastre.idx];
-      if (!el) return;
-      var o = arrastre.orig;
-      if (arrastre.modo === 'move') {
-        var l = chart.timeScale().coordinateToLogical(pos.x);
-        var p = serie.coordinateToPrice(pos.y);
-        if (l === null || p === null) return;
-        var dl = l - arrastre.l0, dp = p - arrastre.p0;
-        if (el.tipo === 'hline') {
-          el.price = o.price + dp;
-        } else if (el.tipo === 'text') {
-          if (o.l === null) return;
-          el.time = logicoATiempo(o.l + dl); el.price = o.price + dp;
-        } else {
-          if (o.l1 === null || o.l2 === null) return;
-          el.time1 = logicoATiempo(o.l1 + dl); el.price1 = o.price1 + dp;
-          el.time2 = logicoATiempo(o.l2 + dl); el.price2 = o.price2 + dp;
-        }
-      } else {
-        var pt = puntoDesdeMouse(pos.x, pos.y, magnetEfectivo(e));
-        if (!pt) return;
-        if (arrastre.modo === 'p1') { el.time1 = pt.time; el.price1 = pt.price; }
-        else { el.time2 = pt.time; el.price2 = pt.price; }
+    function aplicarArrastre(pos,e){
+      var el=elementosDibujados[arrastre.idx];if(!el)return;var o=arrastre.orig;
+      if(arrastre.modo==='move'){
+        var l=chart.timeScale().coordinateToLogical(pos.x),p=serie.coordinateToPrice(pos.y);if(l===null||p===null)return;
+        var dl=l-arrastre.l0,dp=p-arrastre.p0;
+        if(el.tipo==='hline')el.price=o.price+dp;
+        else if(el.tipo==='vline')el.time=logicoATiempo(o.l+dl);
+        else if(el.tipo==='crossline'){el.time=logicoATiempo(o.l+dl);el.price=o.price+dp;}
+        else if(el.tipo==='text'){el.time=logicoATiempo(o.l+dl);el.price=o.price+dp;}
+        else {el.time1=logicoATiempo(o.l1+dl);el.price1=o.price1+dp;el.time2=logicoATiempo(o.l2+dl);el.price2=o.price2+dp;if(o.l3!==null){el.time3=logicoATiempo(o.l3+dl);el.price3=o.price3+dp;}}
+      }else{
+        var pt=puntoDesdeMouse(pos.x,pos.y,magnetEfectivo(e));if(!pt)return;
+        var n=arrastre.modo==='p1'?1:(arrastre.modo==='p2'?2:3);
+        el['time'+n]=pt.time;el['price'+n]=pt.price;
+        if(n===1&&el.tipo==='hline')el.price=pt.price;
+        if(n===1&&el.tipo==='vline')el.time=pt.time;
+        if(n===1&&el.tipo==='crossline'){el.time=pt.time;el.price=pt.price;}
       }
       redibujarTodo();
     }
 
-    // MOUSEDOWN (fase de captura: decide si el clic es del dibujo o del gráfico)
-    wrapEl.addEventListener('mousedown', function(e){
-      if (e.button !== 0 || bloqueado || !serie) return;
-      var pos = posMouse(e);
-      var ap = areaTrazado();
-      if (pos.x > ap.w || pos.y > ap.h) return;   // ejes: los maneja el gráfico
+    wrapEl.addEventListener('mousedown',function(e){
+      if(e.button!==0||bloqueado||!serie)return;
+      var pos=posMouse(e),ap=areaTrazado();if(pos.x>ap.w||pos.y>ap.h)return;
 
-      // 1) Segundo clic de un dibujo "clic-clic"
-      if (dibujoEnCurso && esperandoSegundoClick) {
-        e.preventDefault(); e.stopPropagation();
-        bloquearGrafico(true);
-        actualizarDibujoEnCurso(pos, e);
-        finalizarDibujo(true);
+      if(dibujoEnCurso&&esperandoSegundoClick){
+        e.preventDefault();e.stopPropagation();bloquearGrafico(true);
+        actualizarDibujoEnCurso(pos,e);
+        var nActual=dibujoEnCurso._puntoActual||2;
+        var total=puntosHerramienta(dibujoEnCurso.tipo);
+        if(nActual>=total){finalizarDibujo(true);return;}
+        dibujoEnCurso._puntoActual=nActual+1;
+        esperandoSegundoClick=false;
+        inicioClick={x:pos.x,y:pos.y};
         return;
       }
 
-      // 2) Herramienta de dibujo activa: empezar un dibujo nuevo
-      if (activeTool !== 'cross') {
-        e.preventDefault(); e.stopPropagation();
-        var pt = puntoDesdeMouse(pos.x, pos.y, magnetEfectivo(e));
-        if (!pt) return;
-        if (activeTool === 'hline') {
-          elementosDibujados.push({ tipo: 'hline', price: pt.price });
-          seleccionadoId = elementosDibujados.length - 1;
-          confirmarCambio();
-          activarHerramienta('cross');
-        } else if (activeTool === 'text') {
-          var textoPrompt = prompt("Introduce el texto analítico:", "Soporte Clave");
-          if (textoPrompt) {
-            elementosDibujados.push({ tipo: 'text', time: pt.time, price: pt.price, texto: textoPrompt });
-            seleccionadoId = elementosDibujados.length - 1;
-            confirmarCambio();
-          }
-          activarHerramienta('cross');
-        } else {
-          bloquearGrafico(true);
-          dibujoEnCurso = { tipo: activeTool, time1: pt.time, price1: pt.price, time2: pt.time, price2: pt.price };
-          inicioClick = { x: pos.x, y: pos.y };
-          esperandoSegundoClick = false;
-          seleccionadoId = null;
-          redibujarTodo();
+      if(activeTool!=='cross'){
+        e.preventDefault();e.stopPropagation();var pt=puntoDesdeMouse(pos.x,pos.y,magnetEfectivo(e));if(!pt)return;
+        if(activeTool==='hline'){elementosDibujados.push({tipo:'hline',price:pt.price});seleccionadoId=elementosDibujados.length-1;confirmarCambio();if(!mantenerHerramienta)activarHerramienta('cross');}
+        else if(activeTool==='hray'){elementosDibujados.push({tipo:'hray',time1:pt.time,price1:pt.price,time2:pt.time,price2:pt.price});seleccionadoId=elementosDibujados.length-1;confirmarCambio();if(!mantenerHerramienta)activarHerramienta('cross');}
+        else if(activeTool==='vline'){elementosDibujados.push({tipo:'vline',time:pt.time});seleccionadoId=elementosDibujados.length-1;confirmarCambio();if(!mantenerHerramienta)activarHerramienta('cross');}
+        else if(activeTool==='crossline'){elementosDibujados.push({tipo:'crossline',time:pt.time,price:pt.price});seleccionadoId=elementosDibujados.length-1;confirmarCambio();if(!mantenerHerramienta)activarHerramienta('cross');}
+        else if(activeTool==='text'){
+          var textoPrompt=prompt('Introduce el texto analítico:','Soporte Clave');if(textoPrompt){elementosDibujados.push({tipo:'text',time:pt.time,price:pt.price,texto:textoPrompt});seleccionadoId=elementosDibujados.length-1;confirmarCambio();}
+          if(!mantenerHerramienta)activarHerramienta('cross');
+        }else{
+          bloquearGrafico(true);dibujoEnCurso=crearDibujoInicial(activeTool,pt);dibujoEnCurso._puntoActual=2;inicioClick={x:pos.x,y:pos.y};esperandoSegundoClick=false;seleccionadoId=null;redibujarTodo();
         }
         return;
       }
 
-      // 3) Cursor normal: seleccionar / mover / editar un dibujo existente
-      var hit = elementoBajo(pos.x, pos.y);
-      if (hit) {
-        e.preventDefault(); e.stopPropagation();
-        bloquearGrafico(true);
-        seleccionadoId = hit.idx;
-        arrastre = {
-          modo: hit.parte === 'body' ? 'move' : hit.parte,
-          idx: hit.idx,
-          l0: chart.timeScale().coordinateToLogical(pos.x),
-          p0: serie.coordinateToPrice(pos.y),
-          orig: anclasOriginales(elementosDibujados[hit.idx]),
-          movido: false,
-          x0: pos.x, y0: pos.y
-        };
-        redibujarTodo();
-        return;
+      var hit=elementoBajo(pos.x,pos.y);
+      if(hit){e.preventDefault();e.stopPropagation();bloquearGrafico(true);seleccionadoId=hit.idx;arrastre={modo:hit.parte==='body'?'move':hit.parte,idx:hit.idx,l0:chart.timeScale().coordinateToLogical(pos.x),p0:serie.coordinateToPrice(pos.y),orig:anclasOriginales(elementosDibujados[hit.idx]),movido:false,x0:pos.x,y0:pos.y};redibujarTodo();return;}
+      if(seleccionadoId!==null){seleccionadoId=null;redibujarTodo();}
+    },true);
+
+    if(window._tvGlobalMousemove){window.removeEventListener('mousemove',window._tvGlobalMousemove);window.removeEventListener('mouseup',window._tvGlobalMouseup);document.removeEventListener('keydown',window._tvGlobalKeydown);}
+
+    window._tvGlobalMousemove=function(e){
+      var pos=posMouse(e);
+      if(arrastre){if(!arrastre.movido&&Math.hypot(pos.x-arrastre.x0,pos.y-arrastre.y0)<3)return;arrastre.movido=true;aplicarArrastre(pos,e);return;}
+      if(dibujoEnCurso){actualizarDibujoEnCurso(pos,e);return;}
+      var nuevoHover=null,cls='',dentro=pos.x>=0&&pos.y>=0&&pos.x<=cssW&&pos.y<=cssH;
+      if(dentro&&!bloqueado&&activeTool==='cross'){var ap=areaTrazado();if(pos.x<=ap.w&&pos.y<=ap.h){var h=elementoBajo(pos.x,pos.y);if(h){nuevoHover=h.idx;cls=h.parte==='body'?'cur-mover':'cur-punto';}}}
+      if(nuevoHover!==hoverId){hoverId=nuevoHover;redibujarTodo();}setCursor(activeTool!=='cross'?'cur-dibujar':cls);
+    };
+    window.addEventListener('mousemove',window._tvGlobalMousemove);
+
+    window._tvGlobalMouseup=function(e){
+      if(arrastre){var huboCambio=arrastre.movido;arrastre=null;if(huboCambio)confirmarCambio();}
+      else if(dibujoEnCurso&&!esperandoSegundoClick){
+        var pos=posMouse(e),dist=inicioClick?Math.hypot(pos.x-inicioClick.x,pos.y-inicioClick.y):0;
+        if(dist>6){
+          actualizarDibujoEnCurso(pos,e);
+          var nActual=dibujoEnCurso._puntoActual||2,total=puntosHerramienta(dibujoEnCurso.tipo);
+          if(total===2 || nActual>=total){finalizarDibujo(true);}
+          else{dibujoEnCurso._puntoActual=nActual+1;esperandoSegundoClick=true;inicioClick={x:pos.x,y:pos.y};}
+        } else {esperandoSegundoClick=true;}
       }
-      if (seleccionadoId !== null) { seleccionadoId = null; redibujarTodo(); }
-      // Sin dibujo bajo el cursor: el gráfico procesa el clic con normalidad (scroll, zoom, crosshair)
-    }, true);
+      bloquearGrafico(false);
+    };
+    window.addEventListener('mouseup',window._tvGlobalMouseup);
 
-    window.addEventListener('mousemove', function(e){
-      var pos = posMouse(e);
+    window.addEventListener('blur',function(){if(arrastre){var huboCambio=arrastre.movido;arrastre=null;if(huboCambio)confirmarCambio();}bloquearGrafico(false);});
 
-      if (arrastre) {
-        if (!arrastre.movido && Math.hypot(pos.x - arrastre.x0, pos.y - arrastre.y0) < 3) return;
-        arrastre.movido = true;
-        aplicarArrastre(pos, e);
-        return;
+    window._tvGlobalKeydown=function(e){
+      var tag=(e.target&&e.target.tagName)||'';if(tag==='INPUT'||tag==='TEXTAREA')return;var k=e.key;
+      if(k==='Escape'){if(dibujoEnCurso)cancelarDibujoEnCurso();activarHerramienta('cross');if(seleccionadoId!==null){seleccionadoId=null;redibujarTodo();}return;}
+      if((k==='Delete'||k==='Backspace')&&seleccionadoId!==null&&!bloqueado){e.preventDefault();elementosDibujados.splice(seleccionadoId,1);seleccionadoId=null;hoverId=null;confirmarCambio();return;}
+      if(e.ctrlKey||e.metaKey){var kl=(k||'').toLowerCase();if(kl==='z'&&!e.shiftKey){e.preventDefault();deshacer();}else if(kl==='y'||(kl==='z'&&e.shiftKey)){e.preventDefault();rehacer();}}
+    };
+    document.addEventListener('keydown',window._tvGlobalKeydown);
+    
+    // ==========================================================================
+    // ETAPA 2: barra flotante de estilo, deshacer/rehacer, copiar/pegar, ocultar
+    // ==========================================================================
+    var dibujosVisibles = true;
+    var portapapeles = null;
+
+    var PALETA_DIB = ['#2962ff', '#58a6ff', '#089981', '#3fb950', '#f5c518', '#ff9800', '#f23645', '#a78bfa', '#ffffff'];
+    var ANCHOS_DIB = [1, 2, 3, 4];
+    var COLOR_DEF = { trend: '#2962ff', ray: '#2962ff', extended: '#2962ff', angle: '#a78bfa', hline: '#f5c518',
+      hray: '#f5c518', vline: '#58a6ff', crossline: '#8b949e', channel: '#2962ff', rectangle: '#58a6ff',
+      ellipse: '#58a6ff', triangle: '#58a6ff', arrow: '#3fb950', text: '#ffffff' };
+    var ANCHO_DEF = { hline: 1.5, hray: 1.5, vline: 1.5, crossline: 1 };
+    var ESTILO_DEF = { hline: 'dash', vline: 'dash', crossline: 'dash' };
+    var TIPOS_TRAZO = { trend: 1, ray: 1, extended: 1, angle: 1, hline: 1, hray: 1, vline: 1, crossline: 1, channel: 1, arrow: 1 };
+    var TIPOS_ANCHO = { trend: 1, ray: 1, extended: 1, angle: 1, hline: 1, hray: 1, vline: 1, crossline: 1, channel: 1, arrow: 1,
+      rectangle: 1, ellipse: 1, triangle: 1 };
+    var TIPOS_COLOR = { trend: 1, ray: 1, extended: 1, angle: 1, hline: 1, hray: 1, vline: 1, crossline: 1, channel: 1, arrow: 1,
+      rectangle: 1, ellipse: 1, triangle: 1, text: 1 };
+
+    var estiloUI2 = document.createElement('style');
+    estiloUI2.textContent = [
+      '.tvtool.on { background: rgba(139,92,246,0.18); color: #a78bfa; }',
+      '#tv-stylebar { position: absolute; top: 10px; left: calc(50% + 22px); transform: translateX(-50%); z-index: 30; display: none; align-items: center; background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 5px 8px; box-shadow: 0 6px 20px rgba(0,0,0,0.5); user-select: none; font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; }',
+      '#tv-stylebar.show { display: flex; }',
+      '#tv-stylebar .sb-bloque { display: flex; align-items: center; gap: 3px; padding-right: 8px; margin-right: 8px; border-right: 1px solid #30363d; }',
+      '#tv-stylebar .sb-bloque.ultimo { border-right: none; margin-right: 0; padding-right: 0; }',
+      '.sb-color { width: 18px; height: 18px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }',
+      '.sb-color.on { border-color: #ffffff; }',
+      '.sb-ancho, .sb-estilo, .sb-btn { background: transparent; border: 1px solid transparent; color: #8b949e; width: 30px; height: 26px; border-radius: 5px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; }',
+      '.sb-ancho.on, .sb-estilo.on { background: rgba(88,166,255,0.18); color: #58a6ff; border-color: rgba(88,166,255,0.3); }',
+      '.sb-btn:hover { background: rgba(255,255,255,0.08); color: #ffffff; }',
+      '.sb-btn.peligro:hover { color: #f85149; }',
+      '.sb-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }',
+      '#tv-stylebar input[type=color] { width: 22px; height: 22px; border: none; padding: 0; background: none; cursor: pointer; }',
+      '#tv-actions .tvbtn[disabled] { opacity: 0.35; cursor: default; }'
+    ].join(' ');
+    document.head.appendChild(estiloUI2);
+
+    function valorEfectivo(el, k){
+      if (el[k] !== undefined && el[k] !== null) return el[k];
+      if (k === 'color') return COLOR_DEF[el.tipo] || '#2962ff';
+      if (k === 'ancho') return ANCHO_DEF[el.tipo] || 2;
+      return ESTILO_DEF[el.tipo] || 'solid';
+    }
+
+    // --- Barra flotante de estilo (color, grosor, trazo, duplicar, eliminar) ---
+    var areaDibEl = document.getElementById('tv-main-canvas-area');
+    var barraEl = document.createElement('div');
+    barraEl.id = 'tv-stylebar';
+
+    var bloqueColor = document.createElement('div'); bloqueColor.className = 'sb-bloque';
+    PALETA_DIB.forEach(function(col){
+      var b = document.createElement('button');
+      b.className = 'sb-color'; b.title = 'Color'; b.setAttribute('data-color', col); b.style.background = col;
+      bloqueColor.appendChild(b);
+    });
+    var pickerEl = document.createElement('input');
+    pickerEl.type = 'color'; pickerEl.title = 'Color personalizado'; pickerEl.value = '#2962ff';
+    bloqueColor.appendChild(pickerEl);
+
+    var bloqueAncho = document.createElement('div'); bloqueAncho.className = 'sb-bloque';
+    ANCHOS_DIB.forEach(function(a){
+      var b = document.createElement('button');
+      b.className = 'sb-ancho'; b.title = 'Grosor ' + a + ' px'; b.setAttribute('data-ancho', String(a));
+      b.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18"><path d="M3 12h18" stroke="currentColor" stroke-width="' + a + '" fill="none"/></svg>';
+      bloqueAncho.appendChild(b);
+    });
+
+    var bloqueEstilo = document.createElement('div'); bloqueEstilo.className = 'sb-bloque';
+    [['solid', '', 'Línea continua'], ['dash', '6 4', 'Línea discontinua'], ['dot', '1.5 3.5', 'Línea punteada']].forEach(function(par){
+      var b = document.createElement('button');
+      b.className = 'sb-estilo'; b.title = par[2]; b.setAttribute('data-estilo', par[0]);
+      b.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18"><path d="M2 12h20" stroke="currentColor" stroke-width="2" fill="none" stroke-dasharray="' + par[1] + '"/></svg>';
+      bloqueEstilo.appendChild(b);
+    });
+
+    var bloqueAcc = document.createElement('div'); bloqueAcc.className = 'sb-bloque ultimo';
+    var bDup = document.createElement('button');
+    bDup.className = 'sb-btn'; bDup.title = 'Duplicar (Ctrl+C / Ctrl+V)'; bDup.setAttribute('data-accion', 'duplicar');
+    bDup.innerHTML = '<svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/></svg>';
+    var bDel = document.createElement('button');
+    bDel.className = 'sb-btn peligro'; bDel.title = 'Eliminar (Supr)'; bDel.setAttribute('data-accion', 'borrar');
+    bDel.innerHTML = '<svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>';
+    bloqueAcc.appendChild(bDup); bloqueAcc.appendChild(bDel);
+
+    barraEl.appendChild(bloqueColor); barraEl.appendChild(bloqueAncho);
+    barraEl.appendChild(bloqueEstilo); barraEl.appendChild(bloqueAcc);
+    areaDibEl.appendChild(barraEl);
+
+    function elementoSeleccionado(){
+      return (seleccionadoId !== null && !bloqueado && dibujosVisibles) ? (elementosDibujados[seleccionadoId] || null) : null;
+    }
+
+    function refrescarBarra(el){
+      if (!el) { barraEl.classList.remove('show'); return; }
+      barraEl.classList.add('show');
+      var t = el.tipo;
+      bloqueColor.style.display = TIPOS_COLOR[t] ? 'flex' : 'none';
+      bloqueAncho.style.display = TIPOS_ANCHO[t] ? 'flex' : 'none';
+      bloqueEstilo.style.display = TIPOS_TRAZO[t] ? 'flex' : 'none';
+      if (TIPOS_COLOR[t]) {
+        var col = valorEfectivo(el, 'color');
+        bloqueColor.querySelectorAll('.sb-color').forEach(function(b){
+          b.classList.toggle('on', b.getAttribute('data-color') === col);
+        });
+        if (/^#[0-9a-fA-F]{6}$/.test(col)) pickerEl.value = col;
       }
-      if (dibujoEnCurso) { actualizarDibujoEnCurso(pos, e); return; }
+      if (TIPOS_ANCHO[t]) {
+        var a = valorEfectivo(el, 'ancho'), mejor = ANCHOS_DIB[0];
+        ANCHOS_DIB.forEach(function(w){ if (Math.abs(w - a) < Math.abs(mejor - a)) mejor = w; });
+        bloqueAncho.querySelectorAll('.sb-ancho').forEach(function(b){
+          b.classList.toggle('on', parseFloat(b.getAttribute('data-ancho')) === mejor);
+        });
+      }
+      if (TIPOS_TRAZO[t]) {
+        var est = valorEfectivo(el, 'estilo');
+        bloqueEstilo.querySelectorAll('.sb-estilo').forEach(function(b){
+          b.classList.toggle('on', b.getAttribute('data-estilo') === est);
+        });
+      }
+    }
 
-      // Hover: resaltar y cambiar el cursor
-      var nuevoHover = null, cls = '';
-      var dentro = pos.x >= 0 && pos.y >= 0 && pos.x <= cssW && pos.y <= cssH;
-      if (dentro && !bloqueado && activeTool === 'cross') {
-        var ap = areaTrazado();
-        if (pos.x <= ap.w && pos.y <= ap.h) {
-          var h = elementoBajo(pos.x, pos.y);
-          if (h) { nuevoHover = h.idx; cls = (h.parte === 'body') ? 'cur-mover' : 'cur-punto'; }
+    barraEl.addEventListener('click', function(e){
+      var btn = e.target.closest ? e.target.closest('button') : null;
+      var el = elementoSeleccionado();
+      if (!btn || !el) return;
+      if (btn.hasAttribute('data-color')) { el.color = btn.getAttribute('data-color'); }
+      else if (btn.hasAttribute('data-ancho')) { el.ancho = parseFloat(btn.getAttribute('data-ancho')); }
+      else if (btn.hasAttribute('data-estilo')) { el.estilo = btn.getAttribute('data-estilo'); }
+      else if (btn.getAttribute('data-accion') === 'borrar') { borrarSeleccionado(); return; }
+      else if (btn.getAttribute('data-accion') === 'duplicar') { copiarSeleccionado(); pegar(); return; }
+      else return;
+      confirmarCambio();
+      refrescarBarra(el);
+    });
+    pickerEl.addEventListener('input', function(){
+      var el = elementoSeleccionado();
+      if (!el) return;
+      el.color = pickerEl.value;
+      redibujarTodo();
+    });
+    pickerEl.addEventListener('change', function(){
+      var el = elementoSeleccionado();
+      if (!el) return;
+      confirmarCambio();
+      refrescarBarra(el);
+    });
+
+    // --- Borrar, copiar y pegar ---
+    function borrarSeleccionado(){
+      if (seleccionadoId === null || bloqueado) return;
+      elementosDibujados.splice(seleccionadoId, 1);
+      seleccionadoId = null; hoverId = null;
+      confirmarCambio();
+    }
+
+    function copiarSeleccionado(){
+      var el = elementoSeleccionado();
+      if (el) portapapeles = JSON.stringify(el);
+    }
+
+    function pegar(){
+      if (!portapapeles || bloqueado || !serie) return;
+      var el = JSON.parse(portapapeles);
+      var clavesT = [], clavesP = [];
+      Object.keys(el).forEach(function(k){
+        if (/^time[0-9]?$/.test(k) && typeof el[k] === 'number') clavesT.push(k);
+        if (/^price[0-9]?$/.test(k) && typeof el[k] === 'number') clavesP.push(k);
+      });
+      clavesT.forEach(function(k){
+        var l = tiempoALogico(el[k]);
+        if (l !== null) el[k] = logicoATiempo(l + 4);
+      });
+      if (clavesP.length) {
+        var yRef = yDePrecio(el[clavesP[0]]);
+        var pDesp = ok(yRef) ? serie.coordinateToPrice(yRef + 24) : null;
+        if (pDesp !== null) {
+          var dp = pDesp - el[clavesP[0]];
+          clavesP.forEach(function(k){ el[k] = el[k] + dp; });
         }
       }
-      if (nuevoHover !== hoverId) { hoverId = nuevoHover; redibujarTodo(); }
-      setCursor(activeTool !== 'cross' ? 'cur-dibujar' : cls);
+      elementosDibujados.push(el);
+      seleccionadoId = elementosDibujados.length - 1;
+      confirmarCambio();
+    }
+
+    // --- Botones de deshacer / rehacer (barra superior) ---
+    function botonIcono(interior, titulo, fn){
+      var b = document.createElement('button');
+      b.className = 'tvbtn icon'; b.title = titulo;
+      b.innerHTML = '<svg viewBox="0 0 20 20">' + interior + '</svg>';
+      b.addEventListener('click', fn);
+      return b;
+    }
+    var accionesEl = document.getElementById('tv-actions');
+    var btnUndo = botonIcono('<path d="M7 5L3.5 8.5 7 12"/><path d="M3.5 8.5H12a4 4 0 0 1 0 8H9"/>', 'Deshacer (Ctrl+Z)', function(){ deshacer(); });
+    var btnRedo = botonIcono('<path d="M13 5l3.5 3.5L13 12"/><path d="M16.5 8.5H8a4 4 0 0 0 0 8h3"/>', 'Rehacer (Ctrl+Y)', function(){ rehacer(); });
+    accionesEl.insertBefore(btnRedo, accionesEl.firstChild);
+    accionesEl.insertBefore(btnUndo, btnRedo);
+
+    // --- Ocultar / mostrar todos los dibujos ---
+    var btnOcultar = document.createElement('button');
+    btnOcultar.className = 'tvtool';
+    var ICONO_OJO = '<svg viewBox="0 0 20 20"><path d="M2 10s3-5.5 8-5.5S18 10 18 10s-3 5.5-8 5.5S2 10 2 10z"/><circle cx="10" cy="10" r="2.4"/></svg>';
+    var ICONO_OJO_OFF = '<svg viewBox="0 0 20 20"><path d="M2 10s3-5.5 8-5.5S18 10 18 10s-3 5.5-8 5.5S2 10 2 10z"/><circle cx="10" cy="10" r="2.4"/><path d="M3 3l14 14"/></svg>';
+    function refrescarOcultar(){
+      btnOcultar.innerHTML = dibujosVisibles ? ICONO_OJO : ICONO_OJO_OFF;
+      btnOcultar.title = dibujosVisibles ? 'Ocultar todos los dibujos' : 'Mostrar todos los dibujos';
+      btnOcultar.classList.toggle('on', !dibujosVisibles);
+    }
+    refrescarOcultar();
+    var btnLockRef = document.getElementById('tool-lock');
+    btnLockRef.parentNode.insertBefore(btnOcultar, btnLockRef);
+    btnOcultar.addEventListener('click', function(e){
+      e.stopPropagation();
+      dibujosVisibles = !dibujosVisibles;
+      if (!dibujosVisibles) { cancelarDibujoEnCurso(); activarHerramienta('cross'); seleccionadoId = null; hoverId = null; }
+      refrescarOcultar();
+      redibujarTodo();
     });
 
-    window.addEventListener('mouseup', function(e){
-      if (arrastre) {
-        var huboCambio = arrastre.movido;
-        arrastre = null;
-        if (huboCambio) confirmarCambio();
-      } else if (dibujoEnCurso && !esperandoSegundoClick) {
-        var pos = posMouse(e);
-        var dist = inicioClick ? Math.hypot(pos.x - inicioClick.x, pos.y - inicioClick.y) : 0;
-        if (dist > 6) { actualizarDibujoEnCurso(pos, e); finalizarDibujo(true); }
-        else { esperandoSegundoClick = true; }   // clic simple: esperar el segundo clic
+    // Ajustes sobre funciones existentes (los dibujos ocultos no se pintan ni se pueden seleccionar)
+    var pintarOriginal = pintar;
+    pintar = function(){
+      if (!dibujosVisibles) { ctx.clearRect(0, 0, cssW, cssH); return; }
+      pintarOriginal();
+    };
+    var elementoBajoOriginal = elementoBajo;
+    elementoBajo = function(x, y){ return dibujosVisibles ? elementoBajoOriginal(x, y) : null; };
+    var activarHerramientaOriginal = activarHerramienta;
+    activarHerramienta = function(t){
+      if (t !== 'cross' && !dibujosVisibles) { dibujosVisibles = true; refrescarOcultar(); redibujarTodo(); }
+      activarHerramientaOriginal(t);
+    };
+
+    // Vigilante: sincroniza la barra de estilo y los botones de historial con el estado actual
+    var vigSel = -2, vigObj = null, vigHist = '';
+    function vigilarUI(){
+      var el = elementoSeleccionado();
+      if (seleccionadoId !== vigSel || el !== vigObj) { vigSel = seleccionadoId; vigObj = el; refrescarBarra(el); }
+      var h = posHist + '/' + historial.length;
+      if (h !== vigHist) {
+        vigHist = h;
+        btnUndo.disabled = posHist <= 0;
+        btnRedo.disabled = posHist >= historial.length - 1;
       }
-      bloquearGrafico(false);
-    });
+      requestAnimationFrame(vigilarUI);
+    }
+    requestAnimationFrame(vigilarUI);
 
-    window.addEventListener('blur', function(){
-      if (arrastre) {
-        var huboCambio = arrastre.movido;
-        arrastre = null;
-        if (huboCambio) confirmarCambio();
-      }
-      bloquearGrafico(false);
-    });
-
-    // Atajos de teclado: Esc, Supr, Ctrl+Z, Ctrl+Y (hay que haber hecho clic antes dentro del gráfico)
+    // Atajos adicionales: Ctrl+C / Ctrl+V y Alt+T / H / V / F
     document.addEventListener('keydown', function(e){
       var tag = (e.target && e.target.tagName) || '';
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-      var k = e.key;
-      if (k === 'Escape') {
-        if (dibujoEnCurso) cancelarDibujoEnCurso();
-        activarHerramienta('cross');
-        if (seleccionadoId !== null) { seleccionadoId = null; redibujarTodo(); }
-        return;
-      }
-      if ((k === 'Delete' || k === 'Backspace') && seleccionadoId !== null && !bloqueado) {
-        e.preventDefault();
-        elementosDibujados.splice(seleccionadoId, 1);
-        seleccionadoId = null; hoverId = null;
-        confirmarCambio();
-        return;
-      }
       if (e.ctrlKey || e.metaKey) {
-        var kl = (k || '').toLowerCase();
-        if (kl === 'z' && !e.shiftKey) { e.preventDefault(); deshacer(); }
-        else if (kl === 'y' || (kl === 'z' && e.shiftKey)) { e.preventDefault(); rehacer(); }
+        var kl = (e.key || '').toLowerCase();
+        if (kl === 'c') copiarSeleccionado();
+        else if (kl === 'v') pegar();
+        return;
+      }
+      if (e.altKey) {
+        var mapa = { KeyT: 'trend', KeyH: 'hline', KeyV: 'vline', KeyF: 'fib' };
+        var t = mapa[e.code];
+        if (t) {
+          e.preventDefault();
+          var item = document.querySelector('.tvtool-flyout-item[data-tool="' + t + '"]');
+          if (item) item.click(); else activarHerramienta(t);
+        }
       }
     });
 
@@ -1170,20 +1649,33 @@ setTimeout(function(){
       var elOhlc = document.getElementById('tv-ohlc-vals');
       var elVol = document.getElementById('tv-vol-val');
       if (!elOhlc) return;
-      var sube = v.close >= v.open;
-      var color = sube ? '#3fb950' : '#f85149';
-      var variacion = v.open ? (((v.close - v.open) / v.open) * 100) : 0;
+      
+      var cierreAnt = v.open;
+      if (datosActuales.length > 1) {
+        var idxActual = datosActuales.findIndex(function(d){ return d.time === v.time; });
+        if (idxActual > 0) {
+          cierreAnt = datosActuales[idxActual - 1].close;
+        } else if (idxActual === -1 && datosActuales.length > 0) {
+          cierreAnt = datosActuales[datosActuales.length - 2].close;
+        }
+      }
+
+      var delta = v.close - cierreAnt;
+      var pct = cierreAnt ? (delta / cierreAnt) * 100 : 0;
+      var col = (v.close >= v.open) ? '#3fb950' : '#f85149';
+      var colD = (delta >= 0) ? '#3fb950' : '#f85149';
+      function c(l, n){ return l + '<b style="color:' + col + '">' + n.toFixed(DIGITS) + '</b>'; }
       elOhlc.innerHTML =
-        'O<b style="color:' + color + '">' + v.open.toFixed(DIGITS) + '</b> ' +
-        'H<b style="color:' + color + '">' + v.high.toFixed(DIGITS) + '</b> ' +
-        'L<b style="color:' + color + '">' + v.low.toFixed(DIGITS) + '</b> ' +
-        'C<b style="color:' + color + '">' + v.close.toFixed(DIGITS) + '</b> ' +
-        '<b style="color:' + color + '">' + (variacion >= 0 ? '+' : '') + variacion.toFixed(2) + '%</b>';
-      if (elVol) elVol.innerText = 'Vol. ' + fmtVol(v.volume);
+        c('O', v.open) + c('H', v.high) + c('L', v.low) + c('C', v.close) +
+        '<b style="color:' + colD + '">' + (delta >= 0 ? '+' : '') + delta.toFixed(DIGITS) +
+        ' (' + (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%)</b>';
+      if (elVol) elVol.innerText = 'Vol ' + fmtVol(v.volume);
     }
 
     function cargar(tf, n, ajustarFit){
       tfActual = tf;
+      var elTf = document.getElementById('lg-tf');
+      if (elTf) elTf.innerText = (tf === 'MN1' ? 'MN' : tf);
       nBarrasActual = n;
       var miId = ++cargaId;
       cargando = true;
@@ -1238,7 +1730,7 @@ setTimeout(function(){
     document.querySelectorAll('#type-menu .tv-drop-item').forEach(function(item){
       item.addEventListener('click', function(){
         tipoActual = item.getAttribute('data-type');
-        btnTypeSelect.innerHTML = item.innerText + ' ▾';
+        btnTypeSelect.innerHTML = item.querySelector('svg').outerHTML + '<span>' + item.getAttribute('data-label') + '</span><svg class="caret" viewBox="0 0 10 10"><path d="M2 3.5L5 6.5L8 3.5"/></svg>';
         crearSerie(tipoActual);
         if (datosActuales.length){
           serie.setData(formatearDatos(datosActuales, tipoActual));
@@ -1303,13 +1795,12 @@ setTimeout(function(){
       if (idx >= 0) actualizarLeyenda(datosActuales[idx]);
     });
 
-        function marcarTF(tf){
+    function marcarTF(tf){
       document.querySelectorAll('.tvtf').forEach(function(b){
         b.classList.toggle('active', b.getAttribute('data-tf') === tf);
       });
     }
 
-    // Temporalidad (barra superior): carga el timeframe y muestra las últimas velas
     document.querySelectorAll('.tvtf').forEach(function(btn){
       btn.addEventListener('click', function(){
         var tf = btn.getAttribute('data-tf');
@@ -1319,7 +1810,6 @@ setTimeout(function(){
       });
     });
 
-    // Rango (barra inferior): elige la temporalidad adecuada para ese periodo y lo ajusta completo
     document.querySelectorAll('.tvrange').forEach(function(btn){
       btn.addEventListener('click', function(){
         var tf = btn.getAttribute('data-tf');
@@ -1374,8 +1864,9 @@ def _info_simbolo(simbolo: str) -> Tuple[int, float]:
     digits = 5
     pip = 0.0
     try:
-        mt5.symbol_select(simbolo, True)
-        info = mt5.symbol_info(simbolo)
+        with MT5_LOCK:
+            mt5.symbol_select(simbolo, True)
+            info = mt5.symbol_info(simbolo)
         if info is not None:
             digits = int(info.digits)
             es_forex = info.trade_calc_mode == getattr(mt5, "SYMBOL_CALC_MODE_FOREX", 0)

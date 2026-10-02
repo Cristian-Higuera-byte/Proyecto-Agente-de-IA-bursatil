@@ -169,6 +169,7 @@ inicializar_mt5()
 _info_cuenta = obtener_info_cuenta()
 _saldo_mt5 = _info_cuenta.get("equity") if "error" not in _info_cuenta else None
 _moneda_mt5 = _info_cuenta.get("currency", "USD") if "error" not in _info_cuenta else "USD"
+_pl_mt5 = _info_cuenta.get("profit") if "error" not in _info_cuenta else None  # P/G flotante
 
 # Desplazamiento de la barra superior según el ancho de la barra lateral
 # (colapsada 70px / expandida 220px) para que no se solapen.
@@ -185,6 +186,7 @@ with st.container(key="barra_nav_fija"):
         usuario=usuario_actual.get("nombre", "Usuario"),
         saldo=_saldo_mt5,
         moneda=_moneda_mt5,
+        pl=_pl_mt5,
     )
 
 # Carga inicial de datos de mercado
@@ -193,7 +195,11 @@ cargar_datos_mercado()
 # ==========================================
 # NÚMEROS EN VIVO (auto-refresco ligero cada 2 s)
 # ==========================================
-INTERVALO_PRECIOS = "1s"
+# 2s en vez de 1s: reduce la ventana de colisión de deltas del frontend
+# ("Cannot set a node at a delta path") al cambiar de activo (st.rerun(scope=app)
+# compitiendo con los fragmentos run_every). Además dedup: sólo favoritos
+# refresca precios (watchlist lee datos_mercado_real ya actualizado).
+INTERVALO_PRECIOS = "2s"
 
 
 @st.fragment(run_every=INTERVALO_PRECIOS)
@@ -204,8 +210,14 @@ def _favoritos_en_vivo():
 
 @st.fragment(run_every=INTERVALO_PRECIOS)
 def _watchlist_en_vivo():
-    actualizar_precios_mt5()
-    renderizar_watchlist()
+    renderizar_watchlist()   # precios ya los refresca _favoritos_en_vivo
+
+
+@st.fragment(run_every=INTERVALO_PRECIOS)
+def _cartera_en_vivo():
+    # Lista de posiciones abiertas (reemplaza al watchlist en la vista Cartera).
+    from components.cartera_panel import renderizar_cartera_lista
+    renderizar_cartera_lista()
 
 
 # ==========================================
@@ -236,9 +248,21 @@ with col_main:
     elif _nav == "trading":
         # --- VISTA TRADING (favoritos + watchlist + gráfico + ticket de orden) ---
         _favoritos_en_vivo()
-        col_watchlist, col_center, col_orden = st.columns([1.2, 3.7, 0.95])
+        col_watchlist, col_center, col_orden = st.columns([1.7, 3.2, 0.95])
         with col_watchlist:
             _watchlist_en_vivo()
+        with col_center:
+            renderizar_panel_central(main)
+        with col_orden:
+            from components.order_panel import renderizar_panel_orden
+            renderizar_panel_orden(main)
+    elif _nav == "portafolio":
+        # --- VISTA CARTERA (igual a Trading, pero la lista izquierda son las
+        #     posiciones abiertas en vez del watchlist) ---
+        _favoritos_en_vivo()
+        col_cartera, col_center, col_orden = st.columns([1.7, 3.2, 0.95])
+        with col_cartera:
+            _cartera_en_vivo()
         with col_center:
             renderizar_panel_central(main)
         with col_orden:
@@ -256,3 +280,8 @@ _overlay.empty()
 # aquí, en el script principal, para que no choque con los fragmentos en vivo.
 from components.buscador import render_buscador
 render_buscador()
+
+# Modal de confirmación de cierre de posición (Cartera). Igual que el buscador,
+# se renderiza fuera de los fragmentos en vivo.
+from components.cartera_panel import render_modal_cerrar
+render_modal_cerrar()

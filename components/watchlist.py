@@ -47,13 +47,35 @@ _CSS = """
     .st-key-wl_panel,
     .st-key-wl_panel [data-testid="stVerticalBlock"],
     .st-key-wl_scroll { gap: 0 !important; }
+    /* Barra de scroll fina y hueco simétrico en ambos lados: así el resaltado
+       de la fila seleccionada queda centrado y nunca "sobresale" por la
+       derecha (antes el gutter del scroll iba solo a la derecha). */
+    .st-key-wl_scroll {
+        scrollbar-gutter: stable both-edges;
+        scrollbar-width: thin;
+        scrollbar-color: #2b3550 transparent;
+        padding-top: 6px;      /* separa la 1ª fila del encabezado */
+        padding-bottom: 6px;   /* aire para la última fila */
+    }
+    .st-key-wl_scroll::-webkit-scrollbar { width: 6px; }
+    .st-key-wl_scroll::-webkit-scrollbar-thumb {
+        background: #2b3550; border-radius: 3px;
+    }
+    .st-key-wl_scroll::-webkit-scrollbar-track { background: transparent; }
     .st-key-wl_panel div[data-testid="stVerticalBlockBorderWrapper"] {
         background: transparent !important;
         border: none !important;
     }
+    /* Anula el margin-bottom:-16px por defecto de los markdown (encabezado
+       incluido) que montaba la lista sobre el encabezado. */
+    .st-key-wl_panel div[data-testid="stMarkdownContainer"] { margin-bottom: 0 !important; }
 
-    /* Encabezado */
-    .wl-head { padding: 14px 16px 12px; border-bottom: 1px solid #1f2937; }
+    /* Encabezado (fondo opaco + por encima: evita que una fila resaltada se le
+       monte por detrás) */
+    .wl-head {
+        padding: 14px 16px 12px; border-bottom: 1px solid #1f2937;
+        background: #0d1117; position: relative; z-index: 2;
+    }
     .wl-title {
         display: flex; align-items: center; gap: 8px;
         font-size: 16px; font-weight: 700; color: #ffffff;
@@ -73,36 +95,51 @@ _CSS = """
     }
     /* Streamlit añade margen inferior por defecto a cada widget; lo anulamos
        en todos los hijos de la fila para que el overlay de selección y el
-       cálculo de alto de la fila coincidan exactamente con el visual (.wl-row) */
+       cálculo de alto de la fila coincidan exactamente con el visual (.wl-row).
+       CLAVE: stMarkdownContainer trae margin-bottom:-16px por defecto, que
+       encogía el hueco de la fila (45px) respecto al contenido (.wl-row 61px),
+       haciendo que cada fila se solapara 16px con la siguiente (redondeado
+       cortado, resaltado montándose sobre el encabezado, overlay invadiendo). */
     [class*="st-key-wlrow_"] div[data-testid="stElementContainer"],
-    [class*="st-key-wlrow_"] div[data-testid="element-container"] {
+    [class*="st-key-wlrow_"] div[data-testid="element-container"],
+    [class*="st-key-wlrow_"] div[data-testid="stMarkdownContainer"],
+    [class*="st-key-wlrow_"] div[data-testid="stMarkdown"] {
         margin: 0 !important;
     }
     .wl-row {
-        display: flex; align-items: center; gap: 12px;
-        padding: 11px 84px 11px 14px;
+        display: flex; align-items: center; gap: 10px;
+        padding: 11px 74px 11px 12px;
         border-bottom: 1px solid #1a2130;
         box-sizing: border-box;
+        line-height: 1.25;   /* evita que el interlineado infle la fila y el
+                                contenido se salga del recuadro resaltado */
     }
     /* El resaltado se pinta en el CONTENEDOR exterior de la fila (no en el
        div interno), para que ocupe exactamente el mismo rectángulo que el
        área clicable/hover -- así queda perfectamente centrado, sin quedar
        "subido" respecto al contenido visible. */
-    [class*="st-key-wlrow_"]:hover { background: rgba(255,255,255,0.04); }
-    [class*="st-key-wlrow_"]:has(.wl-row.sel) { background: #1a2236 !important; }
+    /* El resaltado se pinta sobre .wl-row (que envuelve EXACTO el contenido con
+       su padding simétrico) y NO sobre el contenedor de Streamlit, que queda
+       ~16px más corto que su contenido y descentraba/sobresalía el fondo.
+       El hover se detecta en el contenedor (la fila entera es clicable). */
+    [class*="st-key-wlrow_"]:hover .wl-row { background: rgba(255,255,255,0.04); border-radius: 8px; border-bottom-color: transparent; }
+    .wl-row.sel { background: #1a2236; border-radius: 8px; border-bottom-color: transparent; }
 
     .wl-ico {
-        flex: 0 0 38px; width: 38px; height: 38px; border-radius: 50%;
+        flex: 0 0 32px; width: 32px; height: 32px; border-radius: 50%;
         display: flex; align-items: center; justify-content: center;
         font-size: 16px; font-weight: 800;
     }
-    .wl-mid { flex: 1; min-width: 0; }
-    .wl-tk { font-size: 16px; font-weight: 700; color: #ffffff; }
+    .wl-mid { flex: 1 1 auto; min-width: 0; overflow: hidden; }
+    .wl-tk {
+        font-size: 16px; font-weight: 700; color: #ffffff;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
     .wl-nm {
         font-size: 13px; color: #8b949e; margin-top: 2px;
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
-    .wl-right { text-align: right; flex: 0 0 auto; }
+    .wl-right { text-align: right; flex: 0 0 auto; white-space: nowrap; }
     .wl-px {
         font-size: 16px; font-weight: 700; color: #ffffff;
         font-variant-numeric: tabular-nums;
@@ -135,10 +172,10 @@ _CSS = """
     /* Botón de favorito: pequeño, a la derecha de la fila */
     [class*="st-key-wlfav_"] {
         position: absolute !important;
-        right: 10px;
+        right: 8px;
         top: 50%;
         transform: translateY(-50%);
-        width: 32px !important;
+        width: 30px !important;
         margin: 0 !important;
         z-index: 3;
     }
@@ -167,10 +204,10 @@ _CSS = """
     /* Botón ✕ (quitar de la lista): a la izquierda de la estrella */
     [class*="st-key-wlrm_"] {
         position: absolute !important;
-        right: 44px;
+        right: 40px;
         top: 50%;
         transform: translateY(-50%);
-        width: 30px !important;
+        width: 28px !important;
         margin: 0 !important;
         z-index: 3;
     }
@@ -299,8 +336,11 @@ def renderizar_watchlist():
                     # -- que lee este mismo st.session_state.activo_seleccionado --
                     # cambie de inmediato el precio, el símbolo y el gráfico en vivo.
                     if st.button("Seleccionar", key=f"wlsel_{slug}"):
+                        # OJO: no mostrar elementos (st.toast) aquí dentro del
+                        # fragmento justo antes de st.rerun(scope="app"): provoca
+                        # el error de frontend "Cannot set a node at a delta path"
+                        # y deja la app en blanco al cambiar de activo.
                         st.session_state.activo_seleccionado = ticker
-                        st.toast(f"Mostrando {base} en el panel central.")
                         st.rerun(scope="app")
 
                     # Estrella de favoritos

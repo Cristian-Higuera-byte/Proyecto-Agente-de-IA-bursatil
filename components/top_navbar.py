@@ -35,7 +35,8 @@ _IC_NOTIF = (
 
 def renderizar_barra_navegacion(usuario: str = "Emilio Fuentes",
                                 saldo: float | None = None,
-                                moneda: str = "USD"):
+                                moneda: str = "USD",
+                                pl: float | None = None):
     iniciales = "".join([p[0] for p in usuario.split()[:2]]).upper() or "U"
 
     # Chip de saldo total de MT5 (equity). Si no hay dato, se muestra "—".
@@ -43,14 +44,24 @@ def renderizar_barra_navegacion(usuario: str = "Emilio Fuentes",
         saldo_txt = f"${saldo:,.2f} {moneda}"
     else:
         saldo_txt = "— sin conexión MT5"
+
+    # P/G flotante (de posiciones abiertas) junto al saldo, estilo XM.
+    pl_span = ""
+    if pl is not None and abs(pl) >= 0.005:
+        color_pl = "#3fb950" if pl >= 0 else "#f85149"
+        pl_span = (
+            f"<span style='font-size:13px; font-weight:700; color:{color_pl}; "
+            f"font-family:monospace;'>{pl:+,.2f}</span>"
+        )
     chip_saldo = (
         "<div style='display:flex; flex-direction:column; align-items:flex-end; "
         "line-height:1.1; padding:4px 12px; background:#161b22; border:1px solid #30363d; "
         "border-radius:8px;'>"
         "<span style='font-size:10px; color:#8b949e; text-transform:uppercase; "
         "letter-spacing:.5px;'>Saldo MT5</span>"
+        "<span style='display:flex; align-items:baseline; gap:8px;'>"
         f"<span style='font-size:14px; font-weight:700; color:#3fb950; "
-        f"font-family:monospace;'>{saldo_txt}</span>"
+        f"font-family:monospace;'>{saldo_txt}</span>{pl_span}</span>"
         "</div>"
     )
 
