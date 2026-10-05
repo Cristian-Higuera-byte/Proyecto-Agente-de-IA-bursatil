@@ -46,13 +46,15 @@ def renderizar_barra_navegacion(usuario: str = "Emilio Fuentes",
         saldo_txt = "— sin conexión MT5"
 
     # P/G flotante (de posiciones abiertas) junto al saldo, estilo XM.
-    pl_span = ""
-    if pl is not None and abs(pl) >= 0.005:
-        color_pl = "#3fb950" if pl >= 0 else "#f85149"
-        pl_span = (
-            f"<span style='font-size:13px; font-weight:700; color:{color_pl}; "
-            f"font-family:monospace;'>{pl:+,.2f}</span>"
-        )
+    # Siempre se dibuja el <span> (aunque esté vacío) para que el feed en vivo
+    # (data-pj-acc, ver components/live_feed.py) pueda rellenarlo.
+    pl_txt = f"{pl:+,.2f}" if pl is not None and abs(pl) >= 0.005 else ""
+    color_pl = "#3fb950" if (pl or 0) >= 0 else "#f85149"
+    pl_span = (
+        f"<span data-pj-acc='profit' style='font-size:13px; font-weight:700; color:{color_pl}; "
+        f"font-family:monospace;'>{pl_txt}</span>"
+    )
+    attr_saldo = "data-pj-acc='equity'" if saldo is not None else ""
     chip_saldo = (
         "<div style='display:flex; flex-direction:column; align-items:flex-end; "
         "line-height:1.1; padding:4px 12px; background:#161b22; border:1px solid #30363d; "
@@ -60,7 +62,7 @@ def renderizar_barra_navegacion(usuario: str = "Emilio Fuentes",
         "<span style='font-size:10px; color:#8b949e; text-transform:uppercase; "
         "letter-spacing:.5px;'>Saldo MT5</span>"
         "<span style='display:flex; align-items:baseline; gap:8px;'>"
-        f"<span style='font-size:14px; font-weight:700; color:#3fb950; "
+        f"<span {attr_saldo} style='font-size:14px; font-weight:700; color:#3fb950; "
         f"font-family:monospace;'>{saldo_txt}</span>{pl_span}</span>"
         "</div>"
     )
@@ -150,9 +152,9 @@ def renderizar_barra_navegacion(usuario: str = "Emilio Fuentes",
     c_toggle, c_buscar, c_spacer, c_der = st.columns(
         [0.2, 1.3, 1.3, 2.0], vertical_alignment="center")
     with c_toggle:
-        if st.button(":material/menu:", key="top_toggle"):
-            st.session_state.sidebar_expandido = not st.session_state.get("sidebar_expandido", False)
-            st.rerun()
+        # El clic lo intercepta un script en el navegador (nav_bar.py, _JS_SIDEBAR)
+        # que alterna la barra lateral con animación CSS, SIN reejecutar Python.
+        st.button(":material/menu:", key="top_toggle")
     with c_buscar:
         if st.button("Buscar activo, par o ticker...", icon=":material/search:",
                      key="btn_abrir_buscador", width="stretch"):

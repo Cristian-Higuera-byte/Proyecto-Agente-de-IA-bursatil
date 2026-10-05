@@ -9,17 +9,66 @@ from tools.mt5_bridge import (
 _SPARK_MAX = 40
 
 
+class _SinDatos(Exception):
+    """Se lanza dentro de las funciones cacheadas cuando MT5 aún no entrega
+    histórico: st.cache_data NO cachea excepciones, así se reintenta luego."""
+
+
 @st.cache_data(ttl=120, show_spinner=False)
+def _historial_sparkline_cache(simbolo: str) -> list:
+    df = obtener_datos_historicos(simbolo, timeframe=mt5.TIMEFRAME_M1, n_velas=30)
+    if df is None or df.empty or "close" not in df.columns:
+        raise _SinDatos(simbolo)
+    return [float(x) for x in df["close"].tolist()][-_SPARK_MAX:]
+
+
 def _historial_sparkline(simbolo: str) -> list:
     """Últimos ~30 cierres (M1) para sembrar el sparkline. Cacheado 2 min.
-    Se llama en la carga inicial (hilo principal), no en el refresco en vivo."""
+    Hallazgo: en un símbolo recién agregado (p. ej. GOLD o Adidas en XM) la
+    primera lectura viene VACÍA porque el terminal todavía está descargando su
+    historial; antes ese [] se cacheaba y el mini-gráfico quedaba plano."""
     try:
-        df = obtener_datos_historicos(simbolo, timeframe=mt5.TIMEFRAME_M1, n_velas=30)
-        if df is not None and not df.empty and "close" in df.columns:
-            return [float(x) for x in df["close"].tolist()][-_SPARK_MAX:]
+        return _historial_sparkline_cache(simbolo)
     except Exception:
-        pass
-    return []
+        return []
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _cierre_previo_cache(simbolo: str) -> float:
+    df = obtener_datos_historicos(simbolo, timeframe=mt5.TIMEFRAME_D1, n_velas=2)
+    if df is None or len(df) < 2:
+        raise _SinDatos(simbolo)
+    return float(df["close"].iloc[-2])
+
+
+def _cierre_previo(simbolo: str):
+    """Cierre de la vela diaria anterior (base de la variación del día, igual
+    que el feed en vivo de servidor_datos.py). Cacheado 5 min (solo si hay dato)."""
+    try:
+        return _cierre_previo_cache(simbolo)
+    except Exception:
+        return None
+
+
+def _asegurar_semilla(simbolo: str):
+    """Si el sparkline de un símbolo está vacío o casi (recién agregado, o la
+    primera lectura vino vacía), lo vuelve a sembrar con el histórico M1."""
+    spark = st.session_state.setdefault("_spark", {})
+    buf = spark.get(simbolo) or []
+    if len(buf) >= 5:
+        return
+    hist = _historial_sparkline(simbolo)
+    if hist:
+        spark[simbolo] = (hist + buf)[-_SPARK_MAX:]
+
+
+def _variacion(simbolo: str, precio: float, decimales: int):
+    """(texto, sube) de la variación del día, o None si no hay referencia."""
+    previo = _cierre_previo(simbolo)
+    if not previo or not precio:
+        return None
+    cambio = precio - previo
+    return f"{cambio:+.{decimales}f} ({cambio / previo * 100:+.2f}%)", cambio >= 0
 
 
 def _empujar_spark(simbolo: str, precio: float):
@@ -52,12 +101,13 @@ def construir_entrada(simbolo: str) -> dict:
             precio = tick.get("last", 0) if tick.get("last", 0) > 0 else tick.get("bid", 0)
     except Exception:
         pass
+    var = _variacion(simbolo, float(precio or 0.0), 2 if precio > 100 else 5)
     return {
         "nombre": nombre,
         "mercado": mercado,
         "precio": float(precio or 0.0),
-        "var": "+0.00 (0.00%)",
-        "sube": True,
+        "var": var[0] if var else "+0.00 (0.00%)",
+        "sube": var[1] if var else True,
     }
 
 
@@ -106,12 +156,10 @@ def cargar_datos_mercado():
 
     # 3. Construir los datos de mercado de esos símbolos (nombre EXACTO para MT5)
     datos = {}
-    spark = st.session_state.setdefault("_spark", {})
     for sym in simbolos:
         datos[sym] = construir_entrada(sym)
-        # Sembrar el sparkline con histórico M1 (una vez, en el hilo principal)
-        if sym not in spark:
-            spark[sym] = _historial_sparkline(sym)
+        # Sembrar el sparkline con histórico M1 (se reintenta si vino vacío)
+        _asegurar_semilla(sym)
     st.session_state.datos_mercado_real = datos
 
     st.session_state.datos_cargados = True
@@ -136,9 +184,14 @@ def actualizar_precios_mt5():
                 porcentaje = (cambio / precio_anterior * 100) if precio_anterior else 0.0
                 decimales = 2 if precio_actual > 100 else 5
                 datos[simbolo]["precio"] = precio_actual
-                datos[simbolo]["sube"] = cambio >= 0
-                if cambio != 0:
-                    datos[simbolo]["var"] = f"{cambio:+.{decimales}f} ({porcentaje:+.2f}%)"
+                var = _variacion(simbolo, precio_actual, decimales)
+                if var:                                   # variación del día
+                    datos[simbolo]["var"], datos[simbolo]["sube"] = var
+                else:                                     # sin referencia: vs. tick anterior
+                    datos[simbolo]["sube"] = cambio >= 0
+                    if cambio != 0:
+                        datos[simbolo]["var"] = f"{cambio:+.{decimales}f} ({porcentaje:+.2f}%)"
+                _asegurar_semilla(simbolo)   # símbolos agregados después de la carga
                 _empujar_spark(simbolo, precio_actual)
         except Exception:
             pass

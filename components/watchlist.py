@@ -5,6 +5,8 @@ import streamlit as st
 import MetaTrader5 as mt5  # type: ignore[import-untyped]
 from typing import Any
 
+from components.live_feed import attrs as _live
+
 try:
     from components.favoritos_bar import agregar_favorito, quitar_favorito
 except ImportError:
@@ -30,6 +32,9 @@ _ICONOS = {
     "ETHUSD": ("Ξ", "linear-gradient(135deg,#818cf8,#3730a3)", "#ffffff"),
     "US30": ("30", "linear-gradient(135deg,#38bdf8,#0c4a6e)", "#ffffff"),
 }
+# Nombres de XM para los mismos instrumentos (GOLD = XAUUSD, US30Cash = US30)
+_ICONOS["GOLD"] = _ICONOS["XAUUSD"]
+_ICONOS["US30Cash"] = _ICONOS["US30"]
 
 _CSS = """
 <style>
@@ -324,8 +329,8 @@ def renderizar_watchlist():
                                 <div class='wl-nm'>{nombre}</div>
                             </div>
                             <div class='wl-right'>
-                                <div class='wl-px'>{formato_precio}</div>
-                                <div class='wl-var' style='color: {color_var};'>{variacion}</div>
+                                <div class='wl-px' {_live(ticker, 'px', pre='$' if precio_val > 100 else '')}>{formato_precio}</div>
+                                <div class='wl-var' {_live(ticker, 'var', up='#2ebd85', dn='#f6465d')} style='color: {color_var};'>{variacion}</div>
                             </div>
                         </div>
                     """, unsafe_allow_html=True)
