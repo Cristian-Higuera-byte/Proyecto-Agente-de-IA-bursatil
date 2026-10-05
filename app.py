@@ -43,6 +43,7 @@ from components.nav_bar import renderizar_barra_navegacion as renderizar_nav_lat
 from components.top_navbar import renderizar_barra_navegacion as renderizar_nav_superior
 from components.news_panel import renderizar_panel_noticias
 from components.login import requerir_login
+from components.live_feed import inyectar_feed, intervalo
 
 # Configuración inicial de la página
 st.set_page_config(
@@ -68,6 +69,16 @@ st.markdown("""
             padding: 1.5rem 1.5rem 2rem 1.2rem !important;
             max-width: 100%;
         }
+
+        /* Sin atenuado mientras un fragmento se recarga: Streamlit marca los
+           elementos con data-stale="true" y les baja la opacidad, lo que en un
+           terminal de trading se ve como parpadeo cada refresco. */
+        [data-stale="true"] { opacity: 1 !important; transition: none !important; }
+
+        /* Contenedor del feed en vivo (components/live_feed.py): fuera del flujo,
+           sin ocupar espacio ni sumar separación. */
+        .st-key-pj_feed { position: absolute !important; width: 0 !important;
+                          height: 0 !important; overflow: hidden !important; }
 
         /* Fondo y tipografía base */
         .stApp { background-color: #0b0f19; color: #e6edf3; }
@@ -171,14 +182,9 @@ _saldo_mt5 = _info_cuenta.get("equity") if "error" not in _info_cuenta else None
 _moneda_mt5 = _info_cuenta.get("currency", "USD") if "error" not in _info_cuenta else "USD"
 _pl_mt5 = _info_cuenta.get("profit") if "error" not in _info_cuenta else None  # P/G flotante
 
-# Desplazamiento de la barra superior según el ancho de la barra lateral
-# (colapsada 70px / expandida 220px) para que no se solapen.
-_sidebar_w = 220 if st.session_state.get("sidebar_expandido", False) else 70
-st.markdown(
-    f"<style>.st-key-barra_nav_fija {{ left:{_sidebar_w}px !important; "
-    f"width:calc(100% - {_sidebar_w}px) !important; }}</style>",
-    unsafe_allow_html=True,
-)
+# El desplazamiento de la barra superior según el ancho de la barra lateral
+# (70px / 220px) lo hace el CSS de components/nav_bar.py con la clase
+# html.pj-sb-exp (animado, sin reejecutar Python).
 
 # 1. Barra superior fija
 with st.container(key="barra_nav_fija"):
@@ -189,17 +195,22 @@ with st.container(key="barra_nav_fija"):
         pl=_pl_mt5,
     )
 
+# Feed de precios en vivo (SSE desde servidor_datos.py): pinta los números
+# directo en el navegador ~4 veces por segundo, sin reejecutar Streamlit.
+inyectar_feed()
+
 # Carga inicial de datos de mercado
 cargar_datos_mercado()
 
 # ==========================================
-# NÚMEROS EN VIVO (auto-refresco ligero cada 2 s)
+# NÚMEROS EN VIVO
 # ==========================================
-# 2s en vez de 1s: reduce la ventana de colisión de deltas del frontend
-# ("Cannot set a node at a delta path") al cambiar de activo (st.rerun(scope=app)
-# compitiendo con los fragmentos run_every). Además dedup: sólo favoritos
-# refresca precios (watchlist lee datos_mercado_real ya actualizado).
-INTERVALO_PRECIOS = "2s"
+# Con servidor_datos.py corriendo, los precios/variaciones/saldo llegan por el
+# feed SSE (live_feed.py) y estos fragmentos solo hacen un refresco LENTO de
+# respaldo (sparkline, nombres, resincronía) → muchas menos reejecuciones y casi
+# nada de colisiones de deltas ("Cannot set a node at a delta path").
+# Sin el servidor, vuelven al refresco de 2 s de siempre.
+INTERVALO_PRECIOS = intervalo("2s")   # con feed: sin recarga periódica (evita el parpadeo)
 
 
 @st.fragment(run_every=INTERVALO_PRECIOS)
@@ -213,7 +224,8 @@ def _watchlist_en_vivo():
     renderizar_watchlist()   # precios ya los refresca _favoritos_en_vivo
 
 
-@st.fragment(run_every=INTERVALO_PRECIOS)
+@st.fragment(run_every=intervalo("2s", "5s"))   # P/G total y por posición van por el feed;
+                                                 # esto solo agrega/quita filas nuevas
 def _cartera_en_vivo():
     # Lista de posiciones abiertas (reemplaza al watchlist en la vista Cartera).
     from components.cartera_panel import renderizar_cartera_lista

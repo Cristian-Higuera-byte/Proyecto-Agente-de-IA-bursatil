@@ -13,6 +13,8 @@ vía tools.mt5_bridge.ejecutar_orden_mercado. El usuario confirma cada operació
 import streamlit as st
 import MetaTrader5 as mt5  # type: ignore[import-untyped]
 
+from components.live_feed import attrs as _live, intervalo as _intervalo
+
 from tools.mt5_bridge import (
     MT5_LOCK, inicializar_mt5, obtener_precio_actual, resolver_simbolo, ejecutar_orden_mercado,
 )
@@ -120,7 +122,7 @@ def renderizar_panel_orden(main=None):
         # TODO el ticket va dentro de UN fragmento que se refresca solo y cuyas
         # acciones usan scope="fragment" (nunca rerun de app desde aquí → evita el
         # parpadeo/pantalla en blanco).
-        @st.fragment(run_every="2s")
+        @st.fragment(run_every=_intervalo("2s"))   # con feed: precios/spread por live_feed.py
         def _ticket():
             t = obtener_precio_actual(real)
             if "error" in t:
@@ -142,10 +144,10 @@ def renderizar_panel_orden(main=None):
                 st.html(
                     "<div class='ord-join'>"
                     f"<div class='ord-half ord-sell {sv}'><div class='ord-lbl'>VENTA</div>"
-                    f"<div class='ord-px'>{bid:,.{dig}f}</div></div>"
+                    f"<div class='ord-px' {_live(real, 'bid', d=dig)}>{bid:,.{dig}f}</div></div>"
                     f"<div class='ord-half ord-buy {sb}'><div class='ord-lbl'>COMPRA</div>"
-                    f"<div class='ord-px'>{ask:,.{dig}f}</div></div>"
-                    f"<div class='ord-spread'>{spr}</div>"
+                    f"<div class='ord-px' {_live(real, 'ask', d=dig)}>{ask:,.{dig}f}</div></div>"
+                    f"<div class='ord-spread' {_live(real, 'spr', pip=pip)}>{spr}</div>"
                     "</div>"
                 )
                 if st.button("v", key="ord_ovsell"):
@@ -178,13 +180,13 @@ def renderizar_panel_orden(main=None):
                 st.html(f"<div class='ord-margen'><span>Margen requerido</span><b>${m:,.2f}</b></div>")
 
             # TP / SL opcional
-            usar_tpsl = st.toggle("Take Profit / Stop Loss", key="ord_tpsl")
+            usar_tpsl = st.toggle("Tomar ganancia / Limitar pérdida", key="ord_tpsl")
             sl = tp = 0.0
             if usar_tpsl:
                 c_sl, c_tp = st.columns(2)
-                sl = c_sl.number_input("Stop Loss", min_value=0.0, value=0.0,
+                sl = c_sl.number_input("Limitar pérdida", min_value=0.0, value=0.0,
                                        step=point or 0.0001, format=f"%.{dig}f", key="ord_sl")
-                tp = c_tp.number_input("Take Profit", min_value=0.0, value=0.0,
+                tp = c_tp.number_input("Tomar ganancia", min_value=0.0, value=0.0,
                                        step=point or 0.0001, format=f"%.{dig}f", key="ord_tp")
 
             # Botón "Colocar orden en" (2 líneas + flecha, color/precio del lado)
@@ -194,7 +196,7 @@ def renderizar_panel_orden(main=None):
                 st.html(
                     f"<div class='ord-place {cls}'>"
                     f"<div><div class='pl-lbl'>Colocar orden en</div>"
-                    f"<div class='pl-px'>{price:,.{dig}f}</div></div>"
+                    f"<div class='pl-px' {_live(real, 'side', d=dig, side=side)}>{price:,.{dig}f}</div></div>"
                     f"<div class='pl-arrow'>{arrow}</div></div>"
                 )
                 if st.button("ir", key="ord_ovplace"):
@@ -211,7 +213,7 @@ def renderizar_panel_orden(main=None):
             if cf:
                 tipo, v, s, tpv, px = cf
                 verbo2 = "COMPRA" if tipo == "BUY" else "VENTA"
-                extra = (f" · SL {s:,.{dig}f}" if s else "") + (f" · TP {tpv:,.{dig}f}" if tpv else "")
+                extra = (f" · Límite de pérdida {s:,.{dig}f}" if s else "") + (f" · Toma de ganancia {tpv:,.{dig}f}" if tpv else "")
                 st.warning(f"Confirmar **{verbo2}** de **{v:.2f}** lotes de **{visible}** "
                            f"a ~{px:,.{dig}f}{extra}")
                 cc1, cc2 = st.columns(2)

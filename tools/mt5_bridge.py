@@ -70,17 +70,37 @@ def cerrar_mt5():
 # ---------------------------------------------------------------------------
 # Resolvedor de símbolos entre brókers
 # ---------------------------------------------------------------------------
-# Distintos brókers nombran el MISMO instrumento distinto: el de Emilio
-# (MEXAtlantic) usa sufijo "..." en Forex/metales (EURUSD..., XAUUSD...),
-# otros lo traen limpio (EURUSD) o con sufijos como ".m"/".pro"/".c".
+# Distintos brókers nombran el MISMO instrumento distinto: MEXAtlantic
+# usa sufijo "..." en Forex/metales (EURUSD..., XAUUSD...), XM los trae
+# limpios (EURUSD) pero renombra oro/índices (GOLD, US30Cash), y otros usan
+# sufijos como ".m"/".pro"/".c".
 # Este resolvedor toma un símbolo "pedido" y devuelve el nombre REAL que
 # exista en el terminal actual, para que el mismo código funcione en ambos.
 _INDICE_SIMBOLOS: Optional[dict] = None
 
 
+# Mismo instrumento con NOMBRES distintos según el bróker (no basta con quitar
+# sufijos). Ej.: en XM el oro es "GOLD" y el Dow "US30Cash"; en MEXAtlantic
+# "XAUUSD..." y "US30". Cada grupo se compara por núcleo.
+_ALIAS_GRUPOS = [
+    ["XAUUSD", "GOLD"],
+    ["XAGUSD", "SILVER"],
+    ["US30", "US30CASH", "DJ30", "WS30", "DOWJONES"],
+    ["NAS100", "US100", "US100CASH", "USTEC", "NDX100"],
+    ["US500", "SPX500", "US500CASH", "SP500"],
+    ["USOIL", "WTI", "OILCASH", "XTIUSD", "OIL"],
+    ["UKOIL", "BRENT", "BRENTCASH", "XBRUSD", "UKOUSD"],
+    ["UK100", "UK100CASH", "FTSE100"],
+    ["GER40", "DE40", "GER40CASH", "DAX40"],
+]
+_ALIAS = {n: grupo for grupo in _ALIAS_GRUPOS for n in grupo}
+
+
 def _core_simbolo(name: str) -> str:
     """Núcleo comparable de un símbolo: sin '...' ni sufijos de bróker/bolsa."""
-    s = (name or "").upper().strip().replace("...", "")
+    s = (name or "").upper().strip().replace("...", "").strip("#")
+    if s.endswith("MICRO"):  # XM cuentas Micro: EURUSDmicro
+        s = s[:-5]
     if "." in s:  # p. ej. AAPL.OQ, EURUSD.m, BTCUSD.pro
         base, suf = s.rsplit(".", 1)
         if suf.isalnum() and 1 <= len(suf) <= 4:
@@ -116,13 +136,20 @@ def _indice_local(refrescar: bool = False) -> dict:
 def resolver_simbolo(symbol: str) -> str:
     """Devuelve el nombre real del símbolo en el terminal actual.
     1) si existe exacto, se usa; 2) si no, se busca por 'núcleo'
-    (EURUSD... <-> EURUSD <-> EURUSD.m); 3) si no hay match, se retorna igual."""
+    (EURUSD... <-> EURUSD <-> EURUSD.m); 3) si no, por alias entre brókers
+    (XAUUSD... <-> GOLD, US30 <-> US30Cash); 4) si no hay match, se retorna igual."""
     if not symbol:
         return symbol
     idx = _indice_local()
     if symbol in idx["exact"]:
         return symbol
-    return idx["core"].get(_core_simbolo(symbol), symbol)
+    core = _core_simbolo(symbol)
+    if core in idx["core"]:
+        return idx["core"][core]
+    for alias in _ALIAS.get(core, []):
+        if alias in idx["core"]:
+            return idx["core"][alias]
+    return symbol
 
 def obtener_info_cuenta() -> dict:
     """Retorna el balance, equity y margen de la cuenta activa."""
@@ -167,6 +194,7 @@ def obtener_posiciones() -> list:
             "precio_apertura": p.price_open,
             "precio_actual": p.price_current,
             "profit": p.profit,
+            "swap": p.swap,                     # el profit de la CUENTA sí lo incluye
         })
     return salida
 

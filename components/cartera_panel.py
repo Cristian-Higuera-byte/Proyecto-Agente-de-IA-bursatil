@@ -11,6 +11,7 @@ import re
 
 import streamlit as st
 
+from components.live_feed import intervalo as _intervalo
 from tools.mt5_bridge import obtener_posiciones, cerrar_posicion
 from tools import watchlist_manager as wl
 
@@ -91,6 +92,11 @@ _CSS = """
 """
 
 
+
+def _neto(p: dict) -> float:
+    """P/G neto de una posición (profit + swap), como lo suma MT5 en la cuenta."""
+    return float(p.get("profit", 0.0) or 0.0) + float(p.get("swap", 0.0) or 0.0)
+
 def renderizar_cartera_lista():
     """Panel de posiciones abiertas (reemplaza al watchlist en 'Cartera')."""
     st.markdown(_CSS, unsafe_allow_html=True)
@@ -104,11 +110,16 @@ def renderizar_cartera_lista():
             unsafe_allow_html=True,
         )
 
-        total = sum(p.get("profit", 0.0) for p in pos) if pos else 0.0
+        # P/G NETO (profit + swap): así el total coincide con el P/G de la cuenta
+        # que se muestra junto al saldo (account_info.profit incluye el swap).
+        total = sum(_neto(p) for p in pos) if pos else 0.0
         cls_t = "ca-up" if total >= 0 else "ca-down"
+        # data-pj-acc="profit": el feed en vivo lo pinta con el MISMO dato que la
+        # barra superior → ambos van siempre a la par.
         st.markdown(
             f"<div class='ca-totals'><span class='lbl'>P/G total ({len(pos)})</span>"
-            f"<span class='val {cls_t}'>{total:+,.2f} USD</span></div>",
+            f"<span class='val {cls_t}' data-pj-acc='profit' data-pj-zero='1' "
+            f"data-pj-up='#2ebd85' data-pj-dn='#f6465d'>{total:+,.2f}</span></div>",
             unsafe_allow_html=True,
         )
 
@@ -136,7 +147,7 @@ def renderizar_cartera_lista():
                 cls_sel = " sel" if es_sel else ""
                 lado = p.get("tipo", "")
                 cls_lado = "ca-buy" if lado == "Compra" else "ca-sell"
-                prof = p.get("profit", 0.0)
+                prof = _neto(p)
                 cls_pl = "ca-up" if prof >= 0 else "ca-down"
 
                 with st.container(key=f"carow_{slug}"):
@@ -145,7 +156,8 @@ def renderizar_cartera_lista():
                         f"<span class='ca-ico'>{icono_activo(sym)}</span>"
                         f"<div class='ca-mid'><div class='ca-tk'>{html.escape(base)}</div>"
                         f"<div class='ca-meta {cls_lado}'>{html.escape(lado)} · {p.get('volumen',0):,.2f} lotes</div></div>"
-                        f"<div class='ca-right'><div class='ca-pl {cls_pl}'>{prof:+,.2f}</div>"
+                        f"<div class='ca-right'><div class='ca-pl {cls_pl}' data-pj-pos='{p.get('ticket')}' "
+                        f"data-pj-up='#2ebd85' data-pj-dn='#f6465d'>{prof:+,.2f}</div>"
                         f"<div class='ca-opn'>{p.get('precio_apertura',0):,.5f}</div></div>"
                         f"</div>",
                         unsafe_allow_html=True,
@@ -166,16 +178,84 @@ def renderizar_cartera_lista():
 
 # --- Modal de confirmación de cierre (se renderiza FUERA del fragmento, en
 #     app.py, como el buscador, para no chocar con el auto-refresco) ---
-@st.dialog("¿Quiere cerrar su posición?")
+def _al_descartar():
+    """Clic fuera del modal / Esc: se descarta la intención de cierre (si no,
+    el modal reaparecería en la siguiente reejecución)."""
+    st.session_state.ca_cerrar = None
+
+
+def texto_cerrar(prof: float) -> str:
+    """Texto del botón estilo XM: 'Cerrar con pérdida de -$220.00' /
+    'Cerrar con ganancia de $280.00'. (live_feed.py usa el mismo formato.)"""
+    verbo = "ganancia" if prof >= 0 else "pérdida"
+    signo = "-" if prof < 0 else ""
+    return f"Cerrar con {verbo} de {signo}${abs(prof):,.2f}"
+
+
+# Estilo copiado del modal de XM: tarjeta azul oscuro redondeada, sin "X",
+# botón grande con el monto (naranja P&J en vez del azul de XM) y "Cancelar" con borde. Todo acotado con :has()
+# a ESTE modal (el contenedor del botón se llama ca_btncerrar_<ticket>).
+_SEL = "[data-testid='stDialog']:has([class*='st-key-ca_btncerrar_'])"
+_CSS_MODAL = f"""
+<style>
+  /* Centrado: el fondo del diálogo (Streamlit 1.64) es un flex con
+     align-items:flex-start; el diálogo es un <section>, no un <div>. */
+  {_SEL} {{ align-items:center !important; background:rgba(5,8,15,.55) !important; }}
+  /* Colores de la paleta del dashboard (paneles #0d1117, bordes #30363d) */
+  {_SEL} > div {{
+    background:#0d1117 !important; border:1px solid #30363d !important;
+    border-radius:16px !important;
+    width:460px !important; max-width:calc(100% - 32px) !important;
+    box-shadow:0 18px 50px rgba(0,0,0,.55) !important;
+  }}
+  {_SEL} button[aria-label='Close'] {{ display:none !important; }}
+  {_SEL} h2, {_SEL} [slot='title'] {{
+    color:#ffffff !important; font-size:25px !important; font-weight:700 !important;
+    padding:30px 30px 10px !important;
+  }}
+  {_SEL} [data-testid='stVerticalBlock'] {{ gap:14px !important; }}
+  {_SEL} .st-key-ca_cerrar_ok button,
+  {_SEL} .st-key-ca_cerrar_cancel button {{
+    height:70px !important; border-radius:12px !important; width:100% !important;
+  }}
+  /* Botón principal con el naranja del logo P&J (mismo degradado que nav_bar.py) */
+  {_SEL} .st-key-ca_cerrar_ok button {{
+    background:linear-gradient(135deg,#ff4b4b 0%,#ff8f00 100%) !important;
+    border:none !important; color:#ffffff !important;
+  }}
+  {_SEL} .st-key-ca_cerrar_ok button:hover {{ filter:brightness(1.1) !important; }}
+  {_SEL} .st-key-ca_cerrar_cancel button {{
+    background:#161b22 !important; border:1px solid #30363d !important; color:#ffffff !important;
+  }}
+  {_SEL} .st-key-ca_cerrar_cancel button:hover {{ border-color:#58a6ff !important; background:#21262d !important; }}
+  {_SEL} .st-key-ca_cerrar_ok button p,
+  {_SEL} .st-key-ca_cerrar_cancel button p {{
+    font-size:20px !important; font-weight:700 !important; color:#ffffff !important;
+  }}
+</style>
+"""
+
+
+@st.dialog("¿Quiere cerrar su posición?", on_dismiss=_al_descartar)
 def _dialogo_cerrar():
     c = st.session_state.get("ca_cerrar") or {}
+    ticket = c.get("ticket")
+    # P/G FRESCO de MT5 al abrir (el de la fila podía tener hasta 5 s de atraso:
+    # la fila la pinta el feed en vivo, pero el dato guardado era del último refresco).
     prof = c.get("profit", 0.0)
-    verbo = "ganancia" if prof >= 0 else "pérdida"
-    st.markdown(
-        f"**{c.get('symbol','')}** · {c.get('tipo','')} · {c.get('volumen',0):,.2f} lotes"
-    )
-    etiqueta = f"Cerrar con {verbo} de {prof:+,.2f} USD"
-    if st.button(etiqueta, type="primary", width="stretch", key="ca_cerrar_ok"):
+    try:
+        fresca = next((p for p in obtener_posiciones() if p.get("ticket") == ticket), None)
+        if fresca:
+            prof = _neto(fresca)
+    except Exception:
+        pass
+    st.markdown(_CSS_MODAL, unsafe_allow_html=True)
+    etiqueta = texto_cerrar(prof)
+    # El contenedor lleva el ticket en su clave: live_feed.py actualiza el texto
+    # del botón en vivo con el P/G neto de esa posición (mismo dato que la fila).
+    with st.container(key=f"ca_btncerrar_{ticket}"):
+        cerrar = st.button(etiqueta, type="primary", width="stretch", key="ca_cerrar_ok")
+    if cerrar:
         res = cerrar_posicion(c.get("ticket"))
         if "error" in res:
             st.session_state.ca_result = ("error", f"No se pudo cerrar: {res['error']}")

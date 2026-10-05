@@ -10,9 +10,11 @@ Los favoritos se guardan por usuario en Supabase (columna `favorito` de
 watchlist_usuario, vía tools/watchlist_manager).
 """
 import base64
+import re
 
 import streamlit as st
 
+from components.live_feed import attrs as _live
 from tools import watchlist_manager as wl
 
 FAVORITOS_MAX = 6       # tope de favoritos por usuario (solo caben 6 en una fila)
@@ -60,6 +62,24 @@ _CSS = """
 
   /* Cada slot es contenedor relativo para posicionar la ✕ sobre la tarjeta */
   [class*="st-key-favslot_"] { position:relative; }
+
+  /* Tarjeta del activo que está en el gráfico (como la fila .sel de la watchlist) */
+  /* Sutil: mismo fondo que la fila seleccionada de la watchlist (.wl-row.sel),
+     borde apenas más claro que el normal (#202a37) — sin azul llamativo. */
+  .fav-card.sel { border-color:#2f3d4f; background:#1a2236; }
+
+  /* Botón invisible que cubre TODA la tarjeta -> selecciona el activo
+     (mismo patrón que wlsel_ en watchlist.py). Queda bajo la ✕ (z-index 6). */
+  [class*="st-key-favsel_"] {
+    position:absolute !important; inset:0 !important;
+    width:100% !important; height:100% !important;
+    margin:0 !important; padding:0 !important; z-index:1;
+  }
+  [class*="st-key-favsel_"] * {
+    width:100% !important; height:100% !important; min-height:0 !important;
+    margin:0 !important; padding:0 !important;
+  }
+  [class*="st-key-favsel_"] button { opacity:0; cursor:pointer; }
   [class*="st-key-favx_"] { position:absolute !important; top:3px; right:3px;
                             z-index:6; width:auto !important; min-width:0 !important; }
   [class*="st-key-favx_"] button {
@@ -90,7 +110,9 @@ def icono_activo(ticker: str) -> str:
     if base in _BANDERAS:
         url = f"https://flagcdn.com/w40/{_BANDERAS[base]}.png"
         return f"<img src='{url}' width='24' style='border-radius:3px;'>"
-    if base.startswith("XAU"):
+    if base.startswith("US30"):            # US30 / US30Cash (XM)
+        return f"<img src='https://flagcdn.com/w40/us.png' width='24' style='border-radius:3px;'>"
+    if base.startswith("XAU") or base == "GOLD":
         return "<span style='font-size:16px;'>🥇</span>"
     if base.startswith("XAG"):
         return "<span style='font-size:16px;'>🥈</span>"
@@ -179,15 +201,19 @@ def _tarjeta_html(tk: str, datos: dict) -> str:
     nombre = tk.replace("...", "")
     spark_vals = st.session_state.get("_spark", {}).get(tk, [])
     spark = _sparkline_svg(spark_vals, color)
+    sel = " sel" if st.session_state.get("activo_seleccionado") == tk else ""
     return (
-        "<div class='fav-card'>"
+        f"<div class='fav-card{sel}'>"
         "<div class='fav-l'>"
         f"<div class='fav-top'><span class='fav-ic'>{icono_activo(tk)}</span>"
         f"<span class='fav-tk'>{nombre}</span></div>"
-        f"<div class='fav-px'>{_fmt_precio(precio)}</div>"
-        f"<div class='fav-var' style='color:{color};'>{var}</div>"
+        f"<div class='fav-px' {_live(tk, 'px')}>{_fmt_precio(precio)}</div>"
+        f"<div class='fav-var' {_live(tk, 'var')} style='color:{color};'>{var}</div>"
         "</div>"
-        f"<span class='fav-spark'>{spark}</span>"
+        # data-pj-spark: el feed en vivo (live_feed.py) redibuja este mini-gráfico
+        # en el navegador con cada tick; data-pj-vals = semilla del histórico.
+        f"<span class='fav-spark' data-pj-spark='{tk}' "
+        f"data-pj-vals='{','.join(f'{v:.6g}' for v in spark_vals)}'>{spark}</span>"
         "</div>"
     )
 
@@ -233,6 +259,15 @@ def renderizar_barra_favoritos():
                     if i < total:
                         tk = favs[i]
                         st.html(_tarjeta_html(tk, datos))
+                        # Clic en la tarjeta -> carga el activo en el gráfico, el
+                        # ticket y la cabecera (igual que la watchlist). scope="app"
+                        # porque esos paneles están fuera de este fragmento. Sin
+                        # st.toast antes del rerun (error "Cannot set a node at a
+                        # delta path", ver watchlist.py).
+                        slug = re.sub(r"\W", "", tk)
+                        if st.button("Seleccionar", key=f"favsel_{slug}"):
+                            st.session_state.activo_seleccionado = tk
+                            st.rerun(scope="app")
                         if st.button("✕", key=f"favx_{tk}", help="Quitar de favoritos"):
                             quitar_favorito(tk)
                             st.rerun(scope="fragment")
