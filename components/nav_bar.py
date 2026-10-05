@@ -198,7 +198,7 @@ def _css() -> str:
         color: #22c55e !important;
     }}
 
-    /* ====== ESTADO EXPANDIDO (clase pj-sb-exp en <html>) ====== */
+    /* ====== ESTADO EXPANDIDO (clase pj-sb-exp en el elemento html) ====== */
     {_EXP} {_COL} {{
         flex: 0 0 {ANCHO_EXPANDIDO}px !important;
         width: {ANCHO_EXPANDIDO}px !important;

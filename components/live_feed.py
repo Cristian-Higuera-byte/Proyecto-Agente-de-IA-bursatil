@@ -28,6 +28,12 @@ Atributos soportados:
   data-pj-acc   equity | profit   (datos de la cuenta, sin data-pj-s)
                 con data-pj-suf (sufijo) y data-pj-zero="1" (mostrar +0.00 en vez de vacío)
   data-pj-pos   ticket de una posición → su P/G neto (profit + swap)
+  data-pj-posc  ticket de una posición → su precio actual (data-pj-d decimales)
+  data-pj-acc + data-pj-fmt  cualquier dato de la cuenta (balance, margin,
+                margin_free, margin_level, credit, equity, profit) con formato
+                usd ("$1,234.56") | pct ("565.65%") | signed ("+12.30" + data-pj-suf);
+                data-pj-color="1" lo pinta verde/rojo según el signo
+  data-pj-bar   campo de la cuenta (0-100) → ancho de una barra (style.width en %)
   data-pj-spark símbolo de un mini-gráfico (<img> dentro); data-pj-vals = semilla
                 "v1,v2,..." → se redibuja en el navegador con cada tick
 
@@ -184,6 +190,18 @@ _JS = r"""
     if (!cuenta) return;
     D.querySelectorAll('[data-pj-acc]').forEach(function(el){
       var f = el.getAttribute('data-pj-acc');
+      var formato = el.getAttribute('data-pj-fmt');
+      if (formato){                                   // formato genérico (Inicio)
+        var val = cuenta[f];
+        if (val === undefined || val === null) return;
+        var txt;
+        if (formato === 'pct') txt = val ? fmt(val, 2) + '%' : '—';
+        else if (formato === 'signed') txt = (val >= 0 ? '+' : '') + fmt(val, 2) + (el.getAttribute('data-pj-suf') || '');
+        else txt = '$' + fmt(val, 2);
+        poner(el, txt);
+        if (el.getAttribute('data-pj-color') === '1') color(el, val >= 0 ? '#3fb950' : '#f85149');
+        return;
+      }
       if (f === 'equity'){
         poner(el, '$' + fmt(cuenta.equity, 2) + ' ' + (cuenta.currency || ''));
       } else if (f === 'profit'){
@@ -193,6 +211,19 @@ _JS = r"""
         color(el, p >= 0 ? (el.getAttribute('data-pj-up') || '#3fb950')
                          : (el.getAttribute('data-pj-dn') || '#f85149'));
       }
+    });
+    D.querySelectorAll('[data-pj-bar]').forEach(function(el){
+      var v = cuenta[el.getAttribute('data-pj-bar')];
+      if (v === undefined || v === null) return;
+      var w = Math.max(0, Math.min(100, v)).toFixed(1) + '%';
+      if (el.style.width !== w) el.style.width = w;
+    });
+    var pc = cuenta.pc || {};
+    D.querySelectorAll('[data-pj-posc]').forEach(function(el){
+      var v = pc[el.getAttribute('data-pj-posc')];
+      if (v === undefined) return;
+      var d = el.getAttribute('data-pj-d');
+      poner(el, fmt(v, (d !== null && d !== '') ? +d : 5));
     });
     var pos = cuenta.pos || {};
     D.querySelectorAll('[data-pj-pos]').forEach(function(el){
