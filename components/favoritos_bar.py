@@ -15,6 +15,7 @@ import re
 import streamlit as st
 
 from components.live_feed import attrs as _live
+from components.iconos import icono_activo as _icono
 from tools import watchlist_manager as wl
 
 FAVORITOS_MAX = 6       # tope de favoritos por usuario (solo caben 6 en una fila)
@@ -22,13 +23,6 @@ _VISIBLES = 6           # tarjetas visibles
 
 FAVORITOS_DEFAULT = wl.FAVORITOS_DEFAULT
 
-# Íconos por activo: logos de cripto y banderas de divisas/índices (desde CDN)
-_CRIPTO = {"BTCUSD": "btc", "ETHUSD": "eth", "LTCUSD": "ltc", "XRPUSD": "xrp"}
-_BANDERAS = {
-    "EURUSD": "eu", "GBPUSD": "gb", "USDJPY": "jp", "USDCHF": "ch",
-    "AUDUSD": "au", "NZDUSD": "nz", "USDCAD": "ca", "US30": "us",
-    "NAS100": "us", "SPX500": "us", "EURJPY": "eu", "EURGBP": "eu", "GBPJPY": "gb",
-}
 
 _CSS = """
 <style>
@@ -50,9 +44,7 @@ _CSS = """
   .fav-card:hover { border-color:#2f3d4f; }
   .fav-l { display:flex; flex-direction:column; gap:2px; min-width:0; }
   .fav-top { display:flex; align-items:center; gap:8px; }
-  .fav-ic { width:30px; height:30px; border-radius:50%; background:#161b22;
-            display:inline-flex; align-items:center; justify-content:center;
-            flex:0 0 auto; overflow:hidden; }
+  .fav-ic { display:inline-flex; align-items:center; flex:0 0 auto; }
   .fav-tk { color:#e6edf3; font-weight:700; font-size:13px; white-space:nowrap; }
   .fav-px { color:#ffffff; font-family:ui-monospace,Consolas,monospace;
             font-weight:700; font-size:16px; line-height:1.15; }
@@ -101,22 +93,10 @@ _CSS = """
 """
 
 
-def icono_activo(ticker: str) -> str:
-    """HTML de un ícono (logo cripto, bandera o emoji) para un activo."""
-    base = ticker.replace("...", "").upper()
-    if base in _CRIPTO:
-        url = f"https://cdn.jsdelivr.net/npm/cryptocurrency-icons@0.18.1/svg/color/{_CRIPTO[base]}.svg"
-        return f"<img src='{url}' width='22' height='22' style='border-radius:50%;'>"
-    if base in _BANDERAS:
-        url = f"https://flagcdn.com/w40/{_BANDERAS[base]}.png"
-        return f"<img src='{url}' width='24' style='border-radius:3px;'>"
-    if base.startswith("US30"):            # US30 / US30Cash (XM)
-        return f"<img src='https://flagcdn.com/w40/us.png' width='24' style='border-radius:3px;'>"
-    if base.startswith("XAU") or base == "GOLD":
-        return "<span style='font-size:16px;'>🥇</span>"
-    if base.startswith("XAG"):
-        return "<span style='font-size:16px;'>🥈</span>"
-    return "<span style='font-size:15px;'>💱</span>"
+def icono_activo(ticker: str, size: int = 30) -> str:
+    """Ícono del activo (estilo XM). Lo define components/iconos.py para todo el
+    dashboard; se mantiene aquí por compatibilidad con quien lo importa."""
+    return _icono(ticker, size)
 
 
 def _sparkline_svg(vals: list, color: str, w: int = 92, h: int = 40) -> str:

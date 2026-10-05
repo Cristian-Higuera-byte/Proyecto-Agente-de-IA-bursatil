@@ -15,11 +15,7 @@ from components.live_feed import intervalo as _intervalo
 from tools.mt5_bridge import obtener_posiciones, cerrar_posicion
 from tools import watchlist_manager as wl
 
-try:
-    from components.favoritos_bar import icono_activo
-except Exception:  # pragma: no cover
-    def icono_activo(_sym):
-        return "<span></span>"
+from components.iconos import icono_activo   # íconos estilo XM (comunes a todo el dashboard)
 
 ALTURA_LISTA = 640
 
@@ -59,8 +55,7 @@ _CSS = """
   [class*="st-key-carow_"]:hover .ca-row { background:rgba(255,255,255,0.04); border-radius:8px; border-bottom-color:transparent; }
   .ca-row.sel { background:#1a2236; border-radius:8px; border-bottom-color:transparent; }
 
-  .ca-ico { flex:0 0 32px; width:32px; height:32px; border-radius:50%; display:flex; align-items:center;
-      justify-content:center; font-size:15px; font-weight:800; }
+  .ca-ico { flex:0 0 auto; display:flex; align-items:center; }
   .ca-mid { flex:1 1 auto; min-width:0; overflow:hidden; }
   .ca-tk { font-size:15px; font-weight:700; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .ca-meta { font-size:12px; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -153,7 +148,7 @@ def renderizar_cartera_lista():
                 with st.container(key=f"carow_{slug}"):
                     st.markdown(
                         f"<div class='ca-row{cls_sel}'>"
-                        f"<span class='ca-ico'>{icono_activo(sym)}</span>"
+                        f"<span class='ca-ico'>{icono_activo(sym, 34)}</span>"
                         f"<div class='ca-mid'><div class='ca-tk'>{html.escape(base)}</div>"
                         f"<div class='ca-meta {cls_lado}'>{html.escape(lado)} · {p.get('volumen',0):,.2f} lotes</div></div>"
                         f"<div class='ca-right'><div class='ca-pl {cls_pl}' data-pj-pos='{p.get('ticket')}' "
@@ -199,7 +194,7 @@ _SEL = "[data-testid='stDialog']:has([class*='st-key-ca_btncerrar_'])"
 _CSS_MODAL = f"""
 <style>
   /* Centrado: el fondo del diálogo (Streamlit 1.64) es un flex con
-     align-items:flex-start; el diálogo es un <section>, no un <div>. */
+     align-items:flex-start; el diálogo es un section, no un div. */
   {_SEL} {{ align-items:center !important; background:rgba(5,8,15,.55) !important; }}
   /* Colores de la paleta del dashboard (paneles #0d1117, bordes #30363d) */
   {_SEL} > div {{

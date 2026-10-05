@@ -168,8 +168,14 @@ class MotorPrecios:
             return None
         # P/G neto por posición (profit + swap) → la suma coincide con info.profit
         pos = {str(p.ticket): round(p.profit + p.swap, 2) for p in posiciones}
+        pc = {str(p.ticket): p.price_current for p in posiciones}   # precio actual (Inicio)
         return {"equity": info.equity, "balance": info.balance,
-                "profit": info.profit, "currency": info.currency, "pos": pos}
+                "profit": info.profit, "currency": info.currency,
+                "margin": info.margin, "margin_free": info.margin_free,
+                "margin_level": info.margin_level, "credit": info.credit,
+                # % del equity usado como margen (barra "margen usado" de Inicio)
+                "uso_margen": round(info.margin / info.equity * 100, 2) if info.equity else 0.0,
+                "pos": pos, "pc": pc}
 
     # --- bucle principal ---------------------------------------------------
     def correr(self):
