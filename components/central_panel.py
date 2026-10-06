@@ -13,6 +13,7 @@ import pandas as pd  # type: ignore[import-untyped]
 import streamlit as st
 import streamlit.components.v1 as components
 
+from components.posiciones_grafico import js_posiciones, gatillos_cierre
 from components.live_feed import attrs as _live, intervalo as _intervalo
 
 # Importar las funciones del puente de MetaTrader 5
@@ -2373,6 +2374,8 @@ setTimeout(function(){
       });
     });
 
+__POSICIONES_JS__
+
     // --- Ticks en vivo del feed SSE (components/live_feed.py) ---------------
     // El feed reenvía cada tick por BroadcastChannel('pj-ticks'); aquí se mueve
     // la vela actual (o se abre una nueva al cambiar de periodo) al instante.
@@ -2628,8 +2631,10 @@ def renderizar_panel_central(main: Optional[ModuleType]):
         .replace("__API_URL_JS__", json.dumps(API_URL))
         .replace("__DIGITS__", str(digits))
         .replace("__PIP__", json.dumps(pip))
+        .replace("__POSICIONES_JS__", js_posiciones(activo_visible))   # líneas de posición
     )
     components.html(html_chart, height=750)
+    gatillos_cierre()   # ✕ de las líneas → modal de cierre
 
     # --- ZONA DE CHAT INFERIOR CONECTADA A main.py ---
     st.markdown("---")

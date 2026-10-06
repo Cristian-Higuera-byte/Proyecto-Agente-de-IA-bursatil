@@ -2,17 +2,19 @@
 order_panel.py
 --------------
 Ticket de orden (comprar / vender) a la derecha del gráfico, con el diseño de XM:
-- "Orden con un clic" con el interruptor a la derecha (si está apagado, pide confirmación).
-- VENTA | COMPRA unidos (el lado elegido se pinta en rojo/verde) + spread al centro.
+- "One-Click Trading" con el interruptor a la derecha (si está apagado, pide confirmación;
+  la primera vez que se activa exige aceptar los términos: components/one_click.py).
+- SELL | BUY unidos (el lado elegido se pinta en rojo/verde) + spread al centro.
 - Cantidad / Lotes a todo el ancho y el volumen en una tarjeta con la etiqueta
   DENTRO y el número grande (como XM).
 - Margen requerido + barra con el % del margen libre que usaría la orden.
-- Tarjeta "Compra/Venta al llegar a este precio" (orden pendiente Limit/Stop) con
-  "Válida hasta cancelar", y tarjeta de Tomar ganancia / Limitar pérdida.
+- Tarjeta "Pending order" (Buy/Sell Limit o Stop según el precio) con
+  "Good till cancelled (GTC)", y tarjeta de Take Profit / Stop Loss.
+Términos de trading en INGLÉS (decisión del equipo, 06-10-2026); el resto en español.
 - Botón grande "Colocar orden en {precio}" del color del lado elegido.
 
 Las órdenes se envían a la cuenta CONECTADA en MetaTrader 5 (demo en desarrollo)
-vía tools.mt5_bridge. El usuario confirma cada operación (salvo "orden con un clic").
+vía tools.mt5_bridge. El usuario confirma cada operación (salvo One-Click Trading).
 El estilo usa CSS acotado a las claves de este panel (.st-key-ord_*); el ancho del
 panel lo define app.py (no se toca aquí).
 """
@@ -20,6 +22,7 @@ import streamlit as st
 import MetaTrader5 as mt5  # type: ignore[import-untyped]
 
 from components.live_feed import attrs as _live, intervalo as _intervalo
+from components.one_click import al_cambiar as _oc_cambiar, pedir_terminos_si_corresponde
 
 from tools.mt5_bridge import (
     MT5_LOCK, inicializar_mt5, obtener_precio_actual, resolver_simbolo,
@@ -207,14 +210,14 @@ def _margen_libre():
 
 def _ejecutar(real, visible, tipo, vol, sl, tp, pendiente=None, gtc=True):
     """Envía la orden a MT5: a mercado, o pendiente si `pendiente` trae un precio."""
-    verbo = "Compra" if tipo == "BUY" else "Venta"
+    verbo = "Buy" if tipo == "BUY" else "Sell"
     if pendiente:
         res = colocar_orden_pendiente(real, tipo, vol, pendiente, sl, tp, hasta_cancelar=gtc)
-        ok = (f"Orden pendiente {res.get('tipo', '')} colocada: {vol:.2f} lotes de {visible} "
-              f"@ {res.get('price')}" + ("" if gtc else " (solo hoy)"))
+        ok = (f"{res.get('tipo', 'Pending order')} colocada: {vol:.2f} lotes de {visible} "
+              f"@ {res.get('price')}" + (" · GTC" if gtc else " · DAY (solo hoy)"))
     else:
         res = ejecutar_orden_mercado(real, tipo, vol, sl, tp)
-        ok = f"{verbo} ejecutada: {res.get('volume')} lotes de {visible} @ {res.get('price')}"
+        ok = f"{verbo} ejecutada a mercado: {res.get('volume')} lotes de {visible} @ {res.get('price')}"
     st.session_state.ord_result = ("error", res["error"]) if "error" in res else ("ok", ok)
     st.session_state.ord_confirm = None
 
@@ -258,10 +261,12 @@ def renderizar_panel_orden(main=None):
             side = st.session_state.get("ord_side", "BUY")
             compra = side == "BUY"
 
-            # --- Orden con un clic (interruptor a la derecha) ---
+            # --- One-Click Trading (interruptor a la derecha) ---
             with st.container(key="ord_tg_oc"):
-                oc = st.toggle("Orden con un clic", key="ord_oc", value=False,
-                               help="Si está activo, la orden se envía sin confirmación.")
+                oc = st.toggle("One-Click Trading", key="ord_oc", on_change=_oc_cambiar,
+                               help="Activo: las órdenes del ticket y del gráfico se envían sin "
+                                    "confirmación. La primera vez pide aceptar los términos.")
+            pedir_terminos_si_corresponde()
 
             # --- VENTA | COMPRA unidos + spread (selección por mitades) ---
             pip = (point * 10) if dig in (3, 5) else (point or 1)
@@ -270,9 +275,9 @@ def renderizar_panel_orden(main=None):
             with st.container(key="ord_bxrow"):
                 st.html(
                     "<div class='ord-join'>"
-                    f"<div class='ord-half ord-sell {'' if compra else 'sel'}'><div class='ord-lbl'>VENTA</div>"
+                    f"<div class='ord-half ord-sell {'' if compra else 'sel'}'><div class='ord-lbl'>SELL</div>"
                     f"<div class='ord-px' {_live(real, 'bid', d=dig)}>{bid:,.{dig}f}</div></div>"
-                    f"<div class='ord-half ord-buy {'sel' if compra else ''}'><div class='ord-lbl'>COMPRA</div>"
+                    f"<div class='ord-half ord-buy {'sel' if compra else ''}'><div class='ord-lbl'>BUY</div>"
                     f"<div class='ord-px' {_live(real, 'ask', d=dig)}>{ask:,.{dig}f}</div></div>"
                     f"<div class='ord-spread' {_live(real, 'spr', pip=pip)}>{spr}</div>"
                     "</div>"
@@ -306,26 +311,33 @@ def renderizar_panel_orden(main=None):
             # se llena más abajo porque depende del precio pendiente.
             slot_margen = st.container()
 
-            # --- Compra/Venta al llegar a este precio (orden pendiente) ---
+            # --- Pending order: Buy/Sell Limit o Stop según el precio pedido ---
             ref = ask if compra else bid
             pendiente, gtc = None, True
             with st.container(key="ord_card_pend"):
                 with st.container(key="ord_tg_pend"):
                     usar_pend = st.toggle(
-                        f"{'Compra' if compra else 'Venta'} al llegar a este precio", key="ord_pend",
-                        help="Orden pendiente: se ejecuta cuando el mercado llega al precio indicado.")
+                        "Pending order", key="ord_pend",
+                        help=("Se ejecuta cuando el mercado llega al precio indicado: "
+                              + ("Buy Limit bajo el precio actual, Buy Stop sobre él." if compra
+                                 else "Sell Limit sobre el precio actual, Sell Stop bajo él.")))
                 if usar_pend:
                     with _campo("pxp", "Precio"):
                         pendiente = st.number_input(
                             "Precio de la orden pendiente", min_value=0.0, value=round(float(ref), dig),
                             step=(point * 10) or 0.0001, format=f"%.{dig}f",
                             key=f"ord_pxp_{real}_{side}", label_visibility="collapsed")
-                    st.html(f"<div class='ord-hint'>Precio actual de {'compra' if compra else 'venta'}:"
+                    if compra:
+                        tipo_pend = "Buy Limit" if pendiente < ref else "Buy Stop"
+                    else:
+                        tipo_pend = "Sell Limit" if pendiente > ref else "Sell Stop"
+                    st.html(f"<div class='ord-hint'>Precio actual ({'Ask' if compra else 'Bid'}):"
                             f"<b {_live(real, 'side', d=dig, side=side)}>{ref:,.{dig}f}</b></div>"
+                            f"<div class='ord-hint'>Tipo de orden:<b>{tipo_pend}</b></div>"
                             "<div class='ord-sep'></div>")
                     with st.container(key="ord_tg_gtc"):
-                        gtc = st.toggle("Válida hasta cancelar", value=True, key="ord_gtc",
-                                        help="Apagado: la orden pendiente vence al final del día.")
+                        gtc = st.toggle("Good till cancelled (GTC)", value=True, key="ord_gtc",
+                                        help="Apagado: DAY, la orden vence al final del día.")
 
             # --- Margen requerido + % del margen libre (como XM) ---
             price = pendiente if pendiente else ref
@@ -347,18 +359,18 @@ def renderizar_panel_orden(main=None):
                        "</style>" if sin_margen else "")
                 )
 
-            # --- Tomar ganancia / Limitar pérdida ---
+            # --- Take Profit / Stop Loss ---
             sl = tp = 0.0
             with st.container(key="ord_card_tpsl"):
                 with st.container(key="ord_tg_tpsl"):
-                    usar_tpsl = st.toggle("Tomar ganancia / Limitar pérdida", key="ord_tpsl")
+                    usar_tpsl = st.toggle("Take Profit / Stop Loss", key="ord_tpsl")
                 if usar_tpsl:
-                    with _campo("sl", "Limitar pérdida"):
-                        sl = st.number_input("Limitar pérdida", min_value=0.0, value=0.0,
+                    with _campo("sl", "Stop Loss"):
+                        sl = st.number_input("Stop Loss", min_value=0.0, value=0.0,
                                              step=point or 0.0001, format=f"%.{dig}f",
                                              key="ord_sl", label_visibility="collapsed")
-                    with _campo("tp", "Tomar ganancia"):
-                        tp = st.number_input("Tomar ganancia", min_value=0.0, value=0.0,
+                    with _campo("tp", "Take Profit"):
+                        tp = st.number_input("Take Profit", min_value=0.0, value=0.0,
                                              step=point or 0.0001, format=f"%.{dig}f",
                                              key="ord_tp", label_visibility="collapsed")
 
@@ -385,11 +397,11 @@ def renderizar_panel_orden(main=None):
             cf = st.session_state.get("ord_confirm")
             if cf:
                 tipo, v, s, tpv, px, pend, g = cf
-                verbo2 = "COMPRA" if tipo == "BUY" else "VENTA"
-                modo_txt = (f"Orden pendiente al llegar a <b>{px:,.{dig}f}</b>"
-                            + ("" if g else " · solo hoy")) if pend else f"A mercado, ~<b>{px:,.{dig}f}</b>"
-                extra = ((f"<br>Limitar pérdida: <b>{s:,.{dig}f}</b>" if s else "")
-                         + (f"<br>Tomar ganancia: <b>{tpv:,.{dig}f}</b>" if tpv else ""))
+                verbo2 = "BUY" if tipo == "BUY" else "SELL"
+                modo_txt = (f"Pending order en <b>{px:,.{dig}f}</b>"
+                            + (" · GTC" if g else " · DAY")) if pend else f"Market, ~<b>{px:,.{dig}f}</b>"
+                extra = ((f"<br>Stop Loss: <b>{s:,.{dig}f}</b>" if s else "")
+                         + (f"<br>Take Profit: <b>{tpv:,.{dig}f}</b>" if tpv else ""))
                 st.html(f"<div class='ord-conf'><div class='t'>Confirmar operación</div>"
                         f"<b>{verbo2}</b> de <b>{v:.2f}</b> lotes de <b>{visible}</b><br>"
                         f"{modo_txt}{extra}</div>")
