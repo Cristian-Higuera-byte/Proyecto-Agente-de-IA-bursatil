@@ -21,6 +21,13 @@ Endpoints:
     GET /stream?s=EURUSD...,BTCUSD     -> SSE: ticks en vivo + cuenta (saldo, P/G y P/G por posición)
     GET /ticks?s=EURUSD...,BTCUSD      -> foto instantánea (JSON) de esos ticks
     GET /salud                         -> {"ok": true} (lo usa Streamlit para saber si hay feed)
+    POST /sltp  {"ticket", "sl", "tp"} -> cambia SL/TP de una posición (líneas arrastrables
+                                          del gráfico; solo desde páginas de localhost)
+    POST /orden {"symbol", "lado", "volumen", "precio"} -> nueva orden pendiente
+                                          (Buy/Sell Limit/Stop, menú del clic derecho)
+    POST /orden/modificar {"ticket", "precio", "sl", "tp", "caducidad", "expiracion"}
+                                       -> modifica una orden pendiente
+    POST /orden/eliminar  {"ticket"}   -> cancela una orden pendiente
 
 Nota: usa solo la librería estándar de Python (http.server), no requiere instalar nada.
 El terminal de MetaTrader 5 debe estar abierto y logueado.
@@ -32,9 +39,15 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs, unquote
 
 import MetaTrader5 as mt5  # type: ignore[import-untyped]
-from tools.mt5_bridge import inicializar_mt5, obtener_datos_historicos, resolver_simbolo
+from tools.mt5_bridge import (inicializar_mt5, obtener_datos_historicos, resolver_simbolo,
+                              modificar_sltp, colocar_orden_pendiente, modificar_orden,
+                              eliminar_orden)
 
 PUERTO = 8000
+# Versión de la API. Se sube cuando cambian rutas o datos que usa el navegador:
+# el gráfico la compara (GET /salud) y avisa si este proceso quedó desactualizado.
+# 3 = órdenes pendientes con caducidad (POST /orden/modificar con "caducidad").
+VERSION_API = 3
 
 # Temporalidades soportadas (igual que el selector del dashboard)
 TF_MAP = {
@@ -164,18 +177,48 @@ class MotorPrecios:
         with _IO:
             info = mt5.account_info()
             posiciones = mt5.positions_get() or []
+            ordenes = mt5.orders_get() or []          # órdenes pendientes
         if info is None:
             return None
         # P/G neto por posición (profit + swap) → la suma coincide con info.profit
         pos = {str(p.ticket): round(p.profit + p.swap, 2) for p in posiciones}
         pc = {str(p.ticket): p.price_current for p in posiciones}   # precio actual (Inicio)
+        # detalle por posición para las líneas del gráfico: símbolo, tipo, lotes, apertura,
+        # SL/TP, k = valor de 1 unidad de precio por lote (P/G proyectado) y sm = distancia
+        # mínima de SL/TP al precio que exige el bróker
+        pi = {}
+        specs = {}
+        def _spec(simbolo):
+            if simbolo not in specs:
+                with _IO:
+                    si = mt5.symbol_info(simbolo)
+                ts = float(getattr(si, "trade_tick_size", 0) or 0)
+                specs[simbolo] = (
+                    (float(si.trade_tick_value) / ts) if si and ts else 0.0,
+                    float(getattr(si, "trade_stops_level", 0) or 0) * float(getattr(si, "point", 0) or 0),
+                )
+            return specs[simbolo]
+        for p in posiciones:
+            k, sm = _spec(p.symbol)
+            pi[str(p.ticket)] = {"s": p.symbol, "t": int(p.type), "v": p.volume, "po": p.price_open,
+                                 "sl": p.sl, "tp": p.tp, "k": k, "sm": sm}
+        # órdenes pendientes (t: 2 Buy Limit, 3 Sell Limit, 4 Buy Stop, 5 Sell Stop)
+        orden = {}
+        for o in ordenes:
+            if int(o.type) not in (2, 3, 4, 5):
+                continue
+            k, sm = _spec(o.symbol)
+            orden[str(o.ticket)] = {"s": o.symbol, "t": int(o.type), "v": o.volume_current,
+                                    "po": o.price_open, "sl": o.sl, "tp": o.tp, "k": k, "sm": sm,
+                                    # caducidad: 0 GTC, 1 DAY, 2 fecha (ex, hora del servidor)
+                                    "tt": int(o.type_time), "ex": int(o.time_expiration or 0)}
         return {"equity": info.equity, "balance": info.balance,
                 "profit": info.profit, "currency": info.currency,
                 "margin": info.margin, "margin_free": info.margin_free,
                 "margin_level": info.margin_level, "credit": info.credit,
                 # % del equity usado como margen (barra "margen usado" de Inicio)
                 "uso_margen": round(info.margin / info.equity * 100, 2) if info.equity else 0.0,
-                "pos": pos, "pc": pc}
+                "pos": pos, "pc": pc, "pi": pi, "ord": orden}
 
     # --- bucle principal ---------------------------------------------------
     def correr(self):
@@ -290,13 +333,65 @@ class Manejador(BaseHTTPRequestHandler):
                 _, ticks, cuenta = MOTOR.foto(simbolos, 0)
                 self._responder({"t": ticks, "acc": cuenta})
             elif partes and partes[0] == "salud":
-                self._responder({"ok": True})
+                self._responder({"ok": True, "v": VERSION_API})
             elif len(partes) >= 2 and partes[0] == "velas":
                 n = int(qs.get("n", ["150"])[0])
                 self._responder(obtener_velas(partes[1], tf, n))
             elif len(partes) >= 2 and partes[0] == "ultima":
                 velas = obtener_velas(partes[1], tf, 2)
                 self._responder(velas[-1] if velas else {})
+            else:
+                self._responder({"error": "ruta no reconocida"})
+        except Exception as e:
+            try:
+                self._responder({"error": str(e)})
+            except Exception:
+                pass
+
+    # --- Modificaciones (POST) ----------------------------------------------
+    def _origen_local(self) -> bool:
+        """Solo páginas servidas desde este equipo (el dashboard en localhost) pueden
+        modificar posiciones: otra web abierta en el navegador no puede."""
+        host = urlparse(self.headers.get("Origin", "") or "").hostname
+        return host in ("localhost", "127.0.0.1")
+
+    def do_OPTIONS(self):
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Origin", self.headers.get("Origin", "*"))
+        self.send_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def do_POST(self):
+        if not self._origen_local():
+            cuerpo = b'{"error": "origen no permitido"}'
+            self.send_response(403)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(cuerpo)))
+            self.end_headers()
+            self.wfile.write(cuerpo)
+            return
+        try:
+            n = int(self.headers.get("Content-Length", 0) or 0)
+            datos = json.loads(self.rfile.read(n) or b"{}")
+            ruta = urlparse(self.path).path.strip("/")
+            with _IO:   # mismo candado que el motor: la API de MT5 no es thread-safe
+                if ruta == "sltp":
+                    res = modificar_sltp(int(datos["ticket"]), datos.get("sl"), datos.get("tp"))
+                elif ruta == "orden":
+                    res = colocar_orden_pendiente(datos["symbol"], datos["lado"],
+                                                  float(datos["volumen"]), float(datos["precio"]))
+                elif ruta == "orden/modificar":
+                    res = modificar_orden(int(datos["ticket"]), datos.get("precio"),
+                                          datos.get("sl"), datos.get("tp"),
+                                          datos.get("caducidad"), datos.get("expiracion"))
+                elif ruta == "orden/eliminar":
+                    res = eliminar_orden(int(datos["ticket"]))
+                else:
+                    res = None
+            if res is not None:
+                self._responder(res)
             else:
                 self._responder({"error": "ruta no reconocida"})
         except Exception as e:

@@ -79,6 +79,10 @@ st.markdown("""
            sin ocupar espacio ni sumar separación. */
         .st-key-pj_feed { position: absolute !important; width: 0 !important;
                           height: 0 !important; overflow: hidden !important; }
+        /* Botones invisibles que pulsa la ✕ de las líneas de posición del gráfico
+           (components/posiciones_grafico.py): mismo tratamiento. */
+        .st-key-chcls_wrap { position: absolute !important; width: 0 !important;
+                             height: 0 !important; overflow: hidden !important; }
 
         /* Fondo y tipografía base */
         .stApp { background-color: #0b0f19; color: #e6edf3; }
@@ -297,3 +301,7 @@ render_buscador()
 # se renderiza fuera de los fragmentos en vivo.
 from components.cartera_panel import render_modal_cerrar
 render_modal_cerrar()
+
+# Términos y condiciones de One-Click Trading (la primera vez que se activa).
+from components.one_click import render_modal_terminos
+render_modal_terminos()

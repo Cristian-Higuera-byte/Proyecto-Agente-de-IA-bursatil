@@ -499,3 +499,108 @@ def cerrar_posicion(ticket: int) -> dict:
         return {"error": f"Fallo al cerrar (retcode {resultado.retcode}): "
                          f"{getattr(resultado, 'comment', '')}{extra}"}
     return {"status": "success", "profit": profit, "symbol": symbol}
+
+
+def modificar_sltp(ticket: int, sl=None, tp=None) -> dict:
+    """Cambia el Stop Loss / Take Profit de una posición abierta.
+    None = deja el valor actual; 0 = lo quita. (Líneas arrastrables del gráfico.)"""
+    with MT5_LOCK:
+        if not inicializar_mt5():
+            return {"error": "Sin conexión con MT5"}
+        pos = mt5.positions_get(ticket=int(ticket))
+        if not pos:
+            return {"error": f"No se encontró la posición {ticket} (¿ya está cerrada?)"}
+        p = pos[0]
+        info = mt5.symbol_info(p.symbol)
+        dig = int(getattr(info, "digits", 5) or 5)
+        nuevo_sl = float(p.sl) if sl is None else round(float(sl), dig)
+        nuevo_tp = float(p.tp) if tp is None else round(float(tp), dig)
+        request = {
+            "action": mt5.TRADE_ACTION_SLTP,
+            "symbol": p.symbol,
+            "position": int(ticket),
+            "sl": nuevo_sl,
+            "tp": nuevo_tp,
+            "magic": 234000,
+        }
+        resultado = mt5.order_send(request)
+
+    if resultado is None:
+        return {"error": f"order_send devolvió None: {mt5.last_error()}"}
+    if resultado.retcode != mt5.TRADE_RETCODE_DONE:
+        motivo = {10016: "nivel inválido (muy cerca del precio o del lado equivocado)",
+                  10027: "activa 'Algo Trading' en MT5",
+                  10025: "sin cambios"}.get(resultado.retcode, getattr(resultado, "comment", ""))
+        return {"error": f"No se pudo modificar (retcode {resultado.retcode}): {motivo}"}
+    return {"status": "success", "ticket": int(ticket), "sl": nuevo_sl, "tp": nuevo_tp}
+
+
+_NOMBRE_PENDIENTE = {2: "Buy Limit", 3: "Sell Limit", 4: "Buy Stop", 5: "Sell Stop"}
+
+
+def modificar_orden(ticket: int, precio=None, sl=None, tp=None,
+                    caducidad=None, expiracion=None) -> dict:
+    """Modifica una orden PENDIENTE (precio de entrada, SL, TP y/o caducidad).
+    None = conserva el valor actual; 0 en sl/tp = lo quita.
+    caducidad: "gtc" | "day" | "specified" (esta última con `expiracion` en
+    segundos, hora del SERVIDOR del bróker, como la muestra MT5).
+    (Líneas del gráfico y ventana "Modificar orden".)"""
+    with MT5_LOCK:
+        if not inicializar_mt5():
+            return {"error": "Sin conexión con MT5"}
+        ords = mt5.orders_get(ticket=int(ticket))
+        if not ords:
+            return {"error": f"No se encontró la orden {ticket} (¿ya se ejecutó o se canceló?)"}
+        o = ords[0]
+        info = mt5.symbol_info(o.symbol)
+        dig = int(getattr(info, "digits", 5) or 5)
+        request = {
+            "action": mt5.TRADE_ACTION_MODIFY,
+            "order": int(ticket),
+            "symbol": o.symbol,
+            "price": float(o.price_open) if precio is None else round(float(precio), dig),
+            "sl": float(o.sl) if sl is None else round(float(sl), dig),
+            "tp": float(o.tp) if tp is None else round(float(tp), dig),
+            "type_time": o.type_time,
+            "expiration": o.time_expiration,
+        }
+        if caducidad:
+            request["type_time"] = {"gtc": mt5.ORDER_TIME_GTC, "day": mt5.ORDER_TIME_DAY,
+                                    "specified": mt5.ORDER_TIME_SPECIFIED}.get(caducidad, o.type_time)
+            request["expiration"] = int(expiracion or 0) if caducidad == "specified" else 0
+        resultado = mt5.order_send(request)
+
+    if resultado is None:
+        return {"error": f"order_send devolvió None: {mt5.last_error()}"}
+    if resultado.retcode != mt5.TRADE_RETCODE_DONE:
+        motivo = {10015: "precio inválido para este tipo de orden",
+                  10022: "fecha de caducidad inválida (o el bróker no la admite)",
+                  10016: "nivel inválido (muy cerca del precio o del lado equivocado)",
+                  10027: "activa 'Algo Trading' en MT5",
+                  10025: "sin cambios"}.get(resultado.retcode, getattr(resultado, "comment", ""))
+        return {"error": f"No se pudo modificar la orden (retcode {resultado.retcode}): {motivo}"}
+    return {"status": "success", "ticket": int(ticket), "price": request["price"],
+            "sl": request["sl"], "tp": request["tp"],
+            "tt": int(request["type_time"]), "ex": int(request["expiration"] or 0)}
+
+
+def eliminar_orden(ticket: int) -> dict:
+    """Cancela una orden PENDIENTE."""
+    with MT5_LOCK:
+        if not inicializar_mt5():
+            return {"error": "Sin conexión con MT5"}
+        ords = mt5.orders_get(ticket=int(ticket))
+        if not ords:
+            return {"error": f"No se encontró la orden {ticket} (¿ya se ejecutó o se canceló?)"}
+        o = ords[0]
+        resultado = mt5.order_send({"action": mt5.TRADE_ACTION_REMOVE, "order": int(ticket)})
+
+    if resultado is None:
+        return {"error": f"order_send devolvió None: {mt5.last_error()}"}
+    if resultado.retcode != mt5.TRADE_RETCODE_DONE:
+        extra = " (activa 'Algo Trading' en MT5)" if resultado.retcode == 10027 else ""
+        return {"error": f"No se pudo cancelar la orden (retcode {resultado.retcode}): "
+                         f"{getattr(resultado, 'comment', '')}{extra}"}
+    return {"status": "success", "ticket": int(ticket),
+            "tipo": _NOMBRE_PENDIENTE.get(o.type, ""), "symbol": o.symbol}
+

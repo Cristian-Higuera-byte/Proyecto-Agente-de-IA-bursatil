@@ -18,7 +18,7 @@ Cómo funciona:
 
 Atributos soportados:
   data-pj-s     símbolo tal como se pide al servidor (con o sin '...')
-  data-pj-f     campo: px | bid | ask | side | var | spr
+  data-pj-f     campo: px | bid | ask | side | var | ch | pct | spr
   data-pj-d     decimales (por defecto: 2 si el precio > 100, si no 5)
   data-pj-pre   prefijo (p. ej. "$")
   data-pj-side  BUY | SELL  (para data-pj-f="side": ask o bid)
@@ -164,6 +164,21 @@ _JS = r"""
       var dn = el.getAttribute('data-pj-dn') || '#f85149';
       poner(el, (t.ch >= 0 ? '+' : '') + fmt(t.ch, d) + ' (' + (t.pct >= 0 ? '+' : '') + t.pct.toFixed(2) + '%)');
       color(el, t.ch >= 0 ? up : dn);
+      return;
+    }
+    if (f === 'ch' || f === 'pct'){
+      // cambio del día por separado (tablas): 'ch' en precio, 'pct' en % con flecha;
+      // data-pj-pill="1" también pinta el fondo (pastilla verde/roja)
+      var sube = t.ch >= 0;
+      var txt = (f === 'ch') ? (sube ? '+' : '') + fmt(t.ch, dec(el, t.l))
+                             : (sube ? '▲ +' : '▼ ') + t.pct.toFixed(2) + '%';
+      poner(el, txt);
+      color(el, sube ? (el.getAttribute('data-pj-up') || '#3fb950')
+                     : (el.getAttribute('data-pj-dn') || '#f85149'));
+      if (el.getAttribute('data-pj-pill') === '1'){
+        var bg = sube ? 'rgba(63,185,80,.12)' : 'rgba(248,81,73,.12)';
+        if (el.style.background !== bg) el.style.background = bg;
+      }
       return;
     }
     if (f === 'spr'){
