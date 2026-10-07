@@ -19,7 +19,8 @@ import streamlit as st
 
 from components.iconos import icono_activo
 from components.live_feed import intervalo as _intervalo
-from tools.mt5_bridge import inicializar_mt5, obtener_info_cuenta, obtener_posiciones
+from tools.mt5_bridge import (inicializar_mt5, obtener_info_cuenta,
+                              obtener_posiciones, obtener_historial)
 
 # OJO: no escribir etiquetas HTML dentro de este CSS (ni en comentarios):
 # st.html descarta el bloque de estilos completo.
@@ -143,12 +144,26 @@ _CSS = """
   .pos-side.sell { background:rgba(248,81,73,.12); color:#f85149; }
   .car-up { color:#3fb950; font-weight:700; }
   .car-down { color:#f85149; font-weight:700; }
+  table.pos td.car-up, .hist-sum .v.car-up { color:#3fb950 !important; }
+  table.pos td.car-down, .hist-sum .v.car-down { color:#f85149 !important; }
   .pos-empty { display:flex; flex-direction:column; align-items:center; gap:6px; padding:28px 10px;
       color:#8b949e; font-size:13px; text-align:center; }
   .pos-empty .mi { font-size:30px; color:#586174; }
   .st-key-ini_vercartera button { background:transparent !important; border:1px solid #30363d !important;
       border-radius:999px !important; min-height:32px !important; padding:2px 14px !important; }
   .st-key-ini_vercartera button p { font-size:12.5px !important; color:#c9d1d9 !important; }
+
+  /* ===== Historial (operaciones cerradas) ===== */
+  .st-key-ini_hist { background:#0f1620; border:1px solid #202a37; border-radius:18px; padding:6px 0; }
+  .hist-sum { display:flex; gap:28px; padding:12px 18px 14px; border-bottom:1px solid #1b2430; flex-wrap:wrap; }
+  .hist-sum .it { display:flex; flex-direction:column; gap:2px; }
+  .hist-sum .k { color:#8b949e; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.3px; }
+  .hist-sum .v { color:#e6edf3; font-size:17px; font-weight:800; font-family:ui-monospace,Consolas,monospace; }
+  .hist-fch { color:#8b949e; font-size:12px; font-family:ui-monospace,Consolas,monospace; }
+  .st-key-ini_vermas button, .st-key-ini_vermenos button { background:transparent !important;
+      border:1px solid #30363d !important; border-radius:999px !important;
+      min-height:34px !important; padding:3px 18px !important; }
+  .st-key-ini_vermas button p, .st-key-ini_vermenos button p { font-size:12.5px !important; color:#c9d1d9 !important; }
 
   /* ===== Modal selección de cuenta ===== */
   .selc-card { background:#0f1620; border:1px solid #202a37; border-radius:14px;
@@ -364,6 +379,75 @@ def renderizar_panel_inicio(main=None):
                 "</tr></thead><tbody>" + filas + "</tbody></table>"
             )
 
+    # --- Historial de operaciones cerradas ---
+    # Se refresca cada pocos segundos para que una operación recién cerrada aparezca
+    # sola (los datos no cambian, pero sí entran filas nuevas al cerrar posiciones).
+    @st.fragment(run_every=_intervalo("8s", "12s"))
+    def _historial():
+        hist = obtener_historial()
+        st.html("<div class='ini-sec'><h3>Historial</h3>"
+                f"<span class='s'>{len(hist)} "
+                f"{'operación cerrada' if len(hist) == 1 else 'operaciones cerradas'}</span></div>")
+        with st.container(key="ini_hist"):
+            if not hist:
+                st.html("<div class='pos-empty'>" + _mi("history") +
+                        "No hay operaciones cerradas.<br>"
+                        "Aquí verás las compras y ventas que cierres.</div>")
+                return
+            total = sum(h["pg"] for h in hist)
+            ganadoras = sum(1 for h in hist if h["pg"] > 0)
+            pct = ganadoras / len(hist) * 100
+            st.html(
+                "<div class='hist-sum'>"
+                "<div class='it'><span class='k'>P/G realizado</span>"
+                f"<span class='v {'car-up' if total >= 0 else 'car-down'}'>{total:+,.2f}</span></div>"
+                "<div class='it'><span class='k'>Operaciones</span>"
+                f"<span class='v'>{len(hist)}</span></div>"
+                "<div class='it'><span class='k'>Ganadoras</span>"
+                f"<span class='v'>{ganadoras}/{len(hist)} · {pct:.0f}%</span></div>"
+                "</div>"
+            )
+            import datetime as _dt
+            n = st.session_state.get("ini_hist_n", 10)
+            filas = ""
+            for h in hist[:n]:
+                compra = h["tipo"] == "Compra"
+                sym = h["symbol"].replace("...", "")
+                fch = _dt.datetime.fromtimestamp(h["fecha"]).strftime("%d-%m %H:%M")
+                filas += (
+                    "<tr>"
+                    f"<td class='hist-fch'>{fch}</td>"
+                    f"<td><div class='pos-sym'>{icono_activo(h['symbol'], 26)}{sym}</div></td>"
+                    f"<td><span class='pos-side {'buy' if compra else 'sell'}'>{h['tipo']}</span></td>"
+                    f"<td class='r'>{h['volumen']:,.2f}</td>"
+                    f"<td class='r'>{h['precio_cierre']:,.5f}</td>"
+                    f"<td class='r {'car-up' if h['pg'] >= 0 else 'car-down'}'>{h['pg']:+,.2f}</td>"
+                    "</tr>"
+                )
+            st.html(
+                "<table class='pos'><thead><tr>"
+                "<th>Fecha</th><th>Activo</th><th>Tipo</th><th class='r'>Volumen</th>"
+                "<th class='r'>Cierre</th><th class='r'>P/G</th>"
+                "</tr></thead><tbody>" + filas + "</tbody></table>"
+            )
+        # Ver más / Ver menos (despliegan de a 10 hacia abajo, dentro de Inicio)
+        n = st.session_state.get("ini_hist_n", 10)
+        if len(hist) > 10:
+            restantes = len(hist) - n
+            c1, c2, _ = st.columns([1, 1, 3])
+            if restantes > 0:
+                with c1:
+                    if st.button(f"Ver más ({restantes})", key="ini_vermas",
+                                 icon=":material/expand_more:", width="stretch"):
+                        st.session_state.ini_hist_n = n + 10
+                        st.rerun(scope="fragment")
+            if n > 10:
+                with c2:
+                    if st.button("Ver menos", key="ini_vermenos",
+                                 icon=":material/expand_less:", width="stretch"):
+                        st.session_state.ini_hist_n = 10
+                        st.rerun(scope="fragment")
+
     # --- Contenido centrado con ancho máximo ---
     with st.container(key="ini_wrap"):
         _cuenta_vivo()
@@ -386,6 +470,8 @@ def renderizar_panel_inicio(main=None):
                             st.toast(f"{titulo}: disponible próximamente.")
 
         _posiciones_vivo()
+
+        _historial()
 
         st.html("<div class='ini-sec'><h3>Promociones</h3></div>")
         st.html("<div class='promo-grid'>" + "".join(

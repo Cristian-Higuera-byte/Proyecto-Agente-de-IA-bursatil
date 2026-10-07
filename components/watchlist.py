@@ -34,7 +34,7 @@ _CSS = """
     .st-key-wl_panel {
         background: #0d1117;
         border: 1px solid #1f2937;
-        border-radius: 10px;
+        border-radius: 14px;
         overflow: hidden;
     }
     .st-key-wl_panel,
@@ -47,8 +47,7 @@ _CSS = """
         scrollbar-gutter: stable both-edges;
         scrollbar-width: thin;
         scrollbar-color: #2b3550 transparent;
-        padding-top: 6px;      /* separa la 1ª fila del encabezado */
-        padding-bottom: 6px;   /* aire para la última fila */
+        padding: 4px 14px 12px;   /* tarjetas con aire a los lados */
     }
     .st-key-wl_scroll::-webkit-scrollbar { width: 6px; }
     .st-key-wl_scroll::-webkit-scrollbar-thumb {
@@ -66,14 +65,23 @@ _CSS = """
     /* Encabezado (fondo opaco + por encima: evita que una fila resaltada se le
        monte por detrás) */
     .wl-head {
-        padding: 14px 16px 12px; border-bottom: 1px solid #1f2937;
+        display: flex; align-items: center; gap: 11px;
+        padding: 16px 16px 13px;
         background: #0d1117; position: relative; z-index: 2;
     }
-    .wl-title {
-        display: flex; align-items: center; gap: 8px;
-        font-size: 16px; font-weight: 700; color: #ffffff;
+    .wl-head .ic {
+        width: 38px; height: 38px; border-radius: 11px; flex: 0 0 auto;
+        display: flex; align-items: center; justify-content: center;
+        background: linear-gradient(135deg, rgba(255,75,75,.16), rgba(255,143,0,.16));
+        border: 1px solid #2a2320;
     }
-    .wl-sub { font-size: 12px; color: #8b949e; margin-top: 2px; }
+    .wl-mi {
+        font-family: 'Material Symbols Rounded'; font-weight: 400; font-size: 21px; line-height: 1;
+        background: linear-gradient(135deg, #ff6a3d, #ff8f00);
+        -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .wl-title { font-size: 16px; font-weight: 800; color: #ffffff; letter-spacing: .2px; line-height: 1.1; }
+    .wl-sub { font-size: 11.5px; color: #8b949e; margin-top: 2px; }
 
     /* Scrollbar discreto */
     .st-key-wl_scroll ::-webkit-scrollbar { width: 6px; }
@@ -84,7 +92,7 @@ _CSS = """
     [class*="st-key-wlrow_"] {
         position: relative;
         overflow: hidden;
-        transition: background 0.15s ease;
+        margin-bottom: 9px;
     }
     /* Streamlit añade margen inferior por defecto a cada widget; lo anulamos
        en todos los hijos de la fila para que el overlay de selección y el
@@ -99,45 +107,41 @@ _CSS = """
     [class*="st-key-wlrow_"] div[data-testid="stMarkdown"] {
         margin: 0 !important;
     }
+    /* Tarjeta de activo (mismo lenguaje que la Cartera) */
     .wl-row {
-        display: flex; align-items: center; gap: 10px;
-        padding: 11px 74px 11px 12px;
-        border-bottom: 1px solid #1a2130;
-        box-sizing: border-box;
-        line-height: 1.25;   /* evita que el interlineado infle la fila y el
-                                contenido se salga del recuadro resaltado */
+        display: flex; align-items: center; gap: 12px;
+        padding: 12px 76px 12px 15px;
+        background: #151c27; border: 1px solid #202a37; border-radius: 12px;
+        box-sizing: border-box; line-height: 1.3; position: relative; overflow: hidden;
+        transition: border-color .14s ease, background .14s ease;
     }
-    /* El resaltado se pinta en el CONTENEDOR exterior de la fila (no en el
-       div interno), para que ocupe exactamente el mismo rectángulo que el
-       área clicable/hover -- así queda perfectamente centrado, sin quedar
-       "subido" respecto al contenido visible. */
-    /* El resaltado se pinta sobre .wl-row (que envuelve EXACTO el contenido con
-       su padding simétrico) y NO sobre el contenedor de Streamlit, que queda
-       ~16px más corto que su contenido y descentraba/sobresalía el fondo.
-       El hover se detecta en el contenedor (la fila entera es clicable). */
-    [class*="st-key-wlrow_"]:hover .wl-row { background: rgba(255,255,255,0.04); border-radius: 8px; border-bottom-color: transparent; }
-    .wl-row.sel { background: #1a2236; border-radius: 8px; border-bottom-color: transparent; }
+    .wl-row::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0;
+        width: 3px; border-radius: 3px 0 0 3px; }
+    .wl-row.up::before   { background: linear-gradient(180deg, #3fb950, #2ea043); }
+    .wl-row.down::before { background: linear-gradient(180deg, #f85149, #da3633); }
+    [class*="st-key-wlrow_"]:hover .wl-row { border-color: #30405a; background: #192231; }
+    .wl-row.sel { border-color: #36465f; background: #19212e; }
 
     .wl-ico {
-        flex: 0 0 32px; width: 32px; height: 32px; border-radius: 50%;
+        flex: 0 0 34px; width: 34px; height: 34px; border-radius: 50%;
         display: flex; align-items: center; justify-content: center;
         font-size: 16px; font-weight: 800;
     }
     .wl-mid { flex: 1 1 auto; min-width: 0; overflow: hidden; }
     .wl-tk {
-        font-size: 16px; font-weight: 700; color: #ffffff;
+        font-size: 14.5px; font-weight: 700; color: #ffffff;
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .wl-nm {
-        font-size: 13px; color: #8b949e; margin-top: 2px;
+        font-size: 11.5px; color: #8b949e; margin-top: 3px;
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .wl-right { text-align: right; flex: 0 0 auto; white-space: nowrap; }
     .wl-px {
-        font-size: 16px; font-weight: 700; color: #ffffff;
+        font-size: 15px; font-weight: 800; color: #ffffff;
         font-variant-numeric: tabular-nums;
     }
-    .wl-var { font-size: 13px; font-weight: 600; margin-top: 2px; font-variant-numeric: tabular-nums; }
+    .wl-var { font-size: 11.5px; font-weight: 700; margin-top: 3px; font-variant-numeric: tabular-nums; }
 
     /* Botón "Seleccionar": invisible, cubre toda la fila (la fila entera es clicable).
        Se fijan los 4 bordes explícitos (no el shorthand "inset") y se anulan
@@ -165,7 +169,7 @@ _CSS = """
     /* Botón de favorito: pequeño, a la derecha de la fila */
     [class*="st-key-wlfav_"] {
         position: absolute !important;
-        right: 8px;
+        right: 11px;
         top: 50%;
         transform: translateY(-50%);
         width: 30px !important;
@@ -197,7 +201,7 @@ _CSS = """
     /* Botón ✕ (quitar de la lista): a la izquierda de la estrella */
     [class*="st-key-wlrm_"] {
         position: absolute !important;
-        right: 40px;
+        right: 44px;
         top: 50%;
         transform: translateY(-50%);
         width: 28px !important;
@@ -215,17 +219,18 @@ _CSS = """
     }
 
     /* Botón inferior */
-    .st-key-wl_add { padding: 12px 14px 14px; }
+    .st-key-wl_add { padding: 10px 14px 14px; }
     .st-key-wl_add button {
         background: transparent !important;
         border: 1px dashed #30363d !important;
         color: #8b949e !important;
-        border-radius: 8px !important;
-        min-height: 38px !important;
+        border-radius: 10px !important;
+        min-height: 42px !important;
     }
     .st-key-wl_add button:hover {
         border-color: #58a6ff !important;
         color: #ffffff !important;
+        background: rgba(88,166,255,0.06) !important;
     }
 </style>
 <span class="wl-css"></span>
@@ -266,8 +271,11 @@ def renderizar_watchlist():
         st.markdown(
             """
             <div class='wl-head'>
-                <div class='wl-title'><span>🔥</span><span>LISTA DE ACTIVOS</span></div>
-                <div class='wl-sub'>Precios de activos en tiempo real</div>
+                <div class='ic'><span class='wl-mi'>show_chart</span></div>
+                <div>
+                    <div class='wl-title'>Lista de activos</div>
+                    <div class='wl-sub'>Precios de activos en tiempo real</div>
+                </div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -294,6 +302,7 @@ def renderizar_watchlist():
                 nombre = html.escape(str(item.get('nombre', ticker)))
                 variacion = html.escape(str(item.get('var', '+0.00%')))
                 clase_sel = " sel" if is_selected else ""
+                dir_cls = "up" if item.get("sube", True) else "down"
 
                 es_favorito = ticker in st.session_state.get("favoritos", [])
                 estrella = ":material/star:" if es_favorito else ":material/star_border:"
@@ -302,7 +311,7 @@ def renderizar_watchlist():
                 with st.container(key=f"wlrow_{slug}"):
                     # Tarjeta visual del activo
                     st.markdown(f"""
-                        <div class='wl-row{clase_sel}'>
+                        <div class='wl-row {dir_cls}{clase_sel}'>
                             {icono_activo(ticker, 34)}
                             <div class='wl-mid'>
                                 <div class='wl-tk'>{html.escape(base)}</div>
@@ -347,7 +356,7 @@ def renderizar_watchlist():
                         st.rerun(scope="app")
 
         with st.container(key="wl_add"):
-            if st.button("➕ Agregar activo", use_container_width=True):
+            if st.button("Agregar activo", icon=":material/add:", width="stretch"):
                 from components.buscador import abrir_buscador
                 abrir_buscador()
                 st.rerun()  # app scope: para que app.py renderice el diálogo

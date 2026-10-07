@@ -279,8 +279,82 @@ def obtener_posiciones() -> list:
             "precio_actual": p.price_current,
             "profit": p.profit,
             "swap": p.swap,          # la Cartera muestra P/G neto (profit + swap)
+            "sl": p.sl,              # 0.0 si no tiene Stop Loss
+            "tp": p.tp,              # 0.0 si no tiene Take Profit
+            "tiempo": p.time,        # epoch de apertura (hora del servidor del bróker)
         })
     return salida
+
+
+def obtener_historial(dias: int = 90, limite: int = 100) -> list:
+    """Operaciones CERRADAS de la cuenta (para el historial de Inicio).
+
+    En MT5 cada cierre de posición es un 'deal' con entry == DEAL_ENTRY_OUT, que
+    es el que trae el P/G realizado. El P/G neto se arma igual que en la Cartera:
+    profit + swap + comisión. Un cierre tipo SELL cerró una COMPRA (y viceversa).
+    Devuelve del más reciente al más antiguo, recortado a 'limite'.
+    """
+    from datetime import timedelta
+    # El servidor del bróker va en otra zona (XM = GMT+3): una operación recién
+    # cerrada queda con marca de tiempo "por delante" de la hora local y se cortaría
+    # del rango. Por eso el tope superior va +1 día (incluye siempre lo recién cerrado).
+    try:
+        with MT5_LOCK:
+            if not inicializar_mt5():
+                return []
+            deals = mt5.history_deals_get(datetime.now() - timedelta(days=dias),
+                                          datetime.now() + timedelta(days=1))
+    except Exception:
+        deals = None
+    salida = []
+    for d in (deals or []):
+        if d.entry != mt5.DEAL_ENTRY_OUT:        # solo cierres (traen el P/G realizado)
+            continue
+        neto = d.profit + d.swap + d.commission + getattr(d, "fee", 0.0)
+        salida.append({
+            "ticket": d.ticket,
+            "symbol": d.symbol,
+            "tipo": "Compra" if d.type == mt5.DEAL_TYPE_SELL else "Venta",
+            "volumen": d.volume,
+            "precio_cierre": d.price,
+            "pg": neto,
+            "fecha": d.time,                     # epoch (hora del servidor del bróker)
+        })
+    salida.sort(key=lambda x: x["fecha"], reverse=True)
+    return salida[:limite]
+
+
+def especs_posicion(ticket: int) -> dict:
+    """Datos del contrato de una posición para el panel de TP/SL de la Cartera:
+    k (valor de 1 unidad de precio por lote, en la moneda de la cuenta), dígitos,
+    point, distancia mínima del bróker (stops_level) y Bid/Ask en vivo. Permite
+    validar la distancia mínima y convertir un objetivo en 'Cantidad' ($) a precio.
+    """
+    with MT5_LOCK:
+        if not inicializar_mt5():
+            return {}
+        pos = mt5.positions_get(ticket=int(ticket))
+        if not pos:
+            return {}
+        p = pos[0]
+        info = mt5.symbol_info(p.symbol)
+        tick = mt5.symbol_info_tick(p.symbol)
+    if not info:
+        return {}
+    tsize = getattr(info, "trade_tick_size", 0.0) or 0.0
+    k = (info.trade_tick_value / tsize) if tsize else 0.0
+    return {
+        "k": k,
+        "digitos": int(getattr(info, "digits", 5) or 5),
+        "point": float(getattr(info, "point", 0.0) or 0.0),
+        "stops_level": int(getattr(info, "trade_stops_level", 0) or 0),
+        "bid": float(getattr(tick, "bid", 0.0) or 0.0),
+        "ask": float(getattr(tick, "ask", 0.0) or 0.0),
+        "srv_now": float(getattr(tick, "time", 0.0) or 0.0),   # epoch del servidor (para desfase horario)
+        "precio_apertura": float(p.price_open),
+        "tipo": "Compra" if p.type == 0 else "Venta",
+        "volumen": float(p.volume),
+    }
 
 
 def obtener_precio_actual(symbol: str) -> dict:
