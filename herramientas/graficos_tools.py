@@ -5,15 +5,12 @@ NOMBRE DEL ARCHIVO: herramientas/graficos_tools.py
 
 from __future__ import annotations
 
-import base64
-import io
 import os
 from datetime import datetime
 from typing import Any
 
 import matplotlib
 matplotlib.use("Agg")  # Backend no interactivo para entornos de servidor/dashboard
-import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 
@@ -22,9 +19,12 @@ from fuentes import yfinance_fuente as yf_fuente
 from herramientas import analisis_tools
 from herramientas.base import herramienta
 
-# Directorio de salida para gráficos descargables
-OUTPUT_DIR = os.path.join("static", "graficos")
+# Directorio de salida (ruta absoluta: así el dashboard encuentra el archivo
+# aunque Streamlit se lance desde otra carpeta que la terminal).
+OUTPUT_DIR = os.path.abspath(os.path.join("static", "graficos"))
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+TIPOS_VALIDOS = ("velas", "lineas", "barras_ohlc", "comparativo")
 
 
 def _mapear_simbolo_yf(simbolo: str) -> str:
@@ -40,12 +40,24 @@ def _mapear_simbolo_yf(simbolo: str) -> str:
     return s
 
 
+def _etiqueta_fecha(valor: Any, timeframe: str) -> str:
+    """Etiqueta legible para el eje X. D1 muestra la fecha; el resto, día-mes y hora."""
+    try:
+        if isinstance(valor, (int, float)):
+            dt = datetime.fromtimestamp(valor)
+        else:
+            dt = datetime.fromisoformat(str(valor).replace("Z", "").replace("T", " ")[:19])
+        return dt.strftime("%Y-%m-%d" if timeframe == "D1" else "%d-%m %H:%M")
+    except Exception:
+        return str(valor)[-8:]
+
+
 def _dibujar_velas(ax, df_velas: list[dict[str, Any]]):
     """Dibuja velas japonesas personalizadas con mechas y cuerpos alcistas/bajistas."""
     for i, v in enumerate(df_velas):
         o, h, l, c = v["open"], v["high"], v["low"], v["close"]
         color = "#00B0FF" if c >= o else "#FF5252"  # Azul alcista, Rojo bajista
-        
+
         # Mecha
         ax.plot([i, i], [l, h], color=color, linewidth=1.0)
         # Cuerpo
@@ -57,9 +69,11 @@ def _dibujar_velas(ax, df_velas: list[dict[str, Any]]):
 
 @herramienta(
     descripcion=(
-        "Genera gráficos bursátiles profesionales en alta resolución (PNG y Base64 descargables). "
-        "Admite tipos: 'velas' (Candlestick + Volumen + RSI/MACD), 'lineas' (Tendencia/Cierres), "
-        "'barras_ohlc' (Barras tradicionales) y 'comparativo' (Rendimiento % relativo entre múltiples activos)."
+        "Genera gráficos bursátiles en alta resolución y los muestra al usuario en el chat. "
+        "Tipos: 'velas' (velas japonesas + EMA20/SMA50 + RSI 14), 'lineas' (cierres con EMA/SMA + RSI), "
+        "'barras_ohlc' (barras tradicionales + EMA/SMA + RSI) y 'comparativo' (rendimiento % relativo "
+        "entre varios activos; exige 'comparar_con'). No incluye volumen ni MACD. "
+        "El gráfico se muestra solo: no menciones rutas ni enlaces a la imagen en tu respuesta."
     ),
     parametros={
         "simbolo": {
@@ -68,7 +82,7 @@ def _dibujar_velas(ax, df_velas: list[dict[str, Any]]):
         },
         "tipo_grafico": {
             "type": "string",
-            "enum": ["velas", "lineas", "barras_ohlc", "comparativo"],
+            "enum": list(TIPOS_VALIDOS),
             "description": "Tipo de gráfico bursátil a generar. Por defecto 'velas'.",
         },
         "timeframe": {
@@ -82,7 +96,7 @@ def _dibujar_velas(ax, df_velas: list[dict[str, Any]]):
         },
         "comparar_con": {
             "type": "string",
-            "description": "Símbolos adicionales separados por coma para gráfico comparativo (ej. 'GBPUSD,USDCLP').",
+            "description": "Solo para 'comparativo': símbolos adicionales separados por coma (ej. 'GBPUSD,USDCLP').",
         },
     },
     requeridos=["simbolo"],
@@ -98,8 +112,16 @@ def generar_grafico_financiero(
     simbolo_clean = simbolo.strip().upper()
     n_velas = max(20, min(int(cantidad_velas), 300))
 
+    tipo_grafico = (tipo_grafico or "velas").strip().lower()
+    if tipo_grafico not in TIPOS_VALIDOS:
+        return {"error": f"tipo_grafico '{tipo_grafico}' no válido. Opciones: {', '.join(TIPOS_VALIDOS)}."}
+    if tipo_grafico == "comparativo" and not (comparar_con or "").strip():
+        return {"error": "El gráfico 'comparativo' requiere 'comparar_con' (ej. 'GBPUSD,USDCLP')."}
+
     # Obtener velas desde MT5 o YFinance
-    velas_data = []
+    velas_data: list[dict[str, Any]] = []
+    tf_real = timeframe
+    fuente_datos = "MetaTrader 5"
     try:
         mt5_res = mt5_fuente.velas(simbolo=simbolo_clean, timeframe=timeframe, cantidad=n_velas, ultimas_velas=n_velas)
         velas_data = mt5_res.get("ultimas_velas", [])
@@ -119,6 +141,9 @@ def generar_grafico_financiero(
                     "close": v["cierre"],
                     "tick_volume": v["volumen"] or 0,
                 })
+            # Respaldo: yfinance entrega velas diarias, sin importar el timeframe pedido.
+            tf_real = "D1"
+            fuente_datos = "Yahoo Finance (velas diarias)"
         except Exception as e:
             return {"error": f"No se pudieron obtener datos históricos para graficar {simbolo_clean}: {e}"}
 
@@ -137,24 +162,36 @@ def generar_grafico_financiero(
     # ──────────────────────────────────────────────────────────
     # 1. Gráfico Comparativo de Rendimiento % Relativo
     # ──────────────────────────────────────────────────────────
-    if tipo_grafico == "comparativo" and comparar_con:
+    if tipo_grafico == "comparativo":
         ax = fig.add_subplot(111)
         ax.set_facecolor("#1A1D29")
-        
-        activos = [simbolo_clean] + [s.strip().upper() for s in comparar_con.split(",") if s.strip()]
+
+        activos = [simbolo_clean] + [s.strip().upper() for s in (comparar_con or "").split(",") if s.strip()]
+        graficados: list[str] = []
         for act in activos:
             try:
                 data_act = mt5_fuente.velas(simbolo=act, timeframe=timeframe, cantidad=n_velas, ultimas_velas=n_velas)
-                cierres = [v["close"] for v in data_act.get("ultimas_velas", []) if v.get("close")]
-                if cierres:
-                    base = cierres[0]
-                    rend_pct = [((c / base) - 1.0) * 100.0 for c in cierres]
+                cierres_act = [v["close"] for v in data_act.get("ultimas_velas", []) if v.get("close")]
+                if cierres_act:
+                    base = cierres_act[0]
+                    rend_pct = [((c / base) - 1.0) * 100.0 for c in cierres_act]
                     ax.plot(rend_pct, label=f"{act} (%)", linewidth=2.0)
+                    graficados.append(act)
             except Exception:
                 continue
 
+        if len(graficados) < 2:
+            plt.close(fig)
+            return {
+                "error": (
+                    "No se pudo armar el comparativo: solo hubo datos de MT5 para "
+                    f"{', '.join(graficados) or 'ningún activo'} (de {', '.join(activos)})."
+                )
+            }
+
         ax.axhline(0, color="#888888", linestyle="--", alpha=0.6)
-        ax.set_title(f"Rendimiento Relativo % ({', '.join(activos)}) - {timeframe}", color="#FFFFFF", fontsize=14, pad=15)
+        ax.set_title(f"Rendimiento Relativo % ({', '.join(graficados)}) - {timeframe}", color="#FFFFFF", fontsize=14, pad=15)
+        ax.set_xlabel("Velas", color="#CCCCCC")
         ax.set_ylabel("Variación Porcentual (%)", color="#CCCCCC")
         ax.legend(loc="upper left")
         ax.grid(True, color="#2A2E3D", linestyle=":", alpha=0.7)
@@ -171,7 +208,7 @@ def generar_grafico_financiero(
         ax_sub.set_facecolor("#1A1D29")
 
         cierres = [v["close"] for v in velas_data]
-        fechas_str = [str(v.get("time", i))[-8:] for i, v in enumerate(velas_data)]
+        fechas_str = [_etiqueta_fecha(v.get("time", i), tf_real) for i, v in enumerate(velas_data)]
         indices = list(range(len(velas_data)))
 
         if tipo_grafico == "velas":
@@ -191,31 +228,31 @@ def generar_grafico_financiero(
             ema20 = analisis_tools._ema_serie(cierres, 20)
             ax_main.plot(indices[-len(ema20):], ema20, color="#FFB300", linewidth=1.3, label="EMA 20")
         if len(cierres) >= 50:
-            sma50 = [analisis_tools._sma(cierres[:i+1], 50) for i in range(49, len(cierres))]
+            sma50 = [analisis_tools._sma(cierres[:i + 1], 50) for i in range(49, len(cierres))]
             ax_main.plot(indices[-len(sma50):], sma50, color="#E040FB", linewidth=1.3, label="SMA 50")
 
         # Panel Inferior: Oscilador RSI(14)
-        rsi_val = analisis_tools._rsi(cierres, 14)
-        rsl_series = []
+        rsi_series = []
         for i in range(14, len(cierres) + 1):
             r = analisis_tools._rsi(cierres[:i], 14)
             if r is not None:
-                rsl_series.append(r)
-        
-        if rsl_series:
-            ax_sub.plot(indices[-len(rsl_series):], rsl_series, color="#00E676", linewidth=1.4, label="RSI (14)")
+                rsi_series.append(r)
+
+        if rsi_series:
+            ax_sub.plot(indices[-len(rsi_series):], rsi_series, color="#00E676", linewidth=1.4, label="RSI (14)")
             ax_sub.axhline(70, color="#FF5252", linestyle="--", alpha=0.7, linewidth=0.8)
             ax_sub.axhline(30, color="#00B0FF", linestyle="--", alpha=0.7, linewidth=0.8)
-            ax_sub.fill_between(indices[-len(rsl_series):], rsl_series, 70, where=[x >= 70 for x in rsl_series], color="#FF5252", alpha=0.3)
-            ax_sub.fill_between(indices[-len(rsl_series):], rsl_series, 30, where=[x <= 30 for x in rsl_series], color="#00B0FF", alpha=0.3)
+            ax_sub.fill_between(indices[-len(rsi_series):], rsi_series, 70, where=[x >= 70 for x in rsi_series], color="#FF5252", alpha=0.3)
+            ax_sub.fill_between(indices[-len(rsi_series):], rsi_series, 30, where=[x <= 30 for x in rsi_series], color="#00B0FF", alpha=0.3)
             ax_sub.set_ylim(10, 90)
 
         # Configuración de Ejes y Leyendas
-        ax_main.set_title(f"Análisis Bursátil Professional: {simbolo_clean} ({timeframe})", color="#FFFFFF", fontsize=13, pad=12)
-        ax_main.legend(loc="upper left", facecolor="#12141D", edgecolor="#2A2E3D")
+        ax_main.set_title(f"Análisis Bursátil Professional: {simbolo_clean} ({tf_real})", color="#FFFFFF", fontsize=13, pad=12)
+        if ax_main.get_legend_handles_labels()[0]:
+            ax_main.legend(loc="upper left", facecolor="#12141D", edgecolor="#2A2E3D")
         ax_main.grid(True, color="#2A2E3D", linestyle=":", alpha=0.6)
         ax_sub.grid(True, color="#2A2E3D", linestyle=":", alpha=0.6)
-        
+
         # Etiquetar fechas en eje X
         paso = max(1, len(indices) // 8)
         ax_sub.set_xticks(indices[::paso])
@@ -224,24 +261,22 @@ def generar_grafico_financiero(
 
     plt.tight_layout()
 
-    # Guardar a archivo físico y convertir a Base64
+    # Guardar a archivo físico. La imagen NO se devuelve en Base64: ese texto iría al
+    # historial del LLM (cientos de miles de caracteres) y a la memoria en cada turno.
     fig.savefig(filepath, format="png", bbox_inches="tight", facecolor=fig.get_facecolor())
-    
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", bbox_inches="tight", facecolor=fig.get_facecolor())
-    buf.seek(0)
-    base64_img = base64.b64encode(buf.read()).decode("utf-8")
     plt.close(fig)
-
-    web_path = f"/static/graficos/{filename}"
 
     return {
         "fuente": "Generador Visual Bursátil (Matplotlib)",
+        "fuente_datos": fuente_datos,
         "simbolo": simbolo_clean,
         "tipo_grafico": tipo_grafico,
-        "timeframe": timeframe,
+        "timeframe": tf_real,
+        "velas_graficadas": len(velas_data),
+        "ultimo_cierre": velas_data[-1].get("close"),
         "archivo_guardado": filepath,
-        "url_descarga": web_path,
-        "imagen_base64": f"data:image/png;base64,{base64_img}",
-        "mensaje": f"Gráfico {tipo_grafico} generado exitosamente para {simbolo_clean}. Disponible para visualización y descarga.",
+        "mensaje": (
+            f"Gráfico {tipo_grafico} de {simbolo_clean} ({tf_real}) generado y mostrado al usuario en el chat. "
+            "No incluyas rutas ni enlaces a la imagen en tu respuesta."
+        ),
     }
