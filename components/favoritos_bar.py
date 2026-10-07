@@ -3,13 +3,13 @@ favoritos_bar.py
 ----------------
 Barra superior de activos favoritos del dashboard, estilo terminal de trading
 (mockup): panel con encabezado "Mis Favoritos" + contador, paginación con
-flechas, "Ver todos" y un engranaje para gestionar. Cada tarjeta muestra ícono,
-nombre, precio en vivo, variación y un mini-gráfico (sparkline).
+flechas, "Ver todos" y un engranaje para gestionar. Cada tarjeta es una "burbuja"
+con contorno degradé verde (sube) / rojo (baja): ícono, nombre, precio en vivo,
+variación y una flecha de tendencia.
 
 Los favoritos se guardan por usuario en Supabase (columna `favorito` de
 watchlist_usuario, vía tools/watchlist_manager).
 """
-import base64
 import re
 
 import streamlit as st
@@ -33,32 +33,48 @@ _CSS = """
   /* Menos espacio entre el encabezado y las tarjetas */
   .st-key-fav_panel [data-testid="stVerticalBlock"] { gap:.3rem !important; }
   .st-key-fav_panel [data-testid="stHorizontalBlock"] { gap:10px !important; }
-  .fav-head { display:flex; align-items:center; gap:10px; margin:0; }
-  .fav-star { color:#f0b429; font-size:18px; line-height:1; }
-  .fav-title { color:#e6edf3; font-weight:700; font-size:15px; }
-  .fav-badge { background:#1f2937; color:#9aa4b2; font-size:12px; font-weight:600;
-               padding:1px 9px; border-radius:10px; }
-  .fav-card { width:100%; box-sizing:border-box; display:flex; justify-content:space-between;
-              align-items:center; gap:10px; background:#0f1620; border:1px solid #202a37;
-              border-radius:12px; padding:10px 14px; transition:border-color .15s ease; }
-  .fav-card:hover { border-color:#2f3d4f; }
-  .fav-l { display:flex; flex-direction:column; gap:2px; min-width:0; }
-  .fav-top { display:flex; align-items:center; gap:8px; }
+  .fav-head { display:flex; align-items:center; gap:10px; margin:0 0 2px; }
+  .fav-chip { width:28px; height:28px; border-radius:9px; flex:0 0 auto;
+              display:flex; align-items:center; justify-content:center;
+              background:linear-gradient(135deg, rgba(240,180,41,.20), rgba(255,143,0,.14));
+              border:1px solid #2c2616; }
+  .fav-mi { font-family:'Material Symbols Rounded'; font-weight:400; font-size:17px; line-height:1;
+            background:linear-gradient(135deg,#ffd454,#f0a91e);
+            -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .fav-title { color:#e6edf3; font-weight:800; font-size:14.5px; letter-spacing:.2px; }
+  .fav-badge { background:#1a2130; color:#aeb7c2; font-size:10.5px; font-weight:700;
+               padding:2px 9px; border-radius:999px; line-height:1.4; }
+  /* Tarjeta tipo burbuja con contorno degradé verde (sube) / rojo (baja).
+     Técnica de borde con degradado: dos fondos (padding-box = relleno,
+     border-box = el degradado) + borde transparente. */
+  .fav-card { width:100%; box-sizing:border-box; display:flex; align-items:center; gap:11px;
+              border:1.5px solid transparent; border-radius:16px; padding:9px 14px;
+              background:linear-gradient(#0f1620,#0f1620) padding-box,
+                         linear-gradient(135deg,#2a3340,#2a3340) border-box;
+              transition:transform .14s ease, box-shadow .14s ease; }
+  .fav-card.up   { background:linear-gradient(#0e1620,#0e1620) padding-box,
+                             linear-gradient(135deg,#3fb950,#14532d) border-box; }
+  .fav-card.down { background:linear-gradient(#141015,#141015) padding-box,
+                             linear-gradient(135deg,#f85149,#7f1d1d) border-box; }
+  .fav-card:hover { transform:translateY(-1px); box-shadow:0 7px 20px rgba(0,0,0,.38); }
   .fav-ic { display:inline-flex; align-items:center; flex:0 0 auto; }
-  .fav-tk { color:#e6edf3; font-weight:700; font-size:13px; white-space:nowrap; }
-  .fav-px { color:#ffffff; font-family:ui-monospace,Consolas,monospace;
-            font-weight:700; font-size:16px; line-height:1.15; }
-  .fav-var { font-size:11px; font-weight:600; white-space:nowrap; }
-  .fav-spark { flex:0 0 auto; display:flex; align-items:center; }
+  .fav-l { display:flex; flex-direction:column; gap:1px; min-width:0; flex:1 1 auto; }
+  .fav-tk { color:#e6edf3; font-weight:700; font-size:12.5px; white-space:nowrap;
+            overflow:hidden; text-overflow:ellipsis; }
+  .fav-row { display:flex; align-items:baseline; gap:8px; min-width:0; }
+  .fav-px { color:#ffffff; font-weight:800; font-size:15px; line-height:1.15;
+            font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .fav-var { font-size:11px; font-weight:700; white-space:nowrap; font-variant-numeric:tabular-nums;
+             overflow:hidden; text-overflow:ellipsis; }
+  .fav-arrow { flex:0 0 auto; font-size:16px; font-weight:800; line-height:1; align-self:center; }
   .fav-empty { color:#6e7681; font-size:13px; padding:14px 2px; }
 
   /* Cada slot es contenedor relativo para posicionar la ✕ sobre la tarjeta */
   [class*="st-key-favslot_"] { position:relative; }
 
-  /* Tarjeta del activo que está en el gráfico (como la fila .sel de la watchlist) */
-  /* Sutil: mismo fondo que la fila seleccionada de la watchlist (.wl-row.sel),
-     borde apenas más claro que el normal (#202a37) — sin azul llamativo. */
-  .fav-card.sel { border-color:#2f3d4f; background:#1a2236; }
+  /* Tarjeta del activo que está en el gráfico: anillo sutil + sombra (mantiene
+     el contorno degradé verde/rojo; solo agrega un halo para marcarla). */
+  .fav-card.sel { box-shadow:0 0 0 1px rgba(255,255,255,.22), 0 6px 18px rgba(0,0,0,.4); }
 
   /* Botón invisible que cubre TODA la tarjeta -> selecciona el activo
      (mismo patrón que wlsel_ en watchlist.py). Queda bajo la ✕ (z-index 6). */
@@ -84,8 +100,8 @@ _CSS = """
   }
   /* Botón "+" en el espacio libre: tarjeta punteada del mismo alto */
   [class*="st-key-favadd"] button {
-    width:100% !important; min-height:74px !important; background:transparent !important;
-    border:1px dashed #2f3d4f !important; color:#8b949e !important; border-radius:12px !important;
+    width:100% !important; min-height:60px !important; background:transparent !important;
+    border:1.5px dashed #2f3d4f !important; color:#8b949e !important; border-radius:16px !important;
     font-size:20px !important;
   }
   [class*="st-key-favadd"] button:hover { border-color:#3fb950 !important; color:#e6edf3 !important; }
@@ -97,39 +113,6 @@ def icono_activo(ticker: str, size: int = 30) -> str:
     """Ícono del activo (estilo XM). Lo define components/iconos.py para todo el
     dashboard; se mantiene aquí por compatibilidad con quien lo importa."""
     return _icono(ticker, size)
-
-
-def _sparkline_svg(vals: list, color: str, w: int = 92, h: int = 40) -> str:
-    """Mini-gráfico SVG (línea + área con degradado) a partir de una lista de precios."""
-    vals = [v for v in (vals or []) if v is not None]
-    if len(vals) < 2:
-        base = vals[0] if vals else 0.0
-        vals = [base, base]
-    lo, hi = min(vals), max(vals)
-    rng = (hi - lo) or 1.0
-    n = len(vals)
-    pad = 3
-    pts = []
-    for i, v in enumerate(vals):
-        x = (i * (w / (n - 1))) if n > 1 else 0
-        y = h - pad - ((v - lo) / rng) * (h - 2 * pad)
-        pts.append(f"{x:.1f},{y:.1f}")
-    linea = " ".join(pts)
-    area = f"0,{h} " + linea + f" {w},{h}"
-    gid = "sp" + str(abs(hash((color, n, vals[-1]))) % 100000)
-    svg = (
-        f"<svg xmlns='http://www.w3.org/2000/svg' width='{w}' height='{h}' "
-        f"viewBox='0 0 {w} {h}' preserveAspectRatio='none'>"
-        f"<defs><linearGradient id='{gid}' x1='0' y1='0' x2='0' y2='1'>"
-        f"<stop offset='0' stop-color='{color}' stop-opacity='0.30'/>"
-        f"<stop offset='1' stop-color='{color}' stop-opacity='0'/></linearGradient></defs>"
-        f"<polygon points='{area}' fill='url(#{gid})'/>"
-        f"<polyline points='{linea}' fill='none' stroke='{color}' stroke-width='1.6' "
-        f"stroke-linejoin='round' stroke-linecap='round'/></svg>"
-    )
-    # st.html sanea el SVG en línea → se incrusta como imagen data-URI (sí renderiza)
-    b64 = base64.b64encode(svg.encode("utf-8")).decode("ascii")
-    return f"<img src='data:image/svg+xml;base64,{b64}' width='{w}' height='{h}' style='display:block;'>"
 
 
 def _fmt_precio(precio: float) -> str:
@@ -175,25 +158,23 @@ def quitar_favorito(ticker: str):
 def _tarjeta_html(tk: str, datos: dict) -> str:
     item = datos.get(tk, {"precio": 0.0, "var": "", "sube": True})
     sube = item.get("sube", True)
+    dir_cls = "up" if sube else "down"
     color = "#3fb950" if sube else "#f85149"
+    flecha = "↗" if sube else "↘"
     precio = item.get("precio", 0.0)
     var = item.get("var", "") or "0.00 (0.00%)"
     nombre = tk.replace("...", "")
-    spark_vals = st.session_state.get("_spark", {}).get(tk, [])
-    spark = _sparkline_svg(spark_vals, color)
     sel = " sel" if st.session_state.get("activo_seleccionado") == tk else ""
     return (
-        f"<div class='fav-card{sel}'>"
+        f"<div class='fav-card {dir_cls}{sel}'>"
+        f"<span class='fav-ic'>{icono_activo(tk)}</span>"
         "<div class='fav-l'>"
-        f"<div class='fav-top'><span class='fav-ic'>{icono_activo(tk)}</span>"
-        f"<span class='fav-tk'>{nombre}</span></div>"
-        f"<div class='fav-px' {_live(tk, 'px')}>{_fmt_precio(precio)}</div>"
-        f"<div class='fav-var' {_live(tk, 'var')} style='color:{color};'>{var}</div>"
-        "</div>"
-        # data-pj-spark: el feed en vivo (live_feed.py) redibuja este mini-gráfico
-        # en el navegador con cada tick; data-pj-vals = semilla del histórico.
-        f"<span class='fav-spark' data-pj-spark='{tk}' "
-        f"data-pj-vals='{','.join(f'{v:.6g}' for v in spark_vals)}'>{spark}</span>"
+        f"<div class='fav-tk'>{nombre}</div>"
+        "<div class='fav-row'>"
+        f"<span class='fav-px' {_live(tk, 'px')}>{_fmt_precio(precio)}</span>"
+        f"<span class='fav-var' {_live(tk, 'var')} style='color:{color};'>{var}</span>"
+        "</div></div>"
+        f"<span class='fav-arrow' style='color:{color};'>{flecha}</span>"
         "</div>"
     )
 
@@ -226,8 +207,9 @@ def renderizar_barra_favoritos():
 
         # --- Encabezado: solo título + contador ---
         st.html(
-            "<div class='fav-head'><span class='fav-star'>★</span>"
-            "<span class='fav-title'>Mis Favoritos</span>"
+            "<div class='fav-head'>"
+            "<span class='fav-chip'><span class='fav-mi'>star</span></span>"
+            "<span class='fav-title'>Mis favoritos</span>"
             f"<span class='fav-badge'>{total}</span></div>"
         )
 

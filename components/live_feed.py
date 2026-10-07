@@ -259,6 +259,15 @@ _JS = r"""
       if (txt) poner(txt, 'Cerrar con ' + (v >= 0 ? 'ganancia' : 'pérdida') + ' de ' +
                           (v < 0 ? '-' : '') + '$' + fmt(Math.abs(v), 2));
     });
+    // Botón "Cerrar operación: $X" del drawer de detalle (cartera_panel.py):
+    // contenedor st-key-cadet_cerrar_<ticket>; el monto sigue el P/G vivo.
+    D.querySelectorAll('[class*="st-key-cadet_cerrar_"]').forEach(function(el){
+      var m = el.className.match(/st-key-cadet_cerrar_(\d+)/);
+      var v = m ? pos[m[1]] : undefined;
+      if (v === undefined) return;
+      var txt = el.querySelector('button p') || el.querySelector('button');
+      if (txt) poner(txt, 'Cerrar operación: ' + (v < 0 ? '-' : '') + '$' + fmt(Math.abs(v), 2));
+    });
   }
 
   function pintar(solo){

@@ -228,12 +228,14 @@ def _watchlist_en_vivo():
     renderizar_watchlist()   # precios ya los refresca _favoritos_en_vivo
 
 
-@st.fragment(run_every=intervalo("2s", "5s"))   # P/G total y por posición van por el feed;
-                                                 # esto solo agrega/quita filas nuevas
 def _cartera_en_vivo():
     # Lista de posiciones abiertas (reemplaza al watchlist en la vista Cartera).
+    # P/G total y por posición van por el feed; el refresco solo agrega/quita filas.
+    # Se PAUSA el auto-refresco cuando hay una fila desplegada (ca_detalle): así,
+    # al editar el TP/SL inline, el rerun del fragmento no quita el foco del input.
     from components.cartera_panel import renderizar_cartera_lista
-    renderizar_cartera_lista()
+    _cada = None if st.session_state.get("ca_detalle") else intervalo("2s", "5s")
+    st.fragment(run_every=_cada)(renderizar_cartera_lista)()
 
 
 # ==========================================
