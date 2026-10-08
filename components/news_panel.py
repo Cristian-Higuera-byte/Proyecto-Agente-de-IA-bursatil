@@ -2,12 +2,11 @@
 news_panel.py
 -------------
 Panel de noticias estilo Investing.com:
-  - Recuadro superior (Agente Piña y Jara) con reloj EN VIVO (refresca cada 1 s).
   - Noticia PRINCIPAL grande + CARRUSEL paginado (‹ ›, de 4 en 4 hasta 20, loop).
-  - Al hacer clic en cualquier noticia se abre un MODAL con foto, título, un
-    resumen/análisis del agente (IA, bajo demanda y cacheado) y el enlace a la
-    fuente. (Investing bloquea traer el texto completo del artículo — 403 —,
-    por eso el modal muestra un resumen del agente en vez del artículo crudo.)
+  - Al hacer clic en cualquier noticia se abre un MODAL que incrusta el artículo
+    directamente en un iframe DENTRO del sitio (st.iframe), sin botón intermedio
+    ni pestaña nueva. Las páginas de artículo de Investing responden 200 y no
+    envían X-Frame-Options, por eso se dejan incrustar.
 Fuente: RSS de Investing.com en español (título, enlace, imagen, fecha).
 """
 import re
@@ -139,57 +138,26 @@ def _cargar_mas_noticias() -> list[dict]:
     return out
 
 
-# ---------------------------------------------------------------- Resumen IA
-def _resumen_agente(n: dict, main) -> str:
-    """Genera (y cachea por enlace) un resumen del agente para la noticia."""
-    cache = st.session_state.setdefault("_resumenes_noticias", {})
-    if n["link"] in cache:
-        return cache[n["link"]]
-
-    texto = ""
-    if main is not None and hasattr(main, "chat_agente"):
-        try:
-            detalle = f" Detalle: {n['desc']}" if n.get("desc") else ""
-            prompt = (
-                "Actúa como analista financiero. En español y en máximo 3 párrafos, "
-                f"resume y explica el posible impacto de esta noticia. Título: '{n['title']}'.{detalle}"
-            )
-            resp, _ = main.chat_agente(prompt, historial=[])
-            texto = (resp or "").strip()
-        except Exception:
-            texto = ""
-    if not texto:
-        texto = (n.get("desc") or
-                 "No hay más detalle disponible desde la fuente. Usa el botón para leer "
-                 "la noticia completa en Investing.com.")
-    cache[n["link"]] = texto
-    return texto
-
-
-def _contenido_modal(n: dict, main):
+# ---------------------------------------------------------------- Modal
+def _contenido_modal(n: dict):
     st.html(f"""
         <img src="{n['img']}" referrerpolicy="no-referrer"
              style="width:100%; height:260px; object-fit:cover; border-radius:10px; background:#161b22;">
         <h2 style="color:#ffffff; font-size:24px; font-weight:800; line-height:1.3; margin:14px 0 6px;">{n['title']}</h2>
         <p style="color:#586174; font-size:12px; margin:0 0 12px;">{n['fecha']}</p>
     """)
-    st.markdown("<span style='color:#58a6ff; font-weight:700;'>📝 Resumen del agente</span>",
-                unsafe_allow_html=True)
-    with st.spinner("Generando resumen de la noticia…"):
-        resumen = _resumen_agente(n, main)
-    st.markdown(f"<div style='font-size:15px; line-height:1.6; color:#c9d1d9;'>{resumen}</div>",
-                unsafe_allow_html=True)
-    st.markdown("---")
-    st.link_button("Leer la noticia completa en la fuente ↗", n["link"])
+    # El artículo se incrusta DIRECTAMENTE dentro del sitio (sin botón ni pestaña nueva).
+    # Las páginas de artículo de Investing permiten framing (sin X-Frame-Options).
+    st.iframe(n["link"], height=620)
 
 
-def _abrir_modal(n: dict, main):
+def _abrir_modal(n: dict):
     def _al_cerrar():
         st.session_state.noticia_abierta = None
 
     @st.dialog("Noticia", width="large", on_dismiss=_al_cerrar)
     def _dlg():
-        _contenido_modal(n, main)
+        _contenido_modal(n)
 
     _dlg()
 
@@ -199,35 +167,12 @@ def renderizar_panel_noticias(main: Optional[ModuleType] = None):
     # Si hay una noticia seleccionada, se abre el modal desde el flujo principal
     # (no desde un fragmento) para que funcione correctamente.
     if st.session_state.get("noticia_abierta") is not None:
-        _abrir_modal(st.session_state["noticia_abierta"], main)
-
-    @st.fragment(run_every="1s")
-    def _cabecera_live():
-        _render_cabecera()
-    _cabecera_live()
+        _abrir_modal(st.session_state["noticia_abierta"])
 
     @st.fragment(run_every="30s")
     def _contenido():
         _render_contenido()
     _contenido()
-
-
-def _render_cabecera():
-    hora = datetime.now().strftime("%H:%M:%S")
-    st.html(f"""
-        <div style='background-color:#161b22; padding:12px 14px; border-radius:8px;
-                    border:1px solid #30363d; margin-bottom:14px;'>
-            <div style='display:flex; justify-content:space-between; align-items:center;'>
-                <div>
-                    <p style='margin:0; font-weight:bold; font-size:20px;'>🤖 Agente Piña y Jara</p>
-                    <p style='margin:0; font-size:12px; color:#8b949e;'>Modo de Análisis Inteligente</p>
-                </div>
-                <span style='font-size:12px; color:#3fb950; font-weight:bold;'>● En vivo · {hora}</span>
-            </div>
-            <hr style='border-color:#30363d; margin:8px 0;'>
-            <p style='margin:0; font-size:13px; color:#3fb950; font-weight:bold;'>● Sistema Activo y Sincronizado</p>
-        </div>
-    """)
 
 
 _CSS_CARRUSEL = """
