@@ -38,6 +38,7 @@ import streamlit as st
 import MetaTrader5 as mt5  # type: ignore[import-untyped]
 
 from tools.mt5_bridge import MT5_LOCK, inicializar_mt5, obtener_posiciones, resolver_simbolo
+from tools import trailing_store
 from components.live_feed import intervalo
 
 
@@ -69,10 +70,12 @@ def _iniciales(real: str) -> dict:
         if tick is not None:
             # hora del servidor del bróker − hora real (s), redondeado a 15 min: caducidad por fecha
             out["off"] = round((int(tick.time) - time.time()) / 900) * 900
+        tr = trailing_store.leer()      # tickets con stop dinámico activo
         for p in posiciones:
             out["pos"][str(p.ticket)] = {
                 "s": p.symbol, "t": int(p.type), "v": p.volume, "po": p.price_open,
                 "sl": p.sl, "tp": p.tp, "k": k, "sm": sm,
+                "tr": 1 if p.ticket in tr else 0,
             }
         for o in ordenes:
             if int(o.type) in (2, 3, 4, 5):
@@ -513,6 +516,11 @@ _JS = r"""
 
       function empezar(id, f, e){
         if (e.button !== 0) return;
+        if (f === 'sl' && ITEMS[id] && ITEMS[id].tr){
+          e.preventDefault(); e.stopPropagation();
+          avisar('El Stop Loss está en automático (stop dinámico). Para cambiarlo, edita la distancia en Cartera.', true);
+          return;
+        }
         e.preventDefault(); e.stopPropagation();
         cerrarMenu(); cerrarConf(true);
         drag = {id: id, f: f, px: null, y0: e.clientY, movido: false};
@@ -673,7 +681,8 @@ _JS = r"""
             hay[f] = true;
             var col = f === 'tp' ? C_TP : C_SL, g = pgEn(it, entrada, px);
             var y = serie.priceToCoordinate(px);
-            if (colocar(el, y, w, h, eje, col, f.toUpperCase() + ' ' + fmt(it.v, 2), pgTxt(g),
+            var etq = f.toUpperCase() + (f === 'sl' && it.tr ? ' auto' : '') + ' ' + fmt(it.v, 2);
+            if (colocar(el, y, w, h, eje, col, etq, pgTxt(g),
                         g >= 0 ? COMPRA : VENTA, px, true)) ys.push(y);
             el.className = 'pl lv' + ((f in n.pend) ? ' pend' : '') +
                            (arrastra && validar(it, f, px, entrada) ? ' mal' : '');
@@ -719,7 +728,7 @@ _JS = r"""
               var x = acc.pi[tk];
               if (x.s !== REAL) continue;
               np[tk] = {s: x.s, t: x.t, v: x.v, po: x.po, sl: x.sl, tp: x.tp, k: x.k, sm: x.sm,
-                        p: (acc.pos || {})[tk], pc: (acc.pc || {})[tk]};
+                        tr: x.tr, p: (acc.pos || {})[tk], pc: (acc.pc || {})[tk]};
             }
             POS = np;
           } else {
@@ -737,7 +746,7 @@ _JS = r"""
         });
       }
       // ¿El servidor de datos en ejecución es la versión que espera este código?
-      var V_API = 3;
+      var V_API = 4;
       fetch(API + '/salud').then(function(r){ return r.json(); }).then(function(r){
         if (!r.v || r.v < V_API){
           avisar('El servidor de datos está desactualizado: reinicia servidor_datos.py', true);

@@ -15,8 +15,10 @@ import streamlit as st
 
 from components.live_feed import intervalo as _intervalo
 from tools.mt5_bridge import (obtener_posiciones, cerrar_posicion,
-                              modificar_sltp, especs_posicion)
+                              modificar_sltp, especs_posicion, obtener_historial)
 from tools import watchlist_manager as wl
+from tools import trailing_store
+from tools import cerradas_store
 
 from components.iconos import icono_activo   # íconos estilo XM (comunes a todo el dashboard)
 
@@ -110,6 +112,30 @@ _CSS = """
   .ca-empty { padding:40px 20px; text-align:center; color:#8b949e; font-size:13px; line-height:1.6; }
   .ca-result-ok { color:#2ebd85; font-size:13px; padding:8px 14px; }
   .ca-result-err { color:#f85149; font-size:13px; padding:8px 14px; }
+
+  /* ---- Tarjetas de posiciones CERRADAS (aviso con "Aceptar") ---- */
+  [class*="st-key-cacerr_"] { margin:0 0 9px; }
+  [class*="st-key-cacerr_"] div[data-testid="stElementContainer"],
+  [class*="st-key-cacerr_"] div[data-testid="stMarkdownContainer"] { margin:0 !important; }
+  .ca-closed { background:#12161d; border:1px dashed #33425c; border-radius:12px; padding:12px 14px;
+      box-sizing:border-box; width:100%; overflow:hidden; }
+  .cc-top { display:flex; align-items:center; gap:10px; }
+  .cc-ico { flex:0 0 auto; display:flex; align-items:center; opacity:.8; }
+  .cc-sym { font-size:14px; font-weight:700; color:#c3ccd6; display:flex; align-items:center; gap:7px; min-width:0; }
+  .cc-badge { font-size:9px; font-weight:800; letter-spacing:.6px; padding:2px 6px; border-radius:5px; }
+  .cc-badge.buy  { background:rgba(63,185,80,.12); color:#5fae6a; }
+  .cc-badge.sell { background:rgba(248,81,73,.12); color:#c56a66; }
+  .cc-tag { font-size:9px; font-weight:800; letter-spacing:.6px; padding:2px 6px; border-radius:5px;
+      background:#232e42; color:#8b9bb4; }
+  .cc-pl { margin-left:auto; font-size:15px; font-weight:800; font-variant-numeric:tabular-nums; }
+  .cc-grid { margin-top:9px; border-top:1px solid #1c2531; padding-top:8px;
+      display:flex; flex-wrap:wrap; gap:4px 18px; }
+  .cc-grid .it { font-size:12px; color:#8b949e; }
+  .cc-grid .it b { color:#c9d1d9; font-weight:600; font-variant-numeric:tabular-nums; }
+  [class*="st-key-cacerr_"] button { background:#1a2130 !important; border:1px solid #33425c !important;
+      color:#c3ccd6 !important; height:34px !important; min-height:34px !important;
+      border-radius:9px !important; margin-top:9px !important; font-size:13px !important; }
+  [class*="st-key-cacerr_"] button:hover { border-color:#58a6ff !important; color:#fff !important; background:#21304a !important; }
 </style>
 """
 
@@ -119,11 +145,97 @@ def _neto(p: dict) -> float:
     """P/G neto de una posición (profit + swap), como lo suma MT5 en la cuenta."""
     return float(p.get("profit", 0.0) or 0.0) + float(p.get("swap", 0.0) or 0.0)
 
+
+def _fmtp(x) -> str:
+    """Precio sin ceros finales (no tenemos los dígitos del símbolo aquí)."""
+    try:
+        x = float(x)
+    except (TypeError, ValueError):
+        return "—"
+    return (f"{x:,.5f}".rstrip("0").rstrip(".")) if x else "—"
+
+
+def _detectar_cierres(pos: list):
+    """Compara las posiciones actuales con la foto anterior: las que ya no están
+    se cerraron (manual o automáticamente) → se registran como tarjetas cerradas.
+    Guarda anti-fallo: si TODO desaparece de golpe (y había más de una), se asume
+    un fallo momentáneo de MT5, no cierres reales."""
+    prev = st.session_state.get("ca_prev", {})
+    actuales = {p.get("ticket") for p in pos}
+    reales = st.session_state.setdefault("ca_pg_real", {})   # P/G exacto de cierres manuales
+    desaparecidos = [(tk, info) for tk, info in prev.items() if tk not in actuales]
+    if desaparecidos and not (not pos and len(prev) > 1):
+        try:
+            hist = obtener_historial(dias=1, limite=80)   # P/G y precio de cierre reales
+        except Exception:
+            hist = []
+        nuevas = []
+        for tk, info in desaparecidos:
+            if tk in reales:                               # cierre manual: P/G exacto
+                pg, cierre = reales.pop(tk), info.get("ac")
+            else:                                          # cierre automático: confirmar en historial
+                h = next((x for x in hist if x.get("symbol") == info.get("real")
+                          and abs(float(x.get("volumen", 0)) - float(info.get("volumen", 0))) < 1e-6), None)
+                if h is None:
+                    continue                               # no confirmado (posible fallo de MT5): no inventar tarjeta
+                pg, cierre = h.get("pg"), h.get("precio_cierre")
+            nuevas.append({**info, "ticket": tk, "pg": pg, "cierre": cierre, "hora": time.strftime("%H:%M")})
+        if nuevas:
+            cerr = {c["ticket"] for c in nuevas}
+            st.session_state.ca_cerradas = (nuevas + st.session_state.get("ca_cerradas", []))[:8]
+            cerradas_store.guardar(st.session_state.ca_cerradas)   # sobrevive al F5
+            if st.session_state.get("ca_detalle") in cerr:
+                st.session_state.ca_detalle = None   # cierra el detalle de la que se cerró
+    # Foto actual para la próxima comparación.
+    st.session_state.ca_prev = {
+        p.get("ticket"): {"sym": wl.nombre_visible(p["symbol"]), "real": p["symbol"],
+                          "side": p.get("tipo", ""), "volumen": p.get("volumen", 0),
+                          "ap": float(p.get("precio_apertura", 0) or 0),
+                          "ac": float(p.get("precio_actual", 0) or 0), "pg": _neto(p)}
+        for p in pos}
+
+
+def _render_cerradas():
+    """Tarjetas de posiciones cerradas (manual o auto), con detalle y 'Aceptar'."""
+    cerradas = st.session_state.get("ca_cerradas", [])
+    for c in cerradas:
+        tk = c["ticket"]
+        side = "buy" if c.get("side") == "Compra" else "sell"
+        side_lbl = "BUY" if side == "buy" else "SELL"
+        pg = float(c.get("pg", 0.0) or 0.0)
+        cls_pl = "ca-up" if pg >= 0 else "ca-down"
+        with st.container(key=f"cacerr_{tk}"):
+            st.markdown(
+                "<div class='ca-closed'>"
+                "<div class='cc-top'>"
+                f"<span class='cc-ico'>{icono_activo(c.get('real', ''), 30)}</span>"
+                f"<span class='cc-sym'>{html.escape(str(c.get('sym', '')))}"
+                f"<span class='cc-badge {side}'>{side_lbl}</span>"
+                "<span class='cc-tag'>CERRADA</span></span>"
+                f"<span class='cc-pl {cls_pl}'>{pg:+,.2f}</span></div>"
+                "<div class='cc-grid'>"
+                f"<span class='it'>Cantidad <b>{c.get('volumen', 0):,.2f}</b></span>"
+                f"<span class='it'>Apertura <b>{_fmtp(c.get('ap'))}</b></span>"
+                f"<span class='it'>Cierre <b>{_fmtp(c.get('cierre', c.get('ac')))}</b></span>"
+                f"<span class='it'>Hora <b>{c.get('hora', '')}</b></span>"
+                "</div></div>",
+                unsafe_allow_html=True,
+            )
+            if st.button("Aceptar", key=f"cacerr_ok_{tk}", width="stretch"):
+                st.session_state.ca_cerradas = [x for x in cerradas if x["ticket"] != tk]
+                cerradas_store.guardar(st.session_state.ca_cerradas)
+                st.rerun()
+
 def renderizar_cartera_lista():
     """Panel de posiciones abiertas (reemplaza al watchlist en 'Cartera')."""
     st.markdown(_CSS, unsafe_allow_html=True)
     st.markdown(_CSS_DET, unsafe_allow_html=True)
     pos = obtener_posiciones()
+    st.session_state.ca_editando = False   # lo activan los editores si abren un input
+    # Tras un F5 la sesión es nueva: recuperar las tarjetas cerradas del archivo.
+    if "ca_cerradas" not in st.session_state:
+        st.session_state.ca_cerradas = cerradas_store.leer()
+    _detectar_cierres(pos)                 # registra tarjetas de posiciones cerradas
 
     with st.container(key="ca_panel"):
         st.markdown(
@@ -148,13 +260,14 @@ def renderizar_cartera_lista():
             unsafe_allow_html=True,
         )
 
-        # Resultado del último cierre (persiste hasta el próximo cierre)
+        # Mensaje de error puntual (p. ej. "no se pudo cerrar").
         r = st.session_state.get("ca_result")
         if r:
             cls_r = "ca-result-ok" if r[0] == "ok" else "ca-result-err"
             st.markdown(f"<div class='{cls_r}'>{html.escape(r[1])}</div>", unsafe_allow_html=True)
 
-        if not pos:
+        hay_cerradas = bool(st.session_state.get("ca_cerradas"))
+        if not pos and not hay_cerradas:
             st.markdown(
                 "<div class='ca-empty'>Nada que mostrar.<br>"
                 "Las operaciones que abras aparecerán aquí.</div>",
@@ -164,6 +277,12 @@ def renderizar_cartera_lista():
 
         abierta = st.session_state.get("ca_detalle")   # ticket de la fila desplegada
         with st.container(height=ALTURA_LISTA, border=False, key="ca_scroll"):
+            # Tarjetas de posiciones cerradas (manual o auto) con "Aceptar", dentro
+            # del scroll para que compartan el mismo inset que las abiertas.
+            _render_cerradas()
+            if not pos:
+                st.markdown("<div class='ca-empty' style='padding:24px 10px;'>"
+                            "No tienes posiciones abiertas.</div>", unsafe_allow_html=True)
             for i, p in enumerate(pos):
                 sym = p["symbol"]
                 base = wl.nombre_visible(sym)
@@ -299,8 +418,9 @@ def _dialogo_cerrar():
         if "error" in res:
             st.session_state.ca_result = ("error", f"No se pudo cerrar: {res['error']}")
         else:
-            st.session_state.ca_result = (
-                "ok", f"Posición de {c.get('symbol','')} cerrada ({res.get('profit', prof):+,.2f} USD)")
+            # P/G exacto para la tarjeta de posición cerrada (lo usa _detectar_cierres).
+            st.session_state.setdefault("ca_pg_real", {})[c.get("ticket")] = float(res.get("profit", prof))
+            st.session_state.pop("ca_result", None)
         st.session_state.ca_cerrar = None
         st.rerun()
     if st.button("Cancelar", width="stretch", key="ca_cerrar_cancel"):
@@ -338,6 +458,10 @@ _CSS_DET = """
   .cad-up { color:#2ebd85 !important; } .cad-down { color:#f6465d !important; }
   .cad-note { color:#8b949e; font-size:11.5px; margin:2px 2px 4px; }
   .cad-err { color:#f85149; font-size:12px; margin:4px 2px 8px; }
+  .cad-trail-on { display:flex; align-items:center; justify-content:space-between; gap:10px;
+      padding:9px 12px; border-radius:10px; background:#111a16; border:1px solid #1e3a2a; margin:2px 0 4px; }
+  .cad-trail-on .k { color:#2ebd85; font-size:12.5px; font-weight:700; }
+  .cad-trail-on .v { color:#e6edf3; font-size:12.5px; font-variant-numeric:tabular-nums; }
   .cad-fb-ok { color:#2ebd85; font-size:13px; padding:4px 2px; }
   .cad-fb-err { color:#f85149; font-size:13px; padding:4px 2px; }
   .cad-empty { color:#8b949e; font-size:13px; padding:16px 6px; text-align:center; }
@@ -402,11 +526,17 @@ def _resolver_nivel(clave, modo, valor, e, ap, ac, compra):
     return precio, None
 
 
-def _editor_nivel(clave, titulo, ticket, p, e, ap, ac, compra):
+def _editor_nivel(clave, titulo, ticket, p, e, ap, ac, compra, bloqueado=False):
     """Toggle Take profit / Stop loss con el editor desplegable (Precio/Cantidad,
-    input, Cancelar/Guardar), igual que XM. Aplica con modificar_sltp."""
+    input, Cancelar/Guardar), igual que XM. Aplica con modificar_sltp.
+    `bloqueado`: el nivel lo gestiona el stop dinámico → se muestra en gris, sin editar."""
     existe = float(p.get(clave, 0.0) or 0.0)
     dig = e.get("digitos", 5)
+    if bloqueado:
+        st.toggle(titulo, value=True, key=f"cad_{clave}_blk_{ticket}", disabled=True)
+        st.markdown("<div class='cad-note'>Gestionado por el stop dinámico. Para cambiarlo, "
+                    "edita la distancia o quita el stop dinámico.</div>", unsafe_allow_html=True)
+        return
     on = st.toggle(titulo, value=existe > 0, key=f"cad_{clave}_on_{ticket}")
     if not on:
         if existe > 0:
@@ -416,6 +546,7 @@ def _editor_nivel(clave, titulo, ticket, p, e, ap, ac, compra):
                 _fb_sltp(res, titulo, "quitado")
                 st.rerun(scope="fragment")
         return
+    st.session_state.ca_editando = True   # hay un input abierto: pausa el auto-refresco
     modo = st.segmented_control(
         "modo", ["Precio", "Cantidad"], default="Precio",
         key=f"cad_{clave}_modo_{ticket}", label_visibility="collapsed")
@@ -446,6 +577,98 @@ def _fb_sltp(res, titulo, verbo):
         st.session_state.cad_fb = ("err", f"No se pudo guardar: {res['error']}")
     else:
         st.session_state.cad_fb = ("ok", f"{titulo} {verbo}.")
+
+
+def _resolver_distancia(valor, sm, dig):
+    """Valida la distancia (en precio) del Stop dinámico: número > 0 y no menor
+    que la distancia mínima del bróker (stops_level × point)."""
+    valor = (valor or "").strip().replace(",", "")
+    if not valor:
+        return None, None
+    try:
+        x = float(valor)
+    except ValueError:
+        return None, "Ingresa un número."
+    if x <= 0:
+        return None, "La distancia debe ser mayor que cero."
+    x = round(x, dig)
+    if sm > 0 and x < sm:
+        return None, f"La distancia mínima del bróker es {sm:,.{dig}f}."
+    return x, None
+
+
+def _editor_trailing(ticket, p, e):
+    """Toggle 'Stop dinámico (trailing)': el SL sigue al precio a una distancia
+    fija cuando la operación va a favor y nunca retrocede. La config se guarda en
+    data/trailing.json; el motor de servidor_datos.py la aplica en vivo (por eso
+    requiere ese proceso encendido).
+
+    Estados: activado sin guardar -> formulario; ya guardado -> resumen + Editar;
+    toggle apagado con config -> botón Quitar."""
+    cfg = trailing_store.leer().get(int(ticket))
+    dig = e.get("digitos", 5)
+    sm = e.get("stops_level", 0) * e.get("point", 0.0)
+    edit_key = f"cad_trail_edit_{ticket}"
+
+    on = st.toggle("Stop dinámico (trailing)", value=cfg is not None, key=f"cad_trail_on_{ticket}")
+    if not on:
+        if cfg is not None:
+            if st.button("Quitar stop dinámico", key=f"cad_trail_quitar_{ticket}", width="stretch"):
+                trailing_store.quitar(ticket)
+                # El stop dinámico ERA el stop: al quitarlo se quita también el SL que
+                # el motor había puesto (si no, el "Stop loss" manual quedaría activo solo).
+                modificar_sltp(ticket, sl=0.0)
+                st.session_state.pop(edit_key, None)
+                st.session_state.cad_fb = ("ok", "Stop dinámico quitado.")
+                st.rerun()
+        return
+
+    # Estado GUARDADO (hay config y no se está editando): resumen + "Editar".
+    if cfg is not None and not st.session_state.get(edit_key, False):
+        st.markdown(
+            "<div class='cad-trail-on'>"
+            "<span class='k'>Stop dinámico activo</span>"
+            f"<span class='v'>Distancia {cfg['dist']:,.{dig}f}</span></div>"
+            "<div class='cad-note'>El stop loss sigue al precio y solo se mueve a tu favor. "
+            "Requiere el servidor de datos encendido.</div>",
+            unsafe_allow_html=True,
+        )
+        if st.button("Editar distancia", key=f"cad_trail_editar_{ticket}", width="stretch"):
+            st.session_state[edit_key] = True
+            st.rerun()
+        return
+
+    # Estado FORMULARIO (recién activado o editando). Hay un input: se pausa el
+    # auto-refresco de la lista para no perder el foco mientras se escribe.
+    st.session_state.ca_editando = True
+    st.markdown("<div class='cad-note'>El stop loss seguirá al precio a la distancia indicada y "
+                "solo se moverá a tu favor. Requiere el servidor de datos encendido.</div>",
+                unsafe_allow_html=True)
+    pre = f"{cfg['dist']:.{dig}f}" if cfg else ""
+    ph = "Distancia (en precio)"
+    valor = st.text_input(ph, value=pre, placeholder=ph, key=f"cad_trail_val_{ticket}",
+                          label_visibility="collapsed")
+    dist, err = _resolver_distancia(valor, sm, dig)
+    if sm > 0:
+        st.markdown(f"<div class='cad-note'>Distancia mínima del bróker: {sm:,.{dig}f}.</div>",
+                    unsafe_allow_html=True)
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("Cancelar", key=f"cad_trail_cancelar_{ticket}", width="stretch"):
+            if cfg is not None:
+                st.session_state[edit_key] = False       # vuelve al resumen
+            else:
+                st.session_state[f"cad_trail_on_{ticket}"] = False   # apaga el toggle
+            st.rerun()
+    with c2:
+        if st.button("Guardar", key=f"cad_trail_guardar_{ticket}", width="stretch",
+                     type="primary", disabled=(dist is None)):
+            trailing_store.fijar(ticket, dist)
+            st.session_state[edit_key] = False
+            st.session_state.cad_fb = ("ok", "Stop dinámico activado.")
+            st.rerun()
+    if valor and err:
+        st.markdown(f"<div class='cad-err'>{html.escape(err)}</div>", unsafe_allow_html=True)
 
 
 def _detalle_inline(ticket, p):
@@ -526,8 +749,13 @@ def _grid_y_editores(ticket, p, e, sym, lado, compra, neto, ap, ac, dig, var):
         unsafe_allow_html=True,
     )
 
-    # Editores Take Profit / Stop Loss (toggle + Precio/Cantidad + Cancelar/Guardar)
+    # Editores Take Profit / Stop Loss (toggle + Precio/Cantidad + Cancelar/Guardar).
+    # Si el stop dinámico está activo, el Stop loss manual queda deshabilitado (el
+    # auto gestiona ese mismo SL): no se puede editar ni quitar desde aquí.
+    trailing_activo = int(ticket) in trailing_store.leer()
     with st.container(key=f"cad_tpbox_{ticket}"):
         _editor_nivel("tp", "Take profit", ticket, p, e, ap, ac, compra)
     with st.container(key=f"cad_slbox_{ticket}"):
-        _editor_nivel("sl", "Stop loss", ticket, p, e, ap, ac, compra)
+        _editor_nivel("sl", "Stop loss", ticket, p, e, ap, ac, compra, bloqueado=trailing_activo)
+    with st.container(key=f"cad_trailbox_{ticket}"):
+        _editor_trailing(ticket, p, e)

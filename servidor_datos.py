@@ -42,12 +42,14 @@ import MetaTrader5 as mt5  # type: ignore[import-untyped]
 from tools.mt5_bridge import (inicializar_mt5, obtener_datos_historicos, resolver_simbolo,
                               modificar_sltp, colocar_orden_pendiente, modificar_orden,
                               eliminar_orden)
+from tools import trailing_store
 
 PUERTO = 8000
 # Versión de la API. Se sube cuando cambian rutas o datos que usa el navegador:
 # el gráfico la compara (GET /salud) y avisa si este proceso quedó desactualizado.
 # 3 = órdenes pendientes con caducidad (POST /orden/modificar con "caducidad").
-VERSION_API = 3
+# 4 = stop dinámico (trailing): motor que mueve el SL + flag "tr" por posición en el feed.
+VERSION_API = 4
 
 # Temporalidades soportadas (igual que el selector del dashboard)
 TF_MAP = {
@@ -109,6 +111,8 @@ class MotorPrecios:
         self._reales: dict = {}       # pedido -> nombre real en el terminal
         self._ref: dict = {}          # real -> (cierre_previo, instante)
         self._ultimo_msc: dict = {}   # real -> time_msc del último tick procesado
+        self._trailing: dict = {}     # ticket(int) -> {"dist","paso"} (Stop dinámico)
+        self._trailing_mtime = -1.0   # mtime de data/trailing.json ya cargado
 
     # --- suscripciones -----------------------------------------------------
     def suscribir(self, simbolos):
@@ -198,10 +202,12 @@ class MotorPrecios:
                     float(getattr(si, "trade_stops_level", 0) or 0) * float(getattr(si, "point", 0) or 0),
                 )
             return specs[simbolo]
+        tr = trailing_store.leer()      # tickets con stop dinámico activo (etiqueta "auto")
         for p in posiciones:
             k, sm = _spec(p.symbol)
             pi[str(p.ticket)] = {"s": p.symbol, "t": int(p.type), "v": p.volume, "po": p.price_open,
-                                 "sl": p.sl, "tp": p.tp, "k": k, "sm": sm}
+                                 "sl": p.sl, "tp": p.tp, "k": k, "sm": sm,
+                                 "tr": 1 if p.ticket in tr else 0}
         # órdenes pendientes (t: 2 Buy Limit, 3 Sell Limit, 4 Buy Stop, 5 Sell Stop)
         orden = {}
         for o in ordenes:
@@ -219,6 +225,66 @@ class MotorPrecios:
                 # % del equity usado como margen (barra "margen usado" de Inicio)
                 "uso_margen": round(info.margin / info.equity * 100, 2) if info.equity else 0.0,
                 "pos": pos, "pc": pc, "pi": pi, "ord": orden}
+
+    # --- Stop dinámico (trailing stop) ------------------------------------
+    # El SL sigue al precio a una distancia fija cuando la operación va a favor y
+    # NUNCA retrocede. MT5 no tiene una orden trailing en el servidor del bróker:
+    # la lógica corre aquí (cliente), por eso solo funciona con este proceso vivo.
+    # La config la escribe el panel de Cartera en data/trailing.json (otro proceso).
+    def _recargar_trailing(self):
+        m = trailing_store.mtime()
+        if m != self._trailing_mtime:
+            self._trailing = trailing_store.leer()
+            self._trailing_mtime = m
+
+    def _paso_trailing(self):
+        self._recargar_trailing()
+        if not self._trailing:
+            return
+        with _IO:
+            posiciones = {p.ticket: p for p in (mt5.positions_get() or [])}
+        for ticket in list(self._trailing.keys()):
+            cfg = self._trailing[ticket]
+            p = posiciones.get(ticket)
+            if p is None:                      # posición cerrada -> limpiar la config
+                trailing_store.quitar(ticket)
+                self._trailing.pop(ticket, None)
+                self._trailing_mtime = trailing_store.mtime()
+                continue
+            dist = float(cfg.get("dist", 0.0))
+            if dist <= 0:
+                continue
+            with _IO:
+                si = mt5.symbol_info(p.symbol)
+                tick = mt5.symbol_info_tick(p.symbol)
+            if si is None or tick is None or not (tick.bid or tick.ask):
+                continue
+            dig = int(getattr(si, "digits", 5) or 5)
+            point = float(getattr(si, "point", 0) or 0)
+            sm = float(getattr(si, "trade_stops_level", 0) or 0) * point
+            # Paso mínimo para volver a mover el SL (evita reescribirlo en cada
+            # micro-tick). Por defecto 5 % de la distancia, con piso de unos points:
+            # el SL sigue pegado al precio (gap entre dist y dist×1.05) sin saturar.
+            paso = float(cfg.get("paso", 0.0)) or max(point * 3, dist * 0.05)
+            sl_actual = float(p.sl or 0.0)
+            if int(p.type) == 0:               # COMPRA: SL por debajo, sigue al Bid
+                precio = tick.bid
+                nuevo = round(precio - dist, dig)
+                if precio - nuevo < sm:        # respeta la distancia mínima del bróker
+                    nuevo = round(precio - sm, dig)
+                sube = nuevo > sl_actual + paso if sl_actual > 0 else True
+                if sube and 0 < nuevo < precio and (sl_actual <= 0 or nuevo > sl_actual):
+                    with _IO:
+                        modificar_sltp(int(ticket), sl=nuevo)   # tp=None -> conserva el TP
+            else:                              # VENTA: SL por encima, sigue al Ask
+                precio = tick.ask
+                nuevo = round(precio + dist, dig)
+                if nuevo - precio < sm:
+                    nuevo = round(precio + sm, dig)
+                baja = nuevo < sl_actual - paso if sl_actual > 0 else True
+                if baja and nuevo > precio and (sl_actual <= 0 or nuevo < sl_actual):
+                    with _IO:
+                        modificar_sltp(int(ticket), sl=nuevo)
 
     # --- bucle principal ---------------------------------------------------
     def correr(self):
@@ -243,6 +309,7 @@ class MotorPrecios:
                             cuenta["seq"] = self._seq
                             self._cuenta = cuenta
                         self._cond.notify_all()
+                self._paso_trailing()          # mueve los stops dinámicos activos
             except Exception as e:
                 print(f"[motor] error leyendo MT5: {e}")
                 time.sleep(1)
