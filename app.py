@@ -39,6 +39,7 @@ from components.central_panel import renderizar_panel_central
 from components.favoritos_bar import renderizar_barra_favoritos
 from components.market_data import actualizar_precios_mt5, cargar_datos_mercado
 from components.watchlist import renderizar_watchlist
+from components.panel_ordenes import renderizar_historial_agente, renderizar_ordenes_propuestas
 from components.nav_bar import renderizar_barra_navegacion as renderizar_nav_lateral
 from components.top_navbar import renderizar_barra_navegacion as renderizar_nav_superior
 from components.news_panel import renderizar_panel_noticias
@@ -270,11 +271,13 @@ with col_main:
         col_watchlist, col_center, col_orden = st.columns([1.7, 3.2, 0.95])
         with col_watchlist:
             _watchlist_en_vivo()
+            renderizar_historial_agente()          # historial del agente, bajo la lista
         with col_center:
             renderizar_panel_central(main)
         with col_orden:
             from components.order_panel import renderizar_panel_orden
             renderizar_panel_orden(main)
+            renderizar_ordenes_propuestas()        # propuestas del agente, bajo el ticket
     elif _nav == "portafolio":
         # --- VISTA CARTERA (igual a Trading, pero la lista izquierda son las
         #     posiciones abiertas en vez del watchlist) ---
@@ -282,11 +285,13 @@ with col_main:
         col_cartera, col_center, col_orden = st.columns([1.7, 3.2, 0.95])
         with col_cartera:
             _cartera_en_vivo()
+            renderizar_historial_agente()          # historial del agente, bajo la lista
         with col_center:
             renderizar_panel_central(main)
         with col_orden:
             from components.order_panel import renderizar_panel_orden
             renderizar_panel_orden(main)
+            renderizar_ordenes_propuestas()        # propuestas del agente, bajo el ticket
     else:
         # --- VISTA INICIO (panel de cuenta estilo XM) — también para botones sin vista propia ---
         from components.inicio_panel import renderizar_panel_inicio
