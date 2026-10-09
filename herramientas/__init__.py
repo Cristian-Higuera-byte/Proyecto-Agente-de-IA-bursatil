@@ -17,6 +17,13 @@ simulacion_tools: ModuleType = import_module(".simulacion_tools", __name__)
 diagnostico_tools: ModuleType = import_module(".diagnostico_tools", __name__)
 graficos_tools: ModuleType = import_module(".graficos_tools", __name__)
 tablas_tools: ModuleType = import_module(".tablas_tools", __name__)
+cuantitativo_tools: ModuleType = import_module(".cuantitativo_tools", __name__)
+gestion_riesgo_tools: ModuleType = import_module(".gestion_riesgo_tools", __name__)
+estructura_mercado_tools: ModuleType = import_module(".estructura_mercado_tools", __name__)
+macro_eventos_tools: ModuleType = import_module(".macro_eventos_tools", __name__)
+sentimiento_tools: ModuleType = import_module(".sentimiento_tools", __name__)
+ordenes_tools: ModuleType = import_module(".ordenes_tools", __name__)
+
 
 __all__ = [
     "utilidades",
@@ -29,4 +36,10 @@ __all__ = [
     "diagnostico_tools",
     "graficos_tools",
     "tablas_tools",
+    "cuantitativo_tools",
+    "gestion_riesgo_tools",
+    "estructura_mercado_tools",
+    "macro_eventos_tools",
+    "sentimiento_tools",
+    "ordenes_tools",
 ]
