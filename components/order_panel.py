@@ -26,8 +26,9 @@ from components.one_click import al_cambiar as _oc_cambiar, pedir_terminos_si_co
 
 from tools.mt5_bridge import (
     MT5_LOCK, inicializar_mt5, obtener_precio_actual, resolver_simbolo,
-    ejecutar_orden_mercado, colocar_orden_pendiente,
+    ejecutar_orden_mercado, colocar_orden_pendiente, eliminar_orden,
 )
+from tools import oco_store
 
 _CSS = """
 <style>
@@ -86,15 +87,28 @@ _CSS = """
   [class*="st-key-ord_ovbuy"]  { left:auto !important;  width:50% !important; }
 
   /* ====== Cantidad | Lotes (segmentado a todo el ancho) ====== */
-  .st-key-ord_modo [data-testid="stButtonGroup"] { width:100%; }
-  .st-key-ord_modo [role="radiogroup"] { width:100%; display:flex;
+  .st-key-ord_modo [data-testid="stButtonGroup"],
+  .st-key-ord_oco_lado [data-testid="stButtonGroup"],
+  .st-key-ord_rm_modo [data-testid="stButtonGroup"] { width:100%; }
+  .st-key-ord_modo [role="radiogroup"],
+  .st-key-ord_oco_lado [role="radiogroup"],
+  .st-key-ord_rm_modo [role="radiogroup"] { width:100%; display:flex;
       background:#0d1117; border:1px solid #252f3d; border-radius:10px; padding:3px; gap:3px; }
-  .st-key-ord_modo button { flex:1 1 0; border:none !important; border-radius:8px !important;
+  .st-key-ord_modo button, .st-key-ord_oco_lado button, .st-key-ord_rm_modo button {
+      flex:1 1 0; border:none !important; border-radius:8px !important;
       background:transparent !important; min-height:36px !important; box-shadow:none !important; }
-  .st-key-ord_modo button p { color:#c9d1d9 !important; font-size:14px !important;
-      font-weight:700 !important; }
-  .st-key-ord_modo button[aria-checked="true"] { background:#2a3342 !important; }
-  .st-key-ord_modo button[aria-checked="true"] p { color:#ffffff !important; }
+  .st-key-ord_modo button p, .st-key-ord_oco_lado button p, .st-key-ord_rm_modo button p {
+      color:#c9d1d9 !important; font-size:14px !important; font-weight:700 !important; }
+  .st-key-ord_modo button[aria-checked="true"],
+  .st-key-ord_oco_lado button[aria-checked="true"],
+  .st-key-ord_rm_modo button[aria-checked="true"] { background:#2a3342 !important; }
+  .st-key-ord_modo button[aria-checked="true"] p,
+  .st-key-ord_oco_lado button[aria-checked="true"] p,
+  .st-key-ord_rm_modo button[aria-checked="true"] p { color:#ffffff !important; }
+
+  /* Botón "Aplicar al ticket" (Calculadora de riesgo) */
+  .st-key-ord_rm_aplicar button { background:#1f6feb !important; border:none !important; }
+  .st-key-ord_rm_aplicar button p { color:#fff !important; font-weight:700 !important; }
 
   /* ====== Campos tipo tarjeta: etiqueta DENTRO + número grande ====== */
   [class*="st-key-ord_box_"] { position:relative; }
@@ -174,8 +188,8 @@ _CSS = """
       padding:12px 14px; color:#c9d1d9; font-size:13px; line-height:1.45; }
   .ord-conf b { color:#ffffff; }
   .ord-conf .t { color:#8b949e; font-size:12px; margin-bottom:4px; }
-  .st-key-ord_ok button { background:#2ea043 !important; border:none !important; }
-  .st-key-ord_ok button p { color:#fff !important; font-weight:700 !important; }
+  .st-key-ord_ok button, .st-key-ord_oco_ok button { background:#2ea043 !important; border:none !important; }
+  .st-key-ord_ok button p, .st-key-ord_oco_ok button p { color:#fff !important; font-weight:700 !important; }
 </style>
 """
 
@@ -208,6 +222,18 @@ def _margen_libre():
         return None
 
 
+def _capital_cuenta():
+    """Equity y moneda de la cuenta (base de la Calculadora de riesgo): (equity, moneda)."""
+    try:
+        with MT5_LOCK:
+            cuenta = mt5.account_info()
+        if cuenta is None:
+            return None, "USD"
+        return float(cuenta.equity), getattr(cuenta, "currency", "USD") or "USD"
+    except Exception:
+        return None, "USD"
+
+
 def _ejecutar(real, visible, tipo, vol, sl, tp, pendiente=None, gtc=True):
     """Envía la orden a MT5: a mercado, o pendiente si `pendiente` trae un precio."""
     verbo = "Buy" if tipo == "BUY" else "Sell"
@@ -220,6 +246,32 @@ def _ejecutar(real, visible, tipo, vol, sl, tp, pendiente=None, gtc=True):
         ok = f"{verbo} ejecutada a mercado: {res.get('volume')} lotes de {visible} @ {res.get('price')}"
     st.session_state.ord_result = ("error", res["error"]) if "error" in res else ("ok", ok)
     st.session_state.ord_confirm = None
+
+
+def _ejecutar_oco(real, visible, lado_a, lado_b, precio_a, precio_b, vol, gtc=True):
+    """Coloca las DOS patas de un OCO y las vincula en oco_store. Si falla la 2.ª,
+    cancela la 1.ª para no dejar un par a medias. Las patas van sin SL/TP (suelen
+    ir en lados opuestos: el SL/TP se define sobre la posición al ejecutarse)."""
+    ra = colocar_orden_pendiente(real, lado_a, vol, precio_a, 0.0, 0.0, hasta_cancelar=gtc)
+    if "error" in ra:
+        st.session_state.ord_result = ("error", f"OCO: no se pudo colocar la 1.ª orden · {ra['error']}")
+        st.session_state.ord_oco_confirm = None
+        return
+    rb = colocar_orden_pendiente(real, lado_b, vol, precio_b, 0.0, 0.0, hasta_cancelar=gtc)
+    if "error" in rb:
+        und = eliminar_orden(int(ra["order"]))
+        extra = "" if "error" not in und else " (no se pudo deshacer la 1.ª: revísala en el gráfico)"
+        st.session_state.ord_result = (
+            "error", f"OCO: no se pudo colocar la 2.ª orden · {rb['error']}. Se canceló la 1.ª{extra}.")
+        st.session_state.ord_oco_confirm = None
+        return
+    oco_store.fijar(int(ra["order"]), int(rb["order"]), real)
+    ok = (f"OCO colocado en {visible}: {ra.get('tipo')} {vol:.2f} @ {ra.get('price')} · "
+          f"{rb.get('tipo')} {vol:.2f} @ {rb.get('price')}"
+          + (" · GTC" if gtc else " · DAY (solo hoy)")
+          + ". Cuando una se ejecute, la otra se cancela sola.")
+    st.session_state.ord_result = ("ok", ok)
+    st.session_state.ord_oco_confirm = None
 
 
 def _campo(clave: str, etiqueta: str, sufijo: str = ""):
@@ -260,6 +312,19 @@ def renderizar_panel_orden(main=None):
             bid, ask = t.get("bid", 0), t.get("ask", 0)
             side = st.session_state.get("ord_side", "BUY")
             compra = side == "BUY"
+
+            # La Calculadora de riesgo pide "Aplicar" dejando los valores aquí; se vuelcan
+            # a los widgets del ticket ANTES de crearlos (si no, Streamlit no deja cambiarlos).
+            pend_rm = st.session_state.pop("_rm_aplicar", None)
+            if pend_rm:
+                st.session_state["ord_modo"] = "Lotes"
+                st.session_state["ord_vol"] = pend_rm["vol"]
+                if pend_rm.get("sl") or pend_rm.get("tp"):
+                    st.session_state["ord_tpsl"] = True
+                    if pend_rm.get("sl"):
+                        st.session_state["ord_sl"] = pend_rm["sl"]
+                    if pend_rm.get("tp"):
+                        st.session_state["ord_tp"] = pend_rm["tp"]
 
             # --- One-Click Trading (interruptor a la derecha) ---
             with st.container(key="ord_tg_oc"):
@@ -314,6 +379,7 @@ def renderizar_panel_orden(main=None):
             # --- Pending order: Buy/Sell Limit o Stop según el precio pedido ---
             ref = ask if compra else bid
             pendiente, gtc = None, True
+            oco_on, oco_lado_b, oco_precio_b, oco_tipo_b = False, None, None, ""
             with st.container(key="ord_card_pend"):
                 with st.container(key="ord_tg_pend"):
                     usar_pend = st.toggle(
@@ -339,6 +405,40 @@ def renderizar_panel_orden(main=None):
                         gtc = st.toggle("Good till cancelled (GTC)", value=True, key="ord_gtc",
                                         help="Apagado: DAY, la orden vence al final del día.")
 
+                    # --- OCO: segunda orden vinculada (One-Cancels-the-Other) ---
+                    st.html("<div class='ord-sep'></div>")
+                    with st.container(key="ord_tg_oco"):
+                        oco_on = st.toggle(
+                            "OCO (One-Cancels-the-Other)", key="ord_oco_tg",
+                            help="Coloca DOS órdenes pendientes vinculadas: cuando una se ejecuta, "
+                                 "la otra se cancela sola. Típico para un breakout (Buy Stop arriba + "
+                                 "Sell Stop abajo). Necesita el servidor de datos en marcha.")
+                    if oco_on:
+                        st.html("<div class='ord-sub' style='margin-top:2px'>Segunda orden del par</div>")
+                        lb = st.segmented_control(
+                            "Lado de la segunda orden", ["Compra", "Venta"],
+                            default=("Venta" if compra else "Compra"), label_visibility="collapsed",
+                            key="ord_oco_lado", width="stretch") or ("Venta" if compra else "Compra")
+                        oco_lado_b = "BUY" if lb == "Compra" else "SELL"
+                        refb = ask if oco_lado_b == "BUY" else bid
+                        with _campo("pxb", "Segundo precio"):
+                            oco_precio_b = st.number_input(
+                                "Precio de la segunda orden", min_value=0.0,
+                                value=round(float(refb), dig), step=(point * 10) or 0.0001,
+                                format=f"%.{dig}f", key=f"ord_pxb_{real}_{side}",
+                                label_visibility="collapsed")
+                        if oco_lado_b == "BUY":
+                            oco_tipo_b = "Buy Limit" if oco_precio_b < refb else "Buy Stop"
+                        else:
+                            oco_tipo_b = "Sell Limit" if oco_precio_b > refb else "Sell Stop"
+                        st.html(
+                            f"<div class='ord-hint'>Orden A (esta):"
+                            f"<b>{tipo_pend} · {'BUY' if compra else 'SELL'} @ {pendiente:,.{dig}f}</b></div>"
+                            f"<div class='ord-hint'>Orden B:"
+                            f"<b>{oco_tipo_b} · {oco_lado_b} @ {oco_precio_b:,.{dig}f}</b></div>"
+                            "<div class='ord-hint' style='margin-top:4px;color:#8b949e'>El Stop Loss / "
+                            "Take Profit se define sobre la posición cuando una pata se ejecute.</div>")
+
             # --- Margen requerido + % del margen libre (como XM) ---
             price = pendiente if pendiente else ref
             m = _margen(real, vol, price, side)
@@ -359,35 +459,155 @@ def renderizar_panel_orden(main=None):
                        "</style>" if sin_margen else "")
                 )
 
-            # --- Take Profit / Stop Loss ---
+            # --- Take Profit / Stop Loss (no aplica en OCO: patas en lados opuestos) ---
             sl = tp = 0.0
-            with st.container(key="ord_card_tpsl"):
-                with st.container(key="ord_tg_tpsl"):
-                    usar_tpsl = st.toggle("Take Profit / Stop Loss", key="ord_tpsl")
-                if usar_tpsl:
-                    with _campo("sl", "Stop Loss"):
-                        sl = st.number_input("Stop Loss", min_value=0.0, value=0.0,
-                                             step=point or 0.0001, format=f"%.{dig}f",
-                                             key="ord_sl", label_visibility="collapsed")
-                    with _campo("tp", "Take Profit"):
-                        tp = st.number_input("Take Profit", min_value=0.0, value=0.0,
-                                             step=point or 0.0001, format=f"%.{dig}f",
-                                             key="ord_tp", label_visibility="collapsed")
+            if not oco_on:
+                with st.container(key="ord_card_tpsl"):
+                    with st.container(key="ord_tg_tpsl"):
+                        usar_tpsl = st.toggle("Take Profit / Stop Loss", key="ord_tpsl")
+                    if usar_tpsl:
+                        with _campo("sl", "Stop Loss"):
+                            sl = st.number_input("Stop Loss", min_value=0.0, value=0.0,
+                                                 step=point or 0.0001, format=f"%.{dig}f",
+                                                 key="ord_sl", label_visibility="collapsed")
+                        with _campo("tp", "Take Profit"):
+                            tp = st.number_input("Take Profit", min_value=0.0, value=0.0,
+                                                 step=point or 0.0001, format=f"%.{dig}f",
+                                                 key="ord_tp", label_visibility="collapsed")
 
-            # --- Botón grande "Colocar orden en {precio}" ---
-            cls = ("ord-place-buy" if compra else "ord-place-sell") + (" ord-place-off" if sin_margen else "")
-            # Pendiente: precio fijo elegido; a mercado: precio en vivo (feed)
-            px_attr = "" if pendiente else _live(real, "side", d=dig, side=side)
+            # --- Calculadora de riesgo (Risk Manager): tamaño por riesgo + TP por R/R ---
+            with st.container(key="ord_card_rm"):
+                with st.container(key="ord_tg_rm"):
+                    usar_rm = st.toggle(
+                        "Calculadora de riesgo", key="ord_rm",
+                        help="Sugiere cuántos lotes operar para no arriesgar más de un % de tu "
+                             "capital, y el Take Profit por relación riesgo/beneficio (R/R). "
+                             "'Aplicar' rellena volumen, Stop Loss y Take Profit en el ticket.")
+                if usar_rm:
+                    tsize = float(getattr(info, "trade_tick_size", 0) or 0) if info else 0.0
+                    tval = float(getattr(info, "trade_tick_value", 0) or 0) if info else 0.0
+                    kval = (tval / tsize) if tsize else 0.0        # valor de 1 unidad de precio por lote
+                    contract = float(getattr(info, "trade_contract_size", 1) or 1) if info else 1.0
+                    vmax = float(getattr(info, "volume_max", 100) or 100) if info else 100.0
+                    equity, moneda = _capital_cuenta()
+                    with _campo("rmcap", "Capital", moneda):
+                        cap = st.number_input("Capital", min_value=0.0,
+                                              value=float(round(equity or 0.0, 2)), step=100.0,
+                                              format="%.2f", key="ord_rm_cap", label_visibility="collapsed")
+                    modo_r = st.segmented_control("Riesgo en", ["%", moneda], default="%",
+                                                  label_visibility="collapsed", key="ord_rm_modo",
+                                                  width="stretch") or "%"
+                    if modo_r == "%":
+                        with _campo("rmpct", "Riesgo por operación", "%"):
+                            rpct = st.number_input("Riesgo %", min_value=0.0, max_value=100.0, value=1.0,
+                                                   step=0.25, format="%.2f", key="ord_rm_pct",
+                                                   label_visibility="collapsed")
+                        riesgo = cap * rpct / 100.0
+                    else:
+                        with _campo("rmusd", "Riesgo por operación", moneda):
+                            riesgo = st.number_input("Riesgo", min_value=0.0,
+                                                     value=float(round((cap or 0.0) * 0.01, 2)), step=50.0,
+                                                     format="%.2f", key="ord_rm_usd",
+                                                     label_visibility="collapsed")
+                    with _campo("rment", "Entrada"):
+                        entrada = st.number_input("Entrada", min_value=0.0,
+                                                  value=float(round(price, dig)),
+                                                  step=(point * 10) or 0.0001, format=f"%.{dig}f",
+                                                  key=f"ord_rm_ent_{real}_{side}", label_visibility="collapsed")
+                    with _campo("rmstop", "Stop Loss"):
+                        stop_rm = st.number_input("Stop", min_value=0.0, value=0.0,
+                                                  step=(point * 10) or 0.0001, format=f"%.{dig}f",
+                                                  key=f"ord_rm_stop_{real}_{side}", label_visibility="collapsed")
+                    with _campo("rmrr", "R/R objetivo", ": 1"):
+                        rr = st.number_input("R/R", min_value=0.1, value=2.0, step=0.5, format="%.1f",
+                                             key="ord_rm_rr", label_visibility="collapsed")
+                    dist = abs(entrada - stop_rm) if (entrada > 0 and stop_rm > 0) else 0.0
+                    lado_ok = (stop_rm < entrada) if compra else (stop_rm > entrada)
+                    msg = ""
+                    if kval <= 0:
+                        msg = "Este símbolo no entrega el valor por punto; no se puede calcular."
+                    elif entrada <= 0 or stop_rm <= 0:
+                        msg = "Indica la Entrada y el Stop para calcular el tamaño."
+                    elif not lado_ok:
+                        msg = ("En una compra el Stop va bajo la entrada." if compra
+                               else "En una venta el Stop va sobre la entrada.")
+                    elif dist <= 0 or riesgo <= 0:
+                        msg = "Indica un riesgo y una distancia de stop válidos."
+                    if msg:
+                        st.html(f"<div class='ord-hint' style='color:#8b949e'>{msg}</div>")
+                    else:
+                        perd_lote = dist * kval
+                        lotes_raw = riesgo / perd_lote if perd_lote else 0.0
+                        lotes = max(vmin, round(lotes_raw / vstep) * vstep) if vstep else max(vmin, lotes_raw)
+                        lotes = round(min(lotes, vmax), 2)
+                        perd_real = lotes * dist * kval
+                        tp_sug = round(entrada + (rr * dist) * (1 if compra else -1), dig)
+                        gan = lotes * (rr * dist) * kval
+                        unidades = lotes * contract
+                        m_rm = _margen(real, lotes, entrada, side)
+                        riesgo_bajo = lotes_raw < vmin
+                        st.html(
+                            "<div class='ord-sep'></div>"
+                            f"<div class='ord-margen'><span>Riesgo máximo</span>"
+                            f"<b>{riesgo:,.2f} {moneda}</b></div>"
+                            f"<div class='ord-margen'><span>Tamaño recomendado</span>"
+                            f"<b>{lotes:,.2f} lote(s) · {unidades:,.0f} u.</b></div>"
+                            f"<div class='ord-margen'><span>Pérdida al stop</span>"
+                            f"<b style='color:#f85149'>-{perd_real:,.2f} {moneda}</b></div>"
+                            f"<div class='ord-margen'><span>Take Profit ({rr:.1f}:1)</span>"
+                            f"<b>{tp_sug:,.{dig}f}</b></div>"
+                            f"<div class='ord-margen'><span>Ganancia potencial</span>"
+                            f"<b style='color:#3fb950'>+{gan:,.2f} {moneda}</b></div>"
+                            + (f"<div class='ord-margen'><span>Margen requerido</span>"
+                               f"<b>{m_rm:,.2f} {moneda}</b></div>" if m_rm else "")
+                            + (f"<div class='ord-hint' style='color:#d29922;margin-top:4px'>El riesgo "
+                               f"elegido es menor al lote mínimo ({vmin:g}); con {vmin:g} lote(s) la "
+                               f"pérdida sería {vmin * dist * kval:,.2f} {moneda}.</div>" if riesgo_bajo else "")
+                        )
+                        if st.button("Aplicar al ticket", key="ord_rm_aplicar", width="stretch",
+                                     icon=":material/check:"):
+                            st.session_state._rm_aplicar = {
+                                "vol": lotes,
+                                "sl": None if oco_on else round(stop_rm, dig),
+                                "tp": None if oco_on else tp_sug,
+                            }
+                            st.rerun(scope="fragment")
+
+            # --- Botón grande "Colocar orden en {precio}" (o "Colocar OCO") ---
+            es_oco = bool(oco_on and pendiente and oco_precio_b)
+            # OCO inválido: mismas patas (igual lado y prácticamente igual precio)
+            oco_malo = bool(es_oco and oco_lado_b == ("BUY" if compra else "SELL")
+                            and abs(oco_precio_b - pendiente) < (point or 1e-9))
+            off = sin_margen or oco_malo
+            cls = ("ord-place-buy" if compra else "ord-place-sell") + (" ord-place-off" if off else "")
+            if es_oco:
+                pl_lbl, pl_px, px_attr, px_style = "Colocar OCO · 2 órdenes", \
+                    f"{pendiente:,.{dig}f} / {oco_precio_b:,.{dig}f}", "", "font-size:15px"
+            else:
+                # Pendiente: precio fijo elegido; a mercado: precio en vivo (feed)
+                pl_lbl, pl_px, px_style = "Colocar orden en", f"{price:,.{dig}f}", ""
+                px_attr = "" if pendiente else _live(real, "side", d=dig, side=side)
             with st.container(key="ord_bxplace"):
                 st.html(
                     f"<div class='ord-place {cls}'>"
-                    f"<div><div class='pl-lbl'>Colocar orden en</div>"
-                    f"<div class='pl-px' {px_attr}>{price:,.{dig}f}</div></div>"
+                    f"<div><div class='pl-lbl'>{pl_lbl}</div>"
+                    f"<div class='pl-px' style='{px_style}' {px_attr}>{pl_px}</div></div>"
                     f"<div class='pl-arrow'>{'↗' if compra else '↘'}</div></div>"
                 )
-                if not sin_margen and st.button("Colocar orden", key="ord_ovplace"):
+                if not off and st.button("Colocar orden", key="ord_ovplace"):
                     st.session_state.pop("ord_result", None)  # limpia resultado previo
-                    if oc:
+                    st.session_state.ord_confirm = None
+                    st.session_state.ord_oco_confirm = None
+                    lado = "BUY" if compra else "SELL"
+                    if es_oco:
+                        if oc:
+                            _ejecutar_oco(real, visible, lado, oco_lado_b,
+                                          pendiente, oco_precio_b, vol, gtc)
+                        else:
+                            st.session_state.ord_oco_confirm = (
+                                lado, oco_lado_b, pendiente, oco_precio_b, vol, gtc,
+                                tipo_pend, oco_tipo_b)
+                    elif oc:
                         _ejecutar(real, visible, side, vol, sl, tp, pendiente, gtc)
                     else:
                         st.session_state.ord_confirm = (side, vol, sl, tp, price, pendiente, gtc)
@@ -417,6 +637,25 @@ def renderizar_panel_orden(main=None):
                     st.rerun(scope="fragment")
                 if cc2.button("Cancelar", key="ord_cancel", width="stretch"):
                     st.session_state.ord_confirm = None
+                    st.rerun(scope="fragment")
+
+            # --- Confirmación del OCO ---
+            cfo = st.session_state.get("ord_oco_confirm")
+            if cfo:
+                la, lb, pa, pb, v, g, ta, tb = cfo
+                st.html(f"<div class='ord-conf'><div class='t'>Confirmar OCO</div>"
+                        f"Dos órdenes de <b>{v:.2f}</b> lotes de <b>{visible}</b>"
+                        f"{' · GTC' if g else ' · DAY'}:<br>"
+                        f"Orden A: <b>{ta} · {la}</b> @ <b>{pa:,.{dig}f}</b><br>"
+                        f"Orden B: <b>{tb} · {lb}</b> @ <b>{pb:,.{dig}f}</b><br>"
+                        f"<span style='color:#8b949e'>Cuando una se ejecute, la otra se "
+                        f"cancela sola.</span></div>")
+                oc1, oc2 = st.columns(2)
+                if oc1.button("Confirmar", key="ord_oco_ok", icon=":material/check:", width="stretch"):
+                    _ejecutar_oco(real, visible, la, lb, pa, pb, v, g)
+                    st.rerun(scope="fragment")
+                if oc2.button("Cancelar", key="ord_oco_cancel", width="stretch"):
+                    st.session_state.ord_oco_confirm = None
                     st.rerun(scope="fragment")
 
             # Resultado (persiste hasta colocar una orden nueva)

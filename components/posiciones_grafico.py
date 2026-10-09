@@ -38,7 +38,7 @@ import streamlit as st
 import MetaTrader5 as mt5  # type: ignore[import-untyped]
 
 from tools.mt5_bridge import MT5_LOCK, inicializar_mt5, obtener_posiciones, resolver_simbolo
-from tools import trailing_store
+from tools import trailing_store, oco_store
 from components.live_feed import intervalo
 
 
@@ -71,6 +71,7 @@ def _iniciales(real: str) -> dict:
             # hora del servidor del bróker − hora real (s), redondeado a 15 min: caducidad por fecha
             out["off"] = round((int(tick.time) - time.time()) / 900) * 900
         tr = trailing_store.leer()      # tickets con stop dinámico activo
+        oco_tks = oco_store.tickets_en_oco()   # tickets vinculados en un par OCO
         for p in posiciones:
             out["pos"][str(p.ticket)] = {
                 "s": p.symbol, "t": int(p.type), "v": p.volume, "po": p.price_open,
@@ -83,6 +84,7 @@ def _iniciales(real: str) -> dict:
                     "s": o.symbol, "t": int(o.type), "v": o.volume_current, "po": o.price_open,
                     "sl": o.sl, "tp": o.tp, "k": k, "sm": sm,
                     "tt": int(o.type_time), "ex": int(o.time_expiration or 0),
+                    "oco": 1 if o.ticket in oco_tks else 0,
                 }
     except Exception:
         pass
@@ -119,7 +121,8 @@ _JS = r"""
         'border-left:1px solid #30363d;color:#8b949e;cursor:pointer;font-size:13px;}' +
         '#pj-pos .x:hover{background:#da3633;color:#fff;}' +
         '#pj-pos .ej{position:absolute;right:0;top:-10px;height:20px;display:flex;align-items:center;justify-content:center;' +
-        'color:#fff;font:600 11.5px ui-monospace,Consolas,monospace;}' +
+        'box-sizing:border-box;color:#fff;font:600 11.5px ui-monospace,Consolas,monospace;}' +   // todos iguales, rectángulo completo
+        '#pj-pos .ejlive{position:absolute;right:0;z-index:7;background:#e6edf3;color:#0d1117;}' +   // precio en vivo (blanco), lo dibujamos nosotros
         '#pj-pos .pl.pend{opacity:.5;}' +
         '#pj-pos .pl.mal .ln{border-top-style:dotted;border-top-width:2px;}' +
         '#pj-pos .bds{position:absolute;top:-11px;height:22px;display:flex;gap:4px;pointer-events:auto;}' +
@@ -187,6 +190,10 @@ _JS = r"""
       var capa = document.createElement('div'); capa.id = 'pj-pos';
       containerEl.parentNode.appendChild(capa);
       var ITEMS = {}, nodos = {}, drag = null, tAviso = null, menu = null, conf = null;
+      // Etiqueta del precio en vivo (la nativa del gráfico se apagó en central_panel):
+      // la dibujamos nosotros para que mida igual que las demás, llegue al borde y mande en el apilado.
+      var liveEl = document.createElement('div'); liveEl.className = 'ej ejlive';
+      liveEl.style.display = 'none'; capa.appendChild(liveEl);
 
       function fmt(v, d){ return Number(v).toLocaleString('en-US', {minimumFractionDigits: d, maximumFractionDigits: d}); }
       function txt(el, t){ if (el.textContent !== t) el.textContent = t; }
@@ -562,7 +569,16 @@ _JS = r"""
           var lv = n[f], lx = lv.querySelector('.x');
           lx.title = 'Quitar ' + NOMBRE[f];
           lx.addEventListener('mousedown', function(e){ e.stopPropagation(); });
-          lx.addEventListener('click', function(e){ e.stopPropagation(); cambiarNivel(id, f, 0); });
+          lx.addEventListener('click', function(e){
+            e.stopPropagation();
+            // SL en automático (stop dinámico): el motor lo repone enseguida, así que
+            // quitarlo desde aquí no sirve (reaparece). Se bloquea como el arrastre.
+            if (f === 'sl' && ITEMS[id] && ITEMS[id].tr){
+              avisar('El Stop Loss está en automático (stop dinámico). Para quitarlo, desactiva el stop dinámico en Cartera.', true);
+              return;
+            }
+            cambiarNivel(id, f, 0);
+          });
           lv.querySelector('.tg').title = 'Arrastrar para mover el ' + NOMBRE[f];
           lv.querySelector('.tg').addEventListener('mousedown', function(e){ empezar(id, f, e); });
         });
@@ -616,24 +632,35 @@ _JS = r"""
       });
 
       // Dibuja una línea en la altura del precio dado
-      function colocar(el, y, w, h, eje, col, vo, pg, pgCol, pxEje, nivel){
+      function colocar(el, y, w, h, eje, col, vo, pg, pgCol, pxEje, nivel, esOrden){
         if (y === null || y < 0 || y > h - 28){ el.style.display = 'none'; return false; }
         el.style.display = '';
         el.style.top = Math.round(y) + 'px';
         el.style.width = w + 'px';
         var ln = el.querySelector('.ln'), v = el.querySelector('.vo'), g = el.querySelector('.pg'),
             x = el.querySelector('.x'), ej = el.querySelector('.ej'), tg = el.querySelector('.tg');
+        // ORDEN PENDIENTE: borde punteado en etiqueta y recuadro (como su línea), relleno intacto.
+        var ord = esOrden && !nivel, bs = ord ? 'dashed' : 'solid';
         ln.style.width = (w - eje) + 'px';
         ln.style.borderTopColor = col;
         tg.style.right = (eje + SEP) + 'px';
         txt(v, vo);
         if (nivel){ v.style.background = '#161b22'; v.style.color = col; v.style.borderColor = col; }
-        else { v.style.background = col; v.style.color = '#fff'; v.style.borderColor = col; }
+        else { v.style.background = col; v.style.color = '#fff';
+               v.style.borderColor = ord ? '#0d1117' : col; }   // punteado oscuro visible sobre el relleno
+        v.style.borderStyle = bs;
         txt(g, pg);
         g.style.color = pgCol;
-        g.style.borderColor = col;
-        x.style.borderColor = col; x.style.borderLeftColor = '#30363d';
-        ej.style.width = eje + 'px'; ej.style.background = col;
+        g.style.borderColor = col; g.style.borderStyle = bs;
+        x.style.borderColor = col; x.style.borderLeftColor = '#30363d'; x.style.borderStyle = bs;
+        // Recuadro del eje: posiciones/órdenes RELLENO; niveles TP/SL solo CONTORNO
+        // (como XM: así el TP/SL no se confunde con una posición). Las órdenes pendientes
+        // llevan el borde punteado para distinguirse de las posiciones abiertas.
+        ej.style.width = eje + 'px';
+        if (nivel){ ej.style.background = '#0d1117'; ej.style.color = col;
+                    ej.style.boxShadow = 'inset 0 0 0 1.5px ' + col; ej.style.border = 'none'; }
+        else { ej.style.background = col; ej.style.color = '#fff'; ej.style.boxShadow = 'none';
+               ej.style.border = ord ? '1.5px dashed #0d1117' : 'none'; }
         txt(ej, fmt(pxEje, DIGITS));
         return true;
       }
@@ -648,6 +675,8 @@ _JS = r"""
         capa.style.width = w + 'px'; capa.style.height = h + 'px';
         var eje = 72;
         try { eje = chart.priceScale('right').width() || 72; } catch(e) {}
+        var yLive = (BID && serie) ? serie.priceToCoordinate(BID) : null;   // y del recuadro blanco del precio en vivo
+        var cajas = [];   // recuadros del eje visibles (para apilarlos sin pisar el blanco)
         if (ed){
           txt(ed.querySelector('.b'), BID ? fmt(BID, DIGITS) : '—');
           txt(ed.querySelector('.a'), ASK ? fmt(ASK, DIGITS) : '—');
@@ -663,15 +692,17 @@ _JS = r"""
           var y0 = serie.priceToCoordinate(entrada), visible;
           if (it.kind === 'pos'){
             visible = colocar(n.main, y0, w, h, eje, lado, (esCompra(it) ? '+' : '-') + fmt(it.v, 2),
-                              pgTxt(it.p || 0), (it.p || 0) >= 0 ? COMPRA : VENTA, it.po, false);
+                              pgTxt(it.p || 0), (it.p || 0) >= 0 ? COMPRA : VENTA, it.po, false, false);
             n.main.querySelector('.tg').title = TIPO[it.t] + ' ' + fmt(it.v, 2) + ' lote(s) a ' + fmt(it.po, DIGITS);
           } else {
-            visible = colocar(n.main, y0, w, h, eje, lado, TIPO[it.t].toUpperCase() + ' ' + fmt(it.v, 2),
-                              'at ' + fmt(entrada, DIGITS), '#c9d1d9', entrada, false);
+            visible = colocar(n.main, y0, w, h, eje,
+                              lado, TIPO[it.t].toUpperCase() + ' ' + fmt(it.v, 2) + (it.oco ? ' · OCO' : ''),
+                              'at ' + fmt(entrada, DIGITS), '#c9d1d9', entrada, false, true);
           }
           var malPo = arrPo && validar(it, 'po', entrada, entrada);
           n.main.className = 'pl ' + (it.kind === 'ord' ? 'po' : 'pm') +
             ((n.pend.po !== undefined || n.pend.del) ? ' pend' : '') + (malPo ? ' mal' : '');
+          if (visible) cajas.push({ej: n.main.querySelector('.ej'), y: y0});
           var ys = visible ? [y0] : [], hay = {};
           ['tp', 'sl'].forEach(function(f){
             var arrastra = drag && drag.id === id && drag.f === f;
@@ -682,8 +713,10 @@ _JS = r"""
             var col = f === 'tp' ? C_TP : C_SL, g = pgEn(it, entrada, px);
             var y = serie.priceToCoordinate(px);
             var etq = f.toUpperCase() + (f === 'sl' && it.tr ? ' auto' : '') + ' ' + fmt(it.v, 2);
+            if (f === 'sl') el.querySelector('.x').title = it.tr
+              ? 'Gestionado por el stop dinámico (quítalo en Cartera)' : 'Quitar Stop Loss';
             if (colocar(el, y, w, h, eje, col, etq, pgTxt(g),
-                        g >= 0 ? COMPRA : VENTA, px, true)) ys.push(y);
+                        g >= 0 ? COMPRA : VENTA, px, true, false)){ ys.push(y); cajas.push({ej: el.querySelector('.ej'), y: y}); }
             el.className = 'pl lv' + ((f in n.pend) ? ' pend' : '') +
                            (arrastra && validar(it, f, px, entrada) ? ' mal' : '');
           });
@@ -708,6 +741,34 @@ _JS = r"""
             n.con.style.display = 'none';
           }
         }
+
+        // ---- Apilado del eje (como XM): el recuadro BLANCO del precio en vivo MANDA
+        // (se queda en su sitio) y EMPUJA los nuestros, que quedan PEGADOS (sin hueco).
+        // Solo se mueve el chip del eje (.ej); la línea y la etiqueta grande siguen en su
+        // precio real. Si no hay precio en vivo, cada recuadro queda en su sitio. ----
+        var ALTO = 20;   // = alto del recuadro -> quedan pegados, sin espacio (todos iguales)
+        var liveVivo = (yLive !== null && yLive >= 0 && yLive <= h - 10);
+        if (liveVivo){
+          liveEl.style.display = ''; liveEl.style.width = eje + 'px'; txt(liveEl, fmt(BID, DIGITS));
+        } else {
+          liveEl.style.display = 'none';
+        }
+        var lista = cajas.slice();
+        if (liveVivo) lista.push({ej: liveEl, y: yLive, ancla: true, abs: true});   // el blanco es el ancla
+        lista.sort(function(p, q){ return p.y - q.y; });
+        var ia = -1;
+        for (var i = 0; i < lista.length; i++){ if (lista[i].ancla){ ia = i; break; } }
+        if (ia < 0){
+          lista.forEach(function(c){ c.aj = c.y; });              // sin precio en vivo: sin empujar
+        } else {
+          lista[ia].aj = lista[ia].y;
+          for (var i = ia - 1; i >= 0; i--){ lista[i].aj = Math.min(lista[i].y, lista[i + 1].aj - ALTO); }
+          for (var i = ia + 1; i < lista.length; i++){ lista[i].aj = Math.max(lista[i].y, lista[i - 1].aj + ALTO); }
+        }
+        lista.forEach(function(c){
+          if (!c.ej) return;
+          c.ej.style.top = Math.round(c.abs ? c.aj - 10 : -10 + (c.aj - c.y)) + 'px';
+        });
       }
 
       // En vivo: Bid/Ask (ticks) y altas/bajas/SL/TP/P-G (mensaje de cuenta del feed)
@@ -746,7 +807,7 @@ _JS = r"""
         });
       }
       // ¿El servidor de datos en ejecución es la versión que espera este código?
-      var V_API = 4;
+      var V_API = 5;
       fetch(API + '/salud').then(function(r){ return r.json(); }).then(function(r){
         if (!r.v || r.v < V_API){
           avisar('El servidor de datos está desactualizado: reinicia servidor_datos.py', true);
