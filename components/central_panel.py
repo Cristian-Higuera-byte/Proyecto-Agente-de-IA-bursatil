@@ -493,6 +493,14 @@ setTimeout(function(){
       }
       if (serie) {
         serie.priceScale().applyOptions({ scaleMargins: { top: 0.08, bottom: 0.22 } });
+        // Línea del precio actual en BLANCO (neutra, como XM): así no se confunde ni se
+        // monta con nuestras líneas de posición/orden (verde compra/TP, rojo venta/pérdida,
+        // naranja SL). Dashed para leerse como "precio en vivo", no como un nivel propio.
+        // lastValueVisible:false -> la ETIQUETA del eje la dibuja nuestro overlay
+        // (components/posiciones_grafico.py) para que quede del mismo tamaño que las
+        // nuestras, pegada y llegando al borde; aquí solo queda la línea.
+        serie.applyOptions({ priceLineVisible: true, priceLineColor: '#e6edf3',
+                             priceLineWidth: 1, priceLineStyle: 2, lastValueVisible: false });
       }
     }
 

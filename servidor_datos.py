@@ -42,14 +42,15 @@ import MetaTrader5 as mt5  # type: ignore[import-untyped]
 from tools.mt5_bridge import (inicializar_mt5, obtener_datos_historicos, resolver_simbolo,
                               modificar_sltp, colocar_orden_pendiente, modificar_orden,
                               eliminar_orden)
-from tools import trailing_store
+from tools import trailing_store, oco_store
 
 PUERTO = 8000
 # Versión de la API. Se sube cuando cambian rutas o datos que usa el navegador:
 # el gráfico la compara (GET /salud) y avisa si este proceso quedó desactualizado.
 # 3 = órdenes pendientes con caducidad (POST /orden/modificar con "caducidad").
 # 4 = stop dinámico (trailing): motor que mueve el SL + flag "tr" por posición en el feed.
-VERSION_API = 4
+# 5 = OCO (One-Cancels-the-Other): motor que cancela la pata sobrante + flag "oco" por orden.
+VERSION_API = 5
 
 # Temporalidades soportadas (igual que el selector del dashboard)
 TF_MAP = {
@@ -113,6 +114,9 @@ class MotorPrecios:
         self._ultimo_msc: dict = {}   # real -> time_msc del último tick procesado
         self._trailing: dict = {}     # ticket(int) -> {"dist","paso"} (Stop dinámico)
         self._trailing_mtime = -1.0   # mtime de data/trailing.json ya cargado
+        self._oco: dict = {}          # par_id -> {"a","b","symbol","ts"} (OCO)
+        self._oco_mtime = -1.0        # mtime de data/oco.json ya cargado
+        self._oco_armados: set = set()  # par_id cuyas DOS patas ya se vieron vivas (anti-carrera)
 
     # --- suscripciones -----------------------------------------------------
     def suscribir(self, simbolos):
@@ -209,6 +213,7 @@ class MotorPrecios:
                                  "sl": p.sl, "tp": p.tp, "k": k, "sm": sm,
                                  "tr": 1 if p.ticket in tr else 0}
         # órdenes pendientes (t: 2 Buy Limit, 3 Sell Limit, 4 Buy Stop, 5 Sell Stop)
+        oco_tks = oco_store.tickets_en_oco()   # tickets vinculados en un par OCO (etiqueta "OCO")
         orden = {}
         for o in ordenes:
             if int(o.type) not in (2, 3, 4, 5):
@@ -217,7 +222,8 @@ class MotorPrecios:
             orden[str(o.ticket)] = {"s": o.symbol, "t": int(o.type), "v": o.volume_current,
                                     "po": o.price_open, "sl": o.sl, "tp": o.tp, "k": k, "sm": sm,
                                     # caducidad: 0 GTC, 1 DAY, 2 fecha (ex, hora del servidor)
-                                    "tt": int(o.type_time), "ex": int(o.time_expiration or 0)}
+                                    "tt": int(o.type_time), "ex": int(o.time_expiration or 0),
+                                    "oco": 1 if o.ticket in oco_tks else 0}
         return {"equity": info.equity, "balance": info.balance,
                 "profit": info.profit, "currency": info.currency,
                 "margin": info.margin, "margin_free": info.margin_free,
@@ -286,6 +292,63 @@ class MotorPrecios:
                     with _IO:
                         modificar_sltp(int(ticket), sl=nuevo)
 
+    # --- OCO (One-Cancels-the-Other) --------------------------------------
+    # Dos órdenes pendientes vinculadas: cuando UNA se ejecuta (pasa a posición),
+    # se cancela la otra. MT5 no tiene OCO nativo: la lógica vive aquí (cliente),
+    # por eso solo funciona con este proceso vivo. La config la escribe el ticket
+    # de órdenes en data/oco.json (otro proceso).
+    def _recargar_oco(self):
+        m = oco_store.mtime()
+        if m != self._oco_mtime:
+            self._oco = oco_store.leer()
+            self._oco_mtime = m
+            # olvida pares "armados" que ya no existen
+            self._oco_armados &= set(self._oco.keys())
+
+    def _paso_oco(self):
+        self._recargar_oco()
+        if not self._oco:
+            return
+        with _IO:
+            ordenes = mt5.orders_get() or []
+            posiciones = mt5.positions_get() or []
+        # tickets de órdenes pendientes vivas ahora mismo
+        vivos = {int(o.ticket) for o in ordenes if int(o.type) in (2, 3, 4, 5)}
+        # tickets que ya son posición (una pendiente al ejecutarse conserva su ticket
+        # como identifier de la posición): sirve para distinguir "ejecutada" de "cancelada"
+        en_posicion = set()
+        for p in posiciones:
+            en_posicion.add(int(p.ticket))
+            en_posicion.add(int(getattr(p, "identifier", p.ticket)))
+        for par_id in list(self._oco.keys()):
+            cfg = self._oco[par_id]
+            a, b = int(cfg["a"]), int(cfg["b"])
+            a_vivo, b_vivo = a in vivos, b in vivos
+            if a_vivo and b_vivo:
+                self._oco_armados.add(par_id)        # ambas patas confirmadas
+                continue
+            if not (a_vivo or b_vivo):               # ninguna sigue pendiente: nada que hacer
+                self._cerrar_oco(par_id)
+                continue
+            if par_id not in self._oco_armados:
+                # Aún no se vieron las DOS vivas: puede ser la ventana entre colocar la
+                # 1.ª y la 2.ª pata. Se espera a confirmarlas antes de actuar (anti-carrera).
+                continue
+            # Exactamente una pata sigue viva y el par estaba armado -> la otra salió del libro
+            vivo = a if a_vivo else b
+            ido = b if a_vivo else a
+            if ido in en_posicion:                   # la otra SE EJECUTÓ -> cancela la sobrante (OCO)
+                with _IO:
+                    eliminar_orden(vivo)
+            # si no está en posición, fue cancelada a mano: solo se rompe el vínculo
+            self._cerrar_oco(par_id)
+
+    def _cerrar_oco(self, par_id):
+        oco_store.quitar_par(par_id)
+        self._oco.pop(par_id, None)
+        self._oco_mtime = oco_store.mtime()
+        self._oco_armados.discard(par_id)
+
     # --- bucle principal ---------------------------------------------------
     def correr(self):
         ultima_cuenta = 0.0
@@ -310,6 +373,7 @@ class MotorPrecios:
                             self._cuenta = cuenta
                         self._cond.notify_all()
                 self._paso_trailing()          # mueve los stops dinámicos activos
+                self._paso_oco()               # cancela la pata sobrante de los OCO ejecutados
             except Exception as e:
                 print(f"[motor] error leyendo MT5: {e}")
                 time.sleep(1)
