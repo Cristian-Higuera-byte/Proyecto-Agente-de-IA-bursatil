@@ -56,14 +56,19 @@ def proponer_orden(
     stop_loss: float,
     justificacion: str,
     take_profit: float | None = None,
-    riesgo_pct: float = 0.5,
+    riesgo_pct: float | None = 0.5,
 ) -> dict[str, Any]:
+    riesgo = _a_numero(riesgo_pct)
+    if riesgo in (None, ""):          # el modelo envió null o vacío: se usa el valor por defecto
+        riesgo = 0.5
+    if isinstance(riesgo, bool) or not isinstance(riesgo, (int, float)):
+        return {"estado": "RECHAZADA", "motivo": "'riesgo_pct' debe ser un número (por ejemplo 0.5)."}
     return ordenes.proponer_apertura(
         simbolo=simbolo,
         lado=lado,
         stop_loss=_a_numero(stop_loss),
         take_profit=_a_numero(take_profit),
-        riesgo_pct=_a_numero(riesgo_pct),
+        riesgo_pct=riesgo,
         justificacion=justificacion,
     )
 

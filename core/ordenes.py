@@ -18,8 +18,11 @@ Garantías de diseño:
 
 from __future__ import annotations
 
+import functools
 import math
 import sqlite3
+import threading
+import time
 import uuid
 from contextlib import closing
 from dataclasses import asdict, dataclass
@@ -29,6 +32,8 @@ from typing import Any
 
 import MetaTrader5 as mt5  # type: ignore[import-untyped]
 
+from tools.mt5_bridge import MT5_LOCK, inicializar_mt5
+
 
 # ══════════════════════════════════════════════════════════════
 #  LÍMITES DE RIESGO  (edítalos aquí; el agente no puede cambiarlos)
@@ -37,6 +42,7 @@ import MetaTrader5 as mt5  # type: ignore[import-untyped]
 class LimitesRiesgo:
     solo_demo: bool = True                       # rechaza TODO si la cuenta conectada no es demo
     riesgo_max_por_operacion_pct: float = 1.0    # % del equity que se puede perder si salta el SL
+    riesgo_max_total_pct: float = 3.0            # % del equity en riesgo sumando posiciones abiertas + propuestas pendientes + la nueva
     max_posiciones_abiertas: int = 3
     perdida_max_diaria_pct: float = 3.0          # % del balance; al alcanzarlo no se abren más
     volumen_max: float = 0.5                     # lotes máximos por orden
@@ -84,11 +90,24 @@ CREATE TABLE IF NOT EXISTS ordenes (
 """
 
 
+_DB_PREPARADA: Path | None = None   # ruta de la base ya inicializada en este proceso
+_DB_LOCK = threading.Lock()
+
+
 def _conectar() -> sqlite3.Connection:
+    global _DB_PREPARADA
     con = sqlite3.connect(RUTA_DB, timeout=10)
     con.row_factory = sqlite3.Row
-    con.execute(_SQL_ORDENES)
-    con.execute("CREATE TABLE IF NOT EXISTS estado (clave TEXT PRIMARY KEY, valor TEXT)")
+    if _DB_PREPARADA != RUTA_DB:  # las tablas se crean una sola vez, no en cada consulta
+        with _DB_LOCK:
+            try:
+                con.execute("PRAGMA journal_mode=WAL")  # lecturas y escrituras no se bloquean entre sí
+            except sqlite3.OperationalError:
+                pass  # otra conexión la usa ahora mismo: se queda en el modo actual
+            con.execute(_SQL_ORDENES)
+            con.execute("CREATE TABLE IF NOT EXISTS estado (clave TEXT PRIMARY KEY, valor TEXT)")
+            con.commit()
+            _DB_PREPARADA = RUTA_DB
     return con
 
 
@@ -142,23 +161,77 @@ def _normalizar(simbolo: str) -> str:
     return (simbolo or "").replace("...", "").replace("…", "").strip().upper()
 
 
+def _con_lock(funcion):
+    """Serializa el acceso a MT5 con el MISMO candado del resto de la app (MT5_LOCK).
+
+    La API de MetaTrader 5 no es segura entre hilos y servidor_datos.py / los fragmentos en
+    vivo leen MT5 en paralelo. Como es un RLock, anidar llamadas con este decorador es seguro.
+    """
+    @functools.wraps(funcion)
+    def envuelta(*args: Any, **kwargs: Any) -> Any:
+        with MT5_LOCK:
+            return funcion(*args, **kwargs)
+    return envuelta
+
+
 def _preparar_mt5() -> str | None:
     """None si MT5 está listo; si no, el mensaje de error."""
-    if mt5.terminal_info() is None and not mt5.initialize():
-        return f"No se pudo conectar con MetaTrader 5: {mt5.last_error()}"
+    with MT5_LOCK:
+        # inicializar_mt5 usa la ruta del terminal configurada (MT5_PATH) y no reintenta en bucle.
+        if mt5.terminal_info() is None and not inicializar_mt5():
+            return f"No se pudo conectar con MetaTrader 5: {mt5.last_error()}"
+    return None
+
+
+def _inicio_dia_servidor() -> int | None:
+    """Epoch (en hora del SERVIDOR del broker) de las 00:00 de hoy, o None si no se puede saber.
+
+    MT5 guarda las horas de las operaciones en hora del servidor, que no es la hora local: usar la
+    medianoche local desfasa el "día" varias horas. Se toma la hora del último tick como reloj del
+    servidor; si es viejo (fin de semana, mercado cerrado) no sirve y se usa el método local.
+    """
+    for simbolo in LIMITES.simbolos_permitidos:
+        tick = mt5.symbol_info_tick(simbolo)
+        if tick is not None and tick.time and abs(time.time() - tick.time) < 86400:
+            return int(tick.time - tick.time % 86400)
     return None
 
 
 def _perdida_del_dia(cuenta: Any) -> float:
     """Pérdida del día (número positivo): operaciones cerradas hoy + resultado flotante."""
-    inicio = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    deals = mt5.history_deals_get(inicio, datetime.now() + timedelta(days=1)) or []
+    ahora = datetime.now()
+    inicio_servidor = _inicio_dia_servidor()
+    if inicio_servidor is None:
+        desde = ahora.replace(hour=0, minute=0, second=0, microsecond=0)
+    else:
+        desde = ahora - timedelta(days=3)  # ventana amplia; luego se filtra por la hora del servidor
+    deals = mt5.history_deals_get(desde, ahora + timedelta(days=1)) or []
     realizado = sum(
         d.profit + d.commission + d.swap
         for d in deals
         if d.type in (mt5.DEAL_TYPE_BUY, mt5.DEAL_TYPE_SELL)
+        and (inicio_servidor is None or d.time >= inicio_servidor)
     )
     return max(0.0, -(realizado + cuenta.profit))
+
+
+def _riesgo_expuesto(cuenta: Any, incluir_pendientes: bool) -> float:
+    """Dinero que se perdería si saltaran TODOS los stop loss: posiciones abiertas (+ propuestas pendientes)."""
+    total = 0.0
+    for p in mt5.positions_get() or []:
+        if p.sl:
+            resultado = mt5.order_calc_profit(p.type, p.symbol, p.volume, p.price_open, p.sl)
+            total += max(0.0, -resultado) if resultado is not None else 0.0
+        else:  # sin stop loss el riesgo es desconocido: se asume el máximo por operación
+            total += cuenta.equity * LIMITES.riesgo_max_por_operacion_pct / 100
+    if incluir_pendientes:
+        filas = _consultar(
+            "SELECT COALESCE(SUM(riesgo_dinero), 0) AS total FROM ordenes "
+            "WHERE estado = 'PENDIENTE' AND accion = 'abrir' AND expira > ?",
+            (_ahora(),),
+        )
+        total += float(filas[0]["total"] or 0)
+    return total
 
 
 def _modo_llenado(info: Any) -> int:
@@ -207,6 +280,7 @@ def _evaluar_apertura(
     take_profit: Any,
     riesgo_pct: float | None,
     volumen_fijo: float | None = None,
+    incluir_pendientes: bool = True,
 ) -> dict[str, Any]:
     def no(motivo: str) -> dict[str, Any]:
         return {"ok": False, "motivo": motivo}
@@ -295,6 +369,15 @@ def _evaluar_apertura(
             f"({LIMITES.riesgo_max_por_operacion_pct}%)."
         )
 
+    expuesto = _riesgo_expuesto(cuenta, incluir_pendientes)
+    total_pct = (expuesto + riesgo_dinero) / cuenta.equity * 100
+    if total_pct > LIMITES.riesgo_max_total_pct * TOLERANCIA_RIESGO:
+        return no(
+            f"Riesgo total demasiado alto: con esta operación quedaría {total_pct:.2f}% del equity en riesgo "
+            f"(posiciones abiertas y propuestas pendientes incluidas; máximo {LIMITES.riesgo_max_total_pct}%). "
+            "Cierra posiciones, rechaza propuestas pendientes o reduce el riesgo."
+        )
+
     margen = mt5.order_calc_margin(tipo, sym, volumen, precio)
     if margen is not None and margen > cuenta.margin_free:
         return no(f"Margen libre insuficiente (se necesitan {margen:.2f}, hay {cuenta.margin_free:.2f}).")
@@ -309,13 +392,40 @@ def _evaluar_apertura(
     }
 
 
+def _propuesta_pendiente(accion: str, **filtros: Any) -> str | None:
+    """id de una propuesta PENDIENTE (no vencida) con esa acción y esos campos, o None."""
+    condiciones = "".join(f" AND {campo} = ?" for campo in filtros)  # los nombres de campo son fijos, no vienen del agente
+    filas = _consultar(
+        f"SELECT id FROM ordenes WHERE estado = 'PENDIENTE' AND accion = ? AND expira > ?{condiciones} "
+        "ORDER BY creada LIMIT 1",
+        (accion, _ahora(), *filtros.values()),
+    )
+    return filas[0]["id"] if filas else None
+
+
+def _respuesta_duplicada(id_: str) -> dict[str, Any]:
+    return {
+        "estado": "PROPUESTA_DUPLICADA",
+        "id": id_,
+        "mensaje": (
+            "Ya existe una propuesta pendiente igual (no se creó otra). No vuelvas a proponerla: dile al "
+            "usuario que la confirme o la rechace en el panel de órdenes propuestas."
+        ),
+    }
+
+
 # ══════════════════════════════════════════════════════════════
 #  API para el AGENTE (solo proponer / consultar; NADA se ejecuta aquí)
 # ══════════════════════════════════════════════════════════════
+@_con_lock
 def proponer_apertura(
     simbolo: str, lado: str, stop_loss: Any, take_profit: Any, riesgo_pct: float, justificacion: str,
 ) -> dict[str, Any]:
     cuenta, motivo = _chequeos_globales(para_abrir=True)
+    if not motivo:
+        previa = _propuesta_pendiente("abrir", simbolo=_normalizar(simbolo), lado=str(lado).strip().lower())
+        if previa:
+            return _respuesta_duplicada(previa)
     ev: dict[str, Any] | None = None
     if not motivo:
         ev = _evaluar_apertura(cuenta, simbolo, lado, stop_loss, take_profit, riesgo_pct)
@@ -352,6 +462,7 @@ def proponer_apertura(
     }
 
 
+@_con_lock
 def proponer_cierre(ticket: Any, justificacion: str) -> dict[str, Any]:
     cuenta, motivo = _chequeos_globales(para_abrir=False)
 
@@ -365,6 +476,9 @@ def proponer_cierre(ticket: Any, justificacion: str) -> dict[str, Any]:
         ticket = int(ticket)
     except (TypeError, ValueError):
         return rechazo("El ticket debe ser un número entero (usa ver_posiciones para consultarlo).")
+    previa = _propuesta_pendiente("cerrar", ticket_objetivo=ticket)
+    if previa:
+        return _respuesta_duplicada(previa)
     posiciones = mt5.positions_get(ticket=ticket)
     if not posiciones:
         return rechazo(f"No existe una posición abierta con ticket {ticket}.")
@@ -392,6 +506,7 @@ def proponer_cierre(ticket: Any, justificacion: str) -> dict[str, Any]:
     }
 
 
+@_con_lock
 def resumen_posiciones() -> dict[str, Any]:
     error = _preparar_mt5()
     if error:
@@ -418,6 +533,7 @@ def resumen_posiciones() -> dict[str, Any]:
     }
 
 
+@_con_lock
 def estado_riesgo() -> dict[str, Any]:
     out: dict[str, Any] = {"limites": asdict(LIMITES), "interruptor_emergencia": kill_switch_activo()}
     error = _preparar_mt5()
@@ -425,6 +541,7 @@ def estado_riesgo() -> dict[str, Any]:
     if cuenta is not None:
         out["perdida_del_dia"] = round(_perdida_del_dia(cuenta), 2)
         out["posiciones_abiertas"] = len(mt5.positions_get() or [])
+        out["riesgo_en_juego"] = round(_riesgo_expuesto(cuenta, incluir_pendientes=True), 2)  # abiertas + pendientes
         out["moneda"] = cuenta.currency
     return out
 
@@ -432,8 +549,20 @@ def estado_riesgo() -> dict[str, Any]:
 # ══════════════════════════════════════════════════════════════
 #  API para el DASHBOARD (confirmar / rechazar / listar)
 # ══════════════════════════════════════════════════════════════
-def listar_pendientes() -> list[dict[str, Any]]:
+def expirar_vencidas() -> None:
+    """Marca como vencidas las propuestas pendientes que ya pasaron su hora y recupera las atascadas."""
+    # Una orden "EJECUTANDO" mucho después de su vencimiento quedó a medias (se cayó la app al enviarla).
+    # No se asume que falló: se avisa para que el usuario lo compruebe en MT5.
+    limite = (datetime.now() - timedelta(seconds=60)).isoformat(timespec="seconds")
+    _ejecutar(
+        "UPDATE ordenes SET estado = 'ERROR', detalle = ? WHERE estado = 'EJECUTANDO' AND expira <= ?",
+        ("Envío interrumpido: revisa en MetaTrader 5 si la orden llegó a abrirse o cerrarse.", limite),
+    )
     _ejecutar("UPDATE ordenes SET estado = 'EXPIRADA' WHERE estado = 'PENDIENTE' AND expira <= ?", (_ahora(),))
+
+
+def listar_pendientes() -> list[dict[str, Any]]:
+    expirar_vencidas()
     return _consultar("SELECT * FROM ordenes WHERE estado = 'PENDIENTE' ORDER BY creada, rowid")
 
 
@@ -476,12 +605,14 @@ def confirmar_orden(id_orden: str) -> dict[str, Any]:
     return res
 
 
+@_con_lock
 def _enviar_apertura(o: dict[str, Any]) -> dict[str, Any]:
     cuenta, motivo = _chequeos_globales(para_abrir=True)
     if motivo:
         return {"ok": False, "estado": "RECHAZADA_RIESGO", "mensaje": motivo}
     # Se revalida con el precio actual y el MISMO volumen propuesto.
-    ev = _evaluar_apertura(cuenta, o["simbolo"], o["lado"], o["sl"], o["tp"], None, volumen_fijo=o["volumen"])
+    ev = _evaluar_apertura(cuenta, o["simbolo"], o["lado"], o["sl"], o["tp"], None, volumen_fijo=o["volumen"],
+                           incluir_pendientes=False)
     if not ev["ok"]:
         return {"ok": False, "estado": "RECHAZADA_RIESGO", "mensaje": ev["motivo"]}
 
@@ -506,6 +637,7 @@ def _enviar_apertura(o: dict[str, Any]) -> dict[str, Any]:
     return _interpretar(mt5.order_send(solicitud), f"{d['lado']} {d['volumen']} {d['simbolo']}")
 
 
+@_con_lock
 def _enviar_cierre(o: dict[str, Any]) -> dict[str, Any]:
     _, motivo = _chequeos_globales(para_abrir=False)
     if motivo:
