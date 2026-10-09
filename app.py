@@ -6,6 +6,7 @@ diseñado con distribución modular avanzada y alineación visual precisa.
 """
 import os
 import sys
+import traceback
 
 # --- Arreglo de certificado SSL para rutas con tildes ---
 try:
@@ -13,7 +14,8 @@ try:
     import shutil
     import tempfile
     _ca_ascii = os.path.join(tempfile.gettempdir(), "cacert_ascii.pem")
-    shutil.copyfile(certifi.where(), _ca_ascii)
+    if not os.path.exists(_ca_ascii):   # se copia una sola vez, no en cada rerun de Streamlit
+        shutil.copyfile(certifi.where(), _ca_ascii)
     os.environ["SSL_CERT_FILE"] = _ca_ascii
     os.environ["CURL_CA_BUNDLE"] = _ca_ascii
 except Exception:
@@ -31,15 +33,19 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 main: Optional[ModuleType] = None
 try:
     import main
-except ImportError:
-    pass
+except ModuleNotFoundError as _e:
+    if _e.name != "main":   # main.py existe pero le falta una dependencia: no se oculta
+        traceback.print_exc()
+except Exception:           # cualquier otro fallo dentro de main.py
+    traceback.print_exc()
 
 # Importar componentes modulares
-from components.central_panel import renderizar_panel_central
+from components.central_panel import renderizar_chat_agente, renderizar_panel_central
 from components.favoritos_bar import renderizar_barra_favoritos
 from components.market_data import actualizar_precios_mt5, cargar_datos_mercado
 from components.watchlist import renderizar_watchlist
-from components.panel_ordenes import renderizar_historial_agente, renderizar_ordenes_propuestas
+from components.panel_ordenes import (inyectar_estilos_agente, renderizar_historial_agente,
+                                      renderizar_ordenes_propuestas)
 from components.nav_bar import renderizar_barra_navegacion as renderizar_nav_lateral
 from components.top_navbar import renderizar_barra_navegacion as renderizar_nav_superior
 from components.news_panel import renderizar_panel_noticias
@@ -153,8 +159,8 @@ st.markdown("""
             z-index: 100001;
         }
 
-        /* Baja el logo P&J para alinearlo con el buscador de la barra superior.
-           Ajusta este valor (1.6rem) si necesitas subirlo o bajarlo un poco más. */
+        /* Alinea el logo P&J con el buscador de la barra superior.
+           Ajusta este valor (negativo = sube) si necesitas moverlo un poco más. */
         .pj-logo {
             margin-top: -0.5rem !important;
         }
@@ -240,6 +246,46 @@ def _cartera_en_vivo():
     st.fragment(run_every=_cada)(renderizar_cartera_lista)()
 
 
+# Proporción de columnas compartida por las dos filas de la vista de operar, para que el
+# historial quede bajo la lista, el chat bajo el gráfico y las propuestas bajo el ticket.
+_COLUMNAS_OPERAR = [1.7, 3.2, 0.95]
+# Alto de las zonas con scroll del historial y de las propuestas, calculado para que su borde inferior
+# coincida con el del chat (cabecera + selector + 450 de mensajes + campo de texto). Ajusta si no cuadra.
+_ALTURA_HISTORIAL = 587
+_ALTURA_PROPUESTAS = 500
+
+
+def _vista_operativa(renderizar_lista_izquierda):
+    """Vista de operar (Trading y Cartera), en dos filas.
+
+    Fila 1: lista (watchlist o posiciones) | gráfico | ticket de orden.
+    Fila 2: historial del agente | chat del agente | órdenes propuestas.
+
+    Los paneles del agente van en su propia fila, así quedan siempre a la altura del chat y
+    no se desplazan cuando cambia el alto de la lista o del ticket de arriba."""
+    _favoritos_en_vivo()
+    inyectar_estilos_agente()
+
+    col_izquierda, col_center, col_orden = st.columns(_COLUMNAS_OPERAR)
+    with col_izquierda:
+        renderizar_lista_izquierda()
+    with col_center:
+        renderizar_panel_central(main)
+    with col_orden:
+        from components.order_panel import renderizar_panel_orden
+        renderizar_panel_orden(main)
+
+    st.markdown("---")
+
+    col_historial, col_chat, col_propuestas = st.columns(_COLUMNAS_OPERAR)
+    with col_historial:
+        renderizar_historial_agente(altura=_ALTURA_HISTORIAL)
+    with col_chat:
+        renderizar_chat_agente()
+    with col_propuestas:
+        renderizar_ordenes_propuestas(altura=_ALTURA_PROPUESTAS)
+
+
 # ==========================================
 # LAYOUT PRINCIPAL: Barra Lateral + Contenido
 # ==========================================
@@ -267,31 +313,11 @@ with col_main:
         renderizar_panel_copytrading(main)
     elif _nav == "trading":
         # --- VISTA TRADING (favoritos + watchlist + gráfico + ticket de orden) ---
-        _favoritos_en_vivo()
-        col_watchlist, col_center, col_orden = st.columns([1.7, 3.2, 0.95])
-        with col_watchlist:
-            _watchlist_en_vivo()
-            renderizar_historial_agente()          # historial del agente, bajo la lista
-        with col_center:
-            renderizar_panel_central(main)
-        with col_orden:
-            from components.order_panel import renderizar_panel_orden
-            renderizar_panel_orden(main)
-            renderizar_ordenes_propuestas()        # propuestas del agente, bajo el ticket
+        _vista_operativa(_watchlist_en_vivo)
     elif _nav == "portafolio":
         # --- VISTA CARTERA (igual a Trading, pero la lista izquierda son las
         #     posiciones abiertas en vez del watchlist) ---
-        _favoritos_en_vivo()
-        col_cartera, col_center, col_orden = st.columns([1.7, 3.2, 0.95])
-        with col_cartera:
-            _cartera_en_vivo()
-            renderizar_historial_agente()          # historial del agente, bajo la lista
-        with col_center:
-            renderizar_panel_central(main)
-        with col_orden:
-            from components.order_panel import renderizar_panel_orden
-            renderizar_panel_orden(main)
-            renderizar_ordenes_propuestas()        # propuestas del agente, bajo el ticket
+        _vista_operativa(_cartera_en_vivo)
     else:
         # --- VISTA INICIO (panel de cuenta estilo XM) — también para botones sin vista propia ---
         from components.inicio_panel import renderizar_panel_inicio
