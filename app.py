@@ -164,6 +164,7 @@ st.markdown("""
         .pj-logo {
             margin-top: -0.5rem !important;
         }
+
     </style>
 """, unsafe_allow_html=True)
 
@@ -266,14 +267,19 @@ def _vista_operativa(renderizar_lista_izquierda):
     _favoritos_en_vivo()
     inyectar_estilos_agente()
 
-    col_izquierda, col_center, col_orden = st.columns(_COLUMNAS_OPERAR)
+    # El ticket ya no va como columna: vive en el rail de iconos fijo a la derecha
+    # (components/panel_rail.py). CSS del rail ANTES de las columnas para que el
+    # gráfico se mida con el espacio reservado a la derecha.
+    from components.panel_rail import inyectar_css_rail, renderizar_rail_y_paneles
+    inyectar_css_rail()
+
+    col_izquierda, col_center = st.columns([_COLUMNAS_OPERAR[0],
+                                            _COLUMNAS_OPERAR[1] + _COLUMNAS_OPERAR[2]])
     with col_izquierda:
         renderizar_lista_izquierda()
     with col_center:
         renderizar_panel_central(main)
-    with col_orden:
-        from components.order_panel import renderizar_panel_orden
-        renderizar_panel_orden(main)
+    renderizar_rail_y_paneles(main)
 
     st.markdown("---")
 
