@@ -658,6 +658,44 @@ def modificar_orden(ticket: int, precio=None, sl=None, tp=None,
             "tt": int(request["type_time"]), "ex": int(request["expiration"] or 0)}
 
 
+_DOM_SUSCRITOS = set()   # símbolos con market_book_add ya hecho (se suscribe una vez)
+
+
+def obtener_dom(symbol: str, niveles: int = 8) -> dict:
+    """Profundidad de mercado (DOM) del símbolo: niveles de venta (ask) y compra (bid)
+    con su volumen, leídos del LIBRO REAL del bróker (`mt5.market_book_get`).
+
+    Devuelve {"ask":[{price,volume}...], "bid":[...], "disponible":bool}. Requiere que
+    el bróker PUBLIQUE el libro para ese símbolo; en Forex/CFD muchas veces no lo hace y
+    las listas vienen vacías (disponible=False). La primera lectura tras suscribir puede
+    venir vacía (el libro tarda un instante en poblarse); por eso se consulta cada ciclo.
+    """
+    real = resolver_simbolo(symbol)
+    with MT5_LOCK:
+        if not inicializar_mt5():
+            return {"error": "Sin conexión con MT5"}
+        if real not in _DOM_SUSCRITOS:
+            if mt5.market_book_add(real):
+                _DOM_SUSCRITOS.add(real)
+            else:
+                return {"ask": [], "bid": [], "disponible": False,
+                        "motivo": "El bróker no permite suscribir el libro de este símbolo."}
+        libro = mt5.market_book_get(real)
+
+    asks, bids = [], []
+    for it in (libro or []):
+        entrada = {"price": float(it.price), "volume": float(it.volume)}
+        tipo = int(getattr(it, "type", 0))
+        if tipo in (mt5.BOOK_TYPE_SELL, mt5.BOOK_TYPE_SELL_MARKET):      # 1, 3 = venta (ask)
+            asks.append(entrada)
+        elif tipo in (mt5.BOOK_TYPE_BUY, mt5.BOOK_TYPE_BUY_MARKET):      # 2, 4 = compra (bid)
+            bids.append(entrada)
+    asks.sort(key=lambda x: x["price"])                 # ask: de menor a mayor precio
+    bids.sort(key=lambda x: x["price"], reverse=True)   # bid: de mayor a menor precio
+    return {"ask": asks[:niveles], "bid": bids[:niveles],
+            "disponible": bool(asks or bids)}
+
+
 def eliminar_orden(ticket: int) -> dict:
     """Cancela una orden PENDIENTE."""
     with MT5_LOCK:

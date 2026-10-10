@@ -164,6 +164,7 @@ st.markdown("""
         .pj-logo {
             margin-top: -0.5rem !important;
         }
+
     </style>
 """, unsafe_allow_html=True)
 
