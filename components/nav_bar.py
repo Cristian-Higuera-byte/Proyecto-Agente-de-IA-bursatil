@@ -7,14 +7,12 @@ import streamlit.components.v1 as components
 ITEMS = [
     (":material/home:", "home", "Inicio"),                       # panel de cuenta (estilo XM)
     (":material/candlestick_chart:", "trading", "Trading"),      # dashboard: gráfico + listas
+    (":material/work:", "portafolio", "Cartera"),                # posiciones abiertas (bajo Trading)
     (":material/table_rows:", "cotizaciones", "Cotizaciones"),   # tablas estilo Investing
     (":material/content_copy:", "copytrading", "Copy trading"),  # estrategias (mock)
     (":material/newspaper:", "noticias", "Noticias"),
-    (":material/work:", "portafolio", "Cartera"),
-    (":material/assignment:", "ordenes", "Órdenes"),
-    (":material/bar_chart:", "analisis", "Análisis"),
-    (":material/rocket_launch:", "promociones", "Promociones"),
-    (":material/settings:", "ajustes", "Ajustes"),
+    (":material/dashboard:", "resumen", "Resumen"),           # dashboard del portafolio (F)
+    (":material/menu_book:", "journal", "Diario"),            # trading journal (E)
 ]
 
 # Anchos (px) de la barra lateral: colapsada / expandida.

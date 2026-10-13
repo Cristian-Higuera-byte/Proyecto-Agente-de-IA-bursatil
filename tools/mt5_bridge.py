@@ -412,6 +412,35 @@ def obtener_datos_historicos(symbol: str, timeframe=mt5.TIMEFRAME_H1, n_velas: i
     return df
 
 
+def obtener_velas_rango(symbol: str, ts_desde: float, ts_hasta: float) -> list:
+    """Velas OHLC que cubren [ts_desde, ts_hasta] (epoch), para el mini-gráfico del
+    Trading Journal. Elige el timeframe según la duración para que haya ~40-120 velas
+    y añade un margen a cada lado. Devuelve [{t,o,h,l,c}, ...] (vieja → nueva)."""
+    from datetime import datetime as _dt
+    dur = max(60.0, float(ts_hasta) - float(ts_desde))
+    pad = dur * 0.35 + 300
+    d0, d1 = float(ts_desde) - pad, float(ts_hasta) + pad
+    # timeframe objetivo ≈ ventana/60 velas
+    objetivo = (d1 - d0) / 60.0
+    escala = [(60, mt5.TIMEFRAME_M1), (300, mt5.TIMEFRAME_M5), (900, mt5.TIMEFRAME_M15),
+              (3600, mt5.TIMEFRAME_H1), (14400, mt5.TIMEFRAME_H4), (86400, mt5.TIMEFRAME_D1)]
+    tf = escala[0][1]
+    for seg, cod in escala:
+        tf = cod
+        if seg >= objetivo:
+            break
+    symbol = resolver_simbolo(symbol)
+    with MT5_LOCK:
+        if not inicializar_mt5():
+            return []
+        mt5.symbol_select(symbol, True)
+        rates = mt5.copy_rates_range(symbol, tf, _dt.fromtimestamp(d0), _dt.fromtimestamp(d1))
+    if rates is None or len(rates) == 0:
+        return []
+    return [{"t": int(r["time"]), "o": float(r["open"]), "h": float(r["high"]),
+             "l": float(r["low"]), "c": float(r["close"])} for r in rates]
+
+
 def _modo_llenado(sim_info):
     """Modo de llenado soportado por el símbolo (evita 'Unsupported filling mode')."""
     fm = getattr(sim_info, "filling_mode", 0)
@@ -463,6 +492,17 @@ def ejecutar_orden_mercado(symbol: str, tipo: str, volumen: float, sl: float = 0
         extra = " (activa 'Algo Trading' en MT5)" if resultado.retcode == 10027 else ""
         return {"error": f"Fallo al enviar orden (retcode {resultado.retcode}): "
                          f"{getattr(resultado, 'comment', '')}{extra}"}
+
+    # Trading Journal (Tanda C): si la orden llevaba SL/TP, se guarda el "plan"
+    # (entrada real + SL + TP) ligado a la posición para calcular el R/R planificado.
+    # position_id de la posición abierta == ticket de la orden de apertura (resultado.order).
+    if (sl and sl > 0) or (tp and tp > 0):
+        try:
+            from tools import journal_store
+            journal_store.guardar_plan(resultado.order, resultado.price, sl, tp,
+                                       tipo.upper(), symbol, resultado.volume)
+        except Exception:
+            pass   # el journal nunca debe hacer fallar una orden
 
     return {
         "status": "success",

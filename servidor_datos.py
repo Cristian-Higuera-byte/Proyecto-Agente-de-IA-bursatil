@@ -42,7 +42,7 @@ import MetaTrader5 as mt5  # type: ignore[import-untyped]
 from tools.mt5_bridge import (inicializar_mt5, obtener_datos_historicos, resolver_simbolo,
                               modificar_sltp, colocar_orden_pendiente, modificar_orden,
                               eliminar_orden)
-from tools import trailing_store, oco_store
+from tools import trailing_store, oco_store, equity_store
 
 PUERTO = 8000
 # Versión de la API. Se sube cuando cambian rutas o datos que usa el navegador:
@@ -71,6 +71,7 @@ _IO = threading.RLock()
 
 INTERVALO_TICKS = 0.25       # s entre lecturas de ticks (4 por segundo)
 INTERVALO_CUENTA = 1.0       # s entre lecturas de saldo / P-G
+INTERVALO_EQUITY = 60.0      # s entre snapshots de equity (para el drawdown real)
 TTL_REFERENCIA = 300         # s que se reutiliza el cierre del día anterior
 TTL_SUSCRIPCION = 60         # s sin clientes pidiendo un símbolo -> se deja de leer
 PING_SSE = 15                # s sin cambios -> comentario keep-alive
@@ -349,6 +350,21 @@ class MotorPrecios:
         self._oco_mtime = oco_store.mtime()
         self._oco_armados.discard(par_id)
 
+    def _paso_equity_log(self):
+        """Guarda un snapshot del equity/balance cada INTERVALO_EQUITY segundos.
+        El equity_store aplica su propio mínimo entre escrituras, así que llamar
+        cada ciclo es inofensivo. Alimenta el drawdown de EQUITY real (el que
+        incluye el flotante de posiciones abiertas), que MT5 no guarda por sí solo.
+        Ver tools/equity_store.py para la nota de escalado a multiusuario/Supabase."""
+        c = self._cuenta
+        eq = c.get("equity")
+        if eq is None:
+            return
+        try:
+            equity_store.registrar(eq, c.get("balance", eq), min_intervalo=INTERVALO_EQUITY)
+        except Exception as e:
+            print(f"[motor] no se pudo registrar equity: {e}")
+
     # --- bucle principal ---------------------------------------------------
     def correr(self):
         ultima_cuenta = 0.0
@@ -374,6 +390,7 @@ class MotorPrecios:
                         self._cond.notify_all()
                 self._paso_trailing()          # mueve los stops dinámicos activos
                 self._paso_oco()               # cancela la pata sobrante de los OCO ejecutados
+                self._paso_equity_log()        # snapshot de equity (drawdown real, Tanda 2)
             except Exception as e:
                 print(f"[motor] error leyendo MT5: {e}")
                 time.sleep(1)
