@@ -106,20 +106,25 @@ def analizar_posicion_holistica(
     atr_data = ind_tecnicos.get("indicadores", {}).get("atr_14", {})
     atr_val = atr_data.get("valor_absoluto") or (precio_actual * 0.005)
 
-    point = 0.00001 if "USD" in simbolo_clean and "JPY" not in simbolo_clean else 0.01
     lotes_pos = posicion_activa.get("lotes", 0.1) if posicion_activa else 0.1
     tipo_pos = posicion_activa.get("tipo", "COMPRA") if posicion_activa else "COMPRA"
+    hipotetico = posicion_activa is None   # sin posición abierta se ilustra con 0.1 lotes de compra
 
-    mult_tipo = 1.0 if tipo_pos == "COMPRA" else -1.0
-    impacto_alcista = round((atr_val * 1.5 / point) * lotes_pos * 10 * point * 10000 * mult_tipo, 2)
-    impacto_bajista = round((-atr_val * 1.5 / point) * lotes_pos * 10 * point * 10000 * mult_tipo, 2)
+    def impacto(precio_destino: float) -> float | None:
+        """Resultado en dinero que calcula MT5 si el precio va del actual al proyectado."""
+        try:
+            return mt5_fuente.resultado_si_precio(simbolo_clean, tipo_pos, lotes_pos, precio_actual, precio_destino)
+        except mt5_fuente.ErrorMT5:
+            return None
 
+    sube = precio_actual + atr_val * 1.5
+    baja = precio_actual - atr_val * 1.5
     escenarios = [
         {
             "escenario": "Alcista",
             "condicion_tecnica": f"Supera resistencia a +{round(atr_val * 1.5, 4)}",
-            "precio_proyectado": round(precio_actual + (atr_val * 1.5), 5),
-            "impacto_estimado_usd": impacto_alcista,
+            "precio_proyectado": round(sube, 5),
+            "impacto_estimado_usd": impacto(sube),
             "accion_sugerida": "Mantener / Buscar TP si es COMPRA; evaluar SL si es VENTA",
         },
         {
@@ -132,11 +137,16 @@ def analizar_posicion_holistica(
         {
             "escenario": "Bajista",
             "condicion_tecnica": f"Quiebre de soporte a -{round(atr_val * 1.5, 4)}",
-            "precio_proyectado": round(precio_actual - (atr_val * 1.5), 5),
-            "impacto_estimado_usd": impacto_bajista,
+            "precio_proyectado": round(baja, 5),
+            "impacto_estimado_usd": impacto(baja),
             "accion_sugerida": "Evaluar cierre o cobertura si rompe soporte clave",
         },
     ]
+    nota_escenarios = (
+        "Escenarios de referencia basados en 1.5 x ATR (no son predicciones ni tienen probabilidad). "
+        + ("Impacto calculado para una posición HIPOTÉTICA de 0.1 lotes de compra: no hay posición abierta."
+           if hipotetico else "Impacto calculado sobre la posición abierta, con el cálculo de MT5.")
+    )
 
     return {
         "fuente": "Módulo Diagnóstico Holístico (MT5 + YFinance + Investing)",
@@ -151,4 +161,5 @@ def analizar_posicion_holistica(
         "tecnico": ind_tecnicos,
         "noticias_fundamentales": noticias_list[:4],
         "matriz_escenarios": escenarios,
+        "nota_escenarios": nota_escenarios,
     }

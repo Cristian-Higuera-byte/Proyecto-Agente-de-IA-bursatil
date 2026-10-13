@@ -1,0 +1,12 @@
+<!-- [grafico] Lienzo, leyenda OHLC y capa de dibujo -->
+            <div id="chart-wrapper">
+                <div id="c"></div>
+                <canvas id="drawing-canvas"></canvas>
+                <div id="tv-legend">
+                    <div class="lg-line">
+                        <span class="lg-sym">__SIMBOLO_HTML__</span><span class="lg-dot">·</span><span class="lg-tf" id="lg-tf">H1</span><span class="lg-dot">·</span><span class="lg-feed">XM</span>
+                        <span class="tv-ohlc" id="tv-ohlc-vals">Cargando…</span>
+                    </div>
+                    <div class="lg-line"><span class="tv-vol" id="tv-vol-val"></span></div>
+                    <div id="tv-cmp-legend"></div>
+                </div>

@@ -17,7 +17,7 @@ import time
 import streamlit as st
 
 from components.buscador import abrir_buscador
-from core import notificaciones
+from core import notificaciones, vigilancia
 
 # --- Íconos de línea (estilo Lucide/Feather), heredan color con currentColor ---
 _IC_BUSCAR = (
@@ -37,7 +37,7 @@ _IC_NOTIF = (
     "<path d='M10.3 21a1.94 1.94 0 0 0 3.4 0'/></svg>"
 )
 
-_ICONO_TIPO = {"agente": "🤖", "orden": "📋", "error": "⚠️"}
+_ICONO_TIPO = {"agente": "🤖", "orden": "📋", "error": "⚠️", "auto": "⚡"}
 
 
 def _usuario_id() -> str:
@@ -122,6 +122,10 @@ def renderizar_barra_navegacion(usuario: str = "Emilio Fuentes",
                                 pl: float | None = None,
                                 usuario_id: str | None = None):
     iniciales = "".join([p[0] for p in usuario.split()[:2]]).upper() or "U"
+    try:
+        vigilancia.iniciar_motor()   # idempotente: retoma las vigilancias activas tras reiniciar la app
+    except Exception:  # noqa: BLE001 - la barra nunca debe fallar por esto
+        pass
 
     # Chip de saldo total de MT5 (equity). Si no hay dato, se muestra "—".
     if saldo is not None:

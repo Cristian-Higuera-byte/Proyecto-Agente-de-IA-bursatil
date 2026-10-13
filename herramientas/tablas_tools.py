@@ -72,14 +72,14 @@ def generar_tabla_reporte(
     elif tipo_reporte == "riesgo_cartera":
         riesgo_data = analisis_tools.analizar_riesgo_posicion()
         posiciones = riesgo_data.get("posiciones", [])
-        columnas = ["Ticket", "Símbolo", "Tipo", "Lotes", "Distancia SL (Pips)", "Riesgo ($)", "Riesgo Equidad (%)", "Ratio R:R"]
+        columnas = ["Ticket", "Símbolo", "Tipo", "Lotes", "Distancia al SL (Pips)", "Riesgo ($)", "Riesgo Equidad (%)", "Ratio R:R"]
         for r in posiciones:
             filas.append([
                 r["ticket"],
                 r["simbolo"],
                 r["tipo"],
                 r["lotes"],
-                r.get("distancia_sl_pips") or "N/A",
+                r.get("distancia_sl_desde_precio_actual_pips") or "N/A",
                 r.get("riesgo_estimado_usd") or "N/A",
                 f"{r.get('riesgo_equidad_pct')}%" if r.get('riesgo_equidad_pct') else "N/A",
                 r.get("ratio_riesgo_beneficio") or "N/A",

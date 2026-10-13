@@ -1,0 +1,139 @@
+// [grafico] Datos: carga de velas, leyenda, tipo de gráfico
+    function calcularHeikinAshi(datos){
+      var ha = [];
+      for (var i = 0; i < datos.length; i++){
+        var d = datos[i];
+        var haClose = (d.open + d.high + d.low + d.close) / 4;
+        var haOpen = (i === 0) ? (d.open + d.close) / 2 : (ha[i-1].open + ha[i-1].close) / 2;
+        var haHigh = Math.max(d.high, haOpen, haClose);
+        var haLow = Math.min(d.low, haOpen, haClose);
+        ha.push({ time: d.time, open: haOpen, high: haHigh, low: haLow, close: haClose, volume: d.volume });
+      }
+      return ha;
+    }
+
+    function formatearDatos(datos, tipo){
+      if (tipo === "line" || tipo === "area") {
+        return datos.map(function(v){ return { time: v.time, value: v.close }; });
+      }
+      if (tipo === "heikin") {
+        var ha = calcularHeikinAshi(datos);
+        return ha.map(function(v){ return { time: v.time, open: v.open, high: v.high, low: v.low, close: v.close }; });
+      }
+      return datos.map(function(v){ return { time: v.time, open: v.open, high: v.high, low: v.low, close: v.close }; });
+    }
+
+    function aPuntoVolumen(v){
+      return { time: v.time, value: v.volume || 0, color: (v.close >= v.open ? 'rgba(63,185,80,0.5)' : 'rgba(248,81,73,0.5)') };
+    }
+
+    function fmtVol(v){
+      v = v || 0;
+      if (v >= 1e9) return (v/1e9).toFixed(2) + 'B';
+      if (v >= 1e6) return (v/1e6).toFixed(2) + 'M';
+      if (v >= 1e3) return (v/1e3).toFixed(2) + 'K';
+      return String(v);
+    }
+
+    function actualizarLeyenda(v){
+      if (!v) return;
+      var elOhlc = document.getElementById('tv-ohlc-vals');
+      var elVol = document.getElementById('tv-vol-val');
+      if (!elOhlc) return;
+      
+      var cierreAnt = v.open;
+      if (datosActuales.length > 1) {
+        var idxActual = datosActuales.findIndex(function(d){ return d.time === v.time; });
+        if (idxActual > 0) {
+          cierreAnt = datosActuales[idxActual - 1].close;
+        } else if (idxActual === -1 && datosActuales.length > 0) {
+          cierreAnt = datosActuales[datosActuales.length - 2].close;
+        }
+      }
+
+      var delta = v.close - cierreAnt;
+      var pct = cierreAnt ? (delta / cierreAnt) * 100 : 0;
+      var col = (v.close >= v.open) ? '#3fb950' : '#f85149';
+      var colD = (delta >= 0) ? '#3fb950' : '#f85149';
+      function c(l, n){ return l + '<b style="color:' + col + '">' + n.toFixed(DIGITS) + '</b>'; }
+      elOhlc.innerHTML =
+        c('O', v.open) + c('H', v.high) + c('L', v.low) + c('C', v.close) +
+        '<b style="color:' + colD + '">' + (delta >= 0 ? '+' : '') + delta.toFixed(DIGITS) +
+        ' (' + (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%)</b>';
+      if (elVol) elVol.innerText = 'Vol ' + fmtVol(v.volume);
+    }
+
+    function cargar(tf, n, ajustarFit){
+      tfActual = tf;
+      var elTf = document.getElementById('lg-tf');
+      if (elTf) elTf.innerText = (tf === 'MN1' ? 'MN' : tf);
+      nBarrasActual = n;
+      var miId = ++cargaId;
+      cargando = true;
+      fetch(API + "/velas/" + encodeURIComponent(SIMBOLO) + "?tf=" + tf + "&n=" + n)
+        .then(function(r){
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.json();
+        })
+        .then(function(velas){
+          if (miId !== cargaId) return;
+          cargando = false;
+          if (velas && velas.length){
+            datosActuales = velas;
+            serie.setData(formatearDatos(velas, tipoActual));
+            serieVolumen.setData(velas.map(aPuntoVolumen));
+            if (ajustarFit === 'ultimas') {
+              var nv = datosActuales.length;
+              chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, nv - 150), to: nv + 8 });
+            } else if (ajustarFit) {
+              chart.timeScale().fitContent();
+            }
+            actualizarLeyenda(velas[velas.length - 1]);
+            actualizarIndicadoresActivos();
+            redibujarTodo();
+          }
+        })
+        .catch(function(){
+          if (miId !== cargaId) return;
+          cargando = false;
+          if (!datosActuales.length) {
+            var elOhlc = document.getElementById('tv-ohlc-vals');
+            if (elOhlc) elOhlc.innerText = 'Sin conexión con la API (' + API + ')';
+          }
+        });
+    }
+
+    cargar(tfActual, nBarrasActual, 'ultimas');
+
+    var btnTypeSelect = document.getElementById('btn-type-select');
+    var typeMenu = document.getElementById('type-menu');
+
+    btnTypeSelect.addEventListener('click', function(e){ e.stopPropagation(); typeMenu.classList.toggle('show'); });
+
+    window.addEventListener('click', function(){
+      typeMenu.classList.remove('show');
+    });
+
+    document.querySelectorAll('#type-menu .tv-drop-item').forEach(function(item){
+      item.addEventListener('click', function(){
+        tipoActual = item.getAttribute('data-type');
+        guardarConfig();
+        btnTypeSelect.innerHTML = item.querySelector('svg').outerHTML + '<span>' + item.getAttribute('data-label') + '</span><svg class="caret" viewBox="0 0 10 10"><path d="M2 3.5L5 6.5L8 3.5"/></svg>';
+        crearSerie(tipoActual);
+        if (datosActuales.length){
+          serie.setData(formatearDatos(datosActuales, tipoActual));
+          serieVolumen.setData(datosActuales.map(aPuntoVolumen));
+          actualizarIndicadoresActivos();
+        }
+        redibujarTodo();
+      });
+    });
+
+    // Restaura en la interfaz lo que se recordó: temporalidad, rango y tipo de gráfico
+    marcarTF(tfActual);
+    if (cfgRango >= 0) { var rbtn = document.querySelectorAll('.tvrange')[cfgRango]; if (rbtn) rbtn.classList.add('active'); }
+    var itemTipo = document.querySelector('#type-menu .tv-drop-item[data-type="' + tipoActual + '"]');
+    if (itemTipo) {
+      btnTypeSelect.innerHTML = itemTipo.querySelector('svg').outerHTML + '<span>' + itemTipo.getAttribute('data-label') + '</span><svg class="caret" viewBox="0 0 10 10"><path d="M2 3.5L5 6.5L8 3.5"/></svg>';
+    }
+

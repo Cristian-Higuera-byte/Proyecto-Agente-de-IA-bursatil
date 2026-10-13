@@ -1,0 +1,22 @@
+/* [grafico] Pantalla completa: aspecto sin marco y selector de activo (cambiar de símbolo sin salir) */
+    #tv-wrap.pj-fs { border: none; border-radius: 0; }
+    #tv-legend .lg-sym { pointer-events: none; }
+    #tv-wrap.pj-fs #tv-legend .lg-sym { pointer-events: auto; cursor: pointer; padding: 2px 6px; margin-left: -6px; border-radius: 5px; }
+    #tv-wrap.pj-fs #tv-legend .lg-sym:hover { background: rgba(255,255,255,0.08); }
+    #tv-wrap.pj-fs #tv-legend .lg-sym::after { content: "\25BE"; margin-left: 6px; color: #8b949e; font-size: 11px; }
+    #sel-activo { display: none; position: fixed; left: 56px; top: 92px; width: 340px; max-width: 92vw; max-height: 70vh; z-index: 5200;
+        flex-direction: column; background: #161b22; border: 1px solid #30363d; border-radius: 12px; box-shadow: 0 14px 40px rgba(0,0,0,0.65);
+        font-family: -apple-system,"Segoe UI",Roboto,Arial,sans-serif; }
+    #sel-activo.abierto { display: flex; }
+    #sel-activo .sel-cab { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 10px; color: #ffffff; font-size: 15px; font-weight: 700; }
+    #sel-activo .sel-x { background: transparent; border: none; color: #8b949e; font-size: 17px; cursor: pointer; }
+    #sel-activo .sel-x:hover { color: #ffffff; }
+    #sel-activo-lista { overflow-y: auto; padding-bottom: 6px; }
+    #sel-activo .sel-fila { display: flex; align-items: center; gap: 12px; padding: 9px 16px; cursor: pointer; border-top: 1px solid #202a37; }
+    #sel-activo .sel-fila:hover { background: rgba(139,92,246,0.16); }
+    #sel-activo .sel-ico { width: 40px; display: flex; justify-content: center; flex-shrink: 0; }
+    #sel-activo .sel-txt { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+    #sel-activo .sel-nom { color: #e6edf3; font-size: 14px; font-weight: 700; }
+    #sel-activo .sel-desc { color: #8b949e; font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #sel-activo .sel-ok { color: #3fb950; font-size: 16px; }
+    #sel-activo .sel-msg { padding: 0 16px 10px; min-height: 14px; color: #f0b90b; font-size: 12px; }

@@ -23,6 +23,10 @@ estructura_mercado_tools: ModuleType = import_module(".estructura_mercado_tools"
 macro_eventos_tools: ModuleType = import_module(".macro_eventos_tools", __name__)
 sentimiento_tools: ModuleType = import_module(".sentimiento_tools", __name__)
 ordenes_tools: ModuleType = import_module(".ordenes_tools", __name__)
+<<<<<<< Updated upstream
+=======
+informe_cartera_tools: ModuleType = import_module(".informe_cartera_tools", __name__)
+>>>>>>> Stashed changes
 
 __all__ = [
     "utilidades",
@@ -41,4 +45,8 @@ __all__ = [
     "macro_eventos_tools",
     "sentimiento_tools",
     "ordenes_tools",
+<<<<<<< Updated upstream
+=======
+    "informe_cartera_tools",
+>>>>>>> Stashed changes
 ]

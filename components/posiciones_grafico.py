@@ -185,7 +185,18 @@ _JS = r"""
         '#pj-ed button.ok{background:linear-gradient(90deg,#ff4b4b,#ff8f00);}' +
         '#pj-ed button.del{background:#da3633;}' +
         '#pj-ed button:disabled{opacity:.4;cursor:default;}' +
-        '#pj-ed .nt{color:#8b949e;font-size:11.5px;text-align:center;padding:6px 16px 14px;}';
+        '#pj-ed .nt{color:#8b949e;font-size:11.5px;text-align:center;padding:6px 16px 14px;}' +
+        '#pj-mercado{display:none;align-items:stretch;gap:0;margin:5px 0 3px;pointer-events:auto;border-radius:5px;overflow:hidden;' +
+        'box-shadow:0 2px 8px rgba(0,0,0,.45);font-family:"Source Sans Pro",system-ui,sans-serif;width:max-content;}' +
+        '#tv-wrap.pj-fs #pj-mercado{display:flex;}' +
+        '#pj-mercado button{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:92px;padding:5px 12px 4px;' +
+        'border:none;color:#fff;cursor:pointer;line-height:1.1;}' +
+        '#pj-mercado button b{font:700 14px ui-monospace,Consolas,monospace;}' +
+        '#pj-mercado button span{font:700 10px "Source Sans Pro",system-ui,sans-serif;letter-spacing:.4px;margin-top:2px;}' +
+        '#pj-mercado .vend{background:#e5484d;}#pj-mercado .vend:hover{background:#f2575c;}' +
+        '#pj-mercado .comp{background:#1fa463;}#pj-mercado .comp:hover{background:#27b872;}' +
+        '#pj-mercado .spr{display:flex;align-items:center;justify-content:center;min-width:34px;padding:0 6px;background:#0d1117;' +
+        'color:#c9d1d9;font:600 12px ui-monospace,Consolas,monospace;text-shadow:none;}';
       document.head.appendChild(est);
       var capa = document.createElement('div'); capa.id = 'pj-pos';
       containerEl.parentNode.appendChild(capa);
@@ -335,6 +346,39 @@ _JS = r"""
           });
         });
       }
+
+      // ---------- Botones VENDER / COMPRAR a mercado (solo en pantalla completa) ----------
+      // Misma lógica que el ticket: One-Click Trading activo -> al instante; apagado -> se confirma en el propio gráfico.
+      // Volumen = el del ticket (o el mínimo del símbolo si el ticket no está a la vista). Ejecuta por POST /mercado.
+      var mercado = document.createElement('div'); mercado.id = 'pj-mercado';
+      mercado.innerHTML = '<button class="vend" type="button" title="Vender a mercado"><b>—</b><span>VENDER</span></button>' +
+        '<span class="spr" title="Spread">—</span>' +
+        '<button class="comp" type="button" title="Comprar a mercado"><b>—</b><span>COMPRAR</span></button>';
+      var legendEl = document.getElementById('tv-legend');
+      if (legendEl) legendEl.insertBefore(mercado, document.getElementById('tv-cmp-legend'));
+      var mBid = mercado.querySelector('.vend b'), mAsk = mercado.querySelector('.comp b'), mSpr = mercado.querySelector('.spr');
+      function actualizarMercado(){
+        txt(mBid, BID ? fmt(BID, DIGITS) : '—');
+        txt(mAsk, ASK ? fmt(ASK, DIGITS) : '—');
+        var sp = (BID && ASK) ? (ASK - BID) / (PIP > 0 ? PIP : Math.pow(10, -DIGITS)) : null;
+        txt(mSpr, sp === null ? '—' : sp.toFixed(1));
+      }
+      function ordenMercado(lado){
+        if (!BID || !ASK){ avisar('Sin precio en vivo: no se puede operar ahora', true); return; }
+        var vol = volumenTicket(), compra = lado === 'BUY', precio = compra ? ASK : BID;
+        accion(compra ? 'Comprar a mercado' : 'Vender a mercado',
+               '<b>' + (compra ? 'Compra' : 'Venta') + ' ' + fmt(vol, 2) + '</b> ' + REAL +
+               ' al precio de mercado (~<b>' + fmt(precio, DIGITS) + '</b>)', function(){
+          post('/mercado', {symbol: REAL, lado: lado, volumen: vol}).then(function(res){
+            if (res.error){ avisar(res.error, true); return; }
+            avisar((compra ? 'Comprados ' : 'Vendidos ') + fmt(res.volume || vol, 2) + ' lote(s) de ' + REAL +
+                   ' a ' + fmt(res.price || precio, DIGITS), false);
+          });
+        });
+      }
+      mercado.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+      mercado.querySelector('.vend').onclick = function(){ ordenMercado('SELL'); };
+      mercado.querySelector('.comp').onclick = function(){ ordenMercado('BUY'); };
 
       // ---------- Menú del clic derecho ----------
       function cerrarMenu(){ if (menu && menu.parentNode) menu.parentNode.removeChild(menu); menu = null; }
@@ -671,6 +715,7 @@ _JS = r"""
         requestAnimationFrame(ubicar);
         if (!serie) return;
         var w = containerEl.clientWidth, h = containerEl.clientHeight;
+        actualizarMercado();
         capa.style.left = containerEl.offsetLeft + 'px'; capa.style.top = containerEl.offsetTop + 'px';
         capa.style.width = w + 'px'; capa.style.height = h + 'px';
         var eje = 72;
@@ -807,7 +852,7 @@ _JS = r"""
         });
       }
       // ¿El servidor de datos en ejecución es la versión que espera este código?
-      var V_API = 5;
+      var V_API = 6;
       fetch(API + '/salud').then(function(r){ return r.json(); }).then(function(r){
         if (!r.v || r.v < V_API){
           avisar('El servidor de datos está desactualizado: reinicia servidor_datos.py', true);
@@ -844,4 +889,10 @@ def gatillos_cierre():
                     "profit": _neto(p), "tipo": p.get("tipo"), "volumen": p.get("volumen", 0),
                 }
                 st.session_state.pop("ca_result", None)
+                st.rerun(scope="app")
+        # Cambio de activo desde el gráfico en pantalla completa: la lista que muestra el gráfico (watchlist) la deja
+        # components/grafico/panel.py en la sesión; el botón nº i la pulsa el JS del gráfico (selector de activo).
+        for i, ticker in enumerate(st.session_state.get("_grafico_lista_activos", [])):
+            if st.button("activo", key=f"chcls_sel_{i}"):
+                st.session_state.activo_seleccionado = ticker
                 st.rerun(scope="app")

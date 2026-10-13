@@ -755,4 +755,3 @@ def eliminar_orden(ticket: int) -> dict:
                          f"{getattr(resultado, 'comment', '')}{extra}"}
     return {"status": "success", "ticket": int(ticket),
             "tipo": _NOMBRE_PENDIENTE.get(o.type, ""), "symbol": o.symbol}
-

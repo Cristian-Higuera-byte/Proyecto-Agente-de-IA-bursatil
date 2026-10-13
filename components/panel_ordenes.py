@@ -11,6 +11,10 @@ Se llaman desde app.py (vistas Trading y Cartera), así que se dibujan en CADA e
 app, hagas o no una petición al agente (ya no dependen del chat). app.py llama una sola vez a
 inyectar_estilos_agente() para cargar el CSS de ambos paneles.
 
+Vigilancia automática (core/vigilancia.py): el panel derecho muestra además las vigilancias pendientes de
+autorizar (con su botón Autorizar) y las activas (con su estado y un botón Detener). Lo que el motor
+ejecuta solo queda en el historial marcado como AUTO.
+
 No usan run_every: un temporizador reinicia la ejecución en curso y cortaría la respuesta
 del agente mientras escribe. En su lugar, central_panel.py hace un st.rerun() al terminar un
 turno en el que el agente propuso algo, y Confirmar / Rechazar refrescan toda la app.
@@ -26,7 +30,7 @@ from typing import Any
 
 import streamlit as st
 
-from core import ordenes
+from core import ordenes, vigilancia
 
 _CLAVE_AVISO = "_aviso_orden"
 
@@ -129,6 +133,17 @@ _CSS = """
   .ag-reloj { margin-left:auto; flex:0 0 auto; font-family:ui-monospace,Consolas,monospace; font-size:12px;
       font-weight:700; color:#ff8f00; background:rgba(255,143,0,.1); border:1px solid rgba(255,143,0,.3);
       border-radius:999px; padding:2px 10px; }
+
+  /* Vigilancia automática: sección, tarjeta (franja naranja) y marca AUTO del historial */
+  .ag-sec { color:#8b949e; font-size:10.5px; font-weight:800; letter-spacing:.8px; text-transform:uppercase;
+      margin:2px 2px 0; }
+  .ag-auto { font-size:9px; font-weight:800; letter-spacing:.6px; padding:1px 6px; border-radius:5px; margin-left:7px;
+      color:#ff8f00; background:rgba(255,143,0,.12); border:1px solid rgba(255,143,0,.35); vertical-align:1px; }
+  .ag-main .auto { color:#ff8f00; }
+  .st-key-agp_panel [class*="st-key-agp_card_auto_"]::before {
+      background:linear-gradient(180deg,#ff4b4b,#ff8f00); }
+  .ag-aviso { color:#c9d1d9; font-size:11.5px; line-height:1.4; margin-top:8px; }
+  .ag-aviso b { color:#ff8f00; }
 
   /* Botón Detener (consulta en curso): compacto, oscuro y rojo al pasar el cursor */
   .st-key-agc_panel [class*="st-key-agc_stop_"] button { height:34px; min-height:34px; padding:0 14px;
@@ -245,12 +260,17 @@ def _vacio(icono: str, texto: str) -> str:
     return f"<div class='ag-empty'><span class='ag-mi'>{_e(icono)}</span>{_e(texto)}</div>"
 
 
+def _marca_auto(o: dict[str, Any]) -> str:
+    """Etiqueta AUTO si la orden la ejecutó una vigilancia automática (sin confirmación manual)."""
+    return "<span class='ag-auto'>AUTO</span>" if o.get("origen") == "automatica" else ""
+
+
 def _fila_historial(o: dict[str, Any]) -> str:
     estado = str(o.get("estado") or "")
     etiqueta, color = _ESTADOS.get(estado, (estado or "Desconocido", "#8b949e"))
     return (
         f"<div class='ag-row {_clase_lado(o)}'>"
-        f"<div class='ag-top'><span class='ag-t'>{_hora(o.get('creada'))}</span>"
+        f"<div class='ag-top'><span class='ag-t'>{_hora(o.get('creada'))}{_marca_auto(o)}</span>"
         f"<span class='ag-badge' style='color:{color};border-color:{color}55;background:{color}18'>"
         f"{_e(etiqueta)}</span></div>"
         f"<div class='ag-main'>{_titulo(o)}</div>{_detalle(o)}</div>"
@@ -287,6 +307,63 @@ def _tarjeta_pendiente(o: dict[str, Any]) -> str:
     )
 
 
+# ── Vigilancias automáticas (tarjetas del panel derecho) ──────────────────────────────
+def _usuario_id() -> str:
+    return str((st.session_state.get("usuario_info") or {}).get("id") or "local")
+
+
+def _tarjeta_vigilancia(v: dict[str, Any]) -> str:
+    pendiente = v["estado"] == vigilancia.PENDIENTE
+    ops = f"{v.get('operaciones') or 0}/{v['max_operaciones']}"
+    if pendiente:
+        tiempo = f"Autoriza antes de las {_hora(v.get('expira_autorizacion'))}"
+        badge = ("<span class='ag-badge' style='color:#f0b90b;border-color:#f0b90b55;background:#f0b90b18'>"
+                 "Pendiente de autorizar</span>")
+        cuarto = _kv("Dura", f"{v['duracion_horas']:g} h")
+        pie = (f"<div class='ag-aviso'>El agente analizará <b>{_e(v['simbolo'])}</b> y, si autorizas, "
+               "<b>comprará o venderá solo</b>, sin pedirte confirmación, dentro de estos límites. "
+               "Solo cuenta demo; puedes detenerla cuando quieras.</div>")
+        cita = _e((v.get("instruccion") or "").strip())
+    else:
+        tiempo = f"Vence a las {_hora(v.get('vence'))}"
+        badge = ("<span class='ag-badge' style='color:#2ebd85;border-color:#2ebd8555;background:#2ebd8518'>"
+                 "Activa</span>")
+        cuarto = _kv("Chequeos", str(v.get("chequeos") or 0))
+        ultimo = _hora(v["ultimo_chequeo"]) if v.get("ultimo_chequeo") else "—"
+        pie = (f"<div class='ag-aviso'>Último chequeo {ultimo} · próximo {_hora(v.get('proximo_chequeo'))}</div>")
+        cita = _e((v.get("ultimo_resumen") or "Aún sin chequeos.").strip())
+    datos = (_kv("Riesgo/op.", f"{v['riesgo_pct']:g}%") + _kv("Operaciones", ops)
+             + _kv("Cada", f"{v['intervalo_min']} min") + cuarto)
+    return (
+        "<div class='ag-row'>"
+        f"<div class='ag-top'><span class='ag-t'>{_e(tiempo)}</span>{badge}</div>"
+        f"<div class='ag-main'><span class='auto'>VIGILANCIA</span> · {_e(v['simbolo'])}</div>"
+        f"<div class='ag-grid'>{datos}</div>{pie}"
+        + (f"<div class='ag-quote'>{cita}</div>" if cita else "")
+        + "</div>"
+    )
+
+
+def _seccion_vigilancias(uid: str) -> None:
+    for v in vigilancia.listar(uid):
+        with st.container(key=f"agp_card_auto_{v['id']}"):
+            st.html(_tarjeta_vigilancia(v))
+            if v["estado"] == vigilancia.PENDIENTE:
+                if st.button("Autorizar vigilancia", key=f"agp_ok_vig_{v['id']}", icon=":material/check:",
+                             type="primary", width="stretch"):
+                    res = vigilancia.autorizar(v["id"], uid)
+                    st.session_state[_CLAVE_AVISO] = ("ok" if res["ok"] else "error", res["mensaje"])
+                    st.rerun(scope="app")
+                if st.button("Rechazar", key=f"agp_no_vig_{v['id']}", width="stretch"):
+                    vigilancia.rechazar(v["id"], uid)
+                    st.rerun(scope="app")
+            else:
+                if st.button("Detener vigilancia", key=f"agp_no_stopvig_{v['id']}",
+                             icon=":material/stop_circle:", width="stretch"):
+                    st.session_state[_CLAVE_AVISO] = ("ok", vigilancia.detener(uid, vid=v["id"])["mensaje"])
+                    st.rerun(scope="app")
+
+
 # ── Panel IZQUIERDO: historial permanente ─────────────────────────────────────────────
 def renderizar_historial_agente(limite: int = 30, altura: int = 300) -> None:
     try:
@@ -316,6 +393,8 @@ def renderizar_ordenes_propuestas(altura: int = 300) -> None:
     try:
         pendientes = ordenes.listar_pendientes()
         bloqueado = ordenes.kill_switch_activo()
+        uid = _usuario_id()
+        vigs = vigilancia.listar(uid)
     except Exception as e:  # noqa: BLE001
         st.warning(f"No se pudieron leer las órdenes del agente: {e}")
         return
@@ -323,7 +402,7 @@ def renderizar_ordenes_propuestas(altura: int = 300) -> None:
     with st.container(key="agp_panel"):
         st.html(cabecera_agente(
             "pending_actions", "Órdenes propuestas",
-            "El agente propone y tú confirmas. Solo cuenta demo: nada se ejecuta sin tu botón.",
+            "El agente propone y tú confirmas. Solo opera solo si autorizas una vigilancia. Solo cuenta demo.",
         ))
         if aviso:
             (st.success if aviso[0] == "ok" else st.error)(aviso[1])
@@ -335,18 +414,27 @@ def renderizar_ordenes_propuestas(altura: int = 300) -> None:
                 help="Interruptor de emergencia: no se podrán proponer ni confirmar aperturas.",
             )
 
-        if not pendientes:
+        if not pendientes and not vigs:
             st.html(_vacio(
-                "inbox", "No hay órdenes pendientes. Cuando el agente proponga una, "
-                "aparecerá aquí para que la confirmes o la rechaces.",
+                "inbox", "No hay órdenes pendientes ni vigilancias. Cuando el agente proponga una orden o "
+                "una vigilancia, aparecerá aquí para que la autorices o la rechaces.",
             ))
             return
 
         contenedor = (
             st.container(height=altura, border=False, key="agp_scroll")
-            if len(pendientes) > 1 else st.container(border=False, key="agp_scroll")
+            if len(pendientes) + len(vigs) > 1 else st.container(border=False, key="agp_scroll")
         )
         with contenedor:
+            if vigs:
+                st.html("<div class='ag-sec'>Vigilancia automática</div>")
+                if any(v["estado"] == vigilancia.ACTIVA for v in vigs):
+                    # con vigilancias activas, solo esta sección se refresca sola (sin recargar la página)
+                    st.fragment(run_every="8s")(_seccion_vigilancias)(uid)
+                else:
+                    _seccion_vigilancias(uid)
+            if vigs and pendientes:
+                st.html("<div class='ag-sec'>Órdenes pendientes</div>")
             for o in pendientes:
                 with st.container(key=f"agp_card_{_clase_lado(o)}_{o['id']}"):
                     st.html(_tarjeta_pendiente(o))
