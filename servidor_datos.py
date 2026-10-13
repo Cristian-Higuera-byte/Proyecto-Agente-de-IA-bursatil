@@ -20,6 +20,7 @@ Endpoints:
     GET /ultima/<símbolo>?tf=H1        -> última vela (resincroniza volumen/vela nueva)
     GET /stream?s=EURUSD...,BTCUSD     -> SSE: ticks en vivo + cuenta (saldo, P/G y P/G por posición)
     GET /ticks?s=EURUSD...,BTCUSD      -> foto instantánea (JSON) de esos ticks
+    GET /simbolos                      -> catálogo de símbolos del terminal [{n, d, c}] (ventana "Comparar" del gráfico)
     GET /salud                         -> {"ok": true} (lo usa Streamlit para saber si hay feed)
     POST /sltp  {"ticket", "sl", "tp"} -> cambia SL/TP de una posición (líneas arrastrables
                                           del gráfico; solo desde páginas de localhost)
@@ -28,6 +29,7 @@ Endpoints:
     POST /orden/modificar {"ticket", "precio", "sl", "tp", "caducidad", "expiracion"}
                                        -> modifica una orden pendiente
     POST /orden/eliminar  {"ticket"}   -> cancela una orden pendiente
+    POST /mercado {"symbol", "lado", "volumen"} -> orden a mercado (botones VENDER/COMPRAR del gráfico a pantalla completa)
 
 Nota: usa solo la librería estándar de Python (http.server), no requiere instalar nada.
 El terminal de MetaTrader 5 debe estar abierto y logueado.
@@ -41,8 +43,8 @@ from urllib.parse import urlparse, parse_qs, unquote
 import MetaTrader5 as mt5  # type: ignore[import-untyped]
 from tools.mt5_bridge import (inicializar_mt5, obtener_datos_historicos, resolver_simbolo,
                               modificar_sltp, colocar_orden_pendiente, modificar_orden,
-                              eliminar_orden)
-from tools import trailing_store, oco_store
+                              eliminar_orden, ejecutar_orden_mercado)
+from tools import trailing_store, oco_store, equity_store
 
 PUERTO = 8000
 # Versión de la API. Se sube cuando cambian rutas o datos que usa el navegador:
@@ -50,7 +52,8 @@ PUERTO = 8000
 # 3 = órdenes pendientes con caducidad (POST /orden/modificar con "caducidad").
 # 4 = stop dinámico (trailing): motor que mueve el SL + flag "tr" por posición en el feed.
 # 5 = OCO (One-Cancels-the-Other): motor que cancela la pata sobrante + flag "oco" por orden.
-VERSION_API = 5
+# 6 = POST /mercado (orden a mercado desde los botones VENDER/COMPRAR del gráfico en pantalla completa).
+VERSION_API = 6
 
 # Temporalidades soportadas (igual que el selector del dashboard)
 TF_MAP = {
@@ -71,6 +74,7 @@ _IO = threading.RLock()
 
 INTERVALO_TICKS = 0.25       # s entre lecturas de ticks (4 por segundo)
 INTERVALO_CUENTA = 1.0       # s entre lecturas de saldo / P-G
+INTERVALO_EQUITY = 60.0      # s entre snapshots de equity (para el drawdown real)
 TTL_REFERENCIA = 300         # s que se reutiliza el cierre del día anterior
 TTL_SUSCRIPCION = 60         # s sin clientes pidiendo un símbolo -> se deja de leer
 PING_SSE = 15                # s sin cambios -> comentario keep-alive
@@ -94,6 +98,29 @@ def obtener_velas(simbolo: str, tf: str, n: int) -> list:
             "volume": float(fila["tick_volume"]),
         })
     return velas
+
+
+_SIMBOLOS = {"t": 0.0, "datos": []}
+TTL_SIMBOLOS = 300   # s que se reutiliza el catálogo de símbolos
+
+
+def listar_simbolos() -> list:
+    """Catálogo de símbolos del terminal para la ventana "Comparar" del gráfico:
+    n = nombre, d = descripción, c = categoría (primer tramo de la ruta del símbolo en MT5)."""
+    ahora = time.time()
+    if _SIMBOLOS["datos"] and ahora - _SIMBOLOS["t"] < TTL_SIMBOLOS:
+        return _SIMBOLOS["datos"]
+    with _IO:
+        inicializar_mt5()
+        todos = mt5.symbols_get() or []
+    datos = []
+    for s in todos:
+        ruta = (getattr(s, "path", "") or "").replace("\\", "/")
+        datos.append({"n": s.name, "d": getattr(s, "description", "") or "", "c": ruta.split("/")[0] if "/" in ruta else ""})
+    datos.sort(key=lambda x: x["n"].lower())
+    if datos:
+        _SIMBOLOS["t"], _SIMBOLOS["datos"] = ahora, datos
+    return datos
 
 
 # ---------------------------------------------------------------------------
@@ -349,6 +376,21 @@ class MotorPrecios:
         self._oco_mtime = oco_store.mtime()
         self._oco_armados.discard(par_id)
 
+    def _paso_equity_log(self):
+        """Guarda un snapshot del equity/balance cada INTERVALO_EQUITY segundos.
+        El equity_store aplica su propio mínimo entre escrituras, así que llamar
+        cada ciclo es inofensivo. Alimenta el drawdown de EQUITY real (el que
+        incluye el flotante de posiciones abiertas), que MT5 no guarda por sí solo.
+        Ver tools/equity_store.py para la nota de escalado a multiusuario/Supabase."""
+        c = self._cuenta
+        eq = c.get("equity")
+        if eq is None:
+            return
+        try:
+            equity_store.registrar(eq, c.get("balance", eq), min_intervalo=INTERVALO_EQUITY)
+        except Exception as e:
+            print(f"[motor] no se pudo registrar equity: {e}")
+
     # --- bucle principal ---------------------------------------------------
     def correr(self):
         ultima_cuenta = 0.0
@@ -374,6 +416,7 @@ class MotorPrecios:
                         self._cond.notify_all()
                 self._paso_trailing()          # mueve los stops dinámicos activos
                 self._paso_oco()               # cancela la pata sobrante de los OCO ejecutados
+                self._paso_equity_log()        # snapshot de equity (drawdown real, Tanda 2)
             except Exception as e:
                 print(f"[motor] error leyendo MT5: {e}")
                 time.sleep(1)
@@ -408,12 +451,26 @@ def _lista_simbolos(qs) -> list:
 class Manejador(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
+    def _origen_permitido(self):
+        """El Origin de la petición si es una página de este equipo (el dashboard en localhost); si no, None."""
+        origen = self.headers.get("Origin", "") or ""
+        host = urlparse(origen).hostname
+        return origen if host in ("localhost", "127.0.0.1") else None
+
+    def _cabecera_cors(self):
+        """CORS solo para el dashboard local: otra web abierta en el navegador no puede leer
+        saldo, equidad ni posiciones de esta API."""
+        origen = self._origen_permitido()
+        if origen:
+            self.send_header("Access-Control-Allow-Origin", origen)
+            self.send_header("Vary", "Origin")
+
     def _responder(self, obj):
         cuerpo = json.dumps(obj).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(cuerpo)))
-        self.send_header("Access-Control-Allow-Origin", "*")  # permite el fetch desde el iframe del gráfico
+        self._cabecera_cors()   # permite el fetch desde el iframe del gráfico (solo localhost)
         self.end_headers()
         self.wfile.write(cuerpo)
 
@@ -424,7 +481,7 @@ class Manejador(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "text/event-stream")
         self.send_header("Cache-Control", "no-cache")
         self.send_header("Connection", "keep-alive")
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self._cabecera_cors()
         self.end_headers()
         MOTOR.suscribir(simbolos)
         seq = 0
@@ -463,6 +520,8 @@ class Manejador(BaseHTTPRequestHandler):
                 MOTOR.suscribir(simbolos)
                 _, ticks, cuenta = MOTOR.foto(simbolos, 0)
                 self._responder({"t": ticks, "acc": cuenta})
+            elif partes and partes[0] == "simbolos":
+                self._responder(listar_simbolos())
             elif partes and partes[0] == "salud":
                 self._responder({"ok": True, "v": VERSION_API})
             elif len(partes) >= 2 and partes[0] == "velas":
@@ -488,7 +547,7 @@ class Manejador(BaseHTTPRequestHandler):
 
     def do_OPTIONS(self):
         self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", self.headers.get("Origin", "*"))
+        self._cabecera_cors()
         self.send_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.send_header("Content-Length", "0")
@@ -519,6 +578,13 @@ class Manejador(BaseHTTPRequestHandler):
                                           datos.get("caducidad"), datos.get("expiracion"))
                 elif ruta == "orden/eliminar":
                     res = eliminar_orden(int(datos["ticket"]))
+                elif ruta == "mercado":
+                    lado = str(datos.get("lado", "")).upper()
+                    vol = float(datos["volumen"])
+                    if lado not in ("BUY", "SELL") or not vol > 0:
+                        res = {"error": "Orden a mercado no válida (lado o volumen)"}
+                    else:
+                        res = ejecutar_orden_mercado(str(datos["symbol"]), lado, vol)
                 else:
                     res = None
             if res is not None:

@@ -164,6 +164,7 @@ st.markdown("""
         .pj-logo {
             margin-top: -0.5rem !important;
         }
+
     </style>
 """, unsafe_allow_html=True)
 
@@ -266,14 +267,19 @@ def _vista_operativa(renderizar_lista_izquierda):
     _favoritos_en_vivo()
     inyectar_estilos_agente()
 
-    col_izquierda, col_center, col_orden = st.columns(_COLUMNAS_OPERAR)
+    # El ticket ya no va como columna: vive en el rail de iconos fijo a la derecha
+    # (components/panel_rail.py). CSS del rail ANTES de las columnas para que el
+    # gráfico se mida con el espacio reservado a la derecha.
+    from components.panel_rail import inyectar_css_rail, renderizar_rail_y_paneles
+    inyectar_css_rail()
+
+    col_izquierda, col_center = st.columns([_COLUMNAS_OPERAR[0],
+                                            _COLUMNAS_OPERAR[1] + _COLUMNAS_OPERAR[2]])
     with col_izquierda:
         renderizar_lista_izquierda()
     with col_center:
         renderizar_panel_central(main)
-    with col_orden:
-        from components.order_panel import renderizar_panel_orden
-        renderizar_panel_orden(main)
+    renderizar_rail_y_paneles(main)
 
     st.markdown("---")
 
@@ -318,6 +324,14 @@ with col_main:
         # --- VISTA CARTERA (igual a Trading, pero la lista izquierda son las
         #     posiciones abiertas en vez del watchlist) ---
         _vista_operativa(_cartera_en_vivo)
+    elif _nav == "resumen":
+        # --- VISTA RESUMEN (dashboard del portafolio: KPIs + curva + exposición) ---
+        from components.resumen_panel import renderizar_panel_resumen
+        renderizar_panel_resumen(main)
+    elif _nav == "journal":
+        # --- VISTA DIARIO (trading journal: operaciones + métricas + notas) ---
+        from components.journal_panel import renderizar_panel_journal
+        renderizar_panel_journal(main)
     else:
         # --- VISTA INICIO (panel de cuenta estilo XM) — también para botones sin vista propia ---
         from components.inicio_panel import renderizar_panel_inicio

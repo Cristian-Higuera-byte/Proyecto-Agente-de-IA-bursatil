@@ -32,7 +32,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
-from core import notificaciones
+from core import contexto, notificaciones
 
 _EXT_IMAGEN = (".png", ".jpg", ".jpeg", ".webp")
 VISTA_RECIENTE_S = 2.0   # la interfaz late cada 1 s: si lo mostró hace menos de esto, el usuario lo está viendo
@@ -90,6 +90,7 @@ class Turno:
     herramientas: list = field(default_factory=list)
     imagenes: list = field(default_factory=list)
     hubo_orden: bool = False         # el agente llamó a proponer_orden / proponer_cierre_posicion
+    hubo_vigilancia: bool = False    # el agente preparó una vigilancia automática (pendiente de autorizar)
     error: str = ""
     tokens_entrada: Any = "?"
     tokens_salida: Any = "?"
@@ -121,6 +122,9 @@ class Turno:
             if self.hubo_orden:
                 nota += (" El agente ya había propuesto una orden: revísala en «Órdenes propuestas» y "
                          "confírmala o recházala.")
+            if self.hubo_vigilancia:
+                nota += (" El agente ya había preparado una vigilancia automática: autorízala o recházala en "
+                         "«Órdenes propuestas».")
             return f"{texto.rstrip()}\n\n{nota}" if texto.strip() else nota
         if self.error:
             texto += f"\n\n⚠️ {self.error}"
@@ -189,6 +193,7 @@ def recoger(usuario_id: str, turno_id: str) -> None:
 
 # ── Hilo ──────────────────────────────────────────────────────────────────────────────
 def _correr(turno: Turno, agente: Any) -> None:
+    contexto.fijar_usuario(turno.usuario_id)   # las herramientas que lo necesiten saben quién pregunta
     gen = agente.responder_stream(turno.prompt)
     try:
         for ev in gen:
@@ -210,6 +215,8 @@ def _correr(turno: Turno, agente: Any) -> None:
                 turno.fase = "Procesando los datos…"
                 if ev.texto in ("proponer_orden", "proponer_cierre_posicion"):
                     turno.hubo_orden = True
+                elif ev.texto == "proponer_vigilancia" and "VIGILANCIA_PENDIENTE" in str((ev.datos or {}).get("resultado", "")):
+                    turno.hubo_vigilancia = True
                 for ruta in imagenes_de_resultado((ev.datos or {}).get("resultado")):
                     if ruta not in turno.imagenes:
                         turno.imagenes.append(ruta)
@@ -242,6 +249,9 @@ def _avisar(turno: Turno) -> None:
     tiempo = formatear_duracion(turno.duracion)
     if turno.error:
         titulo, tipo = "El agente no pudo responder", "error"
+    elif turno.hubo_vigilancia:
+        titulo, tipo = "El agente preparó una vigilancia automática", "orden"
+        pregunta = "Revísala y autorízala en «Órdenes propuestas»"
     elif turno.hubo_orden:
         titulo, tipo = "El agente propuso una orden", "orden"
     else:

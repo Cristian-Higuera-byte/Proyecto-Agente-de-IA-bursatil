@@ -412,6 +412,35 @@ def obtener_datos_historicos(symbol: str, timeframe=mt5.TIMEFRAME_H1, n_velas: i
     return df
 
 
+def obtener_velas_rango(symbol: str, ts_desde: float, ts_hasta: float) -> list:
+    """Velas OHLC que cubren [ts_desde, ts_hasta] (epoch), para el mini-gráfico del
+    Trading Journal. Elige el timeframe según la duración para que haya ~40-120 velas
+    y añade un margen a cada lado. Devuelve [{t,o,h,l,c}, ...] (vieja → nueva)."""
+    from datetime import datetime as _dt
+    dur = max(60.0, float(ts_hasta) - float(ts_desde))
+    pad = dur * 0.35 + 300
+    d0, d1 = float(ts_desde) - pad, float(ts_hasta) + pad
+    # timeframe objetivo ≈ ventana/60 velas
+    objetivo = (d1 - d0) / 60.0
+    escala = [(60, mt5.TIMEFRAME_M1), (300, mt5.TIMEFRAME_M5), (900, mt5.TIMEFRAME_M15),
+              (3600, mt5.TIMEFRAME_H1), (14400, mt5.TIMEFRAME_H4), (86400, mt5.TIMEFRAME_D1)]
+    tf = escala[0][1]
+    for seg, cod in escala:
+        tf = cod
+        if seg >= objetivo:
+            break
+    symbol = resolver_simbolo(symbol)
+    with MT5_LOCK:
+        if not inicializar_mt5():
+            return []
+        mt5.symbol_select(symbol, True)
+        rates = mt5.copy_rates_range(symbol, tf, _dt.fromtimestamp(d0), _dt.fromtimestamp(d1))
+    if rates is None or len(rates) == 0:
+        return []
+    return [{"t": int(r["time"]), "o": float(r["open"]), "h": float(r["high"]),
+             "l": float(r["low"]), "c": float(r["close"])} for r in rates]
+
+
 def _modo_llenado(sim_info):
     """Modo de llenado soportado por el símbolo (evita 'Unsupported filling mode')."""
     fm = getattr(sim_info, "filling_mode", 0)
@@ -463,6 +492,17 @@ def ejecutar_orden_mercado(symbol: str, tipo: str, volumen: float, sl: float = 0
         extra = " (activa 'Algo Trading' en MT5)" if resultado.retcode == 10027 else ""
         return {"error": f"Fallo al enviar orden (retcode {resultado.retcode}): "
                          f"{getattr(resultado, 'comment', '')}{extra}"}
+
+    # Trading Journal (Tanda C): si la orden llevaba SL/TP, se guarda el "plan"
+    # (entrada real + SL + TP) ligado a la posición para calcular el R/R planificado.
+    # position_id de la posición abierta == ticket de la orden de apertura (resultado.order).
+    if (sl and sl > 0) or (tp and tp > 0):
+        try:
+            from tools import journal_store
+            journal_store.guardar_plan(resultado.order, resultado.price, sl, tp,
+                                       tipo.upper(), symbol, resultado.volume)
+        except Exception:
+            pass   # el journal nunca debe hacer fallar una orden
 
     return {
         "status": "success",
@@ -658,6 +698,44 @@ def modificar_orden(ticket: int, precio=None, sl=None, tp=None,
             "tt": int(request["type_time"]), "ex": int(request["expiration"] or 0)}
 
 
+_DOM_SUSCRITOS = set()   # símbolos con market_book_add ya hecho (se suscribe una vez)
+
+
+def obtener_dom(symbol: str, niveles: int = 8) -> dict:
+    """Profundidad de mercado (DOM) del símbolo: niveles de venta (ask) y compra (bid)
+    con su volumen, leídos del LIBRO REAL del bróker (`mt5.market_book_get`).
+
+    Devuelve {"ask":[{price,volume}...], "bid":[...], "disponible":bool}. Requiere que
+    el bróker PUBLIQUE el libro para ese símbolo; en Forex/CFD muchas veces no lo hace y
+    las listas vienen vacías (disponible=False). La primera lectura tras suscribir puede
+    venir vacía (el libro tarda un instante en poblarse); por eso se consulta cada ciclo.
+    """
+    real = resolver_simbolo(symbol)
+    with MT5_LOCK:
+        if not inicializar_mt5():
+            return {"error": "Sin conexión con MT5"}
+        if real not in _DOM_SUSCRITOS:
+            if mt5.market_book_add(real):
+                _DOM_SUSCRITOS.add(real)
+            else:
+                return {"ask": [], "bid": [], "disponible": False,
+                        "motivo": "El bróker no permite suscribir el libro de este símbolo."}
+        libro = mt5.market_book_get(real)
+
+    asks, bids = [], []
+    for it in (libro or []):
+        entrada = {"price": float(it.price), "volume": float(it.volume)}
+        tipo = int(getattr(it, "type", 0))
+        if tipo in (mt5.BOOK_TYPE_SELL, mt5.BOOK_TYPE_SELL_MARKET):      # 1, 3 = venta (ask)
+            asks.append(entrada)
+        elif tipo in (mt5.BOOK_TYPE_BUY, mt5.BOOK_TYPE_BUY_MARKET):      # 2, 4 = compra (bid)
+            bids.append(entrada)
+    asks.sort(key=lambda x: x["price"])                 # ask: de menor a mayor precio
+    bids.sort(key=lambda x: x["price"], reverse=True)   # bid: de mayor a menor precio
+    return {"ask": asks[:niveles], "bid": bids[:niveles],
+            "disponible": bool(asks or bids)}
+
+
 def eliminar_orden(ticket: int) -> dict:
     """Cancela una orden PENDIENTE."""
     with MT5_LOCK:
@@ -677,4 +755,3 @@ def eliminar_orden(ticket: int) -> dict:
                          f"{getattr(resultado, 'comment', '')}{extra}"}
     return {"status": "success", "ticket": int(ticket),
             "tipo": _NOMBRE_PENDIENTE.get(o.type, ""), "symbol": o.symbol}
-

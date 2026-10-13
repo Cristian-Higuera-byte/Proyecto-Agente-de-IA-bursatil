@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from core import ordenes
+from core import contexto, ordenes, vigilancia
 from herramientas.base import herramienta
 
 
@@ -34,7 +34,14 @@ def _a_numero(valor: Any) -> Any:
         "la propuesta por riesgo, explica el motivo al usuario y, si procede, ajusta y vuelve a intentar."
     ),
     parametros={
-        "simbolo": {"type": "string", "description": "Símbolo exacto en MT5 (ej. 'EURUSD', 'GOLD')."},
+        "simbolo": {
+            "type": "string",
+            "description": (
+                "Cualquier activo disponible en la cuenta de MT5 (divisas, metales, índices, energía, cripto, "
+                "acciones...). Se aceptan equivalentes entre brókers (XAUUSD/GOLD). Si no conoces el nombre "
+                "exacto, búscalo antes con mt5_buscar_simbolos."
+            ),
+        },
         "lado": {"type": "string", "enum": ["compra", "venta"], "description": "Dirección de la operación."},
         "stop_loss": {"type": "number", "description": "Precio del stop loss (obligatorio)."},
         "take_profit": {"type": "number", "description": "Precio del take profit (opcional pero recomendado)."},
@@ -105,7 +112,8 @@ def ver_posiciones() -> dict[str, Any]:
 @herramienta(
     descripcion=(
         "Consulta los límites de riesgo vigentes (riesgo máximo por operación, posiciones máximas, pérdida "
-        "diaria máxima, símbolos permitidos) y el estado actual (pérdida del día, posiciones abiertas, "
+        "diaria máxima, restricciones de símbolos: por defecto ninguna, se puede operar cualquier activo de MT5) "
+        "y el estado actual (pérdida del día, posiciones abiertas, "
         "interruptor de emergencia). Úsala antes de proponer una operación si dudas de qué está permitido."
     ),
     parametros={},
@@ -114,3 +122,93 @@ def ver_posiciones() -> dict[str, Any]:
 )
 def ver_limites_riesgo() -> dict[str, Any]:
     return ordenes.estado_riesgo()
+
+# ── Vigilancia automática (core/vigilancia.py): operar solo, con permiso, un activo que el usuario pidió ──
+@herramienta(
+    descripcion=(
+        "Prepara una VIGILANCIA AUTOMÁTICA de un activo: el sistema lo analizará cada cierto tiempo y, SOLO si el "
+        "usuario la autoriza con el botón «Autorizar» del panel, comprará o venderá por su cuenta dentro de los "
+        "límites indicados (cuenta demo, stop loss obligatorio, riesgo acotado). Úsala únicamente cuando el usuario "
+        "pida EXPRESAMENTE que vigiles de forma continua un activo y operes por él (p. ej. 'vigila el oro y compra o "
+        "vende solo cuando sea el mejor momento'). Un análisis puntual, una opinión o una orden concreta NO son una "
+        "vigilancia. No ejecuta nada por sí sola: queda pendiente de autorización. Si el usuario no indica un valor, "
+        "omite el parámetro (hay valores por defecto prudentes)."
+    ),
+    parametros={
+        "simbolo": {
+            "type": "string",
+            "description": "El activo que el usuario pidió vigilar (cualquiera disponible en MT5; XAUUSD/GOLD equivalen).",
+        },
+        "instruccion": {
+            "type": "string",
+            "description": "Lo que pidió el usuario con sus palabras: criterios, estilo, restricciones. Se le muestra al análisis.",
+        },
+        "riesgo_pct": {"type": "number", "description": "% del equity a arriesgar por operación (por defecto 0.5)."},
+        "max_operaciones": {"type": "integer", "description": "Máximo de aperturas durante la vigilancia (por defecto 3)."},
+        "duracion_horas": {"type": "number", "description": "Cuánto dura la vigilancia desde que se autoriza (por defecto 8 h, máx. 24)."},
+        "intervalo_min": {"type": "integer", "description": "Cada cuántos minutos se analiza el activo (por defecto 15, mín. 5)."},
+    },
+    requeridos=["simbolo", "instruccion"],
+    nombre="proponer_vigilancia",
+)
+def proponer_vigilancia(
+    simbolo: str,
+    instruccion: str,
+    riesgo_pct: float | None = None,
+    max_operaciones: int | None = None,
+    duracion_horas: float | None = None,
+    intervalo_min: int | None = None,
+) -> dict[str, Any]:
+    r = vigilancia.crear(
+        contexto.usuario_actual(), simbolo, instruccion,
+        riesgo_pct=_a_numero(riesgo_pct), max_operaciones=_a_numero(max_operaciones),
+        duracion_horas=_a_numero(duracion_horas), intervalo_min=_a_numero(intervalo_min),
+    )
+    if not r["ok"]:
+        return {"estado": "RECHAZADA", "motivo": r["motivo"]}
+    return {
+        "estado": "VIGILANCIA_PENDIENTE_DE_AUTORIZACION",
+        "id": r["id"],
+        "resumen": r["resumen"],
+        "mensaje": (
+            "Vigilancia registrada, pero NO está activa: el usuario debe pulsar «Autorizar» en la tarjeta del panel "
+            "«Órdenes propuestas» (vale unos minutos). Hasta entonces NO se vigila ni se opera. No afirmes que ya está "
+            "vigilando: resume los términos (activo, riesgo, operaciones máximas, duración, frecuencia) y dile cómo autorizarla."
+        ),
+    }
+
+
+@herramienta(
+    descripcion=(
+        "Detiene una vigilancia automática del usuario (por activo o por id). Es inmediato y no necesita "
+        "confirmación. No cierra posiciones que ya estén abiertas."
+    ),
+    parametros={
+        "simbolo": {"type": "string", "description": "Activo de la vigilancia a detener (opcional si das el id)."},
+        "id": {"type": "string", "description": "Id de la vigilancia (opcional si das el activo)."},
+    },
+    requeridos=[],
+    nombre="detener_vigilancia",
+)
+def detener_vigilancia(simbolo: str | None = None, id: str | None = None) -> dict[str, Any]:  # noqa: A002
+    return vigilancia.detener(contexto.usuario_actual(), vid=id, simbolo=simbolo)
+
+
+@herramienta(
+    descripcion=(
+        "Lista las vigilancias automáticas del usuario (vigentes y las últimas terminadas) con su estado, "
+        "operaciones realizadas, próximo chequeo y el resumen de su último análisis."
+    ),
+    parametros={},
+    requeridos=[],
+    nombre="ver_vigilancias",
+)
+def ver_vigilancias() -> dict[str, Any]:
+    filas = vigilancia.listar(contexto.usuario_actual(), incluir_finalizadas=True, limite=8)
+    return {
+        "vigilancias": [
+            {**vigilancia.resumen_terminos(f), "vence": f.get("vence"), "proximo_chequeo": f.get("proximo_chequeo"),
+             "ultimo_resumen": f.get("ultimo_resumen"), "detalle": f.get("detalle")}
+            for f in filas
+        ]
+    }

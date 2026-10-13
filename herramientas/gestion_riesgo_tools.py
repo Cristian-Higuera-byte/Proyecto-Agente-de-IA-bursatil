@@ -52,30 +52,48 @@ def calcular_tamano_posicion(
 
     sym_upper = simbolo.strip().upper()
 
-    # Estimación de valor por pip en USD por 1.0 lote estándar (100,000 unidades)
-    if "USD" in sym_upper and sym_upper.endswith("USD"):
-        valor_pip_lote_estandar = 10.0  # ej. EURUSD, GBPUSD, AUDUSD
-    elif sym_upper.startswith("USD"):
-        valor_pip_lote_estandar = 8.5   # ej. USDJPY, USDCAD, USDCHF
-    elif sym_upper in ("XAUUSD", "GOLD"):
-        valor_pip_lote_estandar = 10.0  # 1 pip = $0.10 en oro
-    else:
-        valor_pip_lote_estandar = 10.0  # Valor base general
+    # Valor real del pip por lote según MT5 (respeta contrato y conversión a la moneda de la cuenta)
+    try:
+        esp = mt5_fuente.especificacion_simbolo(sym_upper)
+    except mt5_fuente.ErrorMT5:
+        esp = {}
+    valor_pip_lote = esp.get("valor_pip_por_lote")
+    if not valor_pip_lote or valor_pip_lote <= 0:
+        return {
+            "error": (
+                f"No se pudo obtener de MT5 el valor del pip de '{sym_upper}', así que no se calcula el lotaje "
+                "(una estimación podría ser muy errónea). Verifica el símbolo con mt5_buscar_simbolos."
+            ),
+        }
 
-    lote_calculado = monto_riesgo_usd / (distancia_sl_pips * valor_pip_lote_estandar)
-    lote_sugerido = max(0.01, round(lote_calculado, 2))
+    lote_calculado = monto_riesgo_usd / (distancia_sl_pips * valor_pip_lote)
+    paso = esp.get("paso_lote") or 0.01
+    minimo = esp.get("lote_minimo") or paso
+    maximo = esp.get("lote_maximo")
+    lote_sugerido = max(minimo, int(round(lote_calculado / paso, 6)) * paso)   # se redondea hacia abajo: nunca más riesgo
+    if maximo:
+        lote_sugerido = min(lote_sugerido, maximo)
+    lote_sugerido = round(lote_sugerido, 8)
+    riesgo_real = round(lote_sugerido * distancia_sl_pips * valor_pip_lote, 2)
 
-    return {
-        "fuente": "Calculadora de Gestión de Riesgo y Lote",
-        "simbolo": sym_upper,
+    resultado = {
+        "fuente": "Calculadora de Gestión de Riesgo y Lote (valor del pip calculado por MT5)",
+        "simbolo": esp.get("simbolo", sym_upper),
         "capital_evaluado_usd": capital,
         "porcentaje_riesgo_pct": porcentaje_riesgo,
         "monto_arriesgado_usd": round(monto_riesgo_usd, 2),
         "distancia_sl_pips": distancia_sl_pips,
         "lotaje_teorico": round(lote_calculado, 4),
         "lotaje_sugerido": lote_sugerido,
-        "valor_pip_estimado_por_lote_usd": valor_pip_lote_estandar,
+        "riesgo_real_con_lotaje_sugerido_usd": riesgo_real,
+        "valor_pip_por_lote_usd": valor_pip_lote,
+        "nota_pips": "1 pip = 10 puntos en símbolos de 3 o 5 decimales; en el resto, 1 punto.",
     }
+    if lote_sugerido > lote_calculado:
+        resultado["aviso"] = (
+            "El lote mínimo del símbolo supera el calculado: el riesgo real es mayor que el pedido."
+        )
+    return resultado
 
 
 @herramienta(

@@ -1,0 +1,602 @@
+"""
+servidor_datos.py
+-----------------
+Mini-servidor de datos de MetaTrader 5 para alimentar el dashboard en TIEMPO REAL.
+
+Dos funciones:
+  1) Velas para el gráfico (Lightweight Charts): carga inicial + última vela.
+  2) MOTOR DE PRECIOS EN VIVO (streaming): un único hilo lee los ticks de MT5
+     cada ~250 ms para los símbolos que la página está mostrando y los EMPUJA al
+     navegador por Server-Sent Events (SSE). El navegador actualiza los números
+     directamente en el DOM, sin reejecutar Streamlit (como las plataformas de
+     trading). Así hay UNA sola conexión a MT5 para precios, en vez de varios
+     fragmentos `run_every` consultando cada uno por su cuenta.
+
+Cómo ejecutarlo (en una terminal APARTE, además del 'streamlit run app.py'):
+    env\\Scripts\\python servidor_datos.py
+
+Endpoints:
+    GET /velas/<símbolo>?tf=H1&n=150   -> lista de velas OHLC (carga inicial del gráfico)
+    GET /ultima/<símbolo>?tf=H1        -> última vela (resincroniza volumen/vela nueva)
+    GET /stream?s=EURUSD...,BTCUSD     -> SSE: ticks en vivo + cuenta (saldo, P/G y P/G por posición)
+    GET /ticks?s=EURUSD...,BTCUSD      -> foto instantánea (JSON) de esos ticks
+    GET /simbolos                      -> catálogo de símbolos del terminal [{n, d, c}] (ventana "Comparar" del gráfico)
+    GET /salud                         -> {"ok": true} (lo usa Streamlit para saber si hay feed)
+    POST /sltp  {"ticket", "sl", "tp"} -> cambia SL/TP de una posición (líneas arrastrables
+                                          del gráfico; solo desde páginas de localhost)
+    POST /orden {"symbol", "lado", "volumen", "precio"} -> nueva orden pendiente
+                                          (Buy/Sell Limit/Stop, menú del clic derecho)
+    POST /orden/modificar {"ticket", "precio", "sl", "tp", "caducidad", "expiracion"}
+                                       -> modifica una orden pendiente
+    POST /orden/eliminar  {"ticket"}   -> cancela una orden pendiente
+
+Nota: usa solo la librería estándar de Python (http.server), no requiere instalar nada.
+El terminal de MetaTrader 5 debe estar abierto y logueado.
+"""
+import json
+import threading
+import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import urlparse, parse_qs, unquote
+
+import MetaTrader5 as mt5  # type: ignore[import-untyped]
+from tools.mt5_bridge import (inicializar_mt5, obtener_datos_historicos, resolver_simbolo,
+                              modificar_sltp, colocar_orden_pendiente, modificar_orden,
+                              eliminar_orden)
+from tools import trailing_store, oco_store, equity_store
+
+PUERTO = 8000
+# Versión de la API. Se sube cuando cambian rutas o datos que usa el navegador:
+# el gráfico la compara (GET /salud) y avisa si este proceso quedó desactualizado.
+# 3 = órdenes pendientes con caducidad (POST /orden/modificar con "caducidad").
+# 4 = stop dinámico (trailing): motor que mueve el SL + flag "tr" por posición en el feed.
+# 5 = OCO (One-Cancels-the-Other): motor que cancela la pata sobrante + flag "oco" por orden.
+VERSION_API = 5
+
+# Temporalidades soportadas (igual que el selector del dashboard)
+TF_MAP = {
+    "M1": mt5.TIMEFRAME_M1,
+    "M5": mt5.TIMEFRAME_M5,
+    "M15": mt5.TIMEFRAME_M15,
+    "M30": mt5.TIMEFRAME_M30,
+    "H1": mt5.TIMEFRAME_H1,
+    "H4": mt5.TIMEFRAME_H4,
+    "D1": mt5.TIMEFRAME_D1,
+    "W1": mt5.TIMEFRAME_W1,
+    "MN1": mt5.TIMEFRAME_MN1,
+}
+
+# Todas las llamadas a MT5 de ESTE proceso pasan por aquí (la API no es thread-safe
+# y el servidor atiende cada petición en su propio hilo).
+_IO = threading.RLock()
+
+INTERVALO_TICKS = 0.25       # s entre lecturas de ticks (4 por segundo)
+INTERVALO_CUENTA = 1.0       # s entre lecturas de saldo / P-G
+INTERVALO_EQUITY = 60.0      # s entre snapshots de equity (para el drawdown real)
+TTL_REFERENCIA = 300         # s que se reutiliza el cierre del día anterior
+TTL_SUSCRIPCION = 60         # s sin clientes pidiendo un símbolo -> se deja de leer
+PING_SSE = 15                # s sin cambios -> comentario keep-alive
+
+
+def obtener_velas(simbolo: str, tf: str, n: int) -> list:
+    """Devuelve una lista de velas OHLC de MT5 en formato JSON para Lightweight Charts."""
+    with _IO:
+        inicializar_mt5()
+        df = obtener_datos_historicos(simbolo, timeframe=TF_MAP.get(tf, mt5.TIMEFRAME_H1), n_velas=n)
+    if df.empty:
+        return []
+    velas = []
+    for tiempo, fila in df.iterrows():
+        velas.append({
+            "time": int(tiempo.timestamp()),
+            "open": round(float(fila["open"]), 5),
+            "high": round(float(fila["high"]), 5),
+            "low": round(float(fila["low"]), 5),
+            "close": round(float(fila["close"]), 5),
+            "volume": float(fila["tick_volume"]),
+        })
+    return velas
+
+
+_SIMBOLOS = {"t": 0.0, "datos": []}
+TTL_SIMBOLOS = 300   # s que se reutiliza el catálogo de símbolos
+
+
+def listar_simbolos() -> list:
+    """Catálogo de símbolos del terminal para la ventana "Comparar" del gráfico:
+    n = nombre, d = descripción, c = categoría (primer tramo de la ruta del símbolo en MT5)."""
+    ahora = time.time()
+    if _SIMBOLOS["datos"] and ahora - _SIMBOLOS["t"] < TTL_SIMBOLOS:
+        return _SIMBOLOS["datos"]
+    with _IO:
+        inicializar_mt5()
+        todos = mt5.symbols_get() or []
+    datos = []
+    for s in todos:
+        ruta = (getattr(s, "path", "") or "").replace("\\", "/")
+        datos.append({"n": s.name, "d": getattr(s, "description", "") or "", "c": ruta.split("/")[0] if "/" in ruta else ""})
+    datos.sort(key=lambda x: x["n"].lower())
+    if datos:
+        _SIMBOLOS["t"], _SIMBOLOS["datos"] = ahora, datos
+    return datos
+
+
+# ---------------------------------------------------------------------------
+# MOTOR DE PRECIOS EN VIVO
+# ---------------------------------------------------------------------------
+class MotorPrecios:
+    """Lee ticks de MT5 en un solo hilo y guarda la última foto de cada símbolo.
+    Los clientes SSE esperan en una Condition y reciben SOLO lo que cambió."""
+
+    def __init__(self):
+        self._cond = threading.Condition()
+        self._seq = 0                 # contador global de cambios
+        self._ticks: dict = {}        # pedido -> {"b","a","l","t","ch","pct","seq"}
+        self._cuenta: dict = {}       # {"equity","balance","profit","currency","seq"}
+        self._subs: dict = {}         # pedido -> último instante en que un cliente lo pidió
+        self._reales: dict = {}       # pedido -> nombre real en el terminal
+        self._ref: dict = {}          # real -> (cierre_previo, instante)
+        self._ultimo_msc: dict = {}   # real -> time_msc del último tick procesado
+        self._trailing: dict = {}     # ticket(int) -> {"dist","paso"} (Stop dinámico)
+        self._trailing_mtime = -1.0   # mtime de data/trailing.json ya cargado
+        self._oco: dict = {}          # par_id -> {"a","b","symbol","ts"} (OCO)
+        self._oco_mtime = -1.0        # mtime de data/oco.json ya cargado
+        self._oco_armados: set = set()  # par_id cuyas DOS patas ya se vieron vivas (anti-carrera)
+
+    # --- suscripciones -----------------------------------------------------
+    def suscribir(self, simbolos):
+        ahora = time.time()
+        with self._cond:
+            for s in simbolos:
+                self._subs[s] = ahora
+
+    def _activos(self):
+        limite = time.time() - TTL_SUSCRIPCION
+        with self._cond:
+            for s in [s for s, t in self._subs.items() if t < limite]:
+                self._subs.pop(s, None)
+            return list(self._subs.keys())
+
+    # --- lecturas de MT5 (solo desde el hilo del motor) -------------------
+    def _real(self, pedido):
+        real = self._reales.get(pedido)
+        if real is None:
+            with _IO:
+                real = resolver_simbolo(pedido)
+                mt5.symbol_select(real, True)
+            self._reales[pedido] = real
+        return real
+
+    def _cierre_previo(self, real):
+        """Cierre de la vela diaria ANTERIOR: base de la variación del día."""
+        ref = self._ref.get(real)
+        if ref and time.time() - ref[1] < TTL_REFERENCIA:
+            return ref[0]
+        valor = None
+        with _IO:
+            rates = mt5.copy_rates_from_pos(real, mt5.TIMEFRAME_D1, 0, 2)
+        if rates is not None and len(rates) >= 2:
+            valor = float(rates[-2]["close"])
+        elif rates is not None and len(rates) == 1:
+            valor = float(rates[0]["open"])
+        self._ref[real] = (valor, time.time())
+        return valor
+
+    def _leer_ticks(self):
+        cambios = {}
+        for pedido in self._activos():
+            try:
+                real = self._real(pedido)
+                with _IO:
+                    tick = mt5.symbol_info_tick(real)
+                if tick is None or not (tick.bid or tick.ask):
+                    continue
+                if self._ultimo_msc.get(real) == tick.time_msc and pedido in self._ticks:
+                    continue          # sin tick nuevo -> nada que enviar
+                self._ultimo_msc[real] = tick.time_msc
+                precio = tick.last if tick.last > 0 else tick.bid
+                previo = self._cierre_previo(real)
+                ch = (precio - previo) if previo else 0.0
+                pct = (ch / previo * 100) if previo else 0.0
+                cambios[pedido] = {
+                    "b": tick.bid, "a": tick.ask, "l": precio,
+                    "t": int(tick.time), "ch": ch, "pct": pct,
+                }
+            except Exception:
+                continue
+        return cambios
+
+    def _leer_cuenta(self):
+        with _IO:
+            info = mt5.account_info()
+            posiciones = mt5.positions_get() or []
+            ordenes = mt5.orders_get() or []          # órdenes pendientes
+        if info is None:
+            return None
+        # P/G neto por posición (profit + swap) → la suma coincide con info.profit
+        pos = {str(p.ticket): round(p.profit + p.swap, 2) for p in posiciones}
+        pc = {str(p.ticket): p.price_current for p in posiciones}   # precio actual (Inicio)
+        # detalle por posición para las líneas del gráfico: símbolo, tipo, lotes, apertura,
+        # SL/TP, k = valor de 1 unidad de precio por lote (P/G proyectado) y sm = distancia
+        # mínima de SL/TP al precio que exige el bróker
+        pi = {}
+        specs = {}
+        def _spec(simbolo):
+            if simbolo not in specs:
+                with _IO:
+                    si = mt5.symbol_info(simbolo)
+                ts = float(getattr(si, "trade_tick_size", 0) or 0)
+                specs[simbolo] = (
+                    (float(si.trade_tick_value) / ts) if si and ts else 0.0,
+                    float(getattr(si, "trade_stops_level", 0) or 0) * float(getattr(si, "point", 0) or 0),
+                )
+            return specs[simbolo]
+        tr = trailing_store.leer()      # tickets con stop dinámico activo (etiqueta "auto")
+        for p in posiciones:
+            k, sm = _spec(p.symbol)
+            pi[str(p.ticket)] = {"s": p.symbol, "t": int(p.type), "v": p.volume, "po": p.price_open,
+                                 "sl": p.sl, "tp": p.tp, "k": k, "sm": sm,
+                                 "tr": 1 if p.ticket in tr else 0}
+        # órdenes pendientes (t: 2 Buy Limit, 3 Sell Limit, 4 Buy Stop, 5 Sell Stop)
+        oco_tks = oco_store.tickets_en_oco()   # tickets vinculados en un par OCO (etiqueta "OCO")
+        orden = {}
+        for o in ordenes:
+            if int(o.type) not in (2, 3, 4, 5):
+                continue
+            k, sm = _spec(o.symbol)
+            orden[str(o.ticket)] = {"s": o.symbol, "t": int(o.type), "v": o.volume_current,
+                                    "po": o.price_open, "sl": o.sl, "tp": o.tp, "k": k, "sm": sm,
+                                    # caducidad: 0 GTC, 1 DAY, 2 fecha (ex, hora del servidor)
+                                    "tt": int(o.type_time), "ex": int(o.time_expiration or 0),
+                                    "oco": 1 if o.ticket in oco_tks else 0}
+        return {"equity": info.equity, "balance": info.balance,
+                "profit": info.profit, "currency": info.currency,
+                "margin": info.margin, "margin_free": info.margin_free,
+                "margin_level": info.margin_level, "credit": info.credit,
+                # % del equity usado como margen (barra "margen usado" de Inicio)
+                "uso_margen": round(info.margin / info.equity * 100, 2) if info.equity else 0.0,
+                "pos": pos, "pc": pc, "pi": pi, "ord": orden}
+
+    # --- Stop dinámico (trailing stop) ------------------------------------
+    # El SL sigue al precio a una distancia fija cuando la operación va a favor y
+    # NUNCA retrocede. MT5 no tiene una orden trailing en el servidor del bróker:
+    # la lógica corre aquí (cliente), por eso solo funciona con este proceso vivo.
+    # La config la escribe el panel de Cartera en data/trailing.json (otro proceso).
+    def _recargar_trailing(self):
+        m = trailing_store.mtime()
+        if m != self._trailing_mtime:
+            self._trailing = trailing_store.leer()
+            self._trailing_mtime = m
+
+    def _paso_trailing(self):
+        self._recargar_trailing()
+        if not self._trailing:
+            return
+        with _IO:
+            posiciones = {p.ticket: p for p in (mt5.positions_get() or [])}
+        for ticket in list(self._trailing.keys()):
+            cfg = self._trailing[ticket]
+            p = posiciones.get(ticket)
+            if p is None:                      # posición cerrada -> limpiar la config
+                trailing_store.quitar(ticket)
+                self._trailing.pop(ticket, None)
+                self._trailing_mtime = trailing_store.mtime()
+                continue
+            dist = float(cfg.get("dist", 0.0))
+            if dist <= 0:
+                continue
+            with _IO:
+                si = mt5.symbol_info(p.symbol)
+                tick = mt5.symbol_info_tick(p.symbol)
+            if si is None or tick is None or not (tick.bid or tick.ask):
+                continue
+            dig = int(getattr(si, "digits", 5) or 5)
+            point = float(getattr(si, "point", 0) or 0)
+            sm = float(getattr(si, "trade_stops_level", 0) or 0) * point
+            # Paso mínimo para volver a mover el SL (evita reescribirlo en cada
+            # micro-tick). Por defecto 5 % de la distancia, con piso de unos points:
+            # el SL sigue pegado al precio (gap entre dist y dist×1.05) sin saturar.
+            paso = float(cfg.get("paso", 0.0)) or max(point * 3, dist * 0.05)
+            sl_actual = float(p.sl or 0.0)
+            if int(p.type) == 0:               # COMPRA: SL por debajo, sigue al Bid
+                precio = tick.bid
+                nuevo = round(precio - dist, dig)
+                if precio - nuevo < sm:        # respeta la distancia mínima del bróker
+                    nuevo = round(precio - sm, dig)
+                sube = nuevo > sl_actual + paso if sl_actual > 0 else True
+                if sube and 0 < nuevo < precio and (sl_actual <= 0 or nuevo > sl_actual):
+                    with _IO:
+                        modificar_sltp(int(ticket), sl=nuevo)   # tp=None -> conserva el TP
+            else:                              # VENTA: SL por encima, sigue al Ask
+                precio = tick.ask
+                nuevo = round(precio + dist, dig)
+                if nuevo - precio < sm:
+                    nuevo = round(precio + sm, dig)
+                baja = nuevo < sl_actual - paso if sl_actual > 0 else True
+                if baja and nuevo > precio and (sl_actual <= 0 or nuevo < sl_actual):
+                    with _IO:
+                        modificar_sltp(int(ticket), sl=nuevo)
+
+    # --- OCO (One-Cancels-the-Other) --------------------------------------
+    # Dos órdenes pendientes vinculadas: cuando UNA se ejecuta (pasa a posición),
+    # se cancela la otra. MT5 no tiene OCO nativo: la lógica vive aquí (cliente),
+    # por eso solo funciona con este proceso vivo. La config la escribe el ticket
+    # de órdenes en data/oco.json (otro proceso).
+    def _recargar_oco(self):
+        m = oco_store.mtime()
+        if m != self._oco_mtime:
+            self._oco = oco_store.leer()
+            self._oco_mtime = m
+            # olvida pares "armados" que ya no existen
+            self._oco_armados &= set(self._oco.keys())
+
+    def _paso_oco(self):
+        self._recargar_oco()
+        if not self._oco:
+            return
+        with _IO:
+            ordenes = mt5.orders_get() or []
+            posiciones = mt5.positions_get() or []
+        # tickets de órdenes pendientes vivas ahora mismo
+        vivos = {int(o.ticket) for o in ordenes if int(o.type) in (2, 3, 4, 5)}
+        # tickets que ya son posición (una pendiente al ejecutarse conserva su ticket
+        # como identifier de la posición): sirve para distinguir "ejecutada" de "cancelada"
+        en_posicion = set()
+        for p in posiciones:
+            en_posicion.add(int(p.ticket))
+            en_posicion.add(int(getattr(p, "identifier", p.ticket)))
+        for par_id in list(self._oco.keys()):
+            cfg = self._oco[par_id]
+            a, b = int(cfg["a"]), int(cfg["b"])
+            a_vivo, b_vivo = a in vivos, b in vivos
+            if a_vivo and b_vivo:
+                self._oco_armados.add(par_id)        # ambas patas confirmadas
+                continue
+            if not (a_vivo or b_vivo):               # ninguna sigue pendiente: nada que hacer
+                self._cerrar_oco(par_id)
+                continue
+            if par_id not in self._oco_armados:
+                # Aún no se vieron las DOS vivas: puede ser la ventana entre colocar la
+                # 1.ª y la 2.ª pata. Se espera a confirmarlas antes de actuar (anti-carrera).
+                continue
+            # Exactamente una pata sigue viva y el par estaba armado -> la otra salió del libro
+            vivo = a if a_vivo else b
+            ido = b if a_vivo else a
+            if ido in en_posicion:                   # la otra SE EJECUTÓ -> cancela la sobrante (OCO)
+                with _IO:
+                    eliminar_orden(vivo)
+            # si no está en posición, fue cancelada a mano: solo se rompe el vínculo
+            self._cerrar_oco(par_id)
+
+    def _cerrar_oco(self, par_id):
+        oco_store.quitar_par(par_id)
+        self._oco.pop(par_id, None)
+        self._oco_mtime = oco_store.mtime()
+        self._oco_armados.discard(par_id)
+
+    def _paso_equity_log(self):
+        """Guarda un snapshot del equity/balance cada INTERVALO_EQUITY segundos.
+        El equity_store aplica su propio mínimo entre escrituras, así que llamar
+        cada ciclo es inofensivo. Alimenta el drawdown de EQUITY real (el que
+        incluye el flotante de posiciones abiertas), que MT5 no guarda por sí solo.
+        Ver tools/equity_store.py para la nota de escalado a multiusuario/Supabase."""
+        c = self._cuenta
+        eq = c.get("equity")
+        if eq is None:
+            return
+        try:
+            equity_store.registrar(eq, c.get("balance", eq), min_intervalo=INTERVALO_EQUITY)
+        except Exception as e:
+            print(f"[motor] no se pudo registrar equity: {e}")
+
+    # --- bucle principal ---------------------------------------------------
+    def correr(self):
+        ultima_cuenta = 0.0
+        while True:
+            inicio = time.time()
+            try:
+                cambios = self._leer_ticks()
+                cuenta = None
+                if inicio - ultima_cuenta >= INTERVALO_CUENTA:
+                    ultima_cuenta = inicio
+                    cuenta = self._leer_cuenta()
+                    if cuenta and all(self._cuenta.get(k) == v for k, v in cuenta.items()):
+                        cuenta = None   # sin cambios
+                if cambios or cuenta:
+                    with self._cond:
+                        self._seq += 1
+                        for k, v in cambios.items():
+                            v["seq"] = self._seq
+                            self._ticks[k] = v
+                        if cuenta:
+                            cuenta["seq"] = self._seq
+                            self._cuenta = cuenta
+                        self._cond.notify_all()
+                self._paso_trailing()          # mueve los stops dinámicos activos
+                self._paso_oco()               # cancela la pata sobrante de los OCO ejecutados
+                self._paso_equity_log()        # snapshot de equity (drawdown real, Tanda 2)
+            except Exception as e:
+                print(f"[motor] error leyendo MT5: {e}")
+                time.sleep(1)
+            time.sleep(max(0.0, INTERVALO_TICKS - (time.time() - inicio)))
+
+    # --- lectura para los clientes ----------------------------------------
+    def foto(self, simbolos, desde_seq=0):
+        """Ticks (de esos símbolos) y cuenta que cambiaron después de `desde_seq`."""
+        with self._cond:
+            ticks = {s: {k: v for k, v in self._ticks[s].items() if k != "seq"}
+                     for s in simbolos
+                     if s in self._ticks and self._ticks[s]["seq"] > desde_seq}
+            cuenta = None
+            if self._cuenta and self._cuenta.get("seq", 0) > desde_seq:
+                cuenta = {k: v for k, v in self._cuenta.items() if k != "seq"}
+            return self._seq, ticks, cuenta
+
+    def esperar(self, seq, timeout):
+        with self._cond:
+            self._cond.wait_for(lambda: self._seq > seq, timeout=timeout)
+            return self._seq
+
+
+MOTOR = MotorPrecios()
+
+
+def _lista_simbolos(qs) -> list:
+    crudo = qs.get("s", [""])[0]
+    return [s for s in (x.strip() for x in crudo.split(",")) if s][:80]
+
+
+class Manejador(BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+
+    def _origen_permitido(self):
+        """El Origin de la petición si es una página de este equipo (el dashboard en localhost); si no, None."""
+        origen = self.headers.get("Origin", "") or ""
+        host = urlparse(origen).hostname
+        return origen if host in ("localhost", "127.0.0.1") else None
+
+    def _cabecera_cors(self):
+        """CORS solo para el dashboard local: otra web abierta en el navegador no puede leer
+        saldo, equidad ni posiciones de esta API."""
+        origen = self._origen_permitido()
+        if origen:
+            self.send_header("Access-Control-Allow-Origin", origen)
+            self.send_header("Vary", "Origin")
+
+    def _responder(self, obj):
+        cuerpo = json.dumps(obj).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(cuerpo)))
+        self._cabecera_cors()   # permite el fetch desde el iframe del gráfico (solo localhost)
+        self.end_headers()
+        self.wfile.write(cuerpo)
+
+    def _stream(self, simbolos):
+        """SSE: envía la foto completa y luego solo los cambios, hasta que el
+        navegador cierre la conexión."""
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "keep-alive")
+        self._cabecera_cors()
+        self.end_headers()
+        MOTOR.suscribir(simbolos)
+        seq = 0
+        ultimo_envio = time.time()
+        try:
+            self.wfile.write(b"retry: 2000\n\n")
+            while True:
+                nuevo, ticks, cuenta = MOTOR.foto(simbolos, seq)
+                seq = nuevo
+                if ticks or cuenta:
+                    msg = {"t": ticks}
+                    if cuenta:
+                        msg["acc"] = cuenta
+                    self.wfile.write(b"data: " + json.dumps(msg).encode("utf-8") + b"\n\n")
+                    self.wfile.flush()
+                    ultimo_envio = time.time()
+                elif time.time() - ultimo_envio >= PING_SSE:
+                    self.wfile.write(b": ping\n\n")
+                    self.wfile.flush()
+                    ultimo_envio = time.time()
+                MOTOR.suscribir(simbolos)          # mantiene viva la suscripción
+                MOTOR.esperar(seq, timeout=PING_SSE)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
+            pass   # el navegador cerró la pestaña o cambió de vista
+
+    def do_GET(self):
+        parsed = urlparse(self.path)
+        partes = [unquote(p) for p in parsed.path.strip("/").split("/")]
+        qs = parse_qs(parsed.query)
+        tf = qs.get("tf", ["H1"])[0]
+        try:
+            if partes and partes[0] == "stream":
+                self._stream(_lista_simbolos(qs))
+            elif partes and partes[0] == "ticks":
+                simbolos = _lista_simbolos(qs)
+                MOTOR.suscribir(simbolos)
+                _, ticks, cuenta = MOTOR.foto(simbolos, 0)
+                self._responder({"t": ticks, "acc": cuenta})
+            elif partes and partes[0] == "simbolos":
+                self._responder(listar_simbolos())
+            elif partes and partes[0] == "salud":
+                self._responder({"ok": True, "v": VERSION_API})
+            elif len(partes) >= 2 and partes[0] == "velas":
+                n = int(qs.get("n", ["150"])[0])
+                self._responder(obtener_velas(partes[1], tf, n))
+            elif len(partes) >= 2 and partes[0] == "ultima":
+                velas = obtener_velas(partes[1], tf, 2)
+                self._responder(velas[-1] if velas else {})
+            else:
+                self._responder({"error": "ruta no reconocida"})
+        except Exception as e:
+            try:
+                self._responder({"error": str(e)})
+            except Exception:
+                pass
+
+    # --- Modificaciones (POST) ----------------------------------------------
+    def _origen_local(self) -> bool:
+        """Solo páginas servidas desde este equipo (el dashboard en localhost) pueden
+        modificar posiciones: otra web abierta en el navegador no puede."""
+        host = urlparse(self.headers.get("Origin", "") or "").hostname
+        return host in ("localhost", "127.0.0.1")
+
+    def do_OPTIONS(self):
+        self.send_response(204)
+        self._cabecera_cors()
+        self.send_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def do_POST(self):
+        if not self._origen_local():
+            cuerpo = b'{"error": "origen no permitido"}'
+            self.send_response(403)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(cuerpo)))
+            self.end_headers()
+            self.wfile.write(cuerpo)
+            return
+        try:
+            n = int(self.headers.get("Content-Length", 0) or 0)
+            datos = json.loads(self.rfile.read(n) or b"{}")
+            ruta = urlparse(self.path).path.strip("/")
+            with _IO:   # mismo candado que el motor: la API de MT5 no es thread-safe
+                if ruta == "sltp":
+                    res = modificar_sltp(int(datos["ticket"]), datos.get("sl"), datos.get("tp"))
+                elif ruta == "orden":
+                    res = colocar_orden_pendiente(datos["symbol"], datos["lado"],
+                                                  float(datos["volumen"]), float(datos["precio"]))
+                elif ruta == "orden/modificar":
+                    res = modificar_orden(int(datos["ticket"]), datos.get("precio"),
+                                          datos.get("sl"), datos.get("tp"),
+                                          datos.get("caducidad"), datos.get("expiracion"))
+                elif ruta == "orden/eliminar":
+                    res = eliminar_orden(int(datos["ticket"]))
+                else:
+                    res = None
+            if res is not None:
+                self._responder(res)
+            else:
+                self._responder({"error": "ruta no reconocida"})
+        except Exception as e:
+            try:
+                self._responder({"error": str(e)})
+            except Exception:
+                pass
+
+    def log_message(self, *args):
+        pass  # silencia los logs de acceso en consola
+
+
+if __name__ == "__main__":
+    inicializar_mt5()
+    threading.Thread(target=MOTOR.correr, name="motor-precios", daemon=True).start()
+    servidor = ThreadingHTTPServer(("127.0.0.1", PUERTO), Manejador)
+    servidor.daemon_threads = True
+    print(f"Servidor de datos MT5 activo en http://localhost:{PUERTO}  (Ctrl+C para detener)")
+    print(f"  · Precios en vivo por SSE cada {int(INTERVALO_TICKS * 1000)} ms  (/stream)")
+    servidor.serve_forever()

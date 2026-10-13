@@ -32,7 +32,7 @@ from typing import Any
 
 import MetaTrader5 as mt5  # type: ignore[import-untyped]
 
-from tools.mt5_bridge import MT5_LOCK, inicializar_mt5
+from tools.mt5_bridge import MT5_LOCK, inicializar_mt5, resolver_simbolo
 
 
 # ══════════════════════════════════════════════════════════════
@@ -48,8 +48,12 @@ class LimitesRiesgo:
     volumen_max: float = 0.5                     # lotes máximos por orden
     vigencia_propuesta_min: int = 10             # minutos antes de que una propuesta venza
     desviacion_puntos: int = 20                  # deslizamiento máximo aceptado al ejecutar
-    # Solo estos símbolos (ajusta los nombres a los de tu broker en MT5):
-    simbolos_permitidos: tuple = ("EURUSD", "GBPUSD", "USDJPY", "USDCLP", "GOLD", "XAUUSD")
+    # Símbolos que el agente puede operar. None = CUALQUIER activo disponible en MT5 (el nombre se traduce
+    # al del bróker con resolver_simbolo: XAUUSD <-> GOLD, sufijos .m / ..., etc.). Para restringirlo pon
+    # una tupla, por ejemplo ("EURUSD", "GBPUSD", "GOLD").
+    simbolos_permitidos: tuple | None = None
+    # Lista negra opcional: símbolos que NUNCA se operan aunque existan en MT5.
+    simbolos_bloqueados: tuple = ()
 
 
 LIMITES = LimitesRiesgo()
@@ -85,7 +89,44 @@ CREATE TABLE IF NOT EXISTS ordenes (
     ticket_objetivo INTEGER,     -- en 'cerrar': ticket de la posición
     justificacion TEXT,
     detalle TEXT,                -- motivo del rechazo / resultado de la ejecución
-    ticket_resultado INTEGER
+    ticket_resultado INTEGER,
+    origen TEXT DEFAULT 'agente',  -- agente (propone y el usuario confirma) | automatica (vigilancia autorizada)
+    vigilancia_id TEXT             -- si origen = 'automatica': la vigilancia que la generó
+)
+"""
+
+# Columnas añadidas después de la primera versión: se agregan a las bases ya existentes (migración).
+_COLUMNAS_NUEVAS_ORDENES = (
+    ("origen", "TEXT DEFAULT 'agente'"),
+    ("vigilancia_id", "TEXT"),
+)
+
+# Vigilancia automática (core/vigilancia.py): el agente analiza un activo cada cierto tiempo y, si el
+# usuario lo autorizó, ejecuta solo dentro de los límites de la vigilancia.
+_SQL_VIGILANCIAS = """
+CREATE TABLE IF NOT EXISTS vigilancias (
+    id TEXT PRIMARY KEY,
+    usuario_id TEXT NOT NULL,
+    simbolo TEXT NOT NULL,
+    estado TEXT NOT NULL,        -- PENDIENTE_AUTORIZACION | ACTIVA | FINALIZADA | CANCELADA | EXPIRADA | ERROR
+    instruccion TEXT,            -- lo que pidió el usuario, con sus palabras
+    creada TEXT NOT NULL,
+    expira_autorizacion TEXT,    -- hasta cuándo se puede autorizar
+    autorizada TEXT,
+    vence TEXT,                  -- cuándo termina sola (autorizada + duración)
+    duracion_horas REAL,
+    intervalo_min INTEGER,
+    riesgo_pct REAL,             -- % del equity por operación (nunca más que el límite global)
+    max_operaciones INTEGER,     -- aperturas máximas durante la vigilancia
+    operaciones INTEGER DEFAULT 0,
+    permite_cerrar INTEGER DEFAULT 1,  -- puede cerrar, por su análisis, las posiciones que ella abrió
+    proximo_chequeo TEXT,
+    ultimo_chequeo TEXT,
+    ultimo_tick INTEGER,         -- hora del último tick visto: si no cambió, el mercado está parado y no se analiza
+    ultimo_resumen TEXT,
+    chequeos INTEGER DEFAULT 0,
+    errores INTEGER DEFAULT 0,   -- fallos seguidos del análisis
+    detalle TEXT
 )
 """
 
@@ -105,6 +146,11 @@ def _conectar() -> sqlite3.Connection:
             except sqlite3.OperationalError:
                 pass  # otra conexión la usa ahora mismo: se queda en el modo actual
             con.execute(_SQL_ORDENES)
+            existentes = {fila[1] for fila in con.execute("PRAGMA table_info(ordenes)")}
+            for nombre, definicion in _COLUMNAS_NUEVAS_ORDENES:   # bases creadas antes de estas columnas
+                if nombre not in existentes:
+                    con.execute(f"ALTER TABLE ordenes ADD COLUMN {nombre} {definicion}")
+            con.execute(_SQL_VIGILANCIAS)
             con.execute("CREATE TABLE IF NOT EXISTS estado (clave TEXT PRIMARY KEY, valor TEXT)")
             con.commit()
             _DB_PREPARADA = RUTA_DB
@@ -161,6 +207,33 @@ def _normalizar(simbolo: str) -> str:
     return (simbolo or "").replace("...", "").replace("…", "").strip().upper()
 
 
+def _resolver_simbolo(simbolo: str) -> str:
+    """Nombre del símbolo tal como lo llama el bróker (exacto -> núcleo -> alias). Si no se puede
+    traducir, devuelve el nombre limpio y la validación posterior dirá que no existe."""
+    limpio = (simbolo or "").replace("...", "").replace("…", "").strip()
+    try:
+        real = resolver_simbolo(limpio)
+    except Exception:  # noqa: BLE001 - un fallo del resolvedor no debe impedir validar
+        real = limpio
+    return real or limpio
+
+
+def _simbolos_para_reloj() -> list[str]:
+    """Símbolos de los que leer un tick para conocer la hora del servidor: los de la Observación de
+    mercado (visibles), o unos comunes si no hay ninguno."""
+    try:
+        visibles = [s.name for s in (mt5.symbols_get() or []) if getattr(s, "visible", False)]
+    except Exception:  # noqa: BLE001
+        visibles = []
+    return visibles[:30] or ["EURUSD", "GOLD", "XAUUSD", "BTCUSD"]
+
+
+def _desviacion(info: Any) -> int:
+    """Deslizamiento máximo en PUNTOS: el mínimo configurado, o el doble del spread si es mayor.
+    Un valor fijo no sirve para todos los activos (en cripto, índices o acciones 20 puntos son centavos)."""
+    return max(LIMITES.desviacion_puntos, int(getattr(info, "spread", 0) or 0) * 2)
+
+
 def _con_lock(funcion):
     """Serializa el acceso a MT5 con el MISMO candado del resto de la app (MT5_LOCK).
 
@@ -190,7 +263,7 @@ def _inicio_dia_servidor() -> int | None:
     medianoche local desfasa el "día" varias horas. Se toma la hora del último tick como reloj del
     servidor; si es viejo (fin de semana, mercado cerrado) no sirve y se usa el método local.
     """
-    for simbolo in LIMITES.simbolos_permitidos:
+    for simbolo in _simbolos_para_reloj():
         tick = mt5.symbol_info_tick(simbolo)
         if tick is not None and tick.time and abs(time.time() - tick.time) < 86400:
             return int(tick.time - tick.time % 86400)
@@ -285,9 +358,12 @@ def _evaluar_apertura(
     def no(motivo: str) -> dict[str, Any]:
         return {"ok": False, "motivo": motivo}
 
-    sym = _normalizar(simbolo)
-    if sym not in {s.upper() for s in LIMITES.simbolos_permitidos}:
-        return no(f"'{sym}' no está en la lista de símbolos permitidos: {', '.join(LIMITES.simbolos_permitidos)}.")
+    sym = _resolver_simbolo(simbolo)
+    pedido = {sym.upper(), _normalizar(simbolo)}
+    if LIMITES.simbolos_permitidos is not None and not (pedido & {s.upper() for s in LIMITES.simbolos_permitidos}):
+        return no(f"'{sym}' no está entre los símbolos permitidos: {', '.join(LIMITES.simbolos_permitidos)}.")
+    if pedido & {s.upper() for s in LIMITES.simbolos_bloqueados}:
+        return no(f"'{sym}' está bloqueado para operar con el agente.")
 
     lado = (lado or "").strip().lower()
     if lado not in ("compra", "venta"):
@@ -308,7 +384,8 @@ def _evaluar_apertura(
     mt5.symbol_select(sym, True)
     info = mt5.symbol_info(sym)
     if info is None:
-        return no(f"El símbolo '{sym}' no existe en MetaTrader 5 (revisa el nombre exacto en tu broker).")
+        return no(f"El símbolo '{sym}' no existe en MetaTrader 5. Busca el nombre exacto con la búsqueda de "
+                  "símbolos (mt5_buscar_simbolos) antes de volver a proponer.")
     if info.trade_mode != mt5.SYMBOL_TRADE_MODE_FULL:
         return no(f"'{sym}' no está disponible para operar en este momento (mercado cerrado o restringido).")
 
@@ -415,15 +492,57 @@ def _respuesta_duplicada(id_: str) -> dict[str, Any]:
 
 
 # ══════════════════════════════════════════════════════════════
+#  Utilidades para la vigilancia automática (core/vigilancia.py)
+# ══════════════════════════════════════════════════════════════
+@_con_lock
+def validar_simbolo(simbolo: str) -> dict[str, Any]:
+    """Comprueba que un símbolo se puede operar: existe en MT5, está permitido (si hay lista) y no está
+    bloqueado. Devuelve {"ok": True, "simbolo": nombre_real} o {"ok": False, "motivo": ...}.
+    Mismas reglas que _evaluar_apertura; se usa para rechazar una vigilancia antes de crearla."""
+    sym = _resolver_simbolo(simbolo)
+    pedido = {sym.upper(), _normalizar(simbolo)}
+    if not sym:
+        return {"ok": False, "motivo": "Indica el símbolo del activo."}
+    if LIMITES.simbolos_permitidos is not None and not (pedido & {s.upper() for s in LIMITES.simbolos_permitidos}):
+        return {"ok": False, "motivo": f"'{sym}' no está entre los símbolos permitidos: {', '.join(LIMITES.simbolos_permitidos)}."}
+    if pedido & {s.upper() for s in LIMITES.simbolos_bloqueados}:
+        return {"ok": False, "motivo": f"'{sym}' está bloqueado para operar con el agente."}
+    mt5.symbol_select(sym, True)
+    info = mt5.symbol_info(sym)
+    if info is None:
+        return {"ok": False, "motivo": f"El símbolo '{sym}' no existe en MetaTrader 5. Busca el nombre exacto "
+                                       "con la búsqueda de símbolos (mt5_buscar_simbolos)."}
+    if info.trade_mode != mt5.SYMBOL_TRADE_MODE_FULL:
+        return {"ok": False, "motivo": f"'{sym}' no está disponible para operar en este momento (mercado cerrado o restringido)."}
+    return {"ok": True, "simbolo": sym}
+
+
+@_con_lock
+def cuenta_demo() -> tuple[Any, str | None]:
+    """(cuenta, motivo). motivo es None solo si MT5 responde Y la cuenta es DEMO. La operación automática
+    exige demo SIEMPRE, aunque LIMITES.solo_demo se relaje para las propuestas manuales."""
+    error = _preparar_mt5()
+    if error:
+        return None, error
+    cuenta = mt5.account_info()
+    if cuenta is None:
+        return None, "No se pudo leer la cuenta de MetaTrader 5."
+    if cuenta.trade_mode != mt5.ACCOUNT_TRADE_MODE_DEMO:
+        return cuenta, "La operación automática solo está permitida en cuenta DEMO y la cuenta conectada no lo es."
+    return cuenta, None
+
+
+# ══════════════════════════════════════════════════════════════
 #  API para el AGENTE (solo proponer / consultar; NADA se ejecuta aquí)
 # ══════════════════════════════════════════════════════════════
 @_con_lock
 def proponer_apertura(
     simbolo: str, lado: str, stop_loss: Any, take_profit: Any, riesgo_pct: float, justificacion: str,
+    origen: str = "agente", vigilancia_id: str | None = None,
 ) -> dict[str, Any]:
     cuenta, motivo = _chequeos_globales(para_abrir=True)
     if not motivo:
-        previa = _propuesta_pendiente("abrir", simbolo=_normalizar(simbolo), lado=str(lado).strip().lower())
+        previa = _propuesta_pendiente("abrir", simbolo=_resolver_simbolo(simbolo), lado=str(lado).strip().lower())
         if previa:
             return _respuesta_duplicada(previa)
     ev: dict[str, Any] | None = None
@@ -434,8 +553,8 @@ def proponer_apertura(
 
     if motivo:
         _insertar(
-            estado="RECHAZADA_RIESGO", accion="abrir", simbolo=_normalizar(simbolo), lado=str(lado).lower(),
-            justificacion=justificacion, detalle=motivo,
+            estado="RECHAZADA_RIESGO", accion="abrir", simbolo=_resolver_simbolo(simbolo), lado=str(lado).lower(),
+            justificacion=justificacion, detalle=motivo, origen=origen, vigilancia_id=vigilancia_id,
         )
         return {"estado": "RECHAZADA", "motivo": motivo}
 
@@ -444,7 +563,7 @@ def proponer_apertura(
     id_ = _insertar(
         estado="PENDIENTE", accion="abrir", simbolo=d["simbolo"], lado=d["lado"], volumen=d["volumen"],
         precio_ref=d["precio"], sl=d["sl"], tp=d["tp"], riesgo_dinero=d["riesgo_dinero"],
-        riesgo_pct=d["riesgo_pct"], justificacion=justificacion,
+        riesgo_pct=d["riesgo_pct"], justificacion=justificacion, origen=origen, vigilancia_id=vigilancia_id,
     )
     return {
         "estado": "PROPUESTA_PENDIENTE",
@@ -463,11 +582,14 @@ def proponer_apertura(
 
 
 @_con_lock
-def proponer_cierre(ticket: Any, justificacion: str) -> dict[str, Any]:
+def proponer_cierre(
+    ticket: Any, justificacion: str, origen: str = "agente", vigilancia_id: str | None = None,
+) -> dict[str, Any]:
     cuenta, motivo = _chequeos_globales(para_abrir=False)
 
     def rechazo(txt: str) -> dict[str, Any]:
-        _insertar(estado="RECHAZADA_RIESGO", accion="cerrar", justificacion=justificacion, detalle=txt)
+        _insertar(estado="RECHAZADA_RIESGO", accion="cerrar", justificacion=justificacion, detalle=txt,
+                  origen=origen, vigilancia_id=vigilancia_id)
         return {"estado": "RECHAZADA", "motivo": txt}
 
     if motivo:
@@ -491,6 +613,7 @@ def proponer_cierre(ticket: Any, justificacion: str) -> dict[str, Any]:
         estado="PENDIENTE", accion="cerrar", simbolo=p.symbol, lado="compra" if es_compra else "venta",
         volumen=p.volume, precio_ref=precio, sl=p.sl or None, tp=p.tp or None,
         riesgo_dinero=p.profit, ticket_objetivo=ticket, justificacion=justificacion,
+        origen=origen, vigilancia_id=vigilancia_id,
     )
     return {
         "estado": "PROPUESTA_PENDIENTE",
@@ -563,7 +686,10 @@ def expirar_vencidas() -> None:
 
 def listar_pendientes() -> list[dict[str, Any]]:
     expirar_vencidas()
-    return _consultar("SELECT * FROM ordenes WHERE estado = 'PENDIENTE' ORDER BY creada, rowid")
+    return _consultar(
+        "SELECT * FROM ordenes WHERE estado = 'PENDIENTE' AND COALESCE(origen, 'agente') != 'automatica' "
+        "ORDER BY creada, rowid"
+    )
 
 
 def listar_historial(limite: int = 15) -> list[dict[str, Any]]:
@@ -629,7 +755,7 @@ def _enviar_apertura(o: dict[str, Any]) -> dict[str, Any]:
     info = mt5.symbol_info(d["simbolo"])
     solicitud = {
         "action": mt5.TRADE_ACTION_DEAL, "symbol": d["simbolo"], "volume": d["volumen"], "type": d["tipo"],
-        "price": d["precio"], "sl": d["sl"], "deviation": LIMITES.desviacion_puntos, "magic": MAGIC,
+        "price": d["precio"], "sl": d["sl"], "deviation": _desviacion(info), "magic": MAGIC,
         "comment": f"agente-ia:{o['id']}", "type_time": mt5.ORDER_TIME_GTC, "type_filling": _modo_llenado(info),
     }
     if d["tp"] is not None:
@@ -650,12 +776,13 @@ def _enviar_cierre(o: dict[str, Any]) -> dict[str, Any]:
     tick = mt5.symbol_info_tick(p.symbol)
     if tick is None:
         return {"ok": False, "estado": "ERROR", "mensaje": f"Sin precio disponible para {p.symbol}."}
+    info_cierre = mt5.symbol_info(p.symbol)
     solicitud = {
         "action": mt5.TRADE_ACTION_DEAL, "symbol": p.symbol, "volume": p.volume,
         "type": mt5.ORDER_TYPE_SELL if es_compra else mt5.ORDER_TYPE_BUY, "position": p.ticket,
-        "price": tick.bid if es_compra else tick.ask, "deviation": LIMITES.desviacion_puntos, "magic": MAGIC,
+        "price": tick.bid if es_compra else tick.ask, "deviation": _desviacion(info_cierre), "magic": MAGIC,
         "comment": f"agente-ia:{o['id']}", "type_time": mt5.ORDER_TIME_GTC,
-        "type_filling": _modo_llenado(mt5.symbol_info(p.symbol)),
+        "type_filling": _modo_llenado(info_cierre),
     }
     return _interpretar(mt5.order_send(solicitud), f"cierre de la posición #{p.ticket} ({p.symbol})")
 

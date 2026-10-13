@@ -18,7 +18,11 @@ vía tools.mt5_bridge. El usuario confirma cada operación (salvo One-Click Trad
 El estilo usa CSS acotado a las claves de este panel (.st-key-ord_*); el ancho del
 panel lo define app.py (no se toca aquí).
 """
+import json
+import time
+
 import streamlit as st
+import streamlit.components.v1 as components
 import MetaTrader5 as mt5  # type: ignore[import-untyped]
 
 from components.live_feed import attrs as _live, intervalo as _intervalo
@@ -190,6 +194,28 @@ _CSS = """
   .ord-conf .t { color:#8b949e; font-size:12px; margin-bottom:4px; }
   .st-key-ord_ok button, .st-key-ord_oco_ok button { background:#2ea043 !important; border:none !important; }
   .st-key-ord_ok button p, .st-key-ord_oco_ok button p { color:#fff !important; font-weight:700 !important; }
+
+  /* ====== Confirmación flotante (abajo-derecha del panel), formato naranja ====== */
+  .st-key-ord_cfm { position:fixed !important; right:16px; bottom:16px;
+      width:290px; max-width:calc(100% - 20px); z-index:100006;
+      background:#0d1117; border:1px solid #30363d; border-radius:14px;
+      padding:14px; box-shadow:0 14px 40px rgba(0,0,0,.6); }
+  .st-key-ord_cfm [data-testid="stVerticalBlock"] { gap:10px !important; }
+  .ord-cfm-t { color:#ffffff; font-weight:700; font-size:16px; margin:0 0 4px; }
+  .ord-cfm-d { color:#c9d1d9; font-size:13px; line-height:1.5; }
+  .ord-cfm-d b { color:#e6edf3; }
+  .st-key-ord_cfm_ok button { background:linear-gradient(135deg,#ff4b4b,#ff8f00) !important;
+      border:none !important; height:50px !important; border-radius:10px !important; }
+  .st-key-ord_cfm_ok button p { color:#fff !important; font-weight:700 !important; font-size:16px !important; }
+  .st-key-ord_cfm_ok button:hover { filter:brightness(1.1) !important; }
+  .st-key-ord_cfm_cancel button { background:#161b22 !important; border:1px solid #30363d !important;
+      height:44px !important; border-radius:10px !important; }
+  .st-key-ord_cfm_cancel button p { color:#fff !important; font-weight:600 !important; }
+  .st-key-ord_cfm_cancel button:hover { border-color:#58a6ff !important; background:#21262d !important; }
+
+  /* Inyector del toast del resultado: sin tamaño (no ocupa espacio) */
+  .st-key-ord_toastjs { position:absolute !important; width:0 !important; height:0 !important;
+      overflow:hidden !important; }
 </style>
 """
 
@@ -234,17 +260,28 @@ def _capital_cuenta():
         return None, "USD"
 
 
+def _resultado(estado, msg):
+    """Guarda el resultado de la orden + un nonce (para que el toast se muestre una vez)."""
+    st.session_state.ord_result = (estado, msg)
+    st.session_state.ord_result_nonce = f"{time.time()}"
+
+
 def _ejecutar(real, visible, tipo, vol, sl, tp, pendiente=None, gtc=True):
     """Envía la orden a MT5: a mercado, o pendiente si `pendiente` trae un precio."""
     verbo = "Buy" if tipo == "BUY" else "Sell"
     if pendiente:
         res = colocar_orden_pendiente(real, tipo, vol, pendiente, sl, tp, hasta_cancelar=gtc)
-        ok = (f"{res.get('tipo', 'Pending order')} colocada: {vol:.2f} lotes de {visible} "
-              f"@ {res.get('price')}" + (" · GTC" if gtc else " · DAY (solo hoy)"))
+        ok = (f"Pendiente colocada: {res.get('tipo', '')} de {vol:.2f} lote(s) de {visible} "
+              f"a {res.get('price')}" + (" · GTC" if gtc else " · DAY (solo hoy)") + ".")
     else:
         res = ejecutar_orden_mercado(real, tipo, vol, sl, tp)
-        ok = f"{verbo} ejecutada a mercado: {res.get('volume')} lotes de {visible} @ {res.get('price')}"
-    st.session_state.ord_result = ("error", res["error"]) if "error" in res else ("ok", ok)
+        verbo_es = "comprado" if tipo == "BUY" else "vendido"
+        ok = (f"¡Listo! Has {verbo_es} {res.get('volume')} lote(s) de {visible} "
+              f"a {res.get('price')}.")
+    if "error" in res:
+        _resultado("error", res["error"])
+    else:
+        _resultado("ok", ok)
     st.session_state.ord_confirm = None
 
 
@@ -254,24 +291,122 @@ def _ejecutar_oco(real, visible, lado_a, lado_b, precio_a, precio_b, vol, gtc=Tr
     ir en lados opuestos: el SL/TP se define sobre la posición al ejecutarse)."""
     ra = colocar_orden_pendiente(real, lado_a, vol, precio_a, 0.0, 0.0, hasta_cancelar=gtc)
     if "error" in ra:
-        st.session_state.ord_result = ("error", f"OCO: no se pudo colocar la 1.ª orden · {ra['error']}")
+        _resultado("error", f"OCO: no se pudo colocar la 1.ª orden · {ra['error']}")
         st.session_state.ord_oco_confirm = None
         return
     rb = colocar_orden_pendiente(real, lado_b, vol, precio_b, 0.0, 0.0, hasta_cancelar=gtc)
     if "error" in rb:
         und = eliminar_orden(int(ra["order"]))
         extra = "" if "error" not in und else " (no se pudo deshacer la 1.ª: revísala en el gráfico)"
-        st.session_state.ord_result = (
-            "error", f"OCO: no se pudo colocar la 2.ª orden · {rb['error']}. Se canceló la 1.ª{extra}.")
+        _resultado("error",
+                   f"OCO: no se pudo colocar la 2.ª orden · {rb['error']}. Se canceló la 1.ª{extra}.")
         st.session_state.ord_oco_confirm = None
         return
     oco_store.fijar(int(ra["order"]), int(rb["order"]), real)
-    ok = (f"OCO colocado en {visible}: {ra.get('tipo')} {vol:.2f} @ {ra.get('price')} · "
+    ok = (f"¡Listo! OCO colocado en {visible}: {ra.get('tipo')} {vol:.2f} @ {ra.get('price')} · "
           f"{rb.get('tipo')} {vol:.2f} @ {rb.get('price')}"
           + (" · GTC" if gtc else " · DAY (solo hoy)")
           + ". Cuando una se ejecute, la otra se cancela sola.")
-    st.session_state.ord_result = ("ok", ok)
+    _resultado("ok", ok)
     st.session_state.ord_oco_confirm = None
+
+
+# ---------------------------------------------------------------------------
+# Confirmación en MODAL (estilo XM) y aviso tipo "toast" naranja
+# ---------------------------------------------------------------------------
+def _render_confirmacion():
+    """Tarjeta de confirmación flotante (abajo-derecha del panel), formato naranja como
+    el modal de cierre de Cartera. Se renderiza DENTRO del fragmento del ticket, así que
+    los botones usan rerun de fragmento (instantáneo, sin recargar el gráfico)."""
+    cf = st.session_state.get("ord_confirm")
+    cfo = st.session_state.get("ord_oco_confirm")
+    if not (cf or cfo):
+        return
+    with st.container(key="ord_cfm"):
+        if cf:
+            d, dig = cf, cf["dig"]
+            if d["pend"]:
+                modo = (f"Orden pendiente en <b>{d['price']:,.{dig}f}</b>"
+                        + (" · GTC" if d["gtc"] else " · DAY"))
+            else:
+                # Orden a mercado: el precio se actualiza EN VIVO con el feed (como el ticket).
+                _px = _live(d["real"], "side", d=dig, side=d["side"])
+                modo = f"A mercado, ~<b {_px}>{d['price']:,.{dig}f}</b>"
+            extra = ((f"<br>Stop Loss: <b>{d['sl']:,.{dig}f}</b>" if d["sl"] else "")
+                     + (f"<br>Take Profit: <b>{d['tp']:,.{dig}f}</b>" if d["tp"] else ""))
+            st.html(f"<div class='ord-cfm-t'>Confirmar orden</div>"
+                    f"<div class='ord-cfm-d'><b>{d['side']}</b> de <b>{d['vol']:.2f}</b> lote(s) "
+                    f"de <b>{d['visible']}</b><br>{modo}{extra}</div>")
+            if st.button("Colocar orden", key="ord_cfm_ok", width="stretch"):
+                m2, libre2 = _margen(d["real"], d["vol"], d["price"], d["side"]), _margen_libre()
+                if m2 and libre2 is not None and m2 > libre2:
+                    _resultado("error", "No tiene margen suficiente para colocar esta orden.")
+                else:
+                    _ejecutar(d["real"], d["visible"], d["side"], d["vol"], d["sl"],
+                              d["tp"], d["pend"], d["gtc"])
+                st.session_state.ord_confirm = None
+                st.rerun(scope="fragment")
+            if st.button("Cancelar", key="ord_cfm_cancel", width="stretch"):
+                st.session_state.ord_confirm = None
+                st.rerun(scope="fragment")
+        else:
+            d, dig = cfo, cfo["dig"]
+            st.html(
+                f"<div class='ord-cfm-t'>Confirmar OCO</div>"
+                f"<div class='ord-cfm-d'>Dos órdenes de <b>{d['vol']:.2f}</b> lote(s) de "
+                f"<b>{d['visible']}</b>{' · GTC' if d['gtc'] else ' · DAY'}:<br>"
+                f"A: <b>{d['ta']} · {d['ladoA']}</b> @ <b>{d['pa']:,.{dig}f}</b><br>"
+                f"B: <b>{d['tb']} · {d['ladoB']}</b> @ <b>{d['pb']:,.{dig}f}</b><br>"
+                f"<span style='color:#8b949e'>Cuando una se ejecute, la otra se cancela sola.</span></div>")
+            if st.button("Colocar OCO", key="ord_cfm_ok", width="stretch"):
+                _ejecutar_oco(d["real"], d["visible"], d["ladoA"], d["ladoB"],
+                              d["pa"], d["pb"], d["vol"], d["gtc"])
+                st.session_state.ord_oco_confirm = None
+                st.rerun(scope="fragment")
+            if st.button("Cancelar", key="ord_cfm_cancel", width="stretch"):
+                st.session_state.ord_oco_confirm = None
+                st.rerun(scope="fragment")
+
+
+def _toast_js(mensaje: str, es_error: bool, nonce: str) -> str:
+    """Aviso flotante (toast) estilo XM: recuadro NARANJA (verde→naranja P&J) para éxito,
+    rojo para error; se cierra solo a los ~6 s o con la ✕. Se inyecta en el documento
+    padre y solo una vez por resultado (gracias al `nonce`)."""
+    fondo = ("linear-gradient(135deg,#f85149,#da3633)" if es_error
+             else "linear-gradient(135deg,#ff4b4b,#ff8f00)")
+    icono = "&#9888;" if es_error else "&#10003;"
+    n = json.dumps(str(nonce))
+    msg = json.dumps(mensaje)
+    return f"""
+<script>
+(function(){{
+  var P = window.parent, D; try {{ D = P.document; }} catch(e) {{ return; }}
+  if (P.__pjToastNonce === {n}) return;   // ya mostrado para este resultado
+  P.__pjToastNonce = {n};
+  var vj = D.getElementById('pj-toast'); if (vj) vj.remove();
+  var el = D.createElement('div'); el.id = 'pj-toast';
+  el.style.cssText = 'position:fixed;right:22px;bottom:56px;z-index:100010;max-width:380px;'+
+    'display:flex;align-items:flex-start;gap:10px;padding:13px 14px;border-radius:12px;'+
+    'background:{fondo};color:#fff;font:600 13.5px system-ui,sans-serif;'+
+    'box-shadow:0 10px 30px rgba(0,0,0,.45);opacity:0;transform:translateY(8px);'+
+    'transition:opacity .2s ease,transform .2s ease;';
+  el.innerHTML = '<span style="font-size:18px;line-height:1.2">{icono}</span>'+
+    '<span style="flex:1;line-height:1.4">'+{msg}+'</span>'+
+    '<span id="pj-tx" style="cursor:pointer;opacity:.85;font-size:15px;padding:0 2px">&#10005;</span>';
+  D.body.appendChild(el);
+  P.requestAnimationFrame(function(){{ el.style.opacity='1'; el.style.transform='translateY(0)'; }});
+  var tmr;
+  function cerrar(){{
+    if (!el) return;
+    el.style.opacity='0'; el.style.transform='translateY(8px)';
+    P.setTimeout(function(){{ if (el && el.parentNode) el.parentNode.removeChild(el); }}, 220);
+    el = null; P.clearTimeout(tmr);
+  }}
+  el.querySelector('#pj-tx').onclick = cerrar;
+  tmr = P.setTimeout(cerrar, 6000);
+}})();
+</script>
+"""
 
 
 def _campo(clave: str, etiqueta: str, sufijo: str = ""):
@@ -603,67 +738,38 @@ def renderizar_panel_orden(main=None):
                         if oc:
                             _ejecutar_oco(real, visible, lado, oco_lado_b,
                                           pendiente, oco_precio_b, vol, gtc)
+                            st.rerun(scope="fragment")
                         else:
-                            st.session_state.ord_oco_confirm = (
-                                lado, oco_lado_b, pendiente, oco_precio_b, vol, gtc,
-                                tipo_pend, oco_tipo_b)
+                            st.session_state.ord_oco_confirm = {
+                                "real": real, "visible": visible, "dig": dig, "ladoA": lado,
+                                "ladoB": oco_lado_b, "pa": pendiente, "pb": oco_precio_b,
+                                "vol": vol, "gtc": gtc, "ta": tipo_pend, "tb": oco_tipo_b}
+                            st.rerun(scope="fragment")   # instantáneo (sin recargar el gráfico)
                     elif oc:
                         _ejecutar(real, visible, side, vol, sl, tp, pendiente, gtc)
+                        st.rerun(scope="fragment")
                     else:
-                        st.session_state.ord_confirm = (side, vol, sl, tp, price, pendiente, gtc)
-                    st.rerun(scope="fragment")
+                        st.session_state.ord_confirm = {
+                            "real": real, "visible": visible, "dig": dig, "side": side,
+                            "vol": vol, "sl": sl, "tp": tp, "price": price,
+                            "pend": pendiente, "gtc": gtc}
+                        st.rerun(scope="fragment")   # instantáneo (sin recargar el gráfico)
 
-            # --- Confirmación ---
-            cf = st.session_state.get("ord_confirm")
-            if cf:
-                tipo, v, s, tpv, px, pend, g = cf
-                verbo2 = "BUY" if tipo == "BUY" else "SELL"
-                modo_txt = (f"Pending order en <b>{px:,.{dig}f}</b>"
-                            + (" · GTC" if g else " · DAY")) if pend else f"Market, ~<b>{px:,.{dig}f}</b>"
-                extra = ((f"<br>Stop Loss: <b>{s:,.{dig}f}</b>" if s else "")
-                         + (f"<br>Take Profit: <b>{tpv:,.{dig}f}</b>" if tpv else ""))
-                st.html(f"<div class='ord-conf'><div class='t'>Confirmar operación</div>"
-                        f"<b>{verbo2}</b> de <b>{v:.2f}</b> lotes de <b>{visible}</b><br>"
-                        f"{modo_txt}{extra}</div>")
-                cc1, cc2 = st.columns(2)
-                if cc1.button("Confirmar", key="ord_ok", icon=":material/check:", width="stretch"):
-                    m2, libre2 = _margen(real, v, px, tipo), _margen_libre()
-                    if m2 and libre2 is not None and m2 > libre2:
-                        st.session_state.ord_result = (
-                            "error", "No tiene margen suficiente para colocar esta orden.")
-                        st.session_state.ord_confirm = None
-                    else:
-                        _ejecutar(real, visible, tipo, v, s, tpv, pend, g)
-                    st.rerun(scope="fragment")
-                if cc2.button("Cancelar", key="ord_cancel", width="stretch"):
-                    st.session_state.ord_confirm = None
-                    st.rerun(scope="fragment")
+            # --- Confirmación (tarjeta flotante abajo-derecha, formato naranja como el
+            #     cierre de Cartera). Inline en el fragmento → aparece al instante, sin
+            #     oscurecer la pantalla ni recargar el gráfico. ---
+            _render_confirmacion()
 
-            # --- Confirmación del OCO ---
-            cfo = st.session_state.get("ord_oco_confirm")
-            if cfo:
-                la, lb, pa, pb, v, g, ta, tb = cfo
-                st.html(f"<div class='ord-conf'><div class='t'>Confirmar OCO</div>"
-                        f"Dos órdenes de <b>{v:.2f}</b> lotes de <b>{visible}</b>"
-                        f"{' · GTC' if g else ' · DAY'}:<br>"
-                        f"Orden A: <b>{ta} · {la}</b> @ <b>{pa:,.{dig}f}</b><br>"
-                        f"Orden B: <b>{tb} · {lb}</b> @ <b>{pb:,.{dig}f}</b><br>"
-                        f"<span style='color:#8b949e'>Cuando una se ejecute, la otra se "
-                        f"cancela sola.</span></div>")
-                oc1, oc2 = st.columns(2)
-                if oc1.button("Confirmar", key="ord_oco_ok", icon=":material/check:", width="stretch"):
-                    _ejecutar_oco(real, visible, la, lb, pa, pb, v, g)
-                    st.rerun(scope="fragment")
-                if oc2.button("Cancelar", key="ord_oco_cancel", width="stretch"):
-                    st.session_state.ord_oco_confirm = None
-                    st.rerun(scope="fragment")
-
-            # Resultado (persiste hasta colocar una orden nueva)
+            # --- Aviso del resultado: toast naranja (éxito) / rojo (error), se cierra
+            #     solo (~6 s) o con la ✕. Se inyecta en el documento padre una sola vez
+            #     por resultado (el nonce evita que se repita en cada refresco). ---
             r = st.session_state.get("ord_result")
             if r:
-                if r[0] == "ok":
-                    st.success(r[1], icon=":material/check_circle:")
-                else:
-                    st.error(f"No se pudo operar: {r[1]}", icon=":material/error:")
+                with st.container(key="ord_toastjs"):
+                    _msg = r[1] if r[0] == "ok" else f"No se pudo operar: {r[1]}"
+                    components.html(
+                        _toast_js(_msg, r[0] != "ok",
+                                  st.session_state.get("ord_result_nonce", "0")),
+                        height=0)
 
         _ticket()

@@ -1,178 +1,123 @@
-"""Módulo de análisis de eventos macroeconómicos, calendario económico e informes COT.
+"""Módulo de riesgo macroeconómico por noticias.
 
 NOMBRE DEL ARCHIVO: herramientas/macro_eventos_tools.py
+
+No hay una fuente de calendario económico con horas exactas conectada. Esta herramienta NO inventa
+eventos: revisa los titulares reales y recientes de Investing.com y señala los que hablan de eventos
+de alto impacto (nóminas, inflación, bancos centrales, PIB...). Es una señal por titulares, no un
+calendario: no sirve para saber a qué hora sale un dato.
 """
 
 from __future__ import annotations
 
-import datetime
 from typing import Any
 
 from fuentes import investing_fuente
 from herramientas.base import herramienta
 
+CATEGORIAS = ("economia", "forex", "mercados")
+
+# Palabras (minúsculas) que delatan un evento macro de alto impacto en un titular.
+_EVENTOS = (
+    "nóminas", "nominas", "nfp", "empleo", "desempleo", "inflación", "inflacion", "ipc", "cpi", "pce",
+    "pib", "gdp", "fomc", "reserva federal", "la fed", "powell", "bce", "lagarde", "banco de inglaterra",
+    "banco de japón", "banco de japon", "tipos de interés", "tasas de interés", "tasas de interes",
+    "decisión de tipos", "decision de tipos", "ventas minoristas", "pmi", "opep", "opec",
+)
+
+# Palabras que vinculan un titular con una divisa.
+_DIVISAS = {
+    "USD": ("dólar", "dolar", "ee.uu.", "estados unidos", "fed", "reserva federal", "powell", "usd"),
+    "EUR": ("euro", "eurozona", "bce", "lagarde", "alemania", "eur"),
+    "GBP": ("libra", "reino unido", "banco de inglaterra", "gbp"),
+    "JPY": ("yen", "japón", "japon", "banco de japón", "jpy"),
+    "CAD": ("canadá", "canada", "dólar canadiense", "cad"),
+    "AUD": ("australia", "aud"),
+    "CHF": ("franco suizo", "suiza", "chf"),
+    "CLP": ("chile", "peso chileno", "clp", "cobre"),
+    "XAU": ("oro", "xau", "gold"),
+}
+
 
 @herramienta(
     descripcion=(
-        "Evalúa los próximos eventos económicos de alto impacto (Noticias, NFP, CPI, Tasas de Interés) "
-        "para una divisa o mercado y genera una recomendación sobre el riesgo de operar."
+        "Detecta, en los titulares recientes de Investing.com, noticias sobre eventos macroeconómicos de "
+        "alto impacto (empleo, inflación, bancos centrales, PIB...) para una divisa o para todo el mercado, "
+        "y da una señal de cautela. NO es un calendario económico: no entrega horas ni cifras previstas."
     ),
     parametros={
         "divisa": {
             "type": "string",
-            "description": "Divisa o país a consultar (ej. 'USD', 'EUR', 'GBP', 'ALL'). Por defecto 'ALL'.",
+            "description": "Divisa a filtrar (ej. 'USD', 'EUR', 'GBP', 'JPY', 'XAU') o 'ALL'. Por defecto 'ALL'.",
         },
-        "horas_vista_futura": {
+        "cantidad_titulares": {
             "type": "integer",
-            "description": "Horas hacia el futuro para evaluar eventos próximos. Por defecto 24.",
+            "description": "Titulares a revisar por categoría (máximo 30). Por defecto 20.",
         },
     },
     nombre="evaluar_riesgo_noticias_proximas",
 )
 def evaluar_riesgo_noticias_proximas(
     divisa: str = "ALL",
-    horas_vista_futura: int = 24,
+    cantidad_titulares: int = 20,
 ) -> dict[str, Any]:
-    divisa_clean = divisa.strip().upper()
-    eventos = []
+    divisa_clean = (divisa or "ALL").strip().upper()
+    claves_divisa = _DIVISAS.get(divisa_clean)
 
-    try:
-        res = investing_fuente.calendario_economico(pais_o_divisa=divisa_clean)
-        eventos = res.get("eventos", [])
-    except Exception:
-        pass
+    titulares: list[dict[str, Any]] = []
+    fallos = 0
+    for categoria in CATEGORIAS:
+        try:
+            res = investing_fuente.noticias(categoria=categoria, cantidad=cantidad_titulares)
+        except Exception:  # noqa: BLE001 - se informa abajo; no se inventa nada
+            fallos += 1
+            continue
+        titulares.extend(res.get("noticias", []))
 
-    if not eventos:
-        ahora = datetime.datetime.now()
-        eventos = [
-            {
-                "evento": "Decisión de Tasas de Interés (FED / BCE)",
-                "divisa": "USD" if divisa_clean == "ALL" else divisa_clean,
-                "impacto": "ALTO",
-                "fecha_hora": (ahora + datetime.timedelta(hours=4)).strftime("%Y-%m-%d %H:%M"),
-                "pronostico": "5.25%",
-                "anterior": "5.25%",
-            },
-            {
-                "evento": "Índice de Precios al Consumidor (CPI / Inflación)",
-                "divisa": "EUR" if divisa_clean == "ALL" else divisa_clean,
-                "impacto": "ALTO",
-                "fecha_hora": (ahora + datetime.timedelta(hours=18)).strftime("%Y-%m-%d %H:%M"),
-                "pronostico": "2.4%",
-                "anterior": "2.6%",
-            },
-        ]
+    if fallos == len(CATEGORIAS):
+        return {
+            "fuente": "Investing.com (titulares)",
+            "disponible": False,
+            "mensaje": (
+                "No se pudieron obtener noticias de Investing.com, así que no se puede evaluar el riesgo "
+                "macro. No hay datos de calendario económico."
+            ),
+        }
 
-    eventos_alto_impacto = [
-        e for e in eventos if str(e.get("impacto", "")).upper() in ("ALTO", "HIGH", "3")
-    ]
+    vistos: set[str] = set()
+    relevantes: list[dict[str, Any]] = []
+    for n in titulares:
+        titulo = n.get("titulo", "")
+        if not titulo or titulo in vistos:
+            continue
+        vistos.add(titulo)
+        texto = f"{titulo} {n.get('resumen') or ''}".lower()
+        if not any(p in texto for p in _EVENTOS):
+            continue
+        if claves_divisa and not any(p in texto for p in claves_divisa):
+            continue
+        relevantes.append({k: n.get(k) for k in ("titulo", "fecha", "enlace")})
 
-    nivel_riesgo = "BAJO"
-    recomendacion_operativa = (
-        "Mercado en condiciones normales. Se puede operar con gestión de riesgo habitual."
-    )
-
-    if eventos_alto_impacto:
-        nivel_riesgo = "ELEVADO"
-        recomendacion_operativa = (
-            f"Se detectaron {len(eventos_alto_impacto)} eventos de alto impacto próximos. "
-            "Se recomienda ajustar Stop Loss, evitar nuevas entradas 30 minutos antes/después del anuncio, "
-            "o pausar la ejecución automatizada."
+    if relevantes:
+        nivel = "PRECAUCIÓN"
+        lectura = (
+            f"{len(relevantes)} titular(es) reciente(s) hablan de eventos macro de alto impacto. Conviene "
+            "revisar la hora exacta del evento en un calendario económico antes de abrir operaciones o ajustar stops."
+        )
+    else:
+        nivel = "SIN SEÑALES EN TITULARES"
+        lectura = (
+            "No se detectaron titulares sobre eventos de alto impacto, pero esto NO garantiza que no haya "
+            "eventos próximos: no hay un calendario económico conectado."
         )
 
     return {
-        "fuente": "Filtro de Calendario Económico y Volatilidad Macro",
+        "fuente": "Investing.com (titulares recientes; no es un calendario económico)",
+        "disponible": True,
         "divisa_evaluada": divisa_clean,
-        "horizonte_evaluacion_horas": horas_vista_futura,
-        "nivel_riesgo_macro": nivel_riesgo,
-        "total_eventos_encontrados": len(eventos),
-        "eventos_alto_impacto": eventos_alto_impacto,
-        "recomendacion_operativa": recomendacion_operativa,
-    }
-
-
-@herramienta(
-    descripcion=(
-        "Obtiene el posicionamiento neto institucional del informe COT (Commitment of Traders de la CFTC) "
-        "para conocer la inclinación de los Especuladores Grandes (Non-Commercial) y Comerciales."
-    ),
-    parametros={
-        "activo": {
-            "type": "string",
-            "description": "Activo o divisa a evaluar (ej. 'EUR', 'GBP', 'JPY', 'GOLD', 'OIL'). Por defecto 'EUR'.",
-        },
-    },
-    requeridos=["activo"],
-    nombre="obtener_posicionamiento_cot",
-)
-def obtener_posicionamiento_cot(
-    activo: str = "EUR",
-) -> dict[str, Any]:
-    activo_clean = activo.strip().upper()
-
-    cot_base: dict[str, dict[str, Any]] = {
-        "EUR": {
-            "non_commercial_long": 210500,
-            "non_commercial_short": 145200,
-            "commercial_long": 160000,
-            "commercial_short": 225000,
-            "semana_actual": "2026-W40",
-        },
-        "GBP": {
-            "non_commercial_long": 85400,
-            "non_commercial_short": 62100,
-            "commercial_long": 70000,
-            "commercial_short": 93000,
-            "semana_actual": "2026-W40",
-        },
-        "GOLD": {
-            "non_commercial_long": 285000,
-            "non_commercial_short": 42000,
-            "commercial_long": 80000,
-            "commercial_short": 320000,
-            "semana_actual": "2026-W40",
-        },
-        "JPY": {
-            "non_commercial_long": 45000,
-            "non_commercial_short": 112000,
-            "commercial_long": 120000,
-            "commercial_short": 53000,
-            "semana_actual": "2026-W40",
-        },
-    }
-
-    datos = cot_base.get(
-        activo_clean,
-        {
-            "non_commercial_long": 100000,
-            "non_commercial_short": 80000,
-            "commercial_long": 90000,
-            "commercial_short": 110000,
-            "semana_actual": "2026-W40",
-        },
-    )
-
-    nc_long = datos["non_commercial_long"]
-    nc_short = datos["non_commercial_short"]
-    posicion_neta_especuladores = nc_long - nc_short
-
-    sesgo_institucional = (
-        "NETO ALCISTA (Bullish)" if posicion_neta_especuladores > 0 else "NETO BAJISTA (Bearish)"
-    )
-
-    return {
-        "fuente": "CFTC Commitment of Traders (COT Report)",
-        "activo_evaluado": activo_clean,
-        "semana_reporte": datos["semana_actual"],
-        "posicionamiento_especuladores_non_commercial": {
-            "contratos_comprados_long": nc_long,
-            "contratos_vendidos_short": nc_short,
-            "posicion_neta_contratos": posicion_neta_especuladores,
-        },
-        "posicionamiento_comerciales_hedgers": {
-            "contratos_comprados_long": datos["commercial_long"],
-            "contratos_vendidos_short": datos["commercial_short"],
-            "posicion_neta_contratos": datos["commercial_long"] - datos["commercial_short"],
-        },
-        "sesgo_institucional_cot": sesgo_institucional,
+        "titulares_revisados": len(vistos),
+        "nivel_cautela_macro": nivel,
+        "titulares_alto_impacto": relevantes[:8],
+        "lectura": lectura,
+        "limitacion": "Sin horas exactas ni cifras previstas/anteriores de los eventos.",
     }

@@ -1,0 +1,23 @@
+/* [grafico] Barra inferior: rangos y temporalidades */
+    #tv-rangebar {
+        display:flex; align-items:center; gap:4px; padding:8px 12px;
+        border-top:1px solid #1b2430; background:#0d1117;
+        font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+        flex-shrink: 0; overflow-x: auto; z-index: 20;
+    }
+    .tvrange {
+        background:transparent; border:1px solid transparent; color:#8b949e; font-size:13px;
+        font-weight:600; padding:6px 12px; border-radius:6px; cursor:pointer; white-space: nowrap;
+        transition: background .15s ease, color .15s ease, border-color .15s ease;
+    }
+    .tvrange:hover { background:rgba(255,255,255,0.08); color:#ffffff; }
+    .tvrange.active { background:rgba(88,166,255,0.18); color:#58a6ff; border-color:rgba(88,166,255,0.3); }
+    #tv-tf { display:flex; align-items:center; gap:2px; font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif; }
+    .tvtf {
+        background:transparent; border:1px solid transparent; color:#8b949e; font-size:12px;
+        font-weight:600; padding:5px 8px; border-radius:6px; cursor:pointer; white-space:nowrap;
+        transition: background .15s ease, color .15s ease, border-color .15s ease;
+    }
+    .tvtf:hover { background:rgba(255,255,255,0.08); color:#ffffff; }
+    .tvtf.active { background:rgba(88,166,255,0.18); color:#58a6ff; border-color:rgba(88,166,255,0.3); }
+    .tv-rangelabel { color:#6e7681; font-size:12px; font-weight:600; padding:0 8px 0 2px; white-space:nowrap; }

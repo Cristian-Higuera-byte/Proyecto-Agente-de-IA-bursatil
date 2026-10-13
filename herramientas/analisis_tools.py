@@ -241,75 +241,73 @@ def analizar_riesgo_posicion(simbolo: str | None = None, ticket: int | None = No
 
     diagnosticos = []
     riesgo_total_usd = 0.0
+    sin_stop = 0
+    sin_calculo = 0
 
     for pos in posiciones_lista:
-        sym = pos["simbolo"]
-        tipo = pos["tipo"]
-        lotes = pos["lotes"]
-        precio_ent = pos["precio_apertura"]
-        precio_act = pos["precio_actual"]
         sl = pos["sl"]
         tp = pos["tp"]
-        pnl = pos["beneficio"]
+        try:
+            d = fuente.distancias_y_riesgo(
+                pos["simbolo"], pos["tipo"], pos["lotes"], pos["precio_apertura"], pos["precio_actual"], sl, tp,
+            )
+        except fuente.ErrorMT5:
+            d = {}
+        riesgo_usd = d.get("riesgo_usd")
+        beneficio_usd = d.get("beneficio_objetivo_usd")
+        ratio_rr = round(beneficio_usd / riesgo_usd, 2) if riesgo_usd and beneficio_usd else None
 
-        tick_info = fuente.precio(sym)
-        point = 0.00001 if "USD" in sym and "JPY" not in sym else 0.01
-
-        # Cálculo de Distancias
-        distancia_sl_pips = None
-        distancia_tp_pips = None
-        riesgo_usd = None
-        beneficio_usd = None
-        ratio_rr = None
-        estado_sl = "SIN STOP LOSS (ALTO RIESGO)"
-
-        if sl and sl > 0:
-            pips_sl = abs(precio_ent - sl) / point
-            distancia_sl_pips = round(pips_sl, 1)
-            
-            # Estimación monetaria aproximada del riesgo
-            riesgo_usd = round(pips_sl * lotes * 10 * point * 10000, 2)
-            riesgo_total_usd += riesgo_usd
-
-            if tipo == "COMPRA":
-                estado_sl = "PROTEGIDO EN PROFIT" if sl >= precio_ent else "STOP LOSS ACTIVO"
+        if not sl:
+            estado_sl = "SIN STOP LOSS (ALTO RIESGO)"
+            sin_stop += 1
+        else:
+            asegura = (pos["tipo"] == "COMPRA" and sl >= pos["precio_apertura"]) or (
+                pos["tipo"] != "COMPRA" and sl <= pos["precio_apertura"])
+            estado_sl = "PROTEGIDO EN PROFIT" if asegura else "STOP LOSS ACTIVO"
+            if riesgo_usd is None:
+                sin_calculo += 1
             else:
-                estado_sl = "PROTEGIDO EN PROFIT" if sl <= precio_ent else "STOP LOSS ACTIVO"
-
-        if tp and tp > 0:
-            pips_tp = abs(tp - precio_ent) / point
-            distancia_tp_pips = round(pips_tp, 1)
-            beneficio_usd = round(pips_tp * lotes * 10 * point * 10000, 2)
-
-        if riesgo_usd and beneficio_usd and riesgo_usd > 0:
-            ratio_rr = round(beneficio_usd / riesgo_usd, 2)
-
-        riesgo_equidad_pct = round((riesgo_usd / equidad) * 100, 2) if riesgo_usd else None
+                riesgo_total_usd += riesgo_usd
 
         diagnosticos.append({
             "ticket": pos["ticket"],
-            "simbolo": sym,
-            "tipo": tipo,
-            "lotes": lotes,
-            "precio_apertura": precio_ent,
-            "precio_actual": precio_act,
-            "pnl_flotante_usd": pnl,
+            "simbolo": pos["simbolo"],
+            "tipo": pos["tipo"],
+            "lotes": pos["lotes"],
+            "precio_apertura": pos["precio_apertura"],
+            "precio_actual": pos["precio_actual"],
+            "pnl_flotante_usd": pos["beneficio"],
             "stop_loss": sl,
             "take_profit": tp,
-            "distancia_sl_pips": distancia_sl_pips,
-            "distancia_tp_pips": distancia_tp_pips,
+            "distancia_sl_desde_precio_actual_pips": d.get("distancia_sl_desde_precio_actual_pips"),
+            "distancia_sl_desde_precio_actual_pct": d.get("distancia_sl_desde_precio_actual_pct"),
+            "distancia_sl_desde_apertura_pips": d.get("distancia_sl_desde_apertura_pips"),
+            "distancia_tp_desde_precio_actual_pips": d.get("distancia_tp_desde_precio_actual_pips"),
+            "distancia_tp_desde_apertura_pips": d.get("distancia_tp_desde_apertura_pips"),
             "riesgo_estimado_usd": riesgo_usd,
+            "ganancia_asegurada_usd": d.get("ganancia_asegurada_usd"),
             "beneficio_estimado_usd": beneficio_usd,
-            "riesgo_equidad_pct": riesgo_equidad_pct,
+            "riesgo_equidad_pct": round(riesgo_usd / equidad * 100, 2) if riesgo_usd else None,
             "ratio_riesgo_beneficio": ratio_rr,
             "estado_stop_loss": estado_sl,
         })
 
-    return {
-        "fuente": "MetaTrader 5",
+    resultado = {
+        "fuente": "MetaTrader 5 (riesgo calculado con el cálculo de beneficios del propio MT5)",
         "equidad_cuenta_usd": equidad,
         "total_posiciones_analizadas": len(diagnosticos),
         "riesgo_total_acumulado_usd": round(riesgo_total_usd, 2),
-        "riesgo_total_equidad_pct": round((riesgo_total_usd / equidad) * 100, 2),
+        "riesgo_total_equidad_pct": round(riesgo_total_usd / equidad * 100, 2),
+        "posiciones_sin_stop_loss": sin_stop,
+        "nota_pips": "1 pip = 10 puntos en símbolos de 3 o 5 decimales; en el resto, 1 punto.",
         "posiciones": diagnosticos,
     }
+    if sin_stop:
+        resultado["aviso"] = (
+            f"{sin_stop} posición(es) sin Stop Loss: su riesgo es ilimitado y NO está incluido en el total."
+        )
+    if sin_calculo:
+        resultado["aviso_calculo"] = (
+            f"En {sin_calculo} posición(es) MT5 no pudo calcular el riesgo en dinero; no está incluido en el total."
+        )
+    return resultado

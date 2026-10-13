@@ -491,6 +491,85 @@ def precio(simbolo: str) -> dict[str, Any]:
             }
 
 
+def _tamano_pip(info: Any) -> float:
+    """Tamaño de un 'pip' en precio: 10 puntos en símbolos de 3 o 5 decimales; el punto en el resto."""
+    punto = float(getattr(info, "point", 0) or 0)
+    return punto * 10 if getattr(info, "digits", 0) in (3, 5) else punto
+
+
+def _tipo_orden(mt5: Any, tipo: str) -> int:
+    return mt5.ORDER_TYPE_BUY if str(tipo).upper() in ("COMPRA", "BUY") else mt5.ORDER_TYPE_SELL
+
+
+def resultado_si_precio(simbolo: str, tipo: str, lotes: float, desde: float, hasta: float) -> float | None:
+    """Ganancia (+) o pérdida (-) en la moneda de la cuenta si el precio pasa de `desde` a `hasta`.
+
+    Lo calcula el propio MT5 (order_calc_profit), así que respeta el tamaño de contrato, el valor del
+    tick y la conversión de divisas de cada activo. None si MT5 no puede calcularlo.
+    """
+    with _sesion() as mt5:
+        sym = _resolver(mt5, simbolo)
+        with _simbolo_temporal(mt5, sym):
+            valor = mt5.order_calc_profit(_tipo_orden(mt5, tipo), sym, float(lotes), float(desde), float(hasta))
+    return _num(valor, 2) if valor is not None else None
+
+
+def especificacion_simbolo(simbolo: str) -> dict[str, Any]:
+    """Tamaño de pip, valor de 1 pip por lote (moneda de la cuenta) y límites de lotaje del símbolo."""
+    with _sesion() as mt5:
+        sym = _resolver(mt5, simbolo)
+        with _simbolo_temporal(mt5, sym) as info:
+            tick = mt5.symbol_info_tick(sym)
+            ref = float(getattr(tick, "bid", 0) or getattr(info, "bid", 0) or 0)
+            pip = _tamano_pip(info)
+            valor_pip = None
+            if ref > 0 and pip > 0:
+                v = mt5.order_calc_profit(mt5.ORDER_TYPE_BUY, sym, 1.0, ref, ref + pip)
+                valor_pip = _num(v, 4) if v is not None else None
+            return {
+                "simbolo": sym,
+                "tamano_pip": pip,
+                "digitos": getattr(info, "digits", None),
+                "valor_pip_por_lote": valor_pip,
+                "lote_minimo": getattr(info, "volume_min", None),
+                "lote_maximo": getattr(info, "volume_max", None),
+                "paso_lote": getattr(info, "volume_step", None),
+            }
+
+
+def distancias_y_riesgo(
+    simbolo: str, tipo: str, lotes: float, precio_apertura: float, precio_actual: float,
+    sl: float | None, tp: float | None,
+) -> dict[str, Any]:
+    """Distancia al stop/objetivo (en pips, desde la apertura y desde el precio actual) y su valor en dinero.
+
+    `riesgo_usd` es lo que se pierde si salta el SL (0 si el SL ya asegura ganancia, que se informa en
+    `ganancia_asegurada_usd`). Todo en la moneda de la cuenta, calculado por MT5.
+    """
+    esp = especificacion_simbolo(simbolo)
+    pip = esp["tamano_pip"] or 0.0
+    out: dict[str, Any] = {"tamano_pip": pip, "valor_pip_por_lote": esp["valor_pip_por_lote"]}
+
+    def pips(a: float, b: float) -> float | None:
+        return round(abs(a - b) / pip, 1) if pip else None
+
+    if sl:
+        out["distancia_sl_desde_apertura_pips"] = pips(precio_apertura, sl)
+        out["distancia_sl_desde_precio_actual_pips"] = pips(precio_actual, sl)
+        out["distancia_sl_desde_precio_actual_pct"] = (
+            round(abs(precio_actual - sl) / precio_actual * 100, 3) if precio_actual else None
+        )
+        r = resultado_si_precio(simbolo, tipo, lotes, precio_apertura, sl)
+        out["riesgo_usd"] = round(max(0.0, -r), 2) if r is not None else None
+        out["ganancia_asegurada_usd"] = round(max(0.0, r), 2) if r is not None else None
+    if tp:
+        out["distancia_tp_desde_apertura_pips"] = pips(precio_apertura, tp)
+        out["distancia_tp_desde_precio_actual_pips"] = pips(precio_actual, tp)
+        b = resultado_si_precio(simbolo, tipo, lotes, precio_apertura, tp)
+        out["beneficio_objetivo_usd"] = round(max(0.0, b), 2) if b is not None else None
+    return out
+
+
 def velas(
     simbolo: str,
     timeframe: str = "H1",
