@@ -324,6 +324,14 @@ with col_main:
         # --- VISTA CARTERA (igual a Trading, pero la lista izquierda son las
         #     posiciones abiertas en vez del watchlist) ---
         _vista_operativa(_cartera_en_vivo)
+    elif _nav == "resumen":
+        # --- VISTA RESUMEN (dashboard del portafolio: KPIs + curva + exposición) ---
+        from components.resumen_panel import renderizar_panel_resumen
+        renderizar_panel_resumen(main)
+    elif _nav == "journal":
+        # --- VISTA DIARIO (trading journal: operaciones + métricas + notas) ---
+        from components.journal_panel import renderizar_panel_journal
+        renderizar_panel_journal(main)
     else:
         # --- VISTA INICIO (panel de cuenta estilo XM) — también para botones sin vista propia ---
         from components.inicio_panel import renderizar_panel_inicio
