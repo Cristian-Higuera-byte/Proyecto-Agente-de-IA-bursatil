@@ -146,8 +146,13 @@ def _contenido_modal(n: dict):
         <h2 style="color:#ffffff; font-size:24px; font-weight:800; line-height:1.3; margin:14px 0 6px;">{n['title']}</h2>
         <p style="color:#586174; font-size:12px; margin:0 0 12px;">{n['fecha']}</p>
     """)
-    # El artículo se incrusta DIRECTAMENTE dentro del sitio (sin botón ni pestaña nueva).
-    # Las páginas de artículo de Investing permiten framing (sin X-Frame-Options).
+    # Investing muestra muro de pago/login dentro del iframe y BLOQUEA el inicio de
+    # sesión embebido (los popups de OAuth y las cookies de terceros no funcionan en un
+    # iframe de otro sitio: es una protección del navegador, no un fallo nuestro). Por eso
+    # se ofrece abrir la noticia en una PESTAÑA REAL, donde sí se puede loguear y leer.
+    st.link_button("Abrir en Investing.com ↗", n["link"], type="primary", width="stretch")
+    # El artículo se incrusta igual, como vista previa. Las páginas de artículo de
+    # Investing permiten framing (sin X-Frame-Options), pero el contenido va paywalleado.
     st.iframe(n["link"], height=620)
 
 

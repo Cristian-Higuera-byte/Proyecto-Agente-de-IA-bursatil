@@ -194,6 +194,14 @@ _saldo_mt5 = _info_cuenta.get("equity") if "error" not in _info_cuenta else None
 _moneda_mt5 = _info_cuenta.get("currency", "USD") if "error" not in _info_cuenta else "USD"
 _pl_mt5 = _info_cuenta.get("profit") if "error" not in _info_cuenta else None  # P/G flotante
 
+# Métricas ligeras de la barra superior (Riesgo · Drawdown · Mercado). No lee el
+# historial de deals, así que es barata; el símbolo activo define el estado de mercado.
+try:
+    from tools.portafolio_stats import metricas_barra
+    _metricas_barra = metricas_barra(st.session_state.get("activo_seleccionado"))
+except Exception:   # la barra nunca debe romper la app por estas métricas
+    _metricas_barra = None
+
 # El desplazamiento de la barra superior según el ancho de la barra lateral
 # (70px / 220px) lo hace el CSS de components/nav_bar.py con la clase
 # html.pj-sb-exp (animado, sin reejecutar Python).
@@ -205,6 +213,7 @@ with st.container(key="barra_nav_fija"):
         saldo=_saldo_mt5,
         moneda=_moneda_mt5,
         pl=_pl_mt5,
+        metricas=_metricas_barra,
     )
 
 # Feed de precios en vivo (SSE desde servidor_datos.py): pinta los números

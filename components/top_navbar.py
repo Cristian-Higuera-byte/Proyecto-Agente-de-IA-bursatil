@@ -116,11 +116,78 @@ def _campana(usuario_id: str) -> None:
     _vigilar_notificaciones(usuario_id)
 
 
+def _chip(label: str, valor_html: str, *, label_color: str = "#8b949e",
+          borde: str = "#30363d") -> str:
+    """Chip compacto de la barra superior: etiqueta arriba (gris), valor abajo."""
+    return (
+        "<div style='display:flex; flex-direction:column; align-items:flex-end; "
+        f"line-height:1.1; padding:4px 11px; background:#161b22; border:1px solid {borde}; "
+        "border-radius:8px; white-space:nowrap;'>"
+        f"<span style='font-size:10px; color:{label_color}; text-transform:uppercase; "
+        f"letter-spacing:.5px;'>{label}</span>"
+        f"<span style='display:flex; align-items:baseline; gap:6px;'>{valor_html}</span>"
+        "</div>"
+    )
+
+
+def _chips_metricas(metricas: dict | None) -> str:
+    """Chips de Riesgo · Drawdown · Mercado a partir de portafolio_stats.metricas_barra().
+    Si no hay datos (sin conexión), devuelve cadena vacía y la barra queda como antes."""
+    if not metricas:
+        return ""
+    mono = "font-size:14px; font-weight:700; font-family:monospace;"
+
+    # --- Riesgo: % del capital en riesgo si saltan los SL ---
+    r = metricas.get("riesgo", {})
+    r_pct = float(r.get("pct", 0.0) or 0.0)
+    sin_sl = int(r.get("sin_sl", 0) or 0)
+    # Verde hasta 2 %, ámbar hasta 5 %, rojo por encima (umbrales de gestión de riesgo).
+    r_color = "#3fb950" if r_pct <= 2 else ("#d29922" if r_pct <= 5 else "#f85149")
+    aviso_sl = (f"<span style='font-size:10px; font-weight:700; color:#d29922;' "
+                f"title='{sin_sl} posición(es) sin Stop Loss: riesgo no acotado'>"
+                f"·{sin_sl} sin SL</span>") if sin_sl else ""
+    chip_riesgo = _chip(
+        "Riesgo",
+        f"<span style='{mono} color:{r_color};'>{r_pct:.1f}%</span>{aviso_sl}",
+    )
+
+    # --- Drawdown: caída máxima de equity (negativo, en rojo) ---
+    d = metricas.get("drawdown", {})
+    d_pct = float(d.get("pct", 0.0) or 0.0)
+    if d.get("disponible"):
+        dd_html = f"<span style='{mono} color:#f85149;'>-{d_pct:.1f}%</span>"
+    else:
+        dd_html = ("<span style='font-size:14px; font-weight:700; color:#8b949e; "
+                   "font-family:monospace;' title='Aún se están registrando datos de "
+                   "equity para calcular el drawdown real'>—</span>")
+    chip_dd = _chip("Drawdown", dd_html)
+
+    # --- Mercado: estado de sesión del símbolo activo ---
+    m = metricas.get("mercado", {})
+    abierto = m.get("abierto")
+    if abierto is True:
+        punto, texto, col = "#3fb950", "Abierto", "#3fb950"
+    elif abierto is False:
+        punto, texto, col = "#f85149", "Cerrado", "#f85149"
+    else:
+        punto, texto, col = "#8b949e", "—", "#8b949e"
+    mercado_html = (
+        f"<span style='display:flex; align-items:center; gap:5px; font-size:12px; "
+        f"font-weight:700; color:{col};'>"
+        f"<span style='width:7px; height:7px; border-radius:50%; background:{punto}; "
+        f"display:inline-block;'></span>{texto}</span>"
+    )
+    chip_mercado = _chip("Mercado", mercado_html)
+
+    return chip_riesgo + chip_dd + chip_mercado
+
+
 def renderizar_barra_navegacion(usuario: str = "Emilio Fuentes",
                                 saldo: float | None = None,
                                 moneda: str = "USD",
                                 pl: float | None = None,
-                                usuario_id: str | None = None):
+                                usuario_id: str | None = None,
+                                metricas: dict | None = None):
     iniciales = "".join([p[0] for p in usuario.split()[:2]]).upper() or "U"
     try:
         vigilancia.iniciar_motor()   # idempotente: retoma las vigilancias activas tras reiniciar la app
@@ -143,17 +210,15 @@ def renderizar_barra_navegacion(usuario: str = "Emilio Fuentes",
         f"font-family:monospace;'>{pl_txt}</span>"
     )
     attr_saldo = "data-pj-acc='equity'" if saldo is not None else ""
-    chip_saldo = (
-        "<div style='display:flex; flex-direction:column; align-items:flex-end; "
-        "line-height:1.1; padding:4px 12px; background:#161b22; border:1px solid #30363d; "
-        "border-radius:8px;'>"
-        "<span style='font-size:10px; color:#8b949e; text-transform:uppercase; "
-        "letter-spacing:.5px;'>Saldo MT5</span>"
-        "<span style='display:flex; align-items:baseline; gap:8px;'>"
+    # Tarjeta CAPITAL: equity + P/G flotante juntos (estilo XM). El <span
+    # data-pj-acc='profit'> lo rellena el feed en vivo (components/live_feed.py).
+    chip_capital = _chip(
+        "Capital",
         f"<span {attr_saldo} style='font-size:14px; font-weight:700; color:#3fb950; "
-        f"font-family:monospace;'>{saldo_txt}</span>{pl_span}</span>"
-        "</div>"
+        f"font-family:monospace;'>{saldo_txt}</span>{pl_span}",
     )
+
+    chips_metricas = _chips_metricas(metricas)
 
     # Estilos de la navbar + del botón buscador
     st.markdown(
@@ -249,10 +314,11 @@ def renderizar_barra_navegacion(usuario: str = "Emilio Fuentes",
         unsafe_allow_html=True,
     )
 
+    # 4 tarjetas: Capital (equity + P&L) · Riesgo · Drawdown · Mercado.
     html_saldo = f"""
-        <div style='display:flex; align-items:center; justify-content:flex-end; gap:18px; white-space:nowrap;'>
-            {chip_saldo}
-            <span class='nav-ico' title='Tema'>{_IC_TEMA}</span>
+        <div style='display:flex; align-items:center; justify-content:flex-end; gap:7px; white-space:nowrap;'>
+            {chip_capital}{chips_metricas}
+            <span class='nav-ico' title='Tema' style='margin-left:6px;'>{_IC_TEMA}</span>
         </div>
     """
 
