@@ -11,6 +11,7 @@
     ].join(' ');
     document.head.appendChild(estiloTxt);
 
+    function conTamanoTexto(el){ return el.tipo === 'text' || (typeof REG !== 'undefined' && REG[el.tipo] && REG[el.tipo].tamano); }
     function fuenteTexto(el){ return (el.negrita ? 'bold ' : '') + (el.tamano || 13) + 'px sans-serif'; }
 
     function cerrarEditorTexto(){
@@ -75,7 +76,7 @@
         var g = geom(elementosDibujados[hit.idx]);
         seleccionadoId = hit.idx;
         redibujarTodo();
-        editarTexto(hit.idx, { x: g.x, y: g.y });
+        if (typeof abrirAjustesDibujo === 'function') abrirAjustesDibujo(hit.idx); else editarTexto(hit.idx, { x: g.x, y: g.y });
       }
     }, true);
 
@@ -96,7 +97,7 @@
     bloqueTexto.addEventListener('click', function(e){
       var btn = e.target.closest ? e.target.closest('button') : null;
       var el = elementoSeleccionado();
-      if (!btn || !el || el.tipo !== 'text') return;
+      if (!btn || !el || !conTamanoTexto(el)) return;
       if (btn.hasAttribute('data-tamano')) { el.tamano = parseInt(btn.getAttribute('data-tamano'), 10); }
       else if (btn.hasAttribute('data-negrita')) { el.negrita = !el.negrita; }
       else return;
@@ -107,7 +108,7 @@
     var refrescarBarraBase = refrescarBarra;
     refrescarBarra = function(el){
       refrescarBarraBase(el);
-      var esTxt = !!(el && el.tipo === 'text');
+      var esTxt = !!(el && conTamanoTexto(el));
       bloqueTexto.style.display = esTxt ? 'flex' : 'none';
       if (esTxt) {
         var t = el.tamano || 13, mejor = TAMANOS_TXT[0];

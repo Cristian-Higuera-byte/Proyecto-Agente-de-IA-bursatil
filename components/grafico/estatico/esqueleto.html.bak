@@ -1,13 +1,15 @@
 
-
 <style>
 @@css/10_base_y_barra_superior.css
 @@css/20_menus_desplegables.css
 @@css/30_cuerpo_y_herramientas.css
 @@css/40_lienzo.css
 @@css/50_paneles_osciladores.css
+@@css/55_indicadores.css
 @@css/60_barra_rangos.css
 @@css/70_comparar.css
+@@css/65_backtest.css
+@@css/80_pantalla_completa.css
 </style>
 
 <div id="tv-wrap">
@@ -27,7 +29,10 @@
     <!-- Las ventanas (indicadores y comparar) van DENTRO de #tv-wrap: en pantalla completa solo se ve lo que
          está dentro del elemento en pantalla completa; fuera de él no se abrirían -->
 @@html/50_modal_indicadores.html
+@@html/52_ajustes_indicador.html
 @@html/60_modal_comparar.html
+@@html/65_modal_backtest.html
+@@html/70_selector_activo.html
 </div>
 
 <script>
@@ -44,13 +49,20 @@
 @@js/23_dibujo_barra_estilos.js
 @@js/24_dibujo_texto.js
 @@js/25_dibujo_pincel_resaltador_flechas.js
+@@js/26_dibujo_extra_base.js
+@@js/27_dibujo_extra_lineas_patrones.js
+@@js/28_dibujo_extra_proyeccion_figuras_texto.js
 @@js/30_indicadores_calculo.js
 @@js/31_indicadores_paneles.js
 @@js/32_indicadores_modal.js
+@@js/33_indicadores_catalogo.js
 @@js/35_comparar_simbolos.js
 @@js/40_datos_y_leyenda.js
 __POSICIONES_JS__
 
 @@js/50_tiempo_real_y_acciones.js
+@@js/55_pantalla_completa.js
+@@js/60_backtest_motor.js
+@@js/61_backtest_ui.js
 @@js/99_cierre.js
 </script>

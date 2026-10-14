@@ -43,11 +43,7 @@ from urllib.parse import urlparse, parse_qs, unquote
 import MetaTrader5 as mt5  # type: ignore[import-untyped]
 from tools.mt5_bridge import (inicializar_mt5, obtener_datos_historicos, resolver_simbolo,
                               modificar_sltp, colocar_orden_pendiente, modificar_orden,
-<<<<<<< Updated upstream
-                              eliminar_orden)
-=======
                               eliminar_orden, ejecutar_orden_mercado)
->>>>>>> Stashed changes
 from tools import trailing_store, oco_store, equity_store
 
 PUERTO = 8000
@@ -100,6 +96,7 @@ def obtener_velas(simbolo: str, tf: str, n: int) -> list:
             "low": round(float(fila["low"]), 5),
             "close": round(float(fila["close"]), 5),
             "volume": float(fila["tick_volume"]),
+            "spread": float(fila["spread"]) if "spread" in fila.index else 0.0,   # puntos; lo usa el backtest
         })
     return velas
 

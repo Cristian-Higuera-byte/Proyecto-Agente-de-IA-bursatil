@@ -41,6 +41,12 @@
                 </div>
             </div>
 
+            <!-- Comparar con otros símbolos (varias series en % sobre el mismo gráfico) -->
+            <button class="tvbtn" id="btn-cmp-select" title="Comparar con otros símbolos">
+                <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 6.5v7M6.5 10h7"/></svg>
+                <span>Comparar</span>
+            </button>
+
             <!-- Selector de Indicadores Funcionales (Estilo Modal Búsqueda) -->
             <div class="tv-dropdown" id="ind-dropdown">
                 <button class="tvbtn" id="btn-ind-select" title="Añadir indicadores técnicos">

@@ -1,0 +1,14 @@
+<!-- [grafico] Ventana de ajustes de un indicador (parámetros, colores, grosor) -->
+<div id="indcfg-overlay" style="display:none;">
+    <div id="indcfg-box">
+        <div class="ind-cab">
+            <span class="ind-titulo" id="indcfg-titulo">Ajustes</span>
+            <button id="indcfg-close" title="Cerrar">✕</button>
+        </div>
+        <div id="indcfg-cuerpo"></div>
+        <div class="indcfg-pie">
+            <button id="indcfg-reset" class="indcfg-btn">Restablecer</button>
+            <button id="indcfg-ok" class="indcfg-btn indcfg-primario">Aceptar</button>
+        </div>
+    </div>
+</div>

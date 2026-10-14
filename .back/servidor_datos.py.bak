@@ -29,6 +29,7 @@ Endpoints:
     POST /orden/modificar {"ticket", "precio", "sl", "tp", "caducidad", "expiracion"}
                                        -> modifica una orden pendiente
     POST /orden/eliminar  {"ticket"}   -> cancela una orden pendiente
+    POST /mercado {"symbol", "lado", "volumen"} -> orden a mercado (botones VENDER/COMPRAR del gráfico a pantalla completa)
 
 Nota: usa solo la librería estándar de Python (http.server), no requiere instalar nada.
 El terminal de MetaTrader 5 debe estar abierto y logueado.
@@ -42,7 +43,7 @@ from urllib.parse import urlparse, parse_qs, unquote
 import MetaTrader5 as mt5  # type: ignore[import-untyped]
 from tools.mt5_bridge import (inicializar_mt5, obtener_datos_historicos, resolver_simbolo,
                               modificar_sltp, colocar_orden_pendiente, modificar_orden,
-                              eliminar_orden)
+                              eliminar_orden, ejecutar_orden_mercado)
 from tools import trailing_store, oco_store, equity_store
 
 PUERTO = 8000
@@ -51,7 +52,8 @@ PUERTO = 8000
 # 3 = órdenes pendientes con caducidad (POST /orden/modificar con "caducidad").
 # 4 = stop dinámico (trailing): motor que mueve el SL + flag "tr" por posición en el feed.
 # 5 = OCO (One-Cancels-the-Other): motor que cancela la pata sobrante + flag "oco" por orden.
-VERSION_API = 5
+# 6 = POST /mercado (orden a mercado desde los botones VENDER/COMPRAR del gráfico en pantalla completa).
+VERSION_API = 6
 
 # Temporalidades soportadas (igual que el selector del dashboard)
 TF_MAP = {
@@ -576,6 +578,13 @@ class Manejador(BaseHTTPRequestHandler):
                                           datos.get("caducidad"), datos.get("expiracion"))
                 elif ruta == "orden/eliminar":
                     res = eliminar_orden(int(datos["ticket"]))
+                elif ruta == "mercado":
+                    lado = str(datos.get("lado", "")).upper()
+                    vol = float(datos["volumen"])
+                    if lado not in ("BUY", "SELL") or not vol > 0:
+                        res = {"error": "Orden a mercado no válida (lado o volumen)"}
+                    else:
+                        res = ejecutar_orden_mercado(str(datos["symbol"]), lado, vol)
                 else:
                     res = None
             if res is not None:

@@ -1,0 +1,167 @@
+// [grafico] Indicadores: ventana de selección y ventana de ajustes
+    var modalOverlay = document.getElementById('ind-modal-overlay');
+    var btnIndSelect = document.getElementById('btn-ind-select');
+    var modalClose = document.getElementById('ind-modal-close');
+    var searchInput = document.getElementById('ind-search-input');
+    var tabsInd = document.getElementById('ind-tabs');
+    var tabActiva = 'Todos';
+
+    function cantidadDe(id){ return indActivos.filter(function(i){ return i.id === id; }).length; }
+
+    function renderizarTabs(){
+      var nombres = ['Todos'].concat(GRUPOS_IND).concat(['Activos']);
+      tabsInd.innerHTML = '';
+      nombres.forEach(function(n){
+        var b = document.createElement('button'); b.className = 'ind-tab' + (n === tabActiva ? ' on' : '');
+        b.textContent = n === 'Activos' ? 'Activos (' + indActivos.length + ')' : n;
+        b.addEventListener('click', function(){ tabActiva = n; renderizarTabs(); renderizarListaIndicadores(searchInput.value); });
+        tabsInd.appendChild(b);
+      });
+    }
+
+    function filaIndicador(df){
+      var n = cantidadDe(df.id);
+      var fila = document.createElement('div'); fila.className = 'ind-fila'; fila.title = df.desc;
+      var txt = document.createElement('div'); txt.className = 'ind-txt';
+      var nom = document.createElement('span'); nom.className = 'ind-nom'; nom.textContent = df.nombre;
+      var sub = document.createElement('span'); sub.className = 'ind-sub';
+      sub.textContent = (df.destino === 'panel' ? 'Panel propio · ' : 'Sobre el precio · ') + df.desc;
+      txt.appendChild(nom); txt.appendChild(sub);
+      var est = document.createElement('span'); est.className = 'ind-estado' + (n ? ' on' : '');
+      est.textContent = n ? (n > 1 ? n + ' activos · +' : 'Activo · +') : 'Añadir';
+      fila.appendChild(txt); fila.appendChild(est);
+      fila.addEventListener('click', function(){ anadirIndicador(df.id); renderizarTabs(); renderizarListaIndicadores(searchInput.value); });
+      return fila;
+    }
+
+    function filaInstancia(inst){
+      var df = DEFS[inst.id];
+      var fila = document.createElement('div'); fila.className = 'ind-fila';
+      var txt = document.createElement('div'); txt.className = 'ind-txt';
+      var nom = document.createElement('span'); nom.className = 'ind-nom'; nom.textContent = tituloInstancia(inst) + (inst.oculto ? '  (oculto)' : '');
+      var sub = document.createElement('span'); sub.className = 'ind-sub'; sub.textContent = df.nombre;
+      txt.appendChild(nom); txt.appendChild(sub);
+      var acc = document.createElement('div'); acc.className = 'ind-acciones';
+      function mini(t, titulo, fn, cls){
+        var b = document.createElement('button'); b.className = 'ind-mini' + (cls ? ' ' + cls : ''); b.textContent = t; b.title = titulo;
+        b.addEventListener('click', function(ev){ ev.stopPropagation(); fn(); });
+        acc.appendChild(b);
+      }
+      mini(inst.oculto ? 'Mostrar' : 'Ocultar', 'Mostrar u ocultar', function(){ inst.oculto = !inst.oculto; cambioIndicadores(); renderizarTabs(); renderizarListaIndicadores(searchInput.value); });
+      mini(String.fromCharCode(9881), 'Ajustes', function(){ abrirAjustesInd(inst.uid); });
+      mini(String.fromCharCode(10005), 'Quitar', function(){ quitarIndicador(inst.uid); renderizarTabs(); renderizarListaIndicadores(searchInput.value); }, 'rojo');
+      fila.appendChild(txt); fila.appendChild(acc);
+      return fila;
+    }
+
+    function renderizarListaIndicadores(filtro){
+      var cont = document.getElementById('ind-list-container');
+      cont.innerHTML = '';
+      var q = (filtro || '').toLowerCase().trim(), hay = false;
+      if (tabActiva === 'Activos') {
+        indActivos.forEach(function(inst){
+          if (q && (tituloInstancia(inst) + DEFS[inst.id].nombre).toLowerCase().indexOf(q) < 0) return;
+          cont.appendChild(filaInstancia(inst)); hay = true;
+        });
+        if (!hay) { var v = document.createElement('div'); v.className = 'ind-vacio'; v.textContent = 'No hay indicadores activos.'; cont.appendChild(v); }
+        return;
+      }
+      GRUPOS_IND.forEach(function(g){
+        if (tabActiva !== 'Todos' && tabActiva !== g) return;
+        var items = LISTA_DEFS.filter(function(df){
+          return df.grupo === g && (!q || (df.nombre + ' ' + df.corto + ' ' + df.desc + ' ' + df.grupo).toLowerCase().indexOf(q) >= 0);
+        });
+        if (!items.length) return;
+        hay = true;
+        if (tabActiva === 'Todos') { var h = document.createElement('div'); h.className = 'ind-grupo'; h.textContent = g; cont.appendChild(h); }
+        items.forEach(function(df){ cont.appendChild(filaIndicador(df)); });
+      });
+      if (!hay) { var nv = document.createElement('div'); nv.className = 'ind-vacio'; nv.textContent = 'Ningún indicador coincide con la búsqueda.'; cont.appendChild(nv); }
+    }
+
+    function abrirModalIndicadores(){
+      modalOverlay.style.display = 'flex';
+      renderizarTabs();
+      renderizarListaIndicadores(searchInput.value);
+      setTimeout(function(){ searchInput.focus(); }, 50);
+    }
+    btnIndSelect.addEventListener('click', function(e){ e.stopPropagation(); abrirModalIndicadores(); });
+    modalClose.addEventListener('click', function(){ modalOverlay.style.display = 'none'; });
+    modalOverlay.addEventListener('click', function(e){ if (e.target === modalOverlay) modalOverlay.style.display = 'none'; });
+    searchInput.addEventListener('input', function(e){ renderizarListaIndicadores(e.target.value); });
+
+    // ---------- Ajustes de un indicador ----------
+    var cfgOverlay = document.getElementById('indcfg-overlay');
+    var cfgCuerpo = document.getElementById('indcfg-cuerpo');
+    var cfgUid = null;
+
+    function cerrarAjustes(){ cfgOverlay.style.display = 'none'; cfgUid = null; }
+    function cerrarAjustesSiEs(uid){ if (cfgUid === uid) cerrarAjustes(); }
+
+    function abrirAjustesInd(uid){
+      var inst = indActivos.filter(function(i){ return i.uid === uid; })[0];
+      if (!inst) return;
+      cfgUid = uid;
+      var df = DEFS[inst.id];
+      document.getElementById('indcfg-titulo').textContent = df.nombre;
+      cfgCuerpo.innerHTML = '';
+      function fila(etiqueta, control){
+        var f = document.createElement('div'); f.className = 'cfg-fila';
+        var l = document.createElement('span'); l.textContent = etiqueta;
+        f.appendChild(l); f.appendChild(control); cfgCuerpo.appendChild(f);
+      }
+      function seccion(t){ var s = document.createElement('div'); s.className = 'cfg-sec'; s.textContent = t; cfgCuerpo.appendChild(s); }
+
+      if (df.params.length) {
+        seccion('Parámetros');
+        df.params.forEach(function(pd){
+          var ctl;
+          if (pd.t === 'sel') {
+            ctl = document.createElement('select');
+            pd.o.forEach(function(o){ var op = document.createElement('option'); op.value = o[0]; op.textContent = o[1]; if (o[0] === inst.p[pd.k]) op.selected = true; ctl.appendChild(op); });
+            ctl.addEventListener('change', function(){ inst.p[pd.k] = valorParam(pd, ctl.value); reconstruirIndicador(inst); });
+          } else {
+            ctl = document.createElement('input'); ctl.type = 'number'; ctl.min = pd.min; ctl.max = pd.max; ctl.step = pd.paso; ctl.value = inst.p[pd.k];
+            ctl.addEventListener('change', function(){ inst.p[pd.k] = valorParam(pd, ctl.value); ctl.value = inst.p[pd.k]; reconstruirIndicador(inst); });
+          }
+          fila(pd.n, ctl);
+        });
+      }
+      seccion('Estilo');
+      df.capas.forEach(function(cp, i){
+        if (cp[2] === 'hist' && (df.id !== 'volumenes')) {
+          // los histogramas con colores automáticos (según signo o dirección) no se recolorean
+          if (['macd', 'osma', 'bulls', 'bears', 'ao', 'ac', 'gator', 'bwmfi'].indexOf(df.id) >= 0) return;
+        }
+        var c = document.createElement('input'); c.type = 'color'; c.value = colorCapa(inst, i);
+        c.addEventListener('input', function(){
+          if (!inst.c) inst.c = df.capas.map(function(x){ return null; });
+          inst.c[i] = c.value; reconstruirIndicador(inst);
+        });
+        fila(cp[0], c);
+      });
+      var hayLineas = df.capas.some(function(cp){ return !cp[2] || cp[2] === 'linea'; });
+      if (hayLineas) {
+        var w = document.createElement('select');
+        [1, 2, 3, 4, 5].forEach(function(n){ var op = document.createElement('option'); op.value = n; op.textContent = n + ' px'; if (n === (inst.w || 2)) op.selected = true; w.appendChild(op); });
+        w.addEventListener('change', function(){ inst.w = Number(w.value); reconstruirIndicador(inst); });
+        fila('Grosor de línea', w);
+      }
+      cfgOverlay.style.display = 'flex';
+    }
+
+    document.getElementById('indcfg-close').addEventListener('click', cerrarAjustes);
+    document.getElementById('indcfg-ok').addEventListener('click', cerrarAjustes);
+    document.getElementById('indcfg-reset').addEventListener('click', function(){
+      var inst = indActivos.filter(function(i){ return i.uid === cfgUid; })[0];
+      if (!inst) return;
+      inst.p = validarParams(DEFS[inst.id], null); inst.c = null; inst.w = null;
+      reconstruirIndicador(inst);
+      abrirAjustesInd(inst.uid);
+    });
+    cfgOverlay.addEventListener('click', function(e){ if (e.target === cfgOverlay) cerrarAjustes(); });
+    document.addEventListener('keydown', function(e){
+      if (e.key !== 'Escape') return;
+      if (cfgOverlay.style.display !== 'none') cerrarAjustes();
+      else if (modalOverlay.style.display !== 'none') modalOverlay.style.display = 'none';
+    });

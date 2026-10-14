@@ -1,6 +1,8 @@
 /* [grafico] Cuerpo del gráfico y barra lateral de herramientas de dibujo */
-    #tv-body { display:flex; flex: 1; position: relative; overflow: hidden; flex-direction: column; }
-    #tv-main-canvas-area { display: flex; flex: 1; position: relative; overflow: hidden; }
+    /* min-width/min-height:0 en toda la cadena flex: si no, el gráfico no puede encogerse cuando el iframe se estrecha
+       (p. ej. al abrir un panel lateral) y el eje de precios queda cortado por el borde */
+    #tv-body { display:flex; flex: 1; position: relative; overflow: hidden; flex-direction: column; min-width: 0; min-height: 0; }
+    #tv-main-canvas-area { display: flex; flex: 1; position: relative; overflow: hidden; min-width: 0; min-height: 0; }
     
     #tv-toolbar-left {
         display:flex; flex-direction:column; align-items:center; gap:4px;
@@ -43,3 +45,12 @@
     .tvtool-flyout-item:hover { background-color: rgba(139,92,246,0.2); color: #a78bfa; }
     .tvtool-flyout-item svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.5; flex-shrink:0; }
 
+
+    .tvtool-flyout-sec { color:#6e7681; font-size:10px; font-weight:700; letter-spacing:.06em; padding:8px 14px 3px; text-transform:uppercase; }
+    .tvtool-flyout-sec:not(:first-child) { border-top:1px solid #21262d; margin-top:4px; padding-top:10px; }
+    .tvtool-flyout-item { padding:6px 14px; }
+    .emoji-flyout { min-width:0; width:268px; }
+    .emoji-grid { display:grid; grid-template-columns:repeat(8,1fr); gap:2px; padding:4px 8px 8px; }
+    .emoji-item { background:transparent; border:none; border-radius:5px; font-size:19px; line-height:1; padding:5px 0; cursor:pointer; }
+    .emoji-item:hover { background:rgba(139,92,246,0.25); }
+    .emoji-actual { font-size:17px; line-height:1; pointer-events:none; }

@@ -1,4 +1,4 @@
-// [grafico] Estado global, catálogo de indicadores y configuración recordada
+// [grafico] Estado global y configuración recordada
 (function(){
   var API = __API_URL_JS__;
   var SIMBOLO = __SIMBOLO_JS__;
@@ -16,33 +16,19 @@
   var cargando = false;
   var pollEnCurso = false;
 
-  // Catálogo completo de indicadores disponibles
-  var CATALOGO_INDICADORES = [
-    { id: 'sma20', nombre: 'SMA 20 (Media Móvil Simple)', tipo: 'Superposición' },
-    { id: 'sma50', nombre: 'SMA 50 (Media Móvil Simple)', tipo: 'Superposición' },
-    { id: 'sma200', nombre: 'SMA 200 (Media Móvil Simple)', tipo: 'Superposición' },
-    { id: 'ema20', nombre: 'EMA 20 (Media Móvil Exponencial)', tipo: 'Superposición' },
-    { id: 'ema50', nombre: 'EMA 50 (Media Móvil Exponencial)', tipo: 'Superposición' },
-    { id: 'bollinger', nombre: 'Bandas de Bollinger (20, 2)', tipo: 'Superposición' },
-    { id: 'rsi', nombre: 'RSI (Índice de Fuerza Relativa 14)', tipo: 'Oscilador' },
-    { id: 'macd', nombre: 'MACD (Convergencia/Divergencia)', tipo: 'Oscilador' },
-    { id: 'atr', nombre: 'ATR (Average True Range)', tipo: 'Oscilador' },
-    { id: 'stochastic', nombre: 'Oscilador Estocástico', tipo: 'Oscilador' },
-    { id: 'parabolic', nombre: 'Parabolic SAR', tipo: 'Superposición' }
-  ];
+  // Indicadores activos: cada uno es una instancia { uid, id, p (parámetros), c (colores), w (grosor), oculto }.
+  // El catálogo (qué indicadores existen y cómo se calculan) está en 33_indicadores_catalogo.js
+  var indActivos = [];
+  var cfgIndRaw = null;   // lo recordado entre recargas; se valida cuando el catálogo ya está cargado
+  function serializarInstancia(i){   // lo que se recuerda de cada indicador (formato de nuevaInstancia, en el catálogo)
+    return { id: i.id, p: i.p, c: i.c, w: i.w, s: i.s, v: i.v, pr: i.pr, et: i.et ? 1 : 0, sl: i.sl ? 1 : 0, vis: i.vis, o: i.oculto ? 1 : 0 };
+  }
+  var IND_LEGADO = {      // formato antiguo (un true/false por indicador) -> instancias, con los colores de entonces
+    sma20: ['sma', { periodo: 20 }], sma50: ['sma', { periodo: 50 }, '#3399ff'], sma200: ['sma', { periodo: 200 }, '#a78bfa'],
+    ema20: ['ema', { periodo: 20 }], ema50: ['ema', { periodo: 50 }, '#e056fd'], bollinger: ['bollinger', {}],
+    rsi: ['rsi', {}], macd: ['macd', {}], atr: ['atr', {}], stochastic: ['stoch', {}], parabolic: ['sar', {}]
+  };
 
-  var indicadores = { 
-    sma20: false, sma50: false, sma200: false, 
-    ema20: false, ema50: false, bollinger: false, 
-    rsi: false, macd: false, atr: false, 
-    stochastic: false, parabolic: false 
-  };
-  var seriesInd = { 
-    sma20: null, sma50: null, sma200: null, 
-    ema20: null, ema50: null, 
-    bolsuper: null, bolmedia: null, bolinf: null,
-    sar: null
-  };
 
   var PANES = {};   // paneles de osciladores abiertos: id -> { el, chart, s }
 
@@ -61,14 +47,18 @@
       if (['candlestick','hollow','bars','line','area','heikin'].indexOf(c.tipo) >= 0) tipoActual = c.tipo;
       if (typeof c.rango === 'number') cfgRango = c.rango;
       if (Array.isArray(c.cmp)) cfgComparar = c.cmp.filter(function(x){ return typeof x === 'string' && /^[A-Za-z0-9._#+\-]{1,24}$/.test(x); }).slice(0, 5);
-      if (c.ind) Object.keys(indicadores).forEach(function(k){ if (c.ind[k] === true) indicadores[k] = true; });
+      if (Array.isArray(c.ind2)) cfgIndRaw = c.ind2.slice(0, 40);
+      else if (c.ind && typeof c.ind === 'object') {
+        cfgIndRaw = Object.keys(IND_LEGADO).filter(function(k){ return c.ind[k] === true; })
+          .map(function(k){ return { id: IND_LEGADO[k][0], p: IND_LEGADO[k][1], c: IND_LEGADO[k][2] ? [IND_LEGADO[k][2]] : null }; });
+      }
     } catch (e) {}
   })();
   function guardarConfig(){
     try {
       var rg = -1;
       document.querySelectorAll('.tvrange').forEach(function(b, i){ if (b.classList.contains('active')) rg = i; });
-      localStorage.setItem(CFG_KEY, JSON.stringify({ tf: tfActual, n: nBarrasActual, tipo: tipoActual, rango: rg, ind: indicadores, cmp: listaCmpGuardada }));
+      localStorage.setItem(CFG_KEY, JSON.stringify({ tf: tfActual, n: nBarrasActual, tipo: tipoActual, rango: rg, ind2: indActivos.map(serializarInstancia), cmp: listaCmpGuardada }));
     } catch (e) {}
   }
 
