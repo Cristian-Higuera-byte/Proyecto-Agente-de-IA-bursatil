@@ -1,0 +1,42 @@
+/* Estilos del detalle desplegable de una posición (acordeón inline, como XM).
+   Lo inyecta comun.css_detalle(). OJO (gotcha Streamlit): sin etiquetas HTML en el CSS. */
+
+[class*="st-key-cadet_wrap_"] { background:#141c28; border:1px solid #36465f;
+    border-top:1px solid #243049; border-radius:0 0 12px 12px;
+    padding:13px 15px 15px; margin-top:-9px; margin-bottom:9px; }
+[class*="st-key-cadet_wrap_"] [data-testid="stVerticalBlock"] { gap:10px !important; }
+[class*="st-key-cadet_wrap_"] div[data-testid="stMarkdownContainer"] { margin-bottom:0 !important; }
+
+.cad-grid { border-top:1px solid #1f2937; }
+.cad-grid .row { display:flex; justify-content:space-between; gap:12px; padding:4px 2px;
+    border-bottom:1px solid #141a22; font-size:13px; }
+.cad-grid .k { color:#8b949e; }
+.cad-grid .v { color:#e6edf3; font-weight:600; text-align:right;
+    font-variant-numeric:tabular-nums; }
+.cad-up { color:#2ebd85 !important; } .cad-down { color:#f6465d !important; }
+.cad-note { color:#8b949e; font-size:11.5px; margin:2px 2px 4px; }
+.cad-err { color:#f85149; font-size:12px; margin:4px 2px 8px; }
+.cad-trail-on { display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:9px 12px; border-radius:10px; background:#111a16; border:1px solid #1e3a2a; margin:2px 0 4px; }
+.cad-trail-on .k { color:#2ebd85; font-size:12.5px; font-weight:700; }
+.cad-trail-on .v { color:#e6edf3; font-size:12.5px; font-variant-numeric:tabular-nums; }
+.cad-fb-ok { color:#2ebd85; font-size:13px; padding:4px 2px; }
+.cad-fb-err { color:#f85149; font-size:13px; padding:4px 2px; }
+.cad-empty { color:#8b949e; font-size:13px; padding:16px 6px; text-align:center; }
+
+[class*="st-key-cadet_cerrar_"] { margin-bottom:10px !important; }
+[class*="st-key-cadet_cerrar_"] button {
+    background:linear-gradient(135deg,#ff4b4b 0%,#ff8f00 100%) !important; border:none !important;
+    color:#fff !important; height:48px !important; border-radius:10px !important; }
+[class*="st-key-cadet_cerrar_"] button:hover { filter:brightness(1.08) !important; }
+[class*="st-key-cadet_cerrar_"] button p { font-size:15px !important; font-weight:700 !important; color:#fff !important; }
+.st-key-cadet_grafico { margin-bottom:8px !important; }
+.st-key-cadet_grafico button {
+    background:#161b22 !important; border:1px solid #30363d !important; color:#e6edf3 !important;
+    height:42px !important; border-radius:10px !important; }
+.st-key-cadet_grafico button:hover { border-color:#58a6ff !important; background:#21262d !important; }
+/* Guardar en el degradado P&J cuando está habilitado */
+[class*="st-key-cad_"][class*="_guardar_"] button[kind="primary"] {
+    background:linear-gradient(135deg,#ff4b4b 0%,#ff8f00 100%) !important; border:none !important; color:#fff !important; }
+[class*="st-key-cad_"][class*="_guardar_"] button:disabled {
+    background:#1b2230 !important; border:1px solid #273142 !important; color:#5a6676 !important; }

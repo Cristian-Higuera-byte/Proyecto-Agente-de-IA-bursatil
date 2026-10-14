@@ -35,3 +35,6 @@ Thumbs.db
 data/*.db
 data/*.db-wal
 data/*.db-shm
+
+# Copias de respaldo manuales
+*.bak
