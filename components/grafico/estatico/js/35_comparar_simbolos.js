@@ -66,7 +66,7 @@
       });
     }
     function hayIndicadorSobrePrecio(){
-      return ['sma20', 'sma50', 'sma200', 'ema20', 'ema50', 'bollinger', 'parabolic'].some(function(k){ return indicadores[k]; });
+      return indActivos.some(function(i){ return DEFS[i.id] && DEFS[i.id].destino === 'precio' && !i.oculto; });
     }
     function refrescarLeyendaCmp(){
       var cont = document.getElementById('tv-cmp-legend');

@@ -8,20 +8,25 @@
       redibujarTodo();
     }
 
-    var gruposFlyout = [
-      { boton:document.getElementById('tool-trend'), menu:document.getElementById('lines-flyout') },
-      { boton:document.getElementById('tool-fib'), menu:document.getElementById('fib-flyout') },
-      { boton:document.getElementById('tool-geometry'), menu:document.getElementById('geometry-flyout') },
-      { boton:document.getElementById('tool-text'), menu:document.getElementById('annotations-flyout') },
-      { boton:document.getElementById('tool-measure'), menu:document.getElementById('measure-flyout') },
-      { boton:document.getElementById('tool-brush'), menu:document.getElementById('brush-flyout') },
-      { boton:document.getElementById('tool-arrow_up'), menu:document.getElementById('arrow-marks-flyout') }
-    ];
+    // Los grupos de herramientas se leen del HTML (cada .tvtool-group = botón + menú desplegable)
+    var gruposFlyout = Array.prototype.map.call(document.querySelectorAll('.tvtool-group'), function(g){
+      return { boton: g.querySelector('.tvtool'), menu: g.querySelector('.tvtool-flyout') };
+    });
     function cerrarFlyouts(excepto){ gruposFlyout.forEach(function(g){if(g.menu&&g.menu!==excepto)g.menu.classList.remove('show');}); }
+    // El menú se abre junto al botón pero se desplaza hacia arriba si no cabe en la altura visible
+    function colocarFlyout(g){
+      var m = g.menu, alto = window.innerHeight;
+      m.style.top = '0px'; m.style.maxHeight = (alto - 34) + 'px';
+      var r = m.getBoundingClientRect(), b = g.boton.getBoundingClientRect();
+      var desp = 0;
+      if (r.bottom > alto - 8) desp = (alto - 8) - r.bottom;
+      if (r.top + desp < 8) desp = 8 - r.top;
+      m.style.top = desp + 'px';
+    }
     gruposFlyout.forEach(function(g){
-      g.boton.addEventListener('click',function(e){e.stopPropagation();var abierto=g.menu.classList.contains('show');cerrarFlyouts(g.menu);g.menu.classList.toggle('show',!abierto);});
+      g.boton.addEventListener('click',function(e){e.stopPropagation();var abierto=g.menu.classList.contains('show');cerrarFlyouts(g.menu);g.menu.classList.toggle('show',!abierto);if(!abierto)colocarFlyout(g);});
       g.menu.querySelectorAll('.tvtool-flyout-item').forEach(function(item){
-        item.addEventListener('click',function(e){e.stopPropagation();var tool=item.getAttribute('data-tool');g.menu.classList.remove('show');activarHerramienta(tool);var svg=item.querySelector('svg');if(svg)g.boton.innerHTML=svg.outerHTML+'<span class="tvtool-arrow">▼</span>';});
+        item.addEventListener('click',function(e){e.stopPropagation();var tool=item.getAttribute('data-tool');g.menu.classList.remove('show');activarHerramienta(tool);var svg=item.querySelector('svg');if(svg)g.boton.innerHTML=svg.outerHTML+'<span class="tvtool-arrow">▼</span>';g.boton.setAttribute('data-tool',g.boton.id==='tool-cross'?(tool==='eraser'?'eraser':'cross'):tool);g.boton.classList.toggle('active',true);});
       });
     });
     window.addEventListener('click',function(){cerrarFlyouts(null);});
@@ -61,7 +66,7 @@
         if(tool==='keep'){
           mantenerHerramienta=!mantenerHerramienta;btn.classList.toggle('active',mantenerHerramienta);btn.title=mantenerHerramienta?'Mantener herramienta activa: sí':'Mantener herramienta activa: no';return;
         }
-        if(['tool-trend','tool-fib','tool-geometry','tool-text','tool-measure'].indexOf(btn.id)>=0)return;
+        if(btn.parentNode&&btn.parentNode.classList&&btn.parentNode.classList.contains('tvtool-group'))return;   // los botones de grupo solo abren su menú
         activarHerramienta(tool);
       });
     });

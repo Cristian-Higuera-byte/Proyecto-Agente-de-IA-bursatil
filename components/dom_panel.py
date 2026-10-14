@@ -129,8 +129,4 @@ def renderizar_panel_dom():
                 + filas + nota
             )
 
-<<<<<<< Updated upstream
         _escalera()
-=======
-        _escalera()
->>>>>>> Stashed changes

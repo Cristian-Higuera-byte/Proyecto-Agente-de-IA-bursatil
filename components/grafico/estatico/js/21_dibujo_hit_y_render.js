@@ -125,6 +125,9 @@
       if (d) c.setLineDash([]);
     }
 
+    // Relleno de las figuras: se puede apagar, cambiar de color y de opacidad desde la ventana de ajustes
+    function alfaRell(el, base){ return el.relleno === false ? 0 : (el.rellenoOp !== undefined ? el.rellenoOp : base); }
+    function colRell(el, col){ return el.rellenoColor || col; }
     function dibujarElemento(c, el, sel, hov){
       var g = geom(el); if (!g) return;
       c.save();
@@ -161,7 +164,7 @@
         if(sel)dibujarHandle(c,g.x,g.y,colX);
       } else if (el.tipo === 'channel'){
         var colC=el.color||'#2962ff', oc=offsetCanal(g);
-        c.globalAlpha=.08;c.fillStyle=colC;c.beginPath();c.moveTo(g.x1,g.y1);c.lineTo(g.x2,g.y2);c.lineTo(g.x2+oc.dx,g.y2+oc.dy);c.lineTo(g.x1+oc.dx,g.y1+oc.dy);c.closePath();c.fill();c.globalAlpha=1;
+        c.globalAlpha=alfaRell(el,.08);c.fillStyle=colRell(el,colC);c.beginPath();c.moveTo(g.x1,g.y1);c.lineTo(g.x2,g.y2);c.lineTo(g.x2+oc.dx,g.y2+oc.dy);c.lineTo(g.x1+oc.dx,g.y1+oc.dy);c.closePath();c.fill();c.globalAlpha=1;
         dibujarLinea(c,g.x1,g.y1,g.x2,g.y2,colC,2+hoverExtra);dibujarLinea(c,g.x1+oc.dx,g.y1+oc.dy,g.x2+oc.dx,g.y2+oc.dy,colC,2+hoverExtra);
         if(sel){dibujarHandle(c,g.x1,g.y1,colC);dibujarHandle(c,g.x2,g.y2,colC);dibujarHandle(c,g.x3,g.y3,colC);}
       } else if (el.tipo === 'fib'){
@@ -187,16 +190,16 @@
         if(sel){dibujarHandle(c,g.x1,g.y1,'#a78bfa');dibujarHandle(c,g.x2,g.y2,'#a78bfa');if(ok(g.x3,g.y3))dibujarHandle(c,g.x3,g.y3,'#a78bfa');}
       } else if (el.tipo === 'rectangle'){
         var colG=el.color||'#58a6ff'; var rw=g.x2-g.x1,rh=g.y2-g.y1;
-        c.globalAlpha=.08;c.fillStyle=colG;c.fillRect(Math.min(g.x1,g.x2),Math.min(g.y1,g.y2),Math.abs(rw),Math.abs(rh));c.globalAlpha=1;
+        c.globalAlpha=alfaRell(el,.08);c.fillStyle=colRell(el,colG);c.fillRect(Math.min(g.x1,g.x2),Math.min(g.y1,g.y2),Math.abs(rw),Math.abs(rh));c.globalAlpha=1;
         c.strokeStyle=colG;c.lineWidth=(el.ancho||2)+hoverExtra;c.strokeRect(Math.min(g.x1,g.x2),Math.min(g.y1,g.y2),Math.abs(rw),Math.abs(rh));
         if(sel){dibujarHandle(c,g.x1,g.y1,colG);dibujarHandle(c,g.x2,g.y2,colG);}
       } else if (el.tipo === 'ellipse'){
         var colEl=el.color||'#58a6ff'; var cx=(g.x1+g.x2)/2,cy=(g.y1+g.y2)/2,rx=Math.abs(g.x2-g.x1)/2,ry=Math.abs(g.y2-g.y1)/2;
-        c.globalAlpha=.08;c.fillStyle=colEl;c.beginPath();c.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);c.fill();c.globalAlpha=1;c.strokeStyle=colEl;c.lineWidth=(el.ancho||2)+hoverExtra;c.beginPath();c.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);c.stroke();
+        c.globalAlpha=alfaRell(el,.08);c.fillStyle=colRell(el,colEl);c.beginPath();c.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);c.fill();c.globalAlpha=1;c.strokeStyle=colEl;c.lineWidth=(el.ancho||2)+hoverExtra;c.beginPath();c.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);c.stroke();
         if(sel){dibujarHandle(c,g.x1,g.y1,colEl);dibujarHandle(c,g.x2,g.y2,colEl);}
       } else if (el.tipo === 'triangle'){
         var colT=el.color||'#58a6ff';
-        c.globalAlpha=.08;c.fillStyle=colT;c.beginPath();c.moveTo(g.x1,g.y1);c.lineTo(g.x2,g.y2);c.lineTo(g.x1,g.y2);c.closePath();c.fill();c.globalAlpha=1;c.strokeStyle=colT;c.lineWidth=(el.ancho||2)+hoverExtra;c.beginPath();c.moveTo(g.x1,g.y1);c.lineTo(g.x2,g.y2);c.lineTo(g.x1,g.y2);c.closePath();c.stroke();
+        c.globalAlpha=alfaRell(el,.08);c.fillStyle=colRell(el,colT);c.beginPath();c.moveTo(g.x1,g.y1);c.lineTo(g.x2,g.y2);c.lineTo(g.x1,g.y2);c.closePath();c.fill();c.globalAlpha=1;c.strokeStyle=colT;c.lineWidth=(el.ancho||2)+hoverExtra;c.beginPath();c.moveTo(g.x1,g.y1);c.lineTo(g.x2,g.y2);c.lineTo(g.x1,g.y2);c.closePath();c.stroke();
         if(sel){dibujarHandle(c,g.x1,g.y1,colT);dibujarHandle(c,g.x2,g.y2,colT);}
       } else if (el.tipo === 'arrow'){
         var colAr=el.color||'#3fb950';dibujarLinea(c,g.x1,g.y1,g.x2,g.y2,colAr,2+hoverExtra);var a=Math.atan2(g.y2-g.y1,g.x2-g.x1),hs=10;

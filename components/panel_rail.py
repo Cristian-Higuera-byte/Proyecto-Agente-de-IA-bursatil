@@ -169,8 +169,4 @@ def renderizar_rail_y_paneles(main=None):
 
     # Script que alterna los paneles sin reejecutar Python.
     with st.container(key="pj_railjs"):
-<<<<<<< Updated upstream
-        components.html(_JS, height=0)
-=======
-        components.html(_JS, height=0)
->>>>>>> Stashed changes
+        components.html(_JS, height=0, width=0)
