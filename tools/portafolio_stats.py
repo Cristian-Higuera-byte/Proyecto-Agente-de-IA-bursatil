@@ -306,3 +306,108 @@ def calcular(dias_curva: int = 3650) -> dict:
         "rentabilidad": {"abs": rent_abs, "pct": rent_pct},
         "curva": curva,
     }
+
+
+# ---------------------------------------------------------------------------
+# Métricas LIGERAS para la barra superior (Riesgo · Drawdown · Mercado)
+# ---------------------------------------------------------------------------
+# A diferencia de calcular(), NO lee el historial de deals (400 días): solo mira
+# la cuenta, las posiciones abiertas y los snapshots de equity_store. Por eso es
+# barata y puede refrescarse seguido en la barra superior (app.py → top_navbar.py).
+
+# Estado del mercado por símbolo, detectado por AVANCE de tick (compara la hora
+# del servidor contra sí misma → sin el desfase horario del bróker, ver mt5_bridge).
+# sym -> (ultimo_tick_servidor, hora_local_de_esa_lectura, abierto)
+_mercado_cache: dict[str, tuple[float, float, bool]] = {}
+
+
+def _mercado_abierto(simbolo: str) -> bool | None:
+    """True/False si el mercado del símbolo está abierto, o None si aún no hay certeza.
+    Se basa en si llegan ticks nuevos: si el tick avanzó desde la última lectura →
+    abierto; si no avanza por más de 3 min → cerrado. La primera lectura devuelve
+    None (hace falta una segunda para comparar)."""
+    if mt5 is None or not simbolo:
+        return None
+    try:
+        sym = resolver_simbolo(simbolo)
+        with MT5_LOCK:
+            if not inicializar_mt5():
+                return None
+            mt5.symbol_select(sym, True)
+            tick = mt5.symbol_info_tick(sym)
+        if tick is None:
+            return None
+        t_srv = float(getattr(tick, "time", 0.0) or 0.0)
+    except Exception:
+        return None
+
+    import time as _t
+    ahora = _t.time()
+    prev = _mercado_cache.get(sym)
+    if prev is None:
+        _mercado_cache[sym] = (t_srv, ahora, True)
+        return None                      # sin baseline todavía
+    prev_srv, prev_wall, prev_estado = prev
+    if t_srv > prev_srv:                 # llegó un tick nuevo → abierto
+        estado = True
+    elif ahora - prev_wall > 180.0:      # 3 min sin ticks nuevos → cerrado
+        estado = False
+    else:
+        estado = prev_estado             # sin novedades recientes: mantener el último
+    if t_srv > prev_srv or ahora - prev_wall > 180.0:
+        _mercado_cache[sym] = (t_srv, ahora, estado)
+    return estado
+
+
+def metricas_barra(simbolo_activo: str | None = None) -> dict:
+    """Riesgo, Drawdown y Mercado para la barra superior, sin tocar el historial.
+
+    - riesgo:   pérdida DEFINIDA si las posiciones con SL saltan su stop, en moneda
+                de cuenta (`abs`) y como % del equity (`pct`); `sin_sl` = nº de
+                posiciones sin Stop Loss (riesgo abierto, no acotado).
+    - drawdown: caída máxima de EQUITY real (snapshots de equity_store), en %.
+                `disponible` = hay suficientes snapshots para que el dato sea fiable.
+    - mercado:  estado de sesión del símbolo activo (abierto/cerrado/desconocido).
+    """
+    info = obtener_info_cuenta()
+    con_cuenta = "error" not in info
+    equity = float(info.get("equity", 0.0) or 0.0) if con_cuenta else 0.0
+    moneda = info.get("currency", "USD") if con_cuenta else "USD"
+
+    # ----- Riesgo definido por SL (mismo cálculo que calcular(), sobre posiciones) -----
+    riesgo_abs = 0.0
+    sin_sl = 0
+    for p in obtener_posiciones():
+        sl = float(p.get("sl", 0.0) or 0.0)
+        if sl <= 0:
+            sin_sl += 1
+            continue
+        k, _pt = _valor_punto(resolver_simbolo(p["symbol"]))
+        ac = float(p.get("precio_actual", 0.0) or 0.0) or float(p.get("precio_apertura", 0.0) or 0.0)
+        vol = float(p.get("volumen", 0.0) or 0.0)
+        compra = p.get("tipo") == "Compra"
+        perdida = (ac - sl) if compra else (sl - ac)   # solo si el SL está en contra
+        if k > 0 and perdida > 0:
+            riesgo_abs += perdida * k * vol
+    riesgo_pct = (riesgo_abs / equity * 100.0) if equity > 0 else 0.0
+
+    # ----- Drawdown de equity real (pico → valle sobre los snapshots) -----
+    eq_serie = equity_store.serie()
+    dd_pct = 0.0
+    dd_disponible = len(eq_serie) >= 3
+    if dd_disponible:
+        pico = -1e18
+        for pnt in eq_serie:
+            e = pnt[1]
+            pico = max(pico, e)
+            if pico > 0:
+                caida = (pico - e) / pico * 100.0
+                if caida > dd_pct:
+                    dd_pct = caida
+
+    return {
+        "moneda": moneda,
+        "riesgo": {"abs": riesgo_abs, "pct": riesgo_pct, "sin_sl": sin_sl},
+        "drawdown": {"pct": dd_pct, "disponible": dd_disponible},
+        "mercado": {"abierto": _mercado_abierto(simbolo_activo), "simbolo": simbolo_activo},
+    }

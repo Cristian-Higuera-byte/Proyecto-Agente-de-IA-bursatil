@@ -1,0 +1,79 @@
+  .st-key-fav_panel {
+    background:#0d1117; border:1px solid #1f2630; border-radius:14px;
+    padding:8px 16px 10px; margin-bottom:10px;
+  }
+  /* Menos espacio entre el encabezado y las tarjetas */
+  .st-key-fav_panel [data-testid="stVerticalBlock"] { gap:.3rem !important; }
+  .st-key-fav_panel [data-testid="stHorizontalBlock"] { gap:10px !important; }
+  .fav-head { display:flex; align-items:center; gap:10px; margin:0 0 2px; }
+  .fav-chip { width:28px; height:28px; border-radius:9px; flex:0 0 auto;
+              display:flex; align-items:center; justify-content:center;
+              background:linear-gradient(135deg, rgba(240,180,41,.20), rgba(255,143,0,.14));
+              border:1px solid #2c2616; }
+  .fav-mi { font-family:'Material Symbols Rounded'; font-weight:400; font-size:17px; line-height:1;
+            background:linear-gradient(135deg,#ffd454,#f0a91e);
+            -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .fav-title { color:#e6edf3; font-weight:800; font-size:14.5px; letter-spacing:.2px; }
+  .fav-badge { background:#1a2130; color:#aeb7c2; font-size:10.5px; font-weight:700;
+               padding:2px 9px; border-radius:999px; line-height:1.4; }
+  /* Tarjeta tipo burbuja con contorno degradé verde (sube) / rojo (baja).
+     Técnica de borde con degradado: dos fondos (padding-box = relleno,
+     border-box = el degradado) + borde transparente. */
+  .fav-card { width:100%; box-sizing:border-box; display:flex; align-items:center; gap:11px;
+              border:1.5px solid transparent; border-radius:16px; padding:9px 14px;
+              background:linear-gradient(#0f1620,#0f1620) padding-box,
+                         linear-gradient(135deg,#2a3340,#2a3340) border-box;
+              transition:transform .14s ease, box-shadow .14s ease; }
+  .fav-card.up   { background:linear-gradient(#0e1620,#0e1620) padding-box,
+                             linear-gradient(135deg,#3fb950,#14532d) border-box; }
+  .fav-card.down { background:linear-gradient(#141015,#141015) padding-box,
+                             linear-gradient(135deg,#f85149,#7f1d1d) border-box; }
+  .fav-card:hover { transform:translateY(-1px); box-shadow:0 7px 20px rgba(0,0,0,.38); }
+  .fav-ic { display:inline-flex; align-items:center; flex:0 0 auto; }
+  .fav-l { display:flex; flex-direction:column; gap:1px; min-width:0; flex:1 1 auto; }
+  .fav-tk { color:#e6edf3; font-weight:700; font-size:12.5px; white-space:nowrap;
+            overflow:hidden; text-overflow:ellipsis; }
+  .fav-row { display:flex; align-items:baseline; gap:8px; min-width:0; }
+  .fav-px { color:#ffffff; font-weight:800; font-size:15px; line-height:1.15;
+            font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .fav-var { font-size:11px; font-weight:700; white-space:nowrap; font-variant-numeric:tabular-nums;
+             overflow:hidden; text-overflow:ellipsis; }
+  .fav-arrow { flex:0 0 auto; font-size:16px; font-weight:800; line-height:1; align-self:center; }
+  .fav-empty { color:#6e7681; font-size:13px; padding:14px 2px; }
+
+  /* Cada slot es contenedor relativo para posicionar la ✕ sobre la tarjeta */
+  [class*="st-key-favslot_"] { position:relative; }
+
+  /* Tarjeta del activo que está en el gráfico: anillo sutil + sombra (mantiene
+     el contorno degradé verde/rojo; solo agrega un halo para marcarla). */
+  .fav-card.sel { box-shadow:0 0 0 1px rgba(255,255,255,.22), 0 6px 18px rgba(0,0,0,.4); }
+
+  /* Botón invisible que cubre TODA la tarjeta -> selecciona el activo
+     (mismo patrón que wlsel_ en watchlist.py). Queda bajo la ✕ (z-index 6). */
+  [class*="st-key-favsel_"] {
+    position:absolute !important; inset:0 !important;
+    width:100% !important; height:100% !important;
+    margin:0 !important; padding:0 !important; z-index:1;
+  }
+  [class*="st-key-favsel_"] * {
+    width:100% !important; height:100% !important; min-height:0 !important;
+    margin:0 !important; padding:0 !important;
+  }
+  [class*="st-key-favsel_"] button { opacity:0; cursor:pointer; }
+  [class*="st-key-favx_"] { position:absolute !important; top:3px; right:3px;
+                            z-index:6; width:auto !important; min-width:0 !important; }
+  [class*="st-key-favx_"] button {
+    background:transparent !important; border:none !important; box-shadow:none !important;
+    color:#5c636e !important; padding:0 5px !important; min-height:0 !important;
+    height:20px !important; line-height:1 !important; font-size:13px !important;
+  }
+  [class*="st-key-favx_"] button:hover {
+    color:#f85149 !important; background:transparent !important; border:none !important;
+  }
+  /* Botón "+" en el espacio libre: tarjeta punteada del mismo alto */
+  [class*="st-key-favadd"] button {
+    width:100% !important; min-height:60px !important; background:transparent !important;
+    border:1.5px dashed #2f3d4f !important; color:#8b949e !important; border-radius:16px !important;
+    font-size:20px !important;
+  }
+  [class*="st-key-favadd"] button:hover { border-color:#3fb950 !important; color:#e6edf3 !important; }

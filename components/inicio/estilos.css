@@ -1,0 +1,149 @@
+  .st-key-ini_wrap { max-width:1180px; margin-left:auto; margin-right:auto; width:100%; }
+  .st-key-ini_wrap [data-testid="stVerticalBlock"] { gap:18px; }
+  .mi { font-family:'Material Symbols Rounded'; font-weight:400; font-style:normal;
+        line-height:1; letter-spacing:normal; text-transform:none; white-space:nowrap;
+        direction:ltr; -webkit-font-smoothing:antialiased; font-feature-settings:'liga'; }
+
+  /* ===== Encabezado ===== */
+  .ini-hola { color:#8b949e; font-size:14px; margin:0; }
+  .ini-title { color:#e6edf3; font-size:26px; font-weight:800; margin:2px 0 0; letter-spacing:-.3px; }
+  .st-key-ini_sel button { background:#161b22 !important; border:1px solid #30363d !important;
+      border-radius:999px !important; color:#e6edf3 !important; padding:6px 16px !important;
+      min-height:40px !important; box-shadow:none !important; }
+  .st-key-ini_sel button p { font-size:13px !important; font-weight:600 !important; }
+  .st-key-ini_sel button:hover { border-color:#58a6ff !important; }
+  .st-key-ini_operar button { background:linear-gradient(135deg,#3fb950,#2ea043) !important;
+      border:none !important; border-radius:999px !important; min-height:40px !important;
+      box-shadow:0 4px 14px rgba(46,160,67,.25) !important; }
+  .st-key-ini_operar button p { color:#fff !important; font-weight:700 !important; font-size:14px !important; }
+
+  /* ===== Tarjetas base ===== */
+  .st-key-ini_hero, .st-key-ini_salud {
+      background:#0f1620; border:1px solid #202a37; border-radius:18px;
+      padding:22px 24px; height:100%; box-sizing:border-box; position:relative; overflow:hidden; }
+  .st-key-ini_hero::before { content:""; position:absolute; left:0; top:0; right:0; height:3px;
+      background:linear-gradient(90deg,#ff4b4b,#ff8f00); }
+  .st-key-ini_hero [data-testid="stVerticalBlock"],
+  .st-key-ini_salud [data-testid="stVerticalBlock"] { gap:10px; }
+
+  /* Equity */
+  .hero-top { display:flex; align-items:center; gap:10px; }
+  .hero-lbl { color:#8b949e; font-size:13px; font-weight:600; letter-spacing:.3px; text-transform:uppercase; }
+  .hero-badge { background:rgba(240,180,41,.12); color:#f0b429; border:1px solid rgba(240,180,41,.35);
+      font-size:11px; font-weight:700; padding:2px 9px; border-radius:999px; }
+  .hero-eq { color:#ffffff; font-size:44px; font-weight:800; line-height:1.05; margin-top:4px;
+      letter-spacing:-1px; font-variant-numeric:tabular-nums; }
+  .hero-eq small { font-size:16px; font-weight:600; color:#8b949e; margin-left:6px; letter-spacing:0; }
+  .hero-pl { display:inline-flex; align-items:center; gap:6px; margin-top:10px;
+      padding:5px 12px; border-radius:999px; font-size:13px; font-weight:700; }
+  .hero-pl.up { background:rgba(63,185,80,.12); color:#3fb950; }
+  .hero-pl.dn { background:rgba(248,81,73,.12); color:#f85149; }
+  .hero-pl .t { color:#8b949e; font-weight:500; }
+  .kpis { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:18px; }
+  .kpi { background:#151c27; border:1px solid #252f3d; border-radius:12px; padding:12px 14px; }
+  .kpi .k { color:#8b949e; font-size:12px; }
+  .kpi .v { color:#e6edf3; font-size:17px; font-weight:700; margin-top:4px;
+      font-family:ui-monospace,Consolas,monospace; white-space:nowrap; }
+  /* Ojo (ocultar montos) arriba a la derecha de la tarjeta */
+  .st-key-ini_hero .st-key-ini_ojo { position:absolute !important; top:16px; right:16px;
+      width:auto !important; z-index:3; }
+  .st-key-ini_ojo button { background:#151c27 !important; border:1px solid #252f3d !important;
+      border-radius:10px !important; min-height:34px !important; padding:0 10px !important; }
+  .st-key-ini_ojo button:hover { border-color:#58a6ff !important; }
+
+  /* ===== Salud de la cuenta ===== */
+  .sal-title { color:#e6edf3; font-size:15px; font-weight:700; }
+  .sal-nivel { display:flex; align-items:baseline; justify-content:space-between; margin-top:6px; }
+  .sal-nivel .k { color:#8b949e; font-size:13px; }
+  .sal-nivel .v { font-size:28px; font-weight:800; font-variant-numeric:tabular-nums; }
+  .sal-estado { font-size:12px; font-weight:700; padding:2px 10px; border-radius:999px; }
+  .sal-bar-lbl { display:flex; justify-content:space-between; color:#8b949e; font-size:12px; margin-top:12px; }
+  .sal-bar-lbl b { color:#e6edf3; }
+  .sal-bar { height:8px; border-radius:8px; background:#21262d; overflow:hidden; margin-top:6px; }
+  .sal-bar > div { height:100%; border-radius:8px; background:linear-gradient(90deg,#2f81f7,#58a6ff);
+      transition:width .3s ease; }
+  .sal-rows { margin-top:14px; }
+  .sal-row { display:flex; justify-content:space-between; padding:8px 0; border-top:1px solid #1b2430;
+      font-size:13px; }
+  .sal-row .k { color:#8b949e; }
+  .sal-row .v { color:#e6edf3; font-weight:600; font-family:ui-monospace,Consolas,monospace; }
+
+  /* ===== Secciones ===== */
+  .ini-sec { display:flex; align-items:center; justify-content:space-between; margin:8px 0 -4px; }
+  .ini-sec h3 { color:#e6edf3; font-size:17px !important; font-weight:700 !important; margin:0; padding:0; }
+  .ini-sec .s { color:#8b949e; font-size:13px; }
+
+  /* ===== Accesos rápidos ===== */
+  .acc-card { display:flex; align-items:center; gap:14px; background:#0f1620; border:1px solid #202a37;
+      border-radius:14px; padding:16px; transition:border-color .15s ease, transform .15s ease; }
+  [class*="st-key-accrow_"]:hover .acc-card { border-color:#2f3d4f; transform:translateY(-1px); }
+  .acc-ic { flex:0 0 42px; width:42px; height:42px; border-radius:12px; display:flex;
+      align-items:center; justify-content:center; font-size:22px; }
+  .acc-tx { flex:1 1 auto; min-width:0; }
+  .acc-t { color:#e6edf3; font-size:14px; font-weight:700; }
+  .acc-s { color:#8b949e; font-size:12px; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .acc-go { color:#586174; font-size:20px; }
+  [class*="st-key-accrow_"] { position:relative; }
+  [class*="st-key-accsel_"] { position:absolute !important; inset:0 !important; width:100% !important;
+      height:100% !important; margin:0 !important; padding:0 !important; z-index:3; }
+  [class*="st-key-accsel_"] * { width:100% !important; height:100% !important; min-height:0 !important;
+      margin:0 !important; padding:0 !important; }
+  [class*="st-key-accsel_"] button { opacity:0; cursor:pointer; }
+
+  /* ===== Promociones ===== */
+  .promo-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+  .promo-card { position:relative; overflow:hidden; border-radius:14px; padding:16px 18px;
+      background:#0f1620; border:1px solid #202a37; }
+  .promo-card::before { content:""; position:absolute; inset:0; opacity:.18; }
+  .promo-card.a::before { background:linear-gradient(135deg,#2f81f7,transparent 70%); }
+  .promo-card.b::before { background:linear-gradient(135deg,#a371f7,transparent 70%); }
+  .promo-card.c::before { background:linear-gradient(135deg,#ff8f00,transparent 70%); }
+  .promo-card h4 { position:relative; margin:0 0 4px; color:#e6edf3; font-size:14px; font-weight:700; }
+  .promo-card p { position:relative; margin:0; color:#8b949e; font-size:12.5px; }
+  .promo-card .mi { position:relative; font-size:22px; margin-bottom:8px; display:block; }
+
+  /* ===== Posiciones abiertas ===== */
+  .st-key-ini_cartera { background:#0f1620; border:1px solid #202a37; border-radius:18px; padding:6px 0; }
+  table.pos { width:100%; border-collapse:collapse; font-size:13px; }
+  table.pos th { color:#8b949e; text-align:left; font-weight:600; font-size:12px;
+      padding:12px 18px; border-bottom:1px solid #1b2430; }
+  table.pos td { color:#e6edf3; padding:12px 18px; border-bottom:1px solid #141a22; }
+  table.pos tr:last-child td { border-bottom:none; }
+  table.pos .r { text-align:right; font-family:ui-monospace,Consolas,monospace; }
+  .pos-sym { display:flex; align-items:center; gap:10px; font-weight:700; }
+  .pos-side { font-size:11px; font-weight:700; padding:3px 10px; border-radius:999px; }
+  .pos-side.buy { background:rgba(63,185,80,.12); color:#3fb950; }
+  .pos-side.sell { background:rgba(248,81,73,.12); color:#f85149; }
+  .car-up { color:#3fb950; font-weight:700; }
+  .car-down { color:#f85149; font-weight:700; }
+  table.pos td.car-up, .hist-sum .v.car-up { color:#3fb950 !important; }
+  table.pos td.car-down, .hist-sum .v.car-down { color:#f85149 !important; }
+  .pos-empty { display:flex; flex-direction:column; align-items:center; gap:6px; padding:28px 10px;
+      color:#8b949e; font-size:13px; text-align:center; }
+  .pos-empty .mi { font-size:30px; color:#586174; }
+  .st-key-ini_vercartera button { background:transparent !important; border:1px solid #30363d !important;
+      border-radius:999px !important; min-height:32px !important; padding:2px 14px !important; }
+  .st-key-ini_vercartera button p { font-size:12.5px !important; color:#c9d1d9 !important; }
+
+  /* ===== Historial (operaciones cerradas) ===== */
+  .st-key-ini_hist { background:#0f1620; border:1px solid #202a37; border-radius:18px; padding:6px 0; }
+  .hist-sum { display:flex; gap:28px; padding:12px 18px 14px; border-bottom:1px solid #1b2430; flex-wrap:wrap; }
+  .hist-sum .it { display:flex; flex-direction:column; gap:2px; }
+  .hist-sum .k { color:#8b949e; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.3px; }
+  .hist-sum .v { color:#e6edf3; font-size:17px; font-weight:800; font-family:ui-monospace,Consolas,monospace; }
+  .hist-fch { color:#8b949e; font-size:12px; font-family:ui-monospace,Consolas,monospace; }
+  .st-key-ini_vermas button, .st-key-ini_vermenos button { background:transparent !important;
+      border:1px solid #30363d !important; border-radius:999px !important;
+      min-height:34px !important; padding:3px 18px !important; }
+  .st-key-ini_vermas button p, .st-key-ini_vermenos button p { font-size:12.5px !important; color:#c9d1d9 !important; }
+
+  /* ===== Modal selección de cuenta ===== */
+  .selc-card { background:#0f1620; border:1px solid #202a37; border-radius:14px;
+      padding:14px 16px; margin-bottom:10px; }
+  .selc-card.activa { border-color:#1f6feb; }
+  .selc-top { display:flex; justify-content:space-between; align-items:flex-start; }
+  .selc-tipo { font-size:11px; font-weight:700; padding:2px 10px; border-radius:8px; }
+  .selc-real { color:#3fb950; border:1px solid #3fb950; }
+  .selc-demo { color:#f0b429; border:1px solid #f0b429; }
+  .selc-bal { color:#fff; font-size:22px; font-weight:800; margin:2px 0; }
+  .selc-meta { color:#8b949e; font-size:12px; }
