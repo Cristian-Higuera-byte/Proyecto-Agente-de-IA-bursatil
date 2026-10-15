@@ -1,3 +1,16 @@
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------------- INICIO Piña y Jara turno .PY ------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
 """Un turno del agente: estado compartido entre el hilo que corre al agente y la interfaz que lo consulta."""
 from __future__ import annotations
 
@@ -8,11 +21,14 @@ from typing import Any
 
 from nucleo_agente.turnos.formato import formatear_duracion
 
+# Segundos de margen para considerar que el usuario está viendo el turno (ver turnos/avisos.py).
 VISTA_RECIENTE_S = 2.0   # la interfaz late cada 1 s: si lo mostró hace menos de esto, el usuario lo está viendo
 
 
 @dataclass
 class Turno:
+    """Estado de una consulta al agente, compartido entre el hilo que la ejecuta y la interfaz que la consulta."""
+
     usuario_id: str
     prompt: str
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
@@ -36,10 +52,12 @@ class Turno:
 
     @property
     def duracion(self) -> float:
+        """Segundos transcurridos desde el inicio hasta el fin (o hasta ahora si sigue en curso)."""
         return (self.t_fin or time.time()) - self.t_inicio
 
     @property
     def pie(self) -> str:
+        """Texto del pie del mensaje: duración, tokens y perfil, o aviso de consulta detenida."""
         if self.cancelado:
             return f"⏹ Detenida a los {formatear_duracion(self.duracion)}"
         return (
@@ -48,7 +66,11 @@ class Turno:
         )
 
     def respuesta_final(self) -> str:
-        """Texto que se guarda en el chat (con el mismo criterio de antes si no hubo texto)."""
+        """Texto que se guarda en el chat al terminar el turno.
+
+        Si se canceló, agrega una nota (y recuerda revisar órdenes/vigilancias ya propuestas); si hubo error lo
+        añade al final; si no hubo texto devuelve un mensaje de relleno.
+        """
         texto = self.texto
         if self.cancelado:
             nota = "⏹ **Consulta detenida por el usuario.**"
@@ -64,3 +86,16 @@ class Turno:
         if not texto.strip():
             texto = "(Sin texto adicional del agente.)" if self.imagenes else "(El agente no devolvió texto.)"
         return texto
+
+
+# -------------------------------------------------------------------------------------------------------
+# -------------------------------------- FIN Piña y Jara turno .PY --------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

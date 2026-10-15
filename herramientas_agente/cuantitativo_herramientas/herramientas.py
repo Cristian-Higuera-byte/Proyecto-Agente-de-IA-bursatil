@@ -1,4 +1,21 @@
-"""Herramientas registradas para el agente (los esquemas viven en esquemas.json)."""
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# --------------------------------- INICIO Piña y Jara herramientas .PY ---------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+"""Herramientas registradas para el agente (los esquemas viven en esquemas.json).
+
+Herramientas cuantitativas: matriz de correlación de Pearson, simulación Monte Carlo de la cartera
+y métricas de rendimiento (Sharpe, Sortino, profit factor, win rate y VaR paramétrico).
+"""
 from __future__ import annotations
 
 import math
@@ -11,6 +28,7 @@ from fuentes import mt5_fuentes as mt5_fuente
 from herramientas_agente.base import cargar_json, herramienta
 from herramientas_agente.cuantitativo_herramientas.auxiliares import _obtener_retornos_historicos
 
+# Esquemas (descripción y parámetros que ve el modelo) leídos de esquemas.json junto a este archivo.
 _ESQ = cargar_json(Path(__file__).parent / "esquemas.json")
 
 
@@ -19,10 +37,19 @@ def calcular_matriz_correlacion(
     simbolos: str,
     cantidad_dias: int = 90,
 ) -> dict[str, Any]:
+    """Calcula la matriz de correlación de Pearson entre los retornos diarios de varios símbolos.
+
+    Recibe `simbolos` (texto separado por comas, mínimo 2) y `cantidad_dias` (90 por defecto).
+    Descarta símbolos sin datos, recorta todas las series a la longitud común más corta y devuelve
+    la matriz, los días usados y alertas para pares con correlación absoluta de 0.80 o más
+    (posible sobreexposición). Devuelve {"error": ...} si no hay al menos 2 activos válidos.
+    Efecto secundario: consultas a MT5 / Yahoo Finance.
+    """
     lista_simbolos = [s.strip().upper() for s in simbolos.split(",") if s.strip()]
     if len(lista_simbolos) < 2:
         return {"error": "Se requieren al menos 2 símbolos para calcular la matriz de correlación."}
 
+    # Retornos por símbolo; se omiten los que no devuelven datos.
     retornos_dict: dict[str, list[float]] = {}
     for sym in lista_simbolos:
         rets = _obtener_retornos_historicos(sym, cantidad=cantidad_dias)
@@ -38,6 +65,7 @@ def calcular_matriz_correlacion(
     for k in activos_validos:
         retornos_dict[k] = retornos_dict[k][-min_len:]
 
+    # Matriz simétrica y alertas de pares muy correlacionados.
     matriz: dict[str, dict[str, float]] = {}
     alertas_sobreexposicion: list[str] = []
 
@@ -56,11 +84,13 @@ def calcular_matriz_correlacion(
             m2 = mean(r2)
             sd2 = stdev(r2) if len(r2) > 1 else 1.0
 
+            # Covarianza muestral dividida por el producto de desviaciones = correlación de Pearson.
             cov = sum((x - m1) * (y - m2) for x, y in zip(r1, r2)) / (min_len - 1)
             corr = cov / (sd1 * sd2) if (sd1 * sd2) != 0 else 0.0
             corr_round = round(corr, 4)
             matriz[s1][s2] = corr_round
 
+            # Solo se alerta una vez por par (orden alfabético) y con umbral de 0.80.
             if s1 < s2 and abs(corr_round) >= 0.80:
                 rel = "positiva" if corr_round > 0 else "inversa"
                 alertas_sobreexposicion.append(
@@ -82,6 +112,15 @@ def simular_monte_carlo_cartera(
     num_simulaciones: int = 1000,
     capital_inicial: float | None = None,
 ) -> dict[str, Any]:
+    """Proyecta la cartera con una simulación Monte Carlo de movimiento browniano geométrico gaussiano.
+
+    Recibe `dias_proyeccion` (30), `num_simulaciones` (1000) y `capital_inicial` (por defecto la
+    equidad de MT5, o 10000 si no está disponible). El retorno medio y la volatilidad diarios se
+    estiman con los retornos de los símbolos con posición abierta (EURUSD si no hay ninguna); sin
+    datos se usan valores por defecto. Devuelve percentiles 5/50/95 del patrimonio final, el
+    drawdown máximo del percentil 95 y la probabilidad de terminar bajo el capital inicial.
+    Es aleatoria: cada llamada puede dar cifras ligeramente distintas. Consulta MT5 y Yahoo Finance.
+    """
     cuenta = mt5_fuente.cuenta()
     capital = capital_inicial or cuenta.get("equidad") or 10000.0
 
@@ -100,6 +139,7 @@ def simular_monte_carlo_cartera(
         mu = mean(retornos_combinados)
         sigma = stdev(retornos_combinados) if len(retornos_combinados) > 1 else 0.01
 
+    # Patrimonio final y drawdown máximo de cada trayectoria simulada.
     resultados_finales: list[float] = []
     max_drawdowns: list[float] = []
 
@@ -108,6 +148,7 @@ def simular_monte_carlo_cartera(
         pico = capital
         max_dd = 0.0
 
+        # Cada día el patrimonio se multiplica por (1 + retorno aleatorio normal(mu, sigma)).
         for _ in range(dias_proyeccion):
             r = random.gauss(mu, sigma)
             patrimonio *= (1.0 + r)
@@ -120,6 +161,7 @@ def simular_monte_carlo_cartera(
         resultados_finales.append(patrimonio)
         max_drawdowns.append(max_dd)
 
+    # Se ordenan para leer percentiles por índice.
     resultados_finales.sort()
     max_drawdowns.sort()
 
@@ -154,6 +196,13 @@ def simular_monte_carlo_cartera(
 def evaluar_metricas_rendimiento(
     tasa_libre_riesgo_anual: float = 0.04,
 ) -> dict[str, Any]:
+    """Calcula métricas de rendimiento y riesgo: Sharpe, Sortino, profit factor, win rate y VaR 1 día.
+
+    Recibe `tasa_libre_riesgo_anual` (0.04 por defecto). Si hay posiciones abiertas, usa el beneficio
+    flotante de cada una dividido por la equidad como "retorno"; si no, usa los retornos diarios de
+    EURUSD de los últimos 90 días. Sharpe y Sortino se anualizan con 252 días; el VaR es paramétrico
+    (normal) al 95% y 99%. Devuelve {"error": ...} con menos de 2 datos. Consulta MT5 / Yahoo Finance.
+    """
     posiciones = mt5_fuente.posiciones().get("posiciones", [])
     beneficios = [p.get("beneficio", 0.0) for p in posiciones]
 
@@ -168,6 +217,7 @@ def evaluar_metricas_rendimiento(
     if not retornos or len(retornos) < 2:
         return {"error": "Sin datos suficientes para calcular métricas cuantitativas."}
 
+    # Tasa libre de riesgo diaria (base 252 días hábiles).
     r_diario_rf = tasa_libre_riesgo_anual / 252.0
     m_ret = mean(retornos)
     s_ret = stdev(retornos) if len(retornos) > 1 else 0.0001
@@ -190,6 +240,7 @@ def evaluar_metricas_rendimiento(
     cuenta = mt5_fuente.cuenta()
     capital = cuenta.get("equidad") or 10000.0
 
+    # Z de 95% = 1.645 y de 99% = 2.326; un VaR negativo se trunca a 0 al reportar.
     var_95_pct = -(m_ret - (1.645 * s_ret))
     var_99_pct = -(m_ret - (2.326 * s_ret))
 
@@ -210,3 +261,16 @@ def evaluar_metricas_rendimiento(
             "var_99_usd": round(max(0.0, var_99_pct * capital), 2),
         },
     }
+
+
+# -------------------------------------------------------------------------------------------------------
+# ----------------------------------- FIN Piña y Jara herramientas .PY ----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

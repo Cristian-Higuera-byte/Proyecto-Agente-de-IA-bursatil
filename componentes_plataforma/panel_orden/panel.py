@@ -1,3 +1,16 @@
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------------- INICIO Piña y Jara panel .PY ------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
 """
 panel_orden/panel.py
 --------------------
@@ -22,21 +35,29 @@ usuario confirma cada operación (salvo One-Click Trading).
 import streamlit as st
 import streamlit.components.v1 as components
 
-from componentes_plataforma.flujo_vivo import attrs as _live, intervalo as _intervalo
-from componentes_plataforma.un_clic import al_cambiar as _oc_cambiar, pedir_terminos_si_corresponde
+from componentes_plataforma.flujo_precios import atributos as _en_vivo, intervalo as _intervalo
+from componentes_plataforma.operacion_un_clic import al_cambiar as _oc_cambiar, pedir_terminos_si_corresponde
 from herramientas.puente_mt5 import inicializar_mt5, obtener_precio_actual, resolver_simbolo
 
 from .cuenta import info_simbolo, margen, margen_libre
 from .ejecucion import ejecutar, ejecutar_oco
-from .confirmacion import render_confirmacion
-from .calculadora import render_calculadora
-from .avisos import toast_js
+from .confirmacion import renderizar_confirmacion
+from .calculadora import renderizar_calculadora
+from .avisos import aviso_js
 from .interfaz import cargar_css, campo
 
 
 def renderizar_panel_orden(main=None):
+    """Dibuja el ticket de órdenes completo (comprar / vender) del activo seleccionado.
+
+    El parámetro `main` se acepta por compatibilidad con las demás páginas y no se usa. Lee el activo de
+    `st.session_state.activo_seleccionado`, consulta a MT5 la información del símbolo (decimales, volumen
+    mínimo y paso, punto), inyecta el CSS y pinta el encabezado y un único fragmento `_ticket` que se
+    refresca solo. Todas las acciones del ticket relanzan solo el fragmento para evitar parpadeos. Las
+    órdenes se envían a la cuenta conectada en MetaTrader 5. No devuelve nada."""
+    # Conexión a MT5 y datos del símbolo: nombre real en este terminal, nombre visible y parámetros de volumen
     inicializar_mt5()
-    activo = st.session_state.get("activo_seleccionado", "EURUSD...")
+    activo =st.session_state.get("activo_seleccionado", "EURUSD...")
     real = resolver_simbolo(activo)
     visible = activo.replace("...", "").strip()
     info = info_simbolo(real)
@@ -45,9 +66,11 @@ def renderizar_panel_orden(main=None):
     vstep = float(getattr(info, "volume_step", 0.01) or 0.01) if info else 0.01
     point = getattr(info, "point", 0.0) if info else 0.0
 
+    # Lado por defecto del ticket la primera vez
     if "ord_side" not in st.session_state:
         st.session_state.ord_side = "BUY"
 
+    # CSS del ticket (estatico/ticket.css) y contenedor raíz con key ord_panel al que se acota
     cargar_css()
     with st.container(key="ord_panel"):
         st.html(f"<div class='ord-h'>Operar · {visible}</div>"
@@ -57,10 +80,16 @@ def renderizar_panel_orden(main=None):
         # scope="fragment" (nunca rerun de app desde aquí → sin parpadeo).
         @st.fragment(run_every=_intervalo("2s"))   # con feed: precios/spread por flujo_vivo.py
         def _ticket():
+            """Fragmento con auto-refresco que dibuja todo el ticket: One-Click, SELL/BUY con spread, volumen,
+            orden pendiente y OCO, margen requerido, Take Profit / Stop Loss, calculadora de riesgo, botón
+            de colocar orden, tarjeta de confirmación y aviso del resultado. Si no hay precio en vivo,
+            muestra un aviso y termina."""
+            # Precio en vivo del símbolo; si MT5 no responde se avisa y no se dibuja el ticket
             t = obtener_precio_actual(real)
             if "error" in t:
                 st.caption("Sin precio en vivo. ¿Está abierto MetaTrader 5?")
                 return
+            # Bid (precio de venta), ask (precio de compra) y lado elegido en el ticket
             bid, ask = t.get("bid", 0), t.get("ask", 0)
             side = st.session_state.get("ord_side", "BUY")
             compra = side == "BUY"
@@ -86,17 +115,19 @@ def renderizar_panel_orden(main=None):
             pedir_terminos_si_corresponde()
 
             # --- VENTA | COMPRA unidos + spread (selección por mitades) ---
+            # Spread en pips (forex de 3 o 5 decimales) o en puntos; 1 decimal si es pequeño y entero si es grande
             pip = (point * 10) if dig in (3, 5) else (point or 1)
             spr_val = (ask - bid) / pip if pip else 0
             spr = f"{spr_val:,.1f}" if spr_val < 100 else f"{spr_val:,.0f}"
+            # Los botones Vender y Comprar van superpuestos e invisibles sobre cada mitad (CSS de ord_bxrow)
             with st.container(key="ord_bxrow"):
                 st.html(
                     "<div class='ord-join'>"
                     f"<div class='ord-half ord-sell {'' if compra else 'sel'}'><div class='ord-lbl'>SELL</div>"
-                    f"<div class='ord-px' {_live(real, 'bid', d=dig)}>{bid:,.{dig}f}</div></div>"
+                    f"<div class='ord-px' {_en_vivo(real, 'bid', d=dig)}>{bid:,.{dig}f}</div></div>"
                     f"<div class='ord-half ord-buy {'sel' if compra else ''}'><div class='ord-lbl'>BUY</div>"
-                    f"<div class='ord-px' {_live(real, 'ask', d=dig)}>{ask:,.{dig}f}</div></div>"
-                    f"<div class='ord-spread' {_live(real, 'spr', pip=pip)}>{spr}</div>"
+                    f"<div class='ord-px' {_en_vivo(real, 'ask', d=dig)}>{ask:,.{dig}f}</div></div>"
+                    f"<div class='ord-spread' {_en_vivo(real, 'spr', pip=pip)}>{spr}</div>"
                     "</div>"
                 )
                 if st.button("Vender", key="ord_ovsell"):
@@ -107,6 +138,7 @@ def renderizar_panel_orden(main=None):
                     st.rerun(scope="fragment")
 
             # --- Cantidad | Lotes + volumen (tarjeta con número grande) ---
+            # En modo Cantidad se convierte a lotes dividiendo por el tamaño del contrato
             contract = float(getattr(info, "trade_contract_size", 1) or 1)
             modo = st.segmented_control("Tipo de volumen", ["Cantidad", "Lotes"], default="Lotes",
                                         label_visibility="collapsed", key="ord_modo",
@@ -121,6 +153,7 @@ def renderizar_panel_orden(main=None):
                     cant = st.number_input("Cantidad (unidades)", min_value=1.0, value=1.0,
                                            step=1.0, format="%.0f", key="ord_cant",
                                            label_visibility="collapsed")
+                # Se redondea al paso de volumen del símbolo y se respeta el mínimo
                 vol = (cant / contract) if contract else cant
                 vol = max(vmin, round(vol / vstep) * vstep) if vstep else max(vmin, vol)
 
@@ -129,9 +162,11 @@ def renderizar_panel_orden(main=None):
             slot_margen = st.container()
 
             # --- Pending order: Buy/Sell Limit o Stop según el precio pedido ---
+            # `ref` es el precio de referencia del lado (ask en compra, bid en venta); `pendiente` y `gtc`
+            # guardan el precio y la vigencia de la orden pendiente; las variables oco_* describen la 2.ª pata
             ref = ask if compra else bid
             pendiente, gtc = None, True
-            oco_on, oco_lado_b, oco_precio_b, oco_tipo_b = False, None, None, ""
+            oco_on,oco_lado_b, oco_precio_b, oco_tipo_b = False, None, None, ""
             with st.container(key="ord_card_pend"):
                 with st.container(key="ord_tg_pend"):
                     usar_pend = st.toggle(
@@ -145,12 +180,13 @@ def renderizar_panel_orden(main=None):
                             "Precio de la orden pendiente", min_value=0.0, value=round(float(ref), dig),
                             step=(point * 10) or 0.0001, format=f"%.{dig}f",
                             key=f"ord_pxp_{real}_{side}", label_visibility="collapsed")
+                    # Tipo según el precio: compra bajo el actual es Limit, sobre el actual es Stop (al revés en venta)
                     if compra:
                         tipo_pend = "Buy Limit" if pendiente < ref else "Buy Stop"
                     else:
                         tipo_pend = "Sell Limit" if pendiente > ref else "Sell Stop"
                     st.html(f"<div class='ord-hint'>Precio actual ({'Ask' if compra else 'Bid'}):"
-                            f"<b {_live(real, 'side', d=dig, side=side)}>{ref:,.{dig}f}</b></div>"
+                            f"<b {_en_vivo(real, 'side', d=dig, side=side)}>{ref:,.{dig}f}</b></div>"
                             f"<div class='ord-hint'>Tipo de orden:<b>{tipo_pend}</b></div>"
                             "<div class='ord-sep'></div>")
                     with st.container(key="ord_tg_gtc"):
@@ -166,6 +202,7 @@ def renderizar_panel_orden(main=None):
                                  "la otra se cancela sola. Típico para un breakout (Buy Stop arriba + "
                                  "Sell Stop abajo). Necesita el servidor de datos en marcha.")
                     if oco_on:
+                        # Segunda pata: lado (por defecto el opuesto), precio y tipo calculado igual que la primera
                         st.html("<div class='ord-sub' style='margin-top:2px'>Segunda orden del par</div>")
                         lb = st.segmented_control(
                             "Lado de la segunda orden", ["Compra", "Venta"],
@@ -192,13 +229,16 @@ def renderizar_panel_orden(main=None):
                             "Take Profit se define sobre la posición cuando una pata se ejecute.</div>")
 
             # --- Margen requerido + % del margen libre (como XM) ---
+            # Se calcula con el precio pendiente si existe; `sin_margen` bloquea la orden si excede el margen libre
             price = pendiente if pendiente else ref
             m = margen(real, vol, price, side)
             libre = margen_libre()
             sin_margen = bool(m and libre is not None and m > libre)
             if m:
+                # Porcentaje del margen libre que usaría la orden y color de la barra: rojo si no alcanza,
+                # ámbar si pasa del 90 %, azul en el resto
                 pct = (m / libre * 100) if libre and libre > 0 else 100.0
-                color = "#f85149" if sin_margen else ("#d29922" if pct >= 90 else "#2f81f7")
+                color ="#f85149" if sin_margen else ("#d29922" if pct >= 90 else "#2f81f7")
                 slot_margen.html(
                     f"<div class='ord-margen'><span>Margen requerido</span><b>${m:,.2f}</b></div>"
                     f"<div class='ord-mbar-row'><div class='ord-mbar'>"
@@ -228,22 +268,25 @@ def renderizar_panel_orden(main=None):
                                                  key="ord_tp", label_visibility="collapsed")
 
             # --- Calculadora de riesgo (Risk Manager): tamaño por riesgo + TP por R/R ---
-            render_calculadora(info, real, side, compra, price, dig, point, vmin, vstep, oco_on)
+            renderizar_calculadora(info, real, side, compra, price, dig, point, vmin, vstep, oco_on)
 
             # --- Botón grande "Colocar orden en {precio}" (o "Colocar OCO") ---
+            # `es_oco` indica que hay dos precios válidos para colocar un par OCO
             es_oco = bool(oco_on and pendiente and oco_precio_b)
             # OCO inválido: mismas patas (igual lado y prácticamente igual precio)
             oco_malo = bool(es_oco and oco_lado_b == ("BUY" if compra else "SELL")
                             and abs(oco_precio_b - pendiente) < (point or 1e-9))
+            # El botón se desactiva (clase ord-place-off y sin botón real) si falta margen o el OCO es inválido
             off = sin_margen or oco_malo
-            cls = ("ord-place-buy" if compra else "ord-place-sell") + (" ord-place-off" if off else "")
+            cls =("ord-place-buy" if compra else "ord-place-sell") + (" ord-place-off" if off else "")
             if es_oco:
                 pl_lbl, pl_px, px_attr, px_style = "Colocar OCO · 2 órdenes", \
                     f"{pendiente:,.{dig}f} / {oco_precio_b:,.{dig}f}", "", "font-size:15px"
             else:
                 # Pendiente: precio fijo elegido; a mercado: precio en vivo (feed)
                 pl_lbl, pl_px, px_style = "Colocar orden en", f"{price:,.{dig}f}", ""
-                px_attr = "" if pendiente else _live(real, "side", d=dig, side=side)
+                px_attr = "" if pendiente else _en_vivo(real, "side", d=dig, side=side)
+            # El botón real "Colocar orden" va invisible sobre el bloque HTML (CSS de ord_bxplace)
             with st.container(key="ord_bxplace"):
                 st.html(
                     f"<div class='ord-place {cls}'>"
@@ -256,6 +299,7 @@ def renderizar_panel_orden(main=None):
                     st.session_state.ord_confirm = None
                     st.session_state.ord_oco_confirm = None
                     lado = "BUY" if compra else "SELL"
+                    # Con One-Click activo se envía de inmediato; si no, se guarda la confirmación pendiente
                     if es_oco:
                         if oc:
                             ejecutar_oco(real, visible, lado, oco_lado_b,
@@ -280,7 +324,7 @@ def renderizar_panel_orden(main=None):
             # --- Confirmación (tarjeta flotante abajo-derecha, formato naranja como el
             #     cierre de Cartera). Inline en el fragmento → aparece al instante, sin
             #     oscurecer la pantalla ni recargar el gráfico. ---
-            render_confirmacion()
+            renderizar_confirmacion()
 
             # --- Aviso del resultado: toast naranja (éxito) / rojo (error), se cierra
             #     solo (~6 s) o con la ✕. Se inyecta en el documento padre una sola vez
@@ -290,8 +334,21 @@ def renderizar_panel_orden(main=None):
                 with st.container(key="ord_toastjs"):
                     _msg = r[1] if r[0] == "ok" else f"No se pudo operar: {r[1]}"
                     components.html(
-                        toast_js(_msg, r[0] != "ok",
+                        aviso_js(_msg, r[0] != "ok",
                                  st.session_state.get("ord_result_nonce", "0")),
                         height=0)
 
         _ticket()
+
+
+# -------------------------------------------------------------------------------------------------------
+# -------------------------------------- FIN Piña y Jara panel .PY --------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

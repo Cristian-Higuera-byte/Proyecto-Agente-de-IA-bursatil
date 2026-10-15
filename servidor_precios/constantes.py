@@ -1,8 +1,26 @@
-"""Puerto, versión de la API, temporalidades, intervalos del motor y candado de MT5."""
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ---------------------------------- INICIO Piña y Jara constantes .PY ----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+"""Puerto, versión de la API, temporalidades, intervalos del motor y candado de MT5.
+
+Centraliza los valores compartidos por manejador.py, ejecucion.py, velas.py, simbolos.py
+y el paquete motor, para que se ajusten en un solo lugar.
+"""
 import threading
 
 import MetaTrader5 as mt5  # type: ignore[import-untyped]
 
+# Puerto TCP local (127.0.0.1) en el que escucha el servidor de datos
 PUERTO = 8000
 # Versión de la API. Se sube cuando cambian rutas o datos que usa el navegador:
 # el gráfico la compara (GET /salud) y avisa si este proceso quedó desactualizado.
@@ -10,9 +28,11 @@ PUERTO = 8000
 # 4 = stop dinámico (trailing): motor que mueve el SL + flag "tr" por posición en el feed.
 # 5 = OCO (One-Cancels-the-Other): motor que cancela la pata sobrante + flag "oco" por orden.
 # 6 = POST /mercado (orden a mercado desde los botones VENDER/COMPRAR del gráfico en pantalla completa).
+# Versión vigente; se publica en GET /salud como "v"
 VERSION_API = 6
 
 # Temporalidades soportadas (igual que el selector del dashboard)
+# Traduce el nombre de temporalidad recibido por HTTP a la constante de MT5
 TF_MAP = {
     "M1": mt5.TIMEFRAME_M1,
     "M5": mt5.TIMEFRAME_M5,
@@ -27,6 +47,7 @@ TF_MAP = {
 
 # Todas las llamadas a MT5 de ESTE proceso pasan por aquí (la API no es thread-safe
 # y el servidor atiende cada petición en su propio hilo).
+# RLock reentrante: permite anidar secciones críticas en el mismo hilo
 CANDADO_MT5 = threading.RLock()
 
 INTERVALO_TICKS = 0.25       # s entre lecturas de ticks (4 por segundo)
@@ -37,3 +58,16 @@ TTL_SUSCRIPCION = 60         # s sin clientes pidiendo un símbolo -> se deja de
 PING_SSE = 15                # s sin cambios -> comentario keep-alive
 
 TTL_SIMBOLOS = 300   # s que se reutiliza el catálogo de símbolos
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------------ FIN Piña y Jara constantes .PY -----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

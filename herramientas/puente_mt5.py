@@ -1,27 +1,38 @@
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ---------------------------------- INICIO Piña y Jara puente_mt5 .PY ----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
 """
-puente_mt5.py  (versión corregida para Cristian — 05-10-2026)
----------------------------------------------------------------
-Módulo encargado de la comunicación directa con MetaTrader 5 (MT5)
-para extracción de datos en tiempo real, histórico y ejecución de órdenes.
+puente_mt5.py
+-------------
+Módulo encargado de la comunicación directa con MetaTrader 5 (MT5) para
+extracción de datos en tiempo real, histórico y ejecución de órdenes. Es la
+única capa del proyecto que habla con la API de Python de MT5; el resto de la
+aplicación (aplicacion.py, consola_agente.py, las herramientas del agente) la
+consume a través de las funciones públicas de este archivo.
 
-CÓMO USARLO: reemplazar el contenido de  herramientas/puente_mt5.py  por este archivo.
-
-QUÉ SE CORRIGIÓ (respecto del código que enviaste):
-  1. Ruta del terminal: si MT5_PATH (del .env) no apunta a TU terminal, ahora
-     se BUSCA solo: primero el terminal MT5 que esté abierto en ese momento y
-     luego las carpetas típicas de instalación (C:\\Program Files\\*\\terminal64.exe).
-     Antes, si la ruta por defecto no existía, fallaba la conexión.
-  2. Se quitó el respaldo  mt5.initialize()  SIN ruta: en nuestras pruebas da
-     "IPC timeout" y deja la app esperando hasta 60 s en CADA llamada (parece que
-     "no funciona"). Ahora cada intento tiene un tiempo máximo de 10 s.
-  3. Si no se puede conectar, no se reintenta en cada llamada (congelaba la app):
-     espera 15 s entre reintentos.
-  4. Mensajes claros en la consola con el motivo exacto (last_error) y qué revisar.
-  5. Se verifica que el terminal tenga una cuenta logueada (si no, MT5 "conecta"
-     pero no entrega precios ni saldo).
-  6. Se sincronizó con la versión del proyecto: alias entre brókers
-     (XAUUSD <-> GOLD, US30 <-> US30Cash, ...) y el campo "swap" en posiciones
-     (lo usa la Cartera para el P/G neto).
+Qué ofrece:
+  - Conexión robusta al terminal: busca la ruta del terminal64.exe (primero
+    MT5_PATH del .env, luego el terminal abierto y por último las carpetas
+    típicas de instalación), limita cada intento a 10 s y espera 15 s entre
+    reintentos fallidos para no congelar la app.
+  - Verificación de que el terminal tenga una cuenta con sesión iniciada (si no,
+    MT5 "conecta" pero no entrega precios ni saldo).
+  - Resolvedor de símbolos entre brókers (alias XAUUSD <-> GOLD, US30 <->
+    US30Cash, sufijos "...", ".m", ".pro", etc.).
+  - Lectura de cuenta, posiciones, historial de cierres, precios, velas y DOM.
+  - Envío de órdenes a mercado y pendientes, cierre, modificación de SL/TP y
+    cancelación de pendientes. Todo acceso a MT5 se serializa con `MT5_LOCK`
+    porque la API no es segura entre hilos.
 
 SI AÚN NO CONECTA, REVISAR:
   - El terminal MT5 abierto y con la cuenta iniciada (abajo a la derecha debe
@@ -32,6 +43,9 @@ SI AÚN NO CONECTA, REVISAR:
   - Poner la ruta exacta en el .env, por ejemplo:
         MT5_PATH=C:\\Program Files\\XM Global SC MT5 Terminal\\terminal64.exe
     (la ruta exacta aparece en la consola al iniciar la app).
+
+Nota histórica: se evita deliberadamente `mt5.initialize()` sin ruta, porque
+produce "IPC timeout" y deja la app esperando hasta 60 s en cada llamada.
 """
 
 import glob
@@ -52,7 +66,11 @@ load_dotenv()
 # Candado GLOBAL de acceso a MetaTrader 5
 # ---------------------------------------------------------------------------
 # La API de Python de MT5 NO es segura entre hilos: serializa el acceso.
+# Es reentrante (RLock) para que una función con el candado pueda llamar a otra
+# que también lo toma (p. ej. inicializar_mt5 dentro de obtener_posiciones).
 MT5_LOCK = threading.RLock()
+# Alias histórico: el candado de órdenes es el mismo que el de lectura, así una
+# orden nunca se mezcla con otra consulta concurrente.
 _ORDER_LOCK = MT5_LOCK
 
 # Ruta al ejecutable del terminal MetaTrader 5 (configurable por .env)
@@ -60,13 +78,22 @@ RUTA_TERMINAL_MT5 = os.getenv("MT5_PATH", "").strip().strip('"')
 
 _TIMEOUT_MS = 10_000          # máximo por intento de conexión
 _REINTENTO_S = 15             # espera entre reintentos si no conecta
+# Marca de tiempo (epoch, segundos) del último intento de conexión fallido; 0.0 = ninguno.
 _ultimo_fallo = 0.0
+# Ruta del terminal con el que se logró conectar (solo para mensajes de consola).
 _ruta_conectada: Optional[str] = None
 
 
 def _terminal_en_ejecucion() -> list:
-    """Rutas de terminal64.exe que estén ABIERTOS ahora (Windows)."""
+    """
+    Devuelve las rutas de los terminal64.exe de MetaTrader 5 que están abiertos ahora.
+
+    Consulta los procesos mediante PowerShell (solo Windows, sin mostrar ventana,
+    máximo 8 s). Si PowerShell no existe o falla devuelve una lista vacía. Sirve
+    para conectarse al terminal que el usuario ya tiene abierto.
+    """
     try:
+        # Pide a PowerShell la ruta de cada proceso terminal64 en ejecución.
         salida = subprocess.run(
             ["powershell", "-NoProfile", "-Command",
              "Get-Process terminal64 -ErrorAction SilentlyContinue | "
@@ -80,15 +107,23 @@ def _terminal_en_ejecucion() -> list:
 
 
 def _rutas_candidatas() -> list:
-    """Orden: .env (MT5_PATH) -> terminal abierto -> instalaciones típicas."""
+    """
+    Construye la lista ordenada de rutas posibles del terminal MT5, sin repetidos.
+
+    Orden de prioridad: MT5_PATH del .env, terminales abiertos y las carpetas
+    típicas de instalación (Program Files, Program Files (x86) y datos de
+    MetaQuotes). Solo conserva rutas que existan como archivo.
+    """
     rutas = []
     if RUTA_TERMINAL_MT5:
         rutas.append(RUTA_TERMINAL_MT5)
     rutas += _terminal_en_ejecucion()
+    # Busca instalaciones típicas: <base>/<carpeta del bróker>/terminal64.exe
     for base in (os.environ.get("ProgramFiles", r"C:\Program Files"),
                  os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"),
                  os.path.expandvars(r"%APPDATA%\MetaQuotes\Terminal")):
         rutas += glob.glob(os.path.join(base, "*", "terminal64.exe"))
+    # Elimina duplicados (comparando rutas normalizadas) y descarta las inexistentes.
     vistas, unicas = set(), []
     for r in rutas:
         k = os.path.normcase(os.path.abspath(r))
@@ -108,6 +143,13 @@ def inicializar_mt5(
     - Si ya hay conexión activa, no hace nada (rápido).
     - Si no, prueba las rutas candidatas (máx. 10 s cada una).
     - Si falla, no reintenta hasta pasados 15 s (para no congelar la app).
+
+    Parámetros opcionales: login, password y server permiten iniciar sesión
+    explícitamente en una cuenta; si se omiten se usa la cuenta ya iniciada en
+    el terminal. Devuelve True si hay conexión con el terminal (aunque no tenga
+    cuenta iniciada, caso en que solo avisa por consola) y False si no se pudo
+    conectar. Efectos secundarios: llamadas a MT5, mensajes por consola y
+    actualización de `_ultimo_fallo` y `_ruta_conectada`.
     """
     global _ultimo_fallo, _ruta_conectada
     with MT5_LOCK:
@@ -115,9 +157,11 @@ def inicializar_mt5(
         if mt5.terminal_info() is not None:
             return True
 
+        # Anti-congelamiento: tras un fallo reciente no se reintenta todavía.
         if time.time() - _ultimo_fallo < _REINTENTO_S:
             return False
 
+        # Busca dónde está instalado/abierto el terminal.
         rutas = _rutas_candidatas()
         if not rutas:
             print("[MT5] No se encontró ningún terminal64.exe. ¿Está instalado MetaTrader 5? "
@@ -125,6 +169,7 @@ def inicializar_mt5(
             _ultimo_fallo = time.time()
             return False
 
+        # Prueba cada ruta hasta que una conecte; el else del for se ejecuta si ninguna sirvió.
         for ruta in rutas:
             if mt5.initialize(path=ruta, timeout=_TIMEOUT_MS):
                 _ruta_conectada = ruta
@@ -143,6 +188,7 @@ def inicializar_mt5(
                 _ultimo_fallo = time.time()
                 return False
 
+        # Verifica que el terminal tenga cuenta; sin ella no hay precios ni saldo.
         cuenta = mt5.account_info()
         if cuenta is None:
             print(f"[MT5] Conectado a {_ruta_conectada}, pero el terminal NO tiene una cuenta "
@@ -153,7 +199,7 @@ def inicializar_mt5(
 
 
 def cerrar_mt5():
-    """Cierra la conexión con MetaTrader 5."""
+    """Cierra la conexión con el terminal MetaTrader 5 (mt5.shutdown) bajo el candado global."""
     with MT5_LOCK:
         mt5.shutdown()
 
@@ -164,7 +210,11 @@ def cerrar_mt5():
 # Distintos brókers nombran el MISMO instrumento distinto: MEXAtlantic usa
 # sufijo "..." (EURUSD..., XAUUSD...), XM los trae limpios (EURUSD) pero
 # renombra oro/índices (GOLD, US30Cash), y otros usan ".m"/".pro"/".c".
+# Caché del índice de símbolos del terminal: {"exact": set de nombres, "core": núcleo -> nombre real}.
+# None = aún no construido (o el último intento salió vacío y se reintentará).
 _INDICE_SIMBOLOS: Optional[dict] = None
+
+# Grupos de nombres equivalentes entre brókers (en mayúsculas, sin sufijos).
 
 _ALIAS_GRUPOS = [
     ["XAUUSD", "GOLD"],
@@ -177,11 +227,18 @@ _ALIAS_GRUPOS = [
     ["UK100", "UK100CASH", "FTSE100"],
     ["GER40", "DE40", "GER40CASH", "DAX40"],
 ]
+# Diccionario inverso: nombre -> grupo completo de alias, para búsqueda directa.
 _ALIAS = {n: grupo for grupo in _ALIAS_GRUPOS for n in grupo}
 
 
-def _core_simbolo(name: str) -> str:
-    """Núcleo comparable de un símbolo: sin '...' ni sufijos de bróker/bolsa."""
+def _nucleo_simbolo(name: str) -> str:
+    """
+    Devuelve el núcleo comparable de un símbolo, sin '...' ni sufijos de bróker/bolsa.
+
+    Pasa a mayúsculas, quita "...", '#', el sufijo "MICRO" de cuentas micro y un
+    sufijo alfanumérico de hasta 4 caracteres tras el último punto (.OQ, .m,
+    .pro). Así 'EURUSD...', 'EURUSD.m' y 'EURUSDmicro' dan 'EURUSD'.
+    """
     s = (name or "").upper().strip().replace("...", "").strip("#")
     if s.endswith("MICRO"):          # XM cuentas Micro: EURUSDmicro
         s = s[:-5]
@@ -193,7 +250,15 @@ def _core_simbolo(name: str) -> str:
 
 
 def _indice_local(refrescar: bool = False) -> dict:
-    """Índice del terminal actual (no cachea un índice vacío: permite reintentar)."""
+    """
+    Devuelve (y cachea) el índice de símbolos disponibles en el terminal actual.
+
+    Estructura: {"exact": conjunto de nombres exactos, "core": núcleo -> primer
+    nombre real con ese núcleo}. Con `refrescar=True` reconstruye la caché. No
+    guarda un índice vacío (p. ej. sin conexión), de modo que se reintenta en la
+    próxima llamada. Efecto secundario: llamada a mt5.symbols_get y escritura de
+    `_INDICE_SIMBOLOS`.
+    """
     global _INDICE_SIMBOLOS
     if _INDICE_SIMBOLOS is not None and not refrescar:
         return _INDICE_SIMBOLOS
@@ -206,7 +271,7 @@ def _indice_local(refrescar: bool = False) -> dict:
             simbolos = mt5.symbols_get() or []
         for s in simbolos:
             exact.add(s.name)
-            core.setdefault(_core_simbolo(s.name), s.name)
+            core.setdefault(_nucleo_simbolo(s.name), s.name)
     except Exception:
         pass
     if not exact:
@@ -216,13 +281,19 @@ def _indice_local(refrescar: bool = False) -> dict:
 
 
 def resolver_simbolo(symbol: str) -> str:
-    """Nombre real del símbolo en el terminal actual: exacto -> núcleo -> alias."""
+    """
+    Traduce un nombre de símbolo al nombre real que usa el bróker conectado.
+
+    Busca en este orden: coincidencia exacta, coincidencia por núcleo (ignora
+    sufijos) y alias equivalentes (XAUUSD <-> GOLD, etc.). Si nada coincide
+    devuelve el símbolo original sin cambios.
+    """
     if not symbol:
         return symbol
     idx = _indice_local()
     if symbol in idx["exact"]:
         return symbol
-    core = _core_simbolo(symbol)
+    core = _nucleo_simbolo(symbol)
     if core in idx["core"]:
         return idx["core"][core]
     for alias in _ALIAS.get(core, []):
@@ -232,7 +303,13 @@ def resolver_simbolo(symbol: str) -> str:
 
 
 def obtener_info_cuenta() -> dict:
-    """Retorna el balance, equity y margen de la cuenta activa."""
+    """
+    Devuelve los datos de la cuenta activa: login, nombre, servidor, tipo
+    (Real/Concurso/Demo según trade_mode), balance, equity, profit, margen,
+    margen libre, nivel de margen, crédito, apalancamiento y moneda.
+
+    Si no hay conexión o la cuenta no está iniciada devuelve {"error": ...}.
+    """
     with MT5_LOCK:
         if not inicializar_mt5():
             return {"error": "Sin conexión con MT5"}
@@ -240,6 +317,7 @@ def obtener_info_cuenta() -> dict:
     if cuenta is None:
         return {"error": "No se pudo obtener información de la cuenta MT5 (¿cuenta sin iniciar?)"}
 
+    # trade_mode de MT5: 0 = demo, 1 = concurso, 2 = real.
     modo = getattr(cuenta, "trade_mode", 0)
     tipo = "Real" if modo == 2 else ("Concurso" if modo == 1 else "Demo")
     return {
@@ -260,7 +338,13 @@ def obtener_info_cuenta() -> dict:
 
 
 def obtener_posiciones() -> list:
-    """Posiciones abiertas de la cuenta (para la 'Cartera')."""
+    """
+    Devuelve las posiciones abiertas de la cuenta (para la 'Cartera').
+
+    Cada elemento es un diccionario con ticket, symbol, tipo ("Compra"/"Venta"),
+    volumen, precios de apertura y actual, profit, swap, sl, tp y tiempo de
+    apertura. Devuelve lista vacía si no hay conexión o ocurre un error.
+    """
     try:
         with MT5_LOCK:
             if not inicializar_mt5():
@@ -268,6 +352,7 @@ def obtener_posiciones() -> list:
             posiciones = mt5.positions_get()
     except Exception:
         posiciones = None
+    # Convierte cada tupla de MT5 en un diccionario simple.
     salida = []
     for p in (posiciones or []):
         salida.append({
@@ -289,6 +374,10 @@ def obtener_posiciones() -> list:
 def obtener_historial(dias: int = 90, limite: int = 100) -> list:
     """Operaciones CERRADAS de la cuenta (para el historial de Inicio).
 
+    Parámetros: `dias` (ventana hacia atrás desde ahora) y `limite` (máximo de
+    filas devueltas). Cada elemento trae ticket, symbol, tipo, volumen,
+    precio_cierre, pg (neto) y fecha (epoch). Devuelve lista vacía sin conexión.
+
     En MT5 cada cierre de posición es un 'deal' con entry == DEAL_ENTRY_OUT, que
     es el que trae el P/G realizado. El P/G neto se arma igual que en la Cartera:
     profit + swap + comisión. Un cierre tipo SELL cerró una COMPRA (y viceversa).
@@ -306,6 +395,7 @@ def obtener_historial(dias: int = 90, limite: int = 100) -> list:
                                           datetime.now() + timedelta(days=1))
     except Exception:
         deals = None
+    # Filtra solo los deals de cierre y calcula el P/G neto de cada uno.
     salida = []
     for d in (deals or []):
         if d.entry != mt5.DEAL_ENTRY_OUT:        # solo cierres (traen el P/G realizado)
@@ -320,6 +410,7 @@ def obtener_historial(dias: int = 90, limite: int = 100) -> list:
             "pg": neto,
             "fecha": d.time,                     # epoch (hora del servidor del bróker)
         })
+    # Ordena del más reciente al más antiguo y recorta al límite pedido.
     salida.sort(key=lambda x: x["fecha"], reverse=True)
     return salida[:limite]
 
@@ -329,6 +420,10 @@ def especs_posicion(ticket: int) -> dict:
     k (valor de 1 unidad de precio por lote, en la moneda de la cuenta), dígitos,
     point, distancia mínima del bróker (stops_level) y Bid/Ask en vivo. Permite
     validar la distancia mínima y convertir un objetivo en 'Cantidad' ($) a precio.
+
+    Recibe el ticket de la posición. Devuelve además srv_now (hora del servidor,
+    para calcular el desfase horario), precio de apertura, tipo y volumen.
+    Devuelve {} si no hay conexión, la posición no existe o no hay info del símbolo.
     """
     with MT5_LOCK:
         if not inicializar_mt5():
@@ -341,6 +436,7 @@ def especs_posicion(ticket: int) -> dict:
         tick = mt5.symbol_info_tick(p.symbol)
     if not info:
         return {}
+    # k = valor monetario de mover 1 unidad de precio con 1 lote (tick_value / tick_size).
     tsize = getattr(info, "trade_tick_size", 0.0) or 0.0
     k = (info.trade_tick_value / tsize) if tsize else 0.0
     return {
@@ -358,7 +454,13 @@ def especs_posicion(ticket: int) -> dict:
 
 
 def obtener_precio_actual(symbol: str) -> dict:
-    """Obtiene el precio Bid, Ask y último tick de un símbolo."""
+    """
+    Obtiene el precio Bid, Ask y último de un símbolo.
+
+    Resuelve el nombre al del bróker, lo activa en Market Watch y lee el último
+    tick; si el tick viene vacío usa bid/ask de symbol_info como respaldo.
+    Devuelve {symbol, bid, ask, last, time} o {"error": ...}.
+    """
     symbol = resolver_simbolo(symbol)
     with MT5_LOCK:
         if not inicializar_mt5():
@@ -395,7 +497,12 @@ def obtener_precio_actual(symbol: str) -> dict:
 
 
 def obtener_datos_historicos(symbol: str, timeframe=mt5.TIMEFRAME_H1, n_velas: int = 100) -> pd.DataFrame:
-    """Descarga datos históricos OHLCV de MT5."""
+    """
+    Descarga las últimas `n_velas` velas OHLCV del símbolo en el `timeframe` dado.
+
+    Devuelve un DataFrame de pandas indexado por `time` (datetime), o un
+    DataFrame vacío si no hay conexión ni datos. Activa el símbolo en Market Watch.
+    """
     symbol = resolver_simbolo(symbol)
     with MT5_LOCK:
         if not inicializar_mt5():
@@ -415,8 +522,11 @@ def obtener_datos_historicos(symbol: str, timeframe=mt5.TIMEFRAME_H1, n_velas: i
 def obtener_velas_rango(symbol: str, ts_desde: float, ts_hasta: float) -> list:
     """Velas OHLC que cubren [ts_desde, ts_hasta] (epoch), para el mini-gráfico del
     Trading Journal. Elige el timeframe según la duración para que haya ~40-120 velas
-    y añade un margen a cada lado. Devuelve [{t,o,h,l,c}, ...] (vieja → nueva)."""
+    y añade un margen a cada lado. Devuelve [{t,o,h,l,c}, ...] (vieja → nueva).
+    Recibe el símbolo y los límites del rango como epoch en segundos; devuelve
+    lista vacía si no hay conexión o datos."""
     from datetime import datetime as _dt
+    # Duración del rango (mínimo 1 min) y margen de relleno a cada lado.
     dur = max(60.0, float(ts_hasta) - float(ts_desde))
     pad = dur * 0.35 + 300
     d0, d1 = float(ts_desde) - pad, float(ts_hasta) + pad
@@ -424,6 +534,7 @@ def obtener_velas_rango(symbol: str, ts_desde: float, ts_hasta: float) -> list:
     objetivo = (d1 - d0) / 60.0
     escala = [(60, mt5.TIMEFRAME_M1), (300, mt5.TIMEFRAME_M5), (900, mt5.TIMEFRAME_M15),
               (3600, mt5.TIMEFRAME_H1), (14400, mt5.TIMEFRAME_H4), (86400, mt5.TIMEFRAME_D1)]
+    # Escoge el primer timeframe cuya duración alcance el objetivo (o el mayor).
     tf = escala[0][1]
     for seg, cod in escala:
         tf = cod
@@ -437,12 +548,19 @@ def obtener_velas_rango(symbol: str, ts_desde: float, ts_hasta: float) -> list:
         rates = mt5.copy_rates_range(symbol, tf, _dt.fromtimestamp(d0), _dt.fromtimestamp(d1))
     if rates is None or len(rates) == 0:
         return []
+    # Normaliza cada vela a un diccionario simple.
     return [{"t": int(r["time"]), "o": float(r["open"]), "h": float(r["high"]),
              "l": float(r["low"]), "c": float(r["close"])} for r in rates]
 
 
 def _modo_llenado(sim_info):
-    """Modo de llenado soportado por el símbolo (evita 'Unsupported filling mode')."""
+    """
+    Elige el modo de llenado de órdenes que soporta el símbolo (FOK, IOC o RETURN).
+
+    Evita el error 'Unsupported filling mode'. Recibe el `symbol_info` y
+    devuelve la constante ORDER_FILLING_* de MT5.
+    """
+    # filling_mode es una máscara: bit 1 = FOK permitido, bit 2 = IOC permitido.
     fm = getattr(sim_info, "filling_mode", 0)
     if fm & 1:
         return mt5.ORDER_FILLING_FOK
@@ -452,7 +570,14 @@ def _modo_llenado(sim_info):
 
 
 def ejecutar_orden_mercado(symbol: str, tipo: str, volumen: float, sl: float = 0.0, tp: float = 0.0) -> dict:
-    """Ejecuta una orden de compra o venta a mercado en MT5. tipo: 'BUY' o 'SELL'."""
+    """
+    Ejecuta una orden de compra o venta a mercado en MT5. tipo: 'BUY' o 'SELL'.
+
+    Recibe símbolo, volumen en lotes y SL/TP opcionales (0 = sin nivel).
+    Devuelve {"status": "success", order, price, volume, symbol} o
+    {"error": ...}. Efectos secundarios: envía una orden real al broker y, si
+    llevaba SL/TP, guarda el plan en el Trading Journal (almacen_diario).
+    """
     symbol = resolver_simbolo(symbol)
     with _ORDER_LOCK:
         if not inicializar_mt5():
@@ -462,11 +587,14 @@ def ejecutar_orden_mercado(symbol: str, tipo: str, volumen: float, sl: float = 0
         if sim_info is None:
             return {"error": f"Símbolo {symbol} no encontrado en MT5"}
 
+        # Compra al ask y venta al bid; si no hay tick usa el precio de symbol_info.
         tipo_orden = mt5.ORDER_TYPE_BUY if tipo.upper() == 'BUY' else mt5.ORDER_TYPE_SELL
         tick = mt5.symbol_info_tick(symbol)
         precio = (tick.ask if tipo.upper() == 'BUY' else tick.bid) if tick else \
                  (sim_info.ask if tipo.upper() == 'BUY' else sim_info.bid)
 
+        # Solicitud de operación a mercado (deviation = deslizamiento máximo en puntos;
+        # magic identifica las órdenes de esta aplicación).
         request = {
             "action": mt5.TRADE_ACTION_DEAL,
             "symbol": symbol,
@@ -484,8 +612,10 @@ def ejecutar_orden_mercado(symbol: str, tipo: str, volumen: float, sl: float = 0
         if tp and tp > 0:
             request["tp"] = float(tp)
 
+        # Envía la orden al servidor del bróker.
         resultado = mt5.order_send(request)
 
+    # Interpreta el resultado: None o retcode distinto de DONE es un fallo.
     if resultado is None:
         return {"error": f"order_send devolvió None: {mt5.last_error()}"}
     if resultado.retcode != mt5.TRADE_RETCODE_DONE:
@@ -520,7 +650,10 @@ def colocar_orden_pendiente(symbol: str, tipo: str, volumen: float, precio: floa
     El tipo se deduce del precio pedido respecto del mercado:
       COMPRA bajo el ask -> BUY_LIMIT · sobre el ask -> BUY_STOP
       VENTA sobre el bid -> SELL_LIMIT · bajo el bid -> SELL_STOP
-    hasta_cancelar=True -> vigente hasta cancelarla (GTC); False -> solo hoy (DAY)."""
+    hasta_cancelar=True -> vigente hasta cancelarla (GTC); False -> solo hoy (DAY).
+    Recibe símbolo, tipo 'BUY'/'SELL', volumen, precio de activación y SL/TP
+    opcionales. Devuelve {"status": "success", order, price, volume, symbol,
+    tipo} o {"error": ...}. Efecto secundario: crea una orden pendiente real."""
     symbol = resolver_simbolo(symbol)
     with _ORDER_LOCK:
         if not inicializar_mt5():
@@ -531,6 +664,7 @@ def colocar_orden_pendiente(symbol: str, tipo: str, volumen: float, precio: floa
         if sim_info is None or tick is None:
             return {"error": f"Símbolo {symbol} no disponible en MT5"}
 
+        # Precio de referencia (ask en compras, bid en ventas) para decidir limit o stop.
         compra = tipo.upper() == "BUY"
         ref = tick.ask if compra else tick.bid
         if compra:
@@ -569,7 +703,12 @@ def colocar_orden_pendiente(symbol: str, tipo: str, volumen: float, precio: floa
 
 
 def cerrar_posicion(ticket: int) -> dict:
-    """Cierra una posición abierta por su ticket (envía la orden contraria)."""
+    """
+    Cierra una posición abierta por su ticket enviando la orden contraria.
+
+    Devuelve {"status": "success", profit (profit + swap al momento de cerrar),
+    symbol} o {"error": ...}. Efecto secundario: operación real en el broker.
+    """
     with MT5_LOCK:
         if not inicializar_mt5():
             return {"error": "Sin conexión con MT5"}
@@ -581,6 +720,8 @@ def cerrar_posicion(ticket: int) -> dict:
         mt5.symbol_select(symbol, True)
         sim_info = mt5.symbol_info(symbol)
         tick = mt5.symbol_info_tick(symbol)
+        if tick is None and sim_info is None:
+            return {"error": f"No hay cotización disponible para {symbol}; no se pudo cerrar la posición {ticket}"}
 
         # Compra (type 0) se cierra VENDIENDO al bid; venta (type 1) COMPRANDO al ask
         if p.type == mt5.ORDER_TYPE_BUY:
@@ -617,7 +758,9 @@ def cerrar_posicion(ticket: int) -> dict:
 
 def modificar_sltp(ticket: int, sl=None, tp=None) -> dict:
     """Cambia el Stop Loss / Take Profit de una posición abierta.
-    None = deja el valor actual; 0 = lo quita. (Líneas arrastrables del gráfico.)"""
+    None = deja el valor actual; 0 = lo quita. (Líneas arrastrables del gráfico.)
+    Redondea a los dígitos del símbolo. Devuelve {"status": "success", ticket,
+    sl, tp} o {"error": ...} con el motivo según el retcode de MT5."""
     with MT5_LOCK:
         if not inicializar_mt5():
             return {"error": "Sin conexión con MT5"}
@@ -649,6 +792,7 @@ def modificar_sltp(ticket: int, sl=None, tp=None) -> dict:
     return {"status": "success", "ticket": int(ticket), "sl": nuevo_sl, "tp": nuevo_tp}
 
 
+# Tipo numérico de orden pendiente de MT5 -> nombre legible.
 _NOMBRE_PENDIENTE = {2: "Buy Limit", 3: "Sell Limit", 4: "Buy Stop", 5: "Sell Stop"}
 
 
@@ -658,7 +802,9 @@ def modificar_orden(ticket: int, precio=None, sl=None, tp=None,
     None = conserva el valor actual; 0 en sl/tp = lo quita.
     caducidad: "gtc" | "day" | "specified" (esta última con `expiracion` en
     segundos, hora del SERVIDOR del bróker, como la muestra MT5).
-    (Líneas del gráfico y ventana "Modificar orden".)"""
+    (Líneas del gráfico y ventana "Modificar orden".)
+    Devuelve {"status": "success", ticket, price, sl, tp, tt (tipo de vigencia),
+    ex (expiración)} o {"error": ...} con el motivo según el retcode."""
     with MT5_LOCK:
         if not inicializar_mt5():
             return {"error": "Sin conexión con MT5"}
@@ -698,6 +844,7 @@ def modificar_orden(ticket: int, precio=None, sl=None, tp=None,
             "tt": int(request["type_time"]), "ex": int(request["expiration"] or 0)}
 
 
+# Conjunto de símbolos ya suscritos al libro de órdenes con market_book_add.
 _DOM_SUSCRITOS = set()   # símbolos con market_book_add ya hecho (se suscribe una vez)
 
 
@@ -722,6 +869,7 @@ def obtener_dom(symbol: str, niveles: int = 8) -> dict:
                         "motivo": "El bróker no permite suscribir el libro de este símbolo."}
         libro = mt5.market_book_get(real)
 
+    # Separa los niveles del libro en ventas (ask) y compras (bid).
     asks, bids = [], []
     for it in (libro or []):
         entrada = {"price": float(it.price), "volume": float(it.volume)}
@@ -737,7 +885,12 @@ def obtener_dom(symbol: str, niveles: int = 8) -> dict:
 
 
 def eliminar_orden(ticket: int) -> dict:
-    """Cancela una orden PENDIENTE."""
+    """
+    Cancela una orden PENDIENTE por su ticket.
+
+    Devuelve {"status": "success", ticket, tipo, symbol} o {"error": ...}.
+    Efecto secundario: elimina la orden en el broker.
+    """
     with MT5_LOCK:
         if not inicializar_mt5():
             return {"error": "Sin conexión con MT5"}
@@ -755,3 +908,16 @@ def eliminar_orden(ticket: int) -> dict:
                          f"{getattr(resultado, 'comment', '')}{extra}"}
     return {"status": "success", "ticket": int(ticket),
             "tipo": _NOMBRE_PENDIENTE.get(o.type, ""), "symbol": o.symbol}
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------------ FIN Piña y Jara puente_mt5 .PY -----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

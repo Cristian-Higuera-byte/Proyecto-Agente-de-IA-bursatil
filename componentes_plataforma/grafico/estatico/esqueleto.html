@@ -1,4 +1,20 @@
+<!--
+Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+Dirección: José Joaquín Prieto #5373 -
+San Miguel - Santiago - Chile
+contacto.pinayjara@gmail.com
+https://www.pinayjara.cl
+Creado, Programado y Diseñado por Piña y Jara
+Transportes y Servicios Ltda.
+-->
 
+
+<!-- -------------------------------------------------------------------------------------------------------
+   ---------------------------------- INICIO Piña y Jara esqueleto .HTML ---------------------------------
+   ------------------------------------------------------------------------------------------------------- -->
+
+
+<!-- Esqueleto del gráfico: ensamblador.py reemplaza cada línea que empieza por el marcador de inclusión por el contenido de ese fragmento. Aquí van los estilos (css/); el orden importa porque las reglas posteriores pueden sobrescribir a las anteriores. -->
 <style>
 @@css/10_base_y_barra_superior.css
 @@css/20_menus_desplegables.css
@@ -13,6 +29,7 @@
 @@css/80_pantalla_completa.css
 </style>
 
+<!-- Contenedor raíz del gráfico. Dentro van la barra superior, el cuerpo (herramientas, lienzo y osciladores), la barra de rangos y las ventanas modales. -->
 <div id="tv-wrap">
 @@html/10_barra_superior.html
     
@@ -22,6 +39,7 @@
 @@html/30_lienzo.html
             </div>
         </div>
+        <!-- Contenedor de los paneles de osciladores (css/50_paneles_osciladores.css); el JS de indicadores lo llena. -->
         <div id="osc-panes"></div>
     </div>
 
@@ -37,10 +55,12 @@
 @@html/70_selector_activo.html
 </div>
 
+<!-- Primer bloque de script: avisos de carga, independiente del resto para mostrar errores aunque falle la librería. -->
 <script>
 @@js/00_avisos_de_carga.js
 </script>
 
+<!-- Librería Lightweight Charts, necesaria antes del bloque principal. -->
 <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 <script>
 @@js/01_estado_y_configuracion.js
@@ -71,3 +91,17 @@ __POSICIONES_JS__
 @@js/61_backtest_ui.js
 @@js/99_cierre.js
 </script>
+
+<!-- -------------------------------------------------------------------------------------------------------
+   ----------------------------------- FIN Piña y Jara esqueleto .HTML -----------------------------------
+   ------------------------------------------------------------------------------------------------------- -->
+
+<!--
+Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+Dirección: José Joaquín Prieto #5373 -
+San Miguel - Santiago - Chile
+contacto.pinayjara@gmail.com
+https://www.pinayjara.cl
+Creado, Programado y Diseñado por Piña y Jara
+Transportes y Servicios Ltda.
+-->

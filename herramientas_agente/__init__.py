@@ -1,12 +1,32 @@
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ----------------------------------- INICIO Piña y Jara __init__ .PY -----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
 """Paquete de herramientas del agente (antes `herramientas/`).
 
 Cada módulo nuevo de herramientas (mt5, yfinance, investing, conocimiento, analisis, simulacion, diagnostico, graficos, tablas...)
 se importa aquí para que sus funciones queden registradas al arrancar el agente.
+
+Importar este paquete tiene como efecto secundario ejecutar el decorador `@herramienta` de cada
+módulo, lo que llena el registro global `REGISTRO` (ver `herramientas_agente.base`). El agente no
+referencia las herramientas una a una: solo le pide al registro sus esquemas y le entrega las llamadas.
+Los nombres de herramientas son parte del contrato con el modelo de IA y no deben renombrarse.
 """
 
 from importlib import import_module
 from types import ModuleType
 
+# Cada línea importa un subpaquete de herramientas por nombre relativo; el import dispara el registro.
+# Se usa import_module (en vez de "from . import") para que las anotaciones de tipo queden explícitas.
 utilidades: ModuleType = import_module(".utilidades", __name__)
 yfinance_herramientas: ModuleType = import_module(".yfinance_herramientas", __name__)
 investing_herramientas: ModuleType = import_module(".investing_herramientas", __name__)
@@ -25,6 +45,7 @@ sentimiento_herramientas: ModuleType = import_module(".sentimiento_herramientas"
 ordenes_herramientas: ModuleType = import_module(".ordenes_herramientas", __name__)
 informe_cartera_herramientas: ModuleType = import_module(".informe_cartera_herramientas", __name__)
 
+# Subpaquetes que expone el paquete al hacer "from herramientas_agente import *".
 __all__ = [
     "utilidades",
     "yfinance_herramientas",
@@ -44,3 +65,16 @@ __all__ = [
     "ordenes_herramientas",
     "informe_cartera_herramientas",
 ]
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------------- FIN Piña y Jara __init__ .PY ------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

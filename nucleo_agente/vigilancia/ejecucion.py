@@ -1,3 +1,16 @@
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ----------------------------------- INICIO Piña y Jara ejecucion .PY ----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
 """Ejecución de la decisión (solo el motor ejecuta): valida, propone y confirma por nucleo_agente.ordenes."""
 from __future__ import annotations
 
@@ -9,7 +22,14 @@ from nucleo_agente.vigilancia.utilidades import _lado_txt, _notificar
 
 
 def _aplicar(v: dict[str, Any], d: dict[str, Any], posiciones: list[Any]) -> str:
-    """Valida y ejecuta la decisión. Devuelve el resumen para el historial de la vigilancia."""
+    """Valida y ejecuta la decisión del modelo; es el único punto donde la vigilancia opera.
+
+    Recibe la vigilancia `v`, la decisión `d` (de parsear_decision) y las posiciones propias abiertas.
+    Para abrir exige no superar la posición abierta ni el máximo de operaciones, y un lado y stop loss válidos;
+    luego propone por ordenes.proponer_apertura (que aplica todos los límites de riesgo) y confirma de inmediato.
+    Para cerrar exige el permiso de la vigilancia y que el ticket sea propio. Cada resultado notifica al usuario.
+    Devuelve el resumen de una línea para el historial de la vigilancia."""
+    # Símbolo de la vigilancia (el modelo no elige otro) y resumen de la decisión.
     sym, resumen = v["simbolo"], d.get("resumen") or ""
     if d["accion"] == "abrir":
         if len(posiciones) >= MAX_ABIERTAS_POR_VIGILANCIA:
@@ -18,6 +38,7 @@ def _aplicar(v: dict[str, Any], d: dict[str, Any], posiciones: list[Any]) -> str
             return "Esperar: se alcanzó el máximo de operaciones de esta vigilancia."
         if d["lado"] is None or d["stop_loss"] is None:
             return "No se abrió: la decisión no traía un lado y un stop loss válidos."
+        # Se propone con el riesgo fijado en la vigilancia; los límites globales se aplican dentro.
         prop = ordenes.proponer_apertura(
             sym, d["lado"], d["stop_loss"], d["take_profit"], v["riesgo_pct"],
             resumen or "Operación automática de la vigilancia", origen="automatica", vigilancia_id=v["id"],
@@ -26,6 +47,7 @@ def _aplicar(v: dict[str, Any], d: dict[str, Any], posiciones: list[Any]) -> str
             motivo = prop.get("motivo") or prop.get("mensaje") or "bloqueada por los límites de riesgo"
             _notificar(v, f"Operación bloqueada · {sym}", f"El agente quiso abrir {d['lado']} pero: {motivo}", tipo="error")
             return f"Bloqueada: {motivo}"
+        # Como el usuario ya autorizó la vigilancia, el motor confirma la propuesta sin pasar por el panel.
         res = ordenes.confirmar_orden(prop["id"])
         if res.get("ok"):
             ordenes._ejecutar("UPDATE vigilancias SET operaciones = operaciones + 1 WHERE id = ?", (v["id"],))
@@ -39,6 +61,7 @@ def _aplicar(v: dict[str, Any], d: dict[str, Any], posiciones: list[Any]) -> str
     if d["accion"] == "cerrar":
         if not v.get("permite_cerrar"):
             return "No se cerró: esta vigilancia no tiene permiso para cerrar."
+        # Solo se puede cerrar una posición abierta por esta misma vigilancia; con una sola, el ticket es implícito.
         propias = {int(p.ticket): p for p in posiciones}
         ticket = d["ticket"] if d["ticket"] is not None else (next(iter(propias)) if len(propias) == 1 else None)
         if ticket not in propias:
@@ -57,4 +80,18 @@ def _aplicar(v: dict[str, Any], d: dict[str, Any], posiciones: list[Any]) -> str
             return f"Cerró la posición #{ticket}: {resumen}".strip()
         _notificar(v, f"No se pudo cerrar · {sym}", res.get("mensaje", "Error al enviar la orden."), tipo="error")
         return f"No se cerró: {res.get('mensaje', '')}"
+    # Cualquier otra acción equivale a esperar.
     return f"Esperar: {resumen}".strip()
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------------ FIN Piña y Jara ejecucion .PY ------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

@@ -1,3 +1,16 @@
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------------- INICIO Piña y Jara barra .PY ------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
 """
 barra_lateral/barra.py
 ----------------
@@ -18,9 +31,13 @@ from pathlib import Path
 import streamlit as st
 import streamlit.components.v1 as components
 
+from componentes_plataforma._estaticos import sin_creditos
+
+# Carpeta con los archivos estáticos (CSS y JS) de la barra, junto a este módulo.
 _ESTATICO = Path(__file__).resolve().parent / "estatico"
 
-# (icono material, clave, etiqueta visible al expandir)
+# Ítems de navegación, en el orden en que se dibujan: (icono material, clave, etiqueta visible al expandir).
+# La clave identifica la vista en `st.session_state.nav_activo` y forma la clave del botón (nav_btn_CLAVE).
 ITEMS = [
     (":material/home:", "home", "Inicio"),                       # panel de cuenta (estilo XM)
     (":material/candlestick_chart:", "trading", "Trading"),      # dashboard: gráfico + listas
@@ -35,28 +52,42 @@ ITEMS = [
 # Anchos (px) de la barra lateral: colapsada / expandida.
 ANCHO_COLAPSADO = 70
 ANCHO_EXPANDIDO = 220
+# Duración y curva de las transiciones CSS al expandir/colapsar.
 _ANIM = ".22s ease"
+# Selector de la columna de Streamlit que contiene el marcador .pj-nav (la barra lateral completa).
 _COL = 'div[data-testid="stColumn"]:has(.pj-nav)'
+# Selector del estado expandido: el JS alterna la clase pj-sb-exp en el elemento html.
 _EXP = "html.pj-sb-exp"
 
 
 @lru_cache(maxsize=None)
 def _leer_estatico(nombre: str) -> str:
-    """Lee un archivo de barra_lateral/estatico/ (CSS/JS). Cacheado en memoria por proceso."""
+    """Lee un archivo de barra_lateral/estatico/ (CSS/JS) y devuelve su texto.
+
+    Recibe `nombre`, el nombre del archivo dentro de la carpeta estática. Quita el recuadro
+    de créditos con `sin_creditos` y cachea el resultado en memoria (lru_cache) para leer el
+    disco una sola vez por proceso. Devuelve cadena vacía si el archivo no se puede leer.
+    """
     try:
-        return (_ESTATICO / nombre).read_text(encoding="utf-8")
+        return sin_creditos((_ESTATICO / nombre).read_text(encoding="utf-8"))
     except OSError:
         return ""
 
 
-def _css() -> str:
-    """CSS de la barra con los marcadores de estatico/barra_lateral.css sustituidos."""
+def _estilos() -> str:
+    """Devuelve el CSS de la barra listo para inyectar, envuelto en una etiqueta style.
+
+    Toma estatico/barra_lateral.css y sustituye sus marcadores por los selectores, anchos
+    en px, transición y etiquetas por ítem calculados desde las constantes de este módulo,
+    de modo que cambiar un ancho o un ítem en Python actualiza el CSS sin tocarlo.
+    """
     # Texto de cada botón en modo expandido (CSS ::after), generado desde ITEMS.
     etiquetas = "\n".join(
         f'    {_EXP} .st-key-nav_btn_{clave} button::after {{ content: {json.dumps(txt)}; }}'
         for _, clave, txt in ITEMS
     ) + f'\n    {_EXP} .st-key-nav_soporte button::after {{ content: "Soporte"; }}'
 
+    # Sustituye cada marcador del CSS por su valor real (anchos, selectores, animación, etiquetas)
     css = (_leer_estatico("barra_lateral.css")
            .replace("__PAD_COL__", str(ANCHO_COLAPSADO + 20))
            .replace("__PAD_EXP__", str(ANCHO_EXPANDIDO + 20))
@@ -70,10 +101,19 @@ def _css() -> str:
 
 
 def renderizar_barra_navegacion():
+    """Dibuja la barra lateral de navegación dentro de la columna que la contiene.
+
+    Inyecta el CSS y el marcador .pj-nav, el logo, el script del toggle (sin altura) y un
+    botón de solo icono por cada ítem de ITEMS; el activo se pinta como primary. Al pulsar
+    un botón guarda su clave en `st.session_state.nav_activo` y reejecuta la app. El botón de
+    Soporte solo muestra un aviso (`st.toast`). Si `nav_activo` no existe, inicia en "trading".
+    """
+    # Vista inicial al entrar
     if "nav_activo" not in st.session_state:
         st.session_state.nav_activo = "trading"  # al entrar, arranca en los gráficos
 
-    st.markdown(_css() + '<div class="pj-nav"></div>', unsafe_allow_html=True)
+    # CSS de la barra más el marcador .pj-nav que usan los selectores :has()
+    st.markdown(_estilos() + '<div class="pj-nav"></div>', unsafe_allow_html=True)
 
     # Logo: "P&J" (gradiente) + "Piña & Jara" (solo expandida)
     st.markdown(
@@ -88,13 +128,28 @@ def renderizar_barra_navegacion():
 
     # Botones SIEMPRE con solo el ícono (como la barra colapsada original);
     # el texto del modo expandido lo pone el CSS (::after).
-    for icono, clave, etiqueta in ITEMS:
+    for icono, clave, _etiqueta in ITEMS:
+        # El botón de la vista activa se marca como primary (verde por CSS)
         activo = st.session_state.nav_activo == clave
         tipo = "primary" if activo else "secondary"
         if st.button(icono, key=f"nav_btn_{clave}", type=tipo):
+            # Cambia de vista y vuelve a ejecutar para que aplicacion.py renderice la nueva
             st.session_state.nav_activo = clave
             st.rerun()
 
     # Soporte: se empuja al fondo con margin-top:auto (ver CSS), sin espaciador fijo.
     if st.button(":material/headset_mic:", key="nav_soporte"):
         st.toast("Soporte técnico de Piña & Jara activo.")
+
+
+# -------------------------------------------------------------------------------------------------------
+# -------------------------------------- FIN Piña y Jara barra .PY --------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

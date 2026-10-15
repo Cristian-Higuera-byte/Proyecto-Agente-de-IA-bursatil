@@ -1,5 +1,36 @@
-"""Rail de iconos de la derecha (Operar / DOM). El código vive en componentes_plataforma/riel/ (panel, estilos, botones y
-script); este archivo se mantiene para que el import de aplicacion.py siga funcionando."""
-from componentes_plataforma.riel import BOTONES, PANEL, RAIL, TOP, inyectar_css_rail, renderizar_rail_y_paneles
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
 
-__all__ = ["RAIL", "PANEL", "TOP", "BOTONES", "inyectar_css_rail", "renderizar_rail_y_paneles"]
+
+# -------------------------------------------------------------------------------------------------------
+# ---------------------------------- INICIO Piña y Jara panel_riel .PY ----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+"""Fachada del riel de íconos de la derecha (Operar / DOM).
+
+Apunta al paquete `componentes_plataforma/riel/` (panel, estilos, botones y script) y reexporta de allí las
+constantes de geometría `RAIL`, `PANEL` y `TOP`, la lista `BOTONES` del riel, `inyectar_css_riel` (inserta el CSS)
+y `renderizar_riel_y_paneles` (dibuja el riel y sus paneles desplegables). Existe para que el import de
+`aplicacion.py` siga funcionando sin cambios. No contiene lógica propia.
+"""
+from componentes_plataforma.riel import BOTONES, PANEL, RAIL, TOP, inyectar_css_riel, renderizar_riel_y_paneles
+
+__all__ = ["RAIL", "PANEL", "TOP", "BOTONES", "inyectar_css_riel", "renderizar_riel_y_paneles"]
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------------ FIN Piña y Jara panel_riel .PY -----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

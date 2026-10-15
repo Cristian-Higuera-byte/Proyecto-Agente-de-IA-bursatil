@@ -1,8 +1,21 @@
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ----------------------------------- INICIO Piña y Jara __init__ .PY -----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
 """
 componentes_plataforma/riel
 ---------------
 Rail de iconos FIJO a la derecha (estilo XM), gemelo de la barra lateral izquierda
-(componentes_plataforma/barra_lateral.py), pero debajo de la barra superior. Cada icono despliega /
+(componentes_plataforma/barra_lateral/), pero debajo de la barra superior. Cada icono despliega /
 oculta su panel.
 
 Rendimiento: el toggle NO reejecuta Python (como el ☰ del nav izquierdo). Los
@@ -22,10 +35,29 @@ vive en <html>), solo se reinicia con F5.
 Tooltip: en vez del `help` de Streamlit (que en un contenedor fijo se queda
 pegado), el nombre se muestra con un tooltip CSS propio (::after) al pasar el mouse.
 
+La fachada `componentes_plataforma/panel_riel.py` reexporta desde aquí `RAIL`, `PANEL`, `TOP`, `BOTONES`,
+`inyectar_css_riel` y `renderizar_riel_y_paneles`.
+
 Archivos: panel.py (dibuja paneles y rail), estilos.py + estilos.css (plantilla con las medidas), datos.py +
 botones.json, riel.js (alterna los paneles sin reejecutar Python).
 """
+# Medidas del rail y lista de botones.
 from componentes_plataforma.riel.datos import BOTONES, PANEL, RAIL, TOP
-from componentes_plataforma.riel.panel import inyectar_css_rail, renderizar_rail_y_paneles
+# Funciones que inyectan el CSS y dibujan el rail con sus paneles.
+from componentes_plataforma.riel.panel import inyectar_css_riel, renderizar_riel_y_paneles
 
-__all__ = ["RAIL", "PANEL", "TOP", "BOTONES", "inyectar_css_rail", "renderizar_rail_y_paneles"]
+# API pública del paquete.
+__all__ = ["RAIL", "PANEL", "TOP", "BOTONES", "inyectar_css_riel", "renderizar_riel_y_paneles"]
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------------- FIN Piña y Jara __init__ .PY ------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

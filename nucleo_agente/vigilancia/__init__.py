@@ -1,3 +1,16 @@
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ----------------------------------- INICIO Piña y Jara __init__ .PY -----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
 """Vigilancia automática: el agente analiza un activo cada cierto tiempo y, si el usuario lo autorizó,
 compra o vende solo.
 
@@ -24,10 +37,15 @@ Garantías de diseño (están en código, no en el prompt):
   * Solo puede cerrar las posiciones que ella misma abrió (las reconoce por el comentario de la orden).
   * El usuario puede detenerla cuando quiera; si la detiene mientras el modelo analizaba, se descarta.
 
-Archivos: configuracion.py, util.py, gestion.py (crear/autorizar/detener/listar), posiciones.py, decision.py,
-analisis.py (agente del análisis), ejecucion.py, chequeo.py, caducidad.py y motor.py. Aquí se reexportan todos los
-nombres del módulo único para que `from nucleo_agente import vigilancia` y `vigilancia.crear(...)` sigan funcionando.
+Archivos: configuracion.py, utilidades.py, gestion.py (crear/autorizar/detener/listar), posiciones.py, decision.py,
+analisis.py (agente del análisis), ejecucion.py, chequeo.py, caducidad.py y motor.py.
+
+Este archivo es una FACHADA: no tiene lógica propia, solo reexporta los nombres de todos los submódulos (incluidos
+los privados) para que `from nucleo_agente import vigilancia` y `vigilancia.crear(...)` sigan funcionando igual que
+cuando todo vivía en un único módulo. También deja accesibles `mt5`, `ordenes` y `notificaciones`, que las pruebas
+sustituyen o consultan.
 Para inyectar un agente falso en pruebas, sustituye `nucleo_agente.vigilancia.analisis.fabrica_agente`."""
+# Constantes y estados de la vigilancia (configuracion.py).
 from nucleo_agente.vigilancia.configuracion import (
     ACTIVA,
     CANCELADA,
@@ -54,6 +72,7 @@ from nucleo_agente.vigilancia.configuracion import (
     RIESGO_DEFECTO_PCT,
     VIGENTES,
 )  # noqa: F401
+# Utilidades de base de datos, notificación y conversión (utilidades.py).
 from nucleo_agente.vigilancia.utilidades import (
     notificaciones,
     obtener,
@@ -66,31 +85,38 @@ from nucleo_agente.vigilancia.utilidades import (
     _lado_txt,
     _notificar,
 )  # noqa: F401
+# Posiciones abiertas por cada vigilancia (posiciones.py).
 from nucleo_agente.vigilancia.posiciones import (
     mt5,
     _posiciones_de,
 )  # noqa: F401
+# Caducidad de autorizaciones y vigilancias (caducidad.py).
 from nucleo_agente.vigilancia.caducidad import (
     _caducar_autorizaciones,
     _caducar_vencidas,
 )  # noqa: F401
+# Lectura de la decisión del modelo (decision.py).
 from nucleo_agente.vigilancia.decision import (
     parsear_decision,
     _RE_OBJETO,
     _SINONIMOS,
 )  # noqa: F401
+# Agente del análisis y su mensaje (analisis.py).
 from nucleo_agente.vigilancia.analisis import (
     fabrica_agente,
     _RegistroSinEjecucion,
     _fabrica_agente_real,
     _mensaje_analisis,
 )  # noqa: F401
+# Ejecución de la decisión (ejecucion.py).
 from nucleo_agente.vigilancia.ejecucion import (
     _aplicar,
 )  # noqa: F401
+# Chequeo completo de una vigilancia (chequeo.py).
 from nucleo_agente.vigilancia.chequeo import (
     chequear,
 )  # noqa: F401
+# Motor en segundo plano (motor.py).
 from nucleo_agente.vigilancia.motor import (
     iniciar_motor,
     tick,
@@ -99,6 +125,7 @@ from nucleo_agente.vigilancia.motor import (
     _chequear_seguro,
     _chequeo_en_curso,
 )  # noqa: F401
+# Alta, autorización, detención y listado (gestion.py).
 from nucleo_agente.vigilancia.gestion import (
     autorizar,
     crear,
@@ -107,3 +134,16 @@ from nucleo_agente.vigilancia.gestion import (
     rechazar,
     resumen_terminos,
 )  # noqa: F401
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------------- FIN Piña y Jara __init__ .PY ------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

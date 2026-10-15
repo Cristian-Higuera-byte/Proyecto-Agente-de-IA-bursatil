@@ -1,15 +1,37 @@
+/*
+Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+Dirección: José Joaquín Prieto #5373 -
+San Miguel - Santiago - Chile
+contacto.pinayjara@gmail.com
+https://www.pinayjara.cl
+Creado, Programado y Diseñado por Piña y Jara
+Transportes y Servicios Ltda.
+*/
+
+
+/* -------------------------------------------------------------------------------------------------------
+   ------------------------- INICIO Piña y Jara 29_dibujo_ajustes_herramienta .JS ------------------------
+   ------------------------------------------------------------------------------------------------------- */
+
 // [grafico] Dibujo: ventana de ajustes de cada herramienta (doble clic): Estilo, Texto, Coordenadas y Visibilidad
     // ---- La línea de tendencia admite extenderse a izquierda y derecha ----
+    // Se vuelve a registrar la herramienta 'trend' (tendencia) con la opción ext: si el usuario marca extender a la izquierda o a la derecha, el segmento se prolonga con lejos() hasta fuera de la pantalla.
     regHerramienta('trend', { n: 2, col: '#2962ff', ext: true, forma: function(el, P, S){
       if (P.length < 2) return [{ k: 'l', pts: P }];
       return [{ k: 'l', pts: [el.extIzq ? lejos(P[1], P[0]) : P[0], el.extDer ? lejos(P[0], P[1]) : P[1]] }];
     } });
     // ---- Qué opciones tiene cada herramienta ----
+    /** Marca con una bandera (por ejemplo 'rell' o 'etiquetas') las herramientas registradas cuyos ids se pasan separados por espacios; ignora los ids que no existen en REG. Recibe la cadena de ids y el nombre de la bandera. */
     function marcar(ids, flag){ ids.split(' ').forEach(function(id){ if (REG[id]) REG[id][flag] = true; }); }
+    // Herramientas cuyo relleno se puede ajustar en la ventana de ajustes.
     marcar('flat disjoint pf_andrews pf_schiff pf_mschiff pf_inside xabcd cypher headshoulders trianglepat regresion timecycles rotrect circle arc polyline projection price_range date_range', 'rell');
+    // Herramientas con etiquetas de texto que se pueden ocultar.
     marcar('infoline xabcd cypher abcd threedrives headshoulders trianglepat ell_impulse ell_abc ell_triangle ell_wxy ell_wxyxz forecast projection price_range date_range long_pos short_pos pf_andrews pf_schiff pf_mschiff pf_inside', 'etiquetas');
+    // La línea de información admite extenderse a los lados.
     marcar('infoline', 'ext');
+    // Posiciones larga y corta con colores propios de objetivo y stop.
     marcar('long_pos short_pos', 'coloresPos');
+    // Campos de ajuste de los tipos de dibujo antiguos (que no están en el registro REG): lista de propiedades editables por tipo.
     var AJ_VIEJOS = {
       ray: ['color', 'ancho', 'estilo'], extended: ['color', 'ancho', 'estilo'], angle: ['color', 'ancho', 'estilo'], hline: ['color', 'ancho', 'estilo'],
       hray: ['color', 'ancho', 'estilo'], vline: ['color', 'ancho', 'estilo'], crossline: ['color', 'ancho', 'estilo'], arrow: ['color', 'ancho', 'estilo'],
@@ -17,16 +39,22 @@
       text: ['color', 'tamano', 'negrita'], brush: ['color', 'ancho'], highlighter: ['color', 'ancho'],
       arrow_up: ['color', 'ancho'], arrow_down: ['color', 'ancho'], arrow_left: ['color', 'ancho'], arrow_right: ['color', 'ancho'], measure: []
     };
+    // Tamaño de letra por defecto de las herramientas con texto.
     var TAM_DEF = { text: 13, text_anchored: 16, table: 12, emoji: 30 };
+    // Etiqueta del campo de grosor cuando no es "Grosor de línea" (en flechas es el tamaño, en pincel y resaltador el grosor).
     var ETIQ_ANCHO = { arrow_up: 'Tamaño', arrow_down: 'Tamaño', arrow_left: 'Tamaño', arrow_right: 'Tamaño', brush: 'Grosor', highlighter: 'Grosor' };
 
+    // Elementos de la ventana de ajustes: fondo (#dibcfg-overlay), cuerpo (#dibcfg-cuerpo) y pestañas (#dibcfg-tabs).
     var dibOverlay = document.getElementById('dibcfg-overlay'), dibCuerpo = document.getElementById('dibcfg-cuerpo'), dibTabs = document.getElementById('dibcfg-tabs');
+    // Estado de la ventana: índice del dibujo editado, copia JSON para cancelar y pestaña activa.
     var dibIdx = null, dibSnap = null, dibTab = 'estilo';
 
+    /** Devuelve el nombre visible de una herramienta tomándolo del texto de su botón en el menú de herramientas; si no existe devuelve el propio tipo. */
     function nombreHerramienta(tipo){
       var it = document.querySelector('.tvtool-flyout-item[data-tool="' + tipo + '"]');
       return it ? it.textContent.trim() : tipo;
     }
+    /** Calcula la lista de campos editables (color, ancho, estilo, relleno, etiquetas, tamaño, niveles...) de un dibujo, según su descriptor en REG o la tabla AJ_VIEJOS para los tipos antiguos; sin duplicados. Recibe el dibujo. */
     function camposDe(el){
       var r = REG[el.tipo], c = [];
       if (r) {
@@ -46,51 +74,69 @@
       } else c = (AJ_VIEJOS[el.tipo] || []).slice();
       return c.filter(function(x, i){ return c.indexOf(x) === i; });
     }
+    // Tipos de línea que pueden llevar un texto encima (girado a lo largo de la línea).
     // Las herramientas de línea pueden llevar un texto encima (se dibuja girado a lo largo de la línea)
     var LINEAS_TEXTO = { trend: 1, ray: 1, extended: 1, angle: 1, arrow: 1, infoline: 1, hline: 1, hray: 1, vline: 1 };
+    /** Indica si el dibujo admite pestaña de texto: los textos, las líneas de LINEAS_TEXTO y las herramientas registradas con texto. */
     function tieneTexto(el){ var r = REG[el.tipo]; return el.tipo === 'text' || !!LINEAS_TEXTO[el.tipo] || !!(r && r.texto); }
 
+    /** Cierra la ventana de ajustes y borra el estado de edición. */
     function cerrarDib(){ dibOverlay.style.display = 'none'; dibIdx = null; dibSnap = null; }
+    /** Devuelve el dibujo que se está editando en la ventana de ajustes, o null si no hay. */
     function elDib(){ return dibIdx === null ? null : (elementosDibujados[dibIdx] || null); }
+    /** Aplica en vivo un cambio hecho en la ventana: repinta el lienzo y refresca la barra de estilos del dibujo seleccionado. */
     function cambioDib(){
       var el = elDib(); if (!el) return;
       redibujarTodo();
       if (typeof refrescarBarra === 'function') refrescarBarra(elementoSeleccionado());
     }
+    /** Cancela la edición: restaura el dibujo desde la copia guardada al abrir la ventana y la cierra. */
     function cancelarDib(){
       if (dibIdx !== null && dibSnap && elementosDibujados[dibIdx]) { elementosDibujados[dibIdx] = JSON.parse(dibSnap); redibujarTodo(); }
       cerrarDib();
     }
+    /** Acepta la edición: confirma el cambio (entra al historial para deshacer) y cierra la ventana. */
     function aceptarDib(){ if (dibIdx !== null) confirmarCambio(); cerrarDib(); }
 
     // ---------- Componentes ----------
+    // ---------- Componentes ----------
+    /** Auxiliar de DOM: crea un elemento con la etiqueta, clase y texto opcionales y lo devuelve. */
     function c_(tag, cls, txt){ var e = document.createElement(tag); if (cls) e.className = cls; if (txt !== undefined) e.textContent = txt; return e; }
+    /** Agrega al cuerpo de la ventana una fila con una etiqueta y su control (y un control extra opcional). Devuelve la fila. */
     function filaDib(etiqueta, control, extra){
       var f = c_('div', 'cfg-fila'); f.appendChild(c_('span', '', etiqueta)); var d = c_('div', 'cfg-controles'); d.appendChild(control); if (extra) d.appendChild(extra); f.appendChild(d); dibCuerpo.appendChild(f); return f;
     }
+    /** Crea una casilla con texto que llama a alCambiar(marcada) al cambiar y aplica el cambio en vivo; se agrega al destino indicado o al cuerpo. Devuelve la etiqueta. */
     function checkDib(texto, marcada, alCambiar, destino){
       var l = c_('label', 'cfg-check'); var i = document.createElement('input'); i.type = 'checkbox'; i.checked = marcada;
       i.addEventListener('change', function(){ alCambiar(i.checked); cambioDib(); });
       l.appendChild(i); l.appendChild(c_('span', '', texto)); (destino || dibCuerpo).appendChild(l); return l;
     }
+    /** Crea un selector de color inicializado con el valor (o azul si no es hexadecimal) que llama a alCambiar(color) al elegir. Devuelve el input. */
     function colorDib(valor, alCambiar){
       var i = document.createElement('input'); i.type = 'color'; i.value = /^#[0-9a-fA-F]{6}$/.test(valor) ? valor : '#2962ff';
       i.addEventListener('input', function(){ alCambiar(i.value); cambioDib(); }); return i;
     }
+    /** Devuelve el valor si es un color hexadecimal de 6 dígitos válido; si no, el valor por defecto. */
     function colorHex(v, def){ return (typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v)) ? v : def; }
+    /** Crea un menú desplegable con las opciones [valor, texto], marca la actual y llama a alCambiar(valor) al cambiar. Devuelve el select. */
     function selDib(opciones, actual, alCambiar){
       var s = document.createElement('select');
       opciones.forEach(function(o){ var op = c_('option', '', o[1]); op.value = o[0]; if (String(o[0]) === String(actual)) op.selected = true; s.appendChild(op); });
       s.addEventListener('change', function(){ alCambiar(s.value); cambioDib(); }); return s;
     }
+    /** Crea un campo numérico limitado a [min, max] con el paso dado; al cambiar corrige valores inválidos y llama a alCambiar(número). Devuelve el input. */
     function numDib(valor, min, max, paso, alCambiar){
       var i = document.createElement('input'); i.type = 'number'; i.value = valor; i.min = min; i.max = max; i.step = paso;
       i.addEventListener('change', function(){ var v = Number(i.value); if (!isFinite(v)) v = valor; v = Math.min(max, Math.max(min, v)); i.value = v; alCambiar(v); cambioDib(); }); return i;
     }
+    /** Agrega un título de sección al cuerpo de la ventana. */
     function secDib(t){ dibCuerpo.appendChild(c_('div', 'cfg-sec', t)); }
 
+    // Opciones del tipo de línea en la ventana de ajustes: [valor, texto].
     var ESTILOS_DIB = [['solid', 'Sólida'], ['dash', 'Discontinua'], ['dot', 'Punteada']];
 
+    /** Construye la pestaña Estilo según los campos del dibujo: color, colores de objetivo/stop, grosor, tipo de línea, línea de tendencia, relleno con color y opacidad, extensión, inversión, divisiones, etiquetas, tamaño, negrita y editor de niveles. */
     function pestanaEstiloDib(el){
       var campos = camposDe(el), tipo = el.tipo;
       if (!campos.length) { dibCuerpo.appendChild(c_('div', 'cfg-vacio', 'Esta herramienta no tiene opciones de estilo.')); return; }
@@ -133,9 +179,11 @@
       if (campos.indexOf('niveles') >= 0) editorNiveles(el);
     }
 
+    /** Construye el editor de niveles (por ejemplo de Fibonacci): una casilla, un valor y un color por nivel; cada cambio guarda la lista en el dibujo. Usa nivelesDe(el), definida en el fragmento de Fibonacci. */
     function editorNiveles(el){
       secDib('Niveles');
       var lista = nivelesDe(el).map(function(l){ return { v: l.v, on: l.on, c: l.c }; });
+      /** Auxiliar local guardar: copia la lista editada de niveles al dibujo y aplica el cambio en vivo. */
       function guardar(){ el.niveles = lista.map(function(l){ return { v: l.v, on: l.on, c: l.c }; }); cambioDib(); }
       var grid = c_('div', 'cfg-niveles');
       lista.forEach(function(l, i){
@@ -149,6 +197,7 @@
       dibCuerpo.appendChild(grid);
     }
 
+    /** Construye la pestaña Texto: un campo (o área multilínea) para editar el texto del dibujo o el texto sobre la línea, y para las líneas también su color, tamaño y negrita. */
     function pestanaTexto(el){
       var multi = !!(REG[el.tipo] && REG[el.tipo].multilinea), esLinea = !!LINEAS_TEXTO[el.tipo], clave = esLinea ? 'textoLinea' : 'texto';
       var campo = document.createElement(multi ? 'textarea' : 'input'); if (!multi) campo.type = 'text'; else campo.rows = 5;
@@ -166,8 +215,12 @@
     }
 
     // ---------- Coordenadas ----------
+    // ---------- Coordenadas ----------
+    /** Formatea un tiempo UNIX como fecha y hora UTC con formato AAAA-MM-DD HH:MM. */
     function fmtFH(t){ return new Date(t * 1000).toISOString().slice(0, 16).replace('T', ' '); }
+    /** Interpreta un texto de fecha y hora (UTC por defecto) y devuelve el tiempo UNIX en segundos, o null si es inválido. */
     function parseFH(s){ var t = Date.parse(String(s).trim().replace(' ', 'T') + (/Z|[+-]\d\d:?\d\d$/.test(s) ? '' : 'Z')); return isFinite(t) ? t / 1000 : null; }
+    /** Agrega una fila editable con el precio y/o la fecha y hora de un punto. Recibe el título y las funciones para leer y escribir el tiempo y el precio; las entradas inválidas se revierten. */
     function filaPunto(titulo, tiempoGet, tiempoSet, precioGet, precioSet){
       var f = c_('div', 'cfg-fila cfg-punto'); f.appendChild(c_('span', '', titulo)); var d = c_('div', 'cfg-controles');
       if (precioGet) {
@@ -180,6 +233,7 @@
       }
       f.appendChild(d); dibCuerpo.appendChild(f);
     }
+    /** Construye la pestaña Coordenadas: posición en porcentaje para los elementos fijados a la pantalla, precio para las horizontales, fecha para las verticales y precio y fecha por punto para el resto (máximo 40 puntos en los de nº variable). Los trazos libres no se pueden editar. */
     function pestanaCoordenadas(el){
       var r = REG[el.tipo], tipo = el.tipo;
       if (tipo === 'brush' || tipo === 'highlighter') { dibCuerpo.appendChild(c_('div', 'cfg-vacio', 'Un trazo libre no tiene coordenadas editables.')); return; }
@@ -199,12 +253,15 @@
       var hay = false;
       for (var i = 1; i <= 9; i++){
         if (el['time' + i] === undefined) break; hay = true;
+        // Cierre inmediato que captura el valor de i para cada fila de punto.
         (function(n){ filaPunto('Punto ' + n, function(){ return el['time' + n]; }, function(v){ el['time' + n] = v; }, function(){ return el['price' + n]; }, function(v){ el['price' + n] = v; }); })(i);
       }
       if (!hay) dibCuerpo.appendChild(c_('div', 'cfg-vacio', 'Esta herramienta no tiene coordenadas editables.'));
     }
 
     // ---------- Visibilidad por temporalidad ----------
+    // ---------- Visibilidad por temporalidad ----------
+    /** Construye la pestaña Visibilidad: por cada grupo de temporalidades (GRUPOS_TF) una casilla y un rango mínimo/máximo con campos numéricos y control deslizante doble. Usa validarVisibilidad y GRUPOS_TF del fragmento de visibilidad. */
     function pestanaVisibilidadDib(el){
       el.vis = validarVisibilidad(el.vis);
       GRUPOS_TF.forEach(function(g){
@@ -214,7 +271,9 @@
         var mn = document.createElement('input'), mx = document.createElement('input'), dual = c_('div', 'cfg-dual'), rmn = document.createElement('input'), rmx = document.createElement('input');
         mn.type = mx.type = 'number'; mn.min = mx.min = g[2]; mn.max = mx.max = g[3]; mn.value = r[1]; mx.value = r[2];
         rmn.type = rmx.type = 'range'; rmn.min = rmx.min = g[2]; rmn.max = rmx.max = g[3]; rmn.value = r[1]; rmx.value = r[2]; dual.appendChild(rmn); dual.appendChild(rmx);
+        /** Auxiliar local pista: pinta el degradado de la pista del control doble según el rango elegido. */
         function pista(){ var s = g[3] - g[2] || 1, a = (r[1] - g[2]) / s * 100, b = (r[2] - g[2]) / s * 100; dual.style.background = 'linear-gradient(to right,#3a3f47 ' + a + '%,#d1d4dc ' + a + '%,#d1d4dc ' + b + '%,#3a3f47 ' + b + '%)'; }
+        /** Auxiliar local fija: normaliza y limita el rango mínimo/máximo, lo guarda en el dibujo, sincroniza campos y deslizadores y aplica el cambio. */
         function fija(a, b, quien){
           a = Math.round(Number(a)); b = Math.round(Number(b)); if (!isFinite(a)) a = r[1]; if (!isFinite(b)) b = r[2];
           a = Math.min(g[3], Math.max(g[2], a)); b = Math.min(g[3], Math.max(g[2], b)); if (a > b) { if (quien === 'min') a = b; else b = a; }
@@ -227,6 +286,7 @@
       dibCuerpo.appendChild(c_('div', 'cfg-nota', 'El dibujo solo se muestra en las temporalidades marcadas y dentro del rango indicado (p. ej. Horas 1–1: solo en H1).'));
     }
 
+    /** Redibuja el contenido de la ventana de ajustes: título con el nombre de la herramienta, pestañas disponibles (Estilo, Texto si procede, Coordenadas y Visibilidad) y el cuerpo de la pestaña activa. */
     function pintarAjustesDib(){
       var el = elDib(); if (!el) return;
       document.getElementById('dibcfg-titulo').textContent = nombreHerramienta(el.tipo);
@@ -243,6 +303,7 @@
       if (dibTab === 'estilo') pestanaEstiloDib(el); else if (dibTab === 'texto') pestanaTexto(el); else if (dibTab === 'coord') pestanaCoordenadas(el); else pestanaVisibilidadDib(el);
     }
 
+    /** Abre la ventana de ajustes para el dibujo indicado (no si no existe o está bloqueado): cierra el editor de texto, guarda una copia para poder cancelar y muestra la ventana en la pestaña pedida (Estilo por defecto). */
     function abrirAjustesDibujo(idx, pestana){
       var el = elementosDibujados[idx]; if (!el || bloqueado) return;
       if (editorReg) cerrarEditorReg();
@@ -250,22 +311,28 @@
       pintarAjustesDib(); dibOverlay.style.display = 'flex';
     }
 
+    // Botones de la ventana: cerrar y cancelar descartan los cambios; aceptar los confirma.
     document.getElementById('dibcfg-close').addEventListener('click', cancelarDib);
     document.getElementById('dibcfg-cancel').addEventListener('click', cancelarDib);
     document.getElementById('dibcfg-ok').addEventListener('click', aceptarDib);
+    // Botón Restablecer: borra todas las personalizaciones del dibujo (color, grosor, relleno, niveles, visibilidad, textos...) para volver a los valores por defecto.
     document.getElementById('dibcfg-reset').addEventListener('click', function(){
       var el = elDib(); if (!el) return;
       ['color', 'ancho', 'estilo', 'relleno', 'rellenoColor', 'rellenoOp', 'extIzq', 'extDer', 'etiq', 'niveles', 'tamano', 'negrita', 'lineaTendencia', 'colorTendencia',
        'mostrarNivel', 'mostrarPrecio', 'invertir', 'divisiones', 'vis', 'colObj', 'colStop', 'textoLinea', 'colorTexto', 'tamanoTexto', 'negritaTexto'].forEach(function(k){ delete el[k]; });
       cambioDib(); pintarAjustesDib();
     });
+    // Clic en el fondo oscuro cierra la ventana sin guardar.
     dibOverlay.addEventListener('click', function(e){ if (e.target === dibOverlay) cancelarDib(); });
+    // Teclado dentro de la ventana: Escape cancela; el resto de teclas no se propagan al gráfico salvo en los campos de texto.
     dibOverlay.addEventListener('keydown', function(e){
       if (e.key === 'Escape') { e.stopPropagation(); cancelarDib(); }
       else if (e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'INPUT') e.stopPropagation();   // Supr/Ctrl+Z no deben actuar sobre el gráfico
     });
 
     // botón de ajustes en la barra de estilo del dibujo seleccionado
+    // botón de ajustes en la barra de estilo del dibujo seleccionado
+    // Función autoejecutable que agrega a la barra de estilos el botón de engranaje que abre la ventana de ajustes del dibujo seleccionado; no hace nada si la barra aún no existe.
     (function(){
       if (typeof barraEl === 'undefined' || typeof bloqueAcc === 'undefined') return;
       var b = document.createElement('button'); b.className = 'sb-btn'; b.title = 'Ajustes (o doble clic)';
@@ -275,7 +342,10 @@
     })();
 
     // ---------- Texto sobre las líneas ----------
+    // ---------- Texto sobre las líneas ----------
+    // Zona del "+ Añadir texto" de la línea seleccionada, para detectar el clic (null si no hay).
     var phCaja = null;   // zona del "+ Añadir texto" de la línea seleccionada (para detectar el clic)
+    /** Calcula dónde y con qué giro se pinta el texto sobre una línea: extremo derecho de la horizontal, inicio del rayo horizontal, centro de la vertical (girado 90 grados) o punto medio de la línea inclinada sin dejar el texto boca abajo. Devuelve { x, y, ang, al } o null. */
     function anclaTextoLinea(el){
       var g = geom(el); if (!g) return null;
       var ap = areaTrazado(), t = el.tipo;
@@ -287,6 +357,7 @@
       if (ang > Math.PI / 2 || ang < -Math.PI / 2) ang += Math.PI;   // el texto nunca queda boca abajo
       return { x: (g.x1 + g.x2) / 2, y: (g.y1 + g.y2) / 2, ang: ang, al: 'center' };
     }
+    /** Pinta el texto de una línea girado a lo largo de ella; si no tiene texto y está seleccionada muestra "+ Añadir texto" atenuado y guarda su zona en phCaja. Recibe contexto, dibujo y si está seleccionado. */
     function pintarTextoLinea(c, el, sel){
       var txt = el.textoLinea, hayTexto = !!txt;
       if (!hayTexto && !sel) return;
@@ -299,13 +370,18 @@
       var w = c.measureText(mostrado).width; c.restore();
       if (!hayTexto && sel && elementosDibujados.indexOf(el) >= 0) phCaja = { el: el, x: a.x, y: a.y, ang: a.ang, al: a.al, w: w, h: sz };
     }
+    // Se extienden dibujarElemento y pintar para el texto sobre las líneas.
     var dibujarAntesTextoLinea = dibujarElemento;
+    /** Versión de dibujarElemento que tras pintar el dibujo añade el texto sobre la línea si el tipo lo admite y es visible en la temporalidad actual. */
     dibujarElemento = function(c, el, sel, hov){
       dibujarAntesTextoLinea(c, el, sel, hov);
       if (LINEAS_TEXTO[el.tipo] && dibujoVisibleTF(el)) pintarTextoLinea(c, el, sel);
     };
+    // Guarda la versión anterior de pintar.
     var pintarAntesTextoLinea = pintar;
+    /** Versión de pintar que reinicia la zona del "+ Añadir texto" antes de pintar (cada fotograma la vuelve a calcular). */
     pintar = function(){ phCaja = null; pintarAntesTextoLinea(); };
+    // Clic sobre el "+ Añadir texto" de la línea seleccionada (fase de captura): abre la ventana de ajustes en la pestaña Texto. Convierte el clic al sistema de coordenadas girado de la caja para comprobar si cae dentro.
     window.addEventListener('mousedown', function(e){
       if (!phCaja || e.button !== 0 || bloqueado || activeTool !== 'cross' || !wrapEl.contains(e.target)) return;
       if (e.target.closest && e.target.closest('.tv-ui')) return;
@@ -319,3 +395,17 @@
         if (idx >= 0) abrirAjustesDibujo(idx, 'texto');
       }
     }, true);
+
+/* -------------------------------------------------------------------------------------------------------
+   -------------------------- FIN Piña y Jara 29_dibujo_ajustes_herramienta .JS --------------------------
+   ------------------------------------------------------------------------------------------------------- */
+
+/*
+Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+Dirección: José Joaquín Prieto #5373 -
+San Miguel - Santiago - Chile
+contacto.pinayjara@gmail.com
+https://www.pinayjara.cl
+Creado, Programado y Diseñado por Piña y Jara
+Transportes y Servicios Ltda.
+*/

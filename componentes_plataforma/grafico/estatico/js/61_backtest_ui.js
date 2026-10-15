@@ -1,17 +1,44 @@
+/*
+Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+Dirección: José Joaquín Prieto #5373 -
+San Miguel - Santiago - Chile
+contacto.pinayjara@gmail.com
+https://www.pinayjara.cl
+Creado, Programado y Diseñado por Piña y Jara
+Transportes y Servicios Ltda.
+*/
+
+
+/* -------------------------------------------------------------------------------------------------------
+   -------------------------------- INICIO Piña y Jara 61_backtest_ui .JS --------------------------------
+   ------------------------------------------------------------------------------------------------------- */
+
 // [grafico] Backtest: ventana (formulario de estrategia, resultados, curva de capital y marcas en el gráfico)
+    // BT_KEY: clave de localStorage; las variables siguientes son los elementos de la ventana y el estado del backtest
     var BT_KEY = 'pj_backtest_cfg';
     var btOverlay = document.getElementById('bt-overlay');
     var btForm = document.getElementById('bt-form');
     var btRes = document.getElementById('bt-res');
+    // marcasBT: marcas de las operaciones sobre el gráfico principal
     var marcasBT = null;          // marcas de las operaciones sobre el gráfico principal
+    // btUltimo: último resultado { r, datos, est, cost }
     var btUltimo = null;          // último resultado { r, datos, est, cost }
+    // btCharts: gráficos de la curva de capital
     var btCharts = null;          // gráficos de la curva de capital
+    // btPestana: pestaña de resultados visible
     var btPestana = 'resumen';
 
     // ---------- Estrategia por defecto: el ejemplo EMA 20/50 + RSI > 50, SL 2 %, TP 4 % ----------
+    /** Crea un operando de condición que apunta a la capa capa (0 por defecto) del indicador id con parámetros p. */
     function btOpInd(id, p, capa){ return { k: 'ind', id: id, capa: capa || 0, p: p || {} }; }
+    /** Crea un operando de condición con un número fijo v. */
     function btOpNum(v){ return { k: 'num', v: v }; }
+    /** Crea un operando de condición que usa el precio f (close, open, high, low, hl2, hlc3 o volume). */
     function btOpPrecio(f){ return { k: 'precio', f: f }; }
+    /**
+     * Devuelve la estrategia de ejemplo: compra con cruce de EMA 20/50 y RSI > 50, venta con lo contrario, SL 2 % y
+     * TP 4 %.
+     */
     function btEjemplo(){
       return {
         dir: 'largo', sl: 2, tp: 4, trail: 0, maxBarras: 0, invertir: false,
@@ -26,10 +53,19 @@
                  salida: { logica: 'o', cond: [] } }
       };
     }
+    /**
+     * Devuelve la configuración completa del backtest por defecto: estrategia de ejemplo, costes, capital de 10.000 y
+     * 5.000 velas.
+     */
     function btCfgPorDefecto(){
       return { est: btEjemplo(), cost: { spreadModo: 'mt5', spreadPips: 1.5, slipPips: 0.5, comision: 0.003 }, capital: 10000, n: 5000 };
     }
+    // btCfg: configuración actual del backtest (estrategia, costes, capital y número de velas)
     var btCfg = btCfgPorDefecto();
+    /**
+     * Lee de localStorage la configuración del backtest recordada y la fusiona con la de defecto, corrigiendo bloques
+     * mal formados; si falla vuelve a los valores por defecto.
+     */
     (function btLeer(){
       try {
         var c = JSON.parse(localStorage.getItem(BT_KEY) || 'null');
@@ -44,20 +80,36 @@
         });
       } catch (e) { btCfg = btCfgPorDefecto(); }
     })();
+    /** Guarda la configuración actual del backtest en localStorage. */
     function btGuardar(){ try { localStorage.setItem(BT_KEY, JSON.stringify(btCfg)); } catch (e) {} }
 
     // ---------- Utilidades ----------
+    /**
+     * Formatea una fracción x como porcentaje con signo y d decimales (2 por defecto); devuelve un guion largo si no
+     * es un número.
+     */
     function fmtPct(x, d){ return (x === null || x === undefined || !isFinite(x)) ? '—' : (x >= 0 ? '+' : '') + (x * 100).toFixed(d === undefined ? 2 : d) + '%'; }
+    /** Formatea un número con d decimales (2 por defecto); muestra ∞ para infinito y un guion largo si es nulo. */
     function fmtNum(x, d){ return (x === null || x === undefined) ? '—' : (x === Infinity ? '∞' : x.toFixed(d === undefined ? 2 : d)); }
+    /** Convierte un tiempo UNIX en segundos en texto aaaa-mm-dd hh:mm (UTC). */
     function fmtFecha(t){ return new Date(t * 1000).toISOString().slice(0, 16).replace('T', ' '); }
+    /** Devuelve la clase CSS de color según el signo de x: positivo, negativo o neutro. */
     function tono(x){ return x > 0 ? 'bt-pos' : (x < 0 ? 'bt-neg' : 'bt-neu'); }
+    /**
+     * Crea un campo numérico con valor, mínimo y paso; al cambiar valida, corrige al mínimo si es inválido, llama a
+     * alCambiar con el número y guarda. Devuelve el input.
+     */
     function numInput(valor, min, paso, alCambiar, ancho){
       var i = document.createElement('input'); i.type = 'number'; i.value = valor; i.step = paso || 'any'; if (min !== null && min !== undefined) i.min = min;
       if (ancho) i.style.width = ancho;
       i.addEventListener('change', function(){ var v = Number(i.value); if (!isFinite(v) || (min !== null && min !== undefined && v < min)) { v = (min !== null && min !== undefined) ? min : 0; i.value = v; } alCambiar(v); btGuardar(); });
       return i;
     }
+    /** Crea una fila del formulario con la etiqueta y el control indicados y la devuelve. */
     function filaForm(etiqueta, control){ var f = el('div', 'bt-fila'); f.appendChild(el('span', '', etiqueta)); f.appendChild(control); return f; }
+    /**
+     * Crea un desplegable con opciones [valor, texto] que llama a alCambiar y guarda al elegir. Devuelve el select.
+     */
     function selectorBT(opciones, actual, alCambiar){
       var s = document.createElement('select');
       opciones.forEach(function(o){ var op = el('option', '', o[1]); op.value = o[0]; if (String(o[0]) === String(actual)) op.selected = true; s.appendChild(op); });
@@ -66,6 +118,10 @@
     }
 
     // ---------- Editor de un operando (precio, número o indicador con sus parámetros) ----------
+    /**
+     * Crea el desplegable de operandos agrupado: precios, número fijo y los indicadores del catálogo (sin los que
+     * usan velas futuras ni la capa Chikou).
+     */
     function opcionesOperando(){
       var s = document.createElement('select'), g;
       g = document.createElement('optgroup'); g.label = 'Precio';
@@ -86,7 +142,12 @@
       });
       return s;
     }
+    /** Devuelve la clave de texto del operando op usada como valor del desplegable (num, precio:x o ind:id:capa). */
     function claveOperando(op){ return op.k === 'num' ? 'num' : (op.k === 'precio' ? 'precio:' + op.f : 'ind:' + op.id + ':' + (op.capa || 0)); }
+    /**
+     * Crea el editor de un operando: desplegable de tipo más los campos que corresponden (número o parámetros del
+     * indicador). reemplazar recibe el operando nuevo y redibujar repinta el formulario.
+     */
     function editorOperando(op, reemplazar, redibujar){
       var cont = el('div', 'bt-oper');
       var sel = opcionesOperando(); sel.value = claveOperando(op);
@@ -115,6 +176,10 @@
     }
 
     // ---------- Bloque de condiciones ----------
+    /**
+     * Crea la caja de un bloque de condiciones (entrada o salida) con selector Y/O, filas editables de condición,
+     * botón para quitarlas y botón para añadir. Devuelve el elemento.
+     */
     function bloqueCondiciones(titulo, bloque, nota){
       var caja = el('div', 'bt-bloque');
       var cab = el('div', 'bt-bloque-cab'); cab.appendChild(el('span', '', titulo));
@@ -141,16 +206,26 @@
       caja.appendChild(add);
       return caja;
     }
+    /**
+     * Devuelve el operador contrario (mayor <-> menor, cruce hacia arriba <-> hacia abajo) usado al copiar
+     * condiciones de compra a venta.
+     */
     function invertirOp(op){ return { cruzaArriba: 'cruzaAbajo', cruzaAbajo: 'cruzaArriba', gt: 'lt', lt: 'gt', ge: 'le', le: 'ge' }[op] || op; }
+    /** Copia la lógica y las condiciones del bloque desde al bloque hacia invirtiendo los operadores. */
     function copiarInvertido(desde, hacia){
       hacia.logica = desde.logica;
       hacia.cond = JSON.parse(JSON.stringify(desde.cond)).map(function(c){ c.op = invertirOp(c.op); return c; });
     }
 
     // ---------- Formulario ----------
+    /**
+     * Dibuja el formulario completo del backtest: datos, dirección, condiciones de compra y venta, gestión de la
+     * operación, costes, capital y botones de acción.
+     */
     function btPintarForm(){
       var e = btCfg.est, c = btCfg.cost;
       btForm.innerHTML = '';
+      /** Auxiliar de btPintarForm: añade al formulario un título de sección con el texto t. */
       function sec(t){ btForm.appendChild(el('div', 'bt-sec', t)); }
 
       sec('Datos');
@@ -208,7 +283,12 @@
     }
 
     // ---------- Ejecución ----------
+    /** Crea un aviso de tipo (error, aviso o info) con el texto dado y lo devuelve. */
     function btAviso(tipo, texto){ var d = el('div', 'bt-aviso ' + tipo); d.textContent = texto; return d; }
+    /**
+     * Descarga las velas de la API, ejecuta el backtest, guarda el resultado en btUltimo y pinta los resultados;
+     * muestra el progreso en el botón y los errores como aviso.
+     */
     function btEjecutarUI(){
       var boton = document.getElementById('bt-run'), cfg = btCfg;
       btRes.innerHTML = '';
@@ -236,12 +316,19 @@
     }
 
     // ---------- Resultados ----------
+    /**
+     * Crea una tarjeta de indicador con título k, valor v, subtexto s y clase de color cls. Devuelve el elemento.
+     */
     function kpi(k, v, s, cls){
       var d = el('div', 'bt-kpi'); d.appendChild(el('div', 'k', k));
       var vv = el('div', 'v ' + (cls || 'bt-neu'), v); d.appendChild(vv);
       if (s) d.appendChild(el('div', 's', s));
       return d;
     }
+    /**
+     * Dibuja el panel de resultados del último backtest: avisos de honestidad, pestañas Resumen, Operaciones y Cómo
+     * se simula, acciones de gráfico y CSV, tarjetas de métricas y curvas.
+     */
     function btPintarResultados(){
       var u = btUltimo; if (!u) return;
       var r = u.r, m = r.m, m0 = r.mSinCostes;
@@ -305,8 +392,13 @@
         btRes.appendChild(ul);
       }
     }
+    /** Devuelve el tiempo de la vela de índice i de las velas del último backtest (limitado al último índice). */
     function datosT(i){ return btUltimo.datos[Math.min(i, btUltimo.datos.length - 1)].time; }
 
+    /**
+     * Construye la tabla de operaciones del último backtest (hasta 1.500 filas) con notas si hay más o ninguna
+     * operación. Devuelve el contenedor.
+     */
     function btTabla(){
       var u = btUltimo, t = el('table', 'bt-tabla'), cab = el('tr');
       ['#', 'Lado', 'Entrada', 'Precio entrada', 'Salida', 'Precio salida', 'Motivo', 'Velas', 'Resultado', 'Capital'].forEach(function(h){ cab.appendChild(el('th', '', h)); });
@@ -324,9 +416,16 @@
       return cont;
     }
 
+    /**
+     * Dibuja la curva de capital frente a comprar y mantener y la de drawdown en dos gráficos sincronizados dentro
+     * del panel de resultados.
+     */
     function btDibujarCurvas(){
       var u = btUltimo, r = u.r, d = u.datos, ini = r.inicio, n = d.length;
       if (btCharts) { try { btCharts.eq.remove(); btCharts.dd.remove(); } catch (e) {} btCharts = null; }
+      /**
+       * Auxiliar de btDibujarCurvas: devuelve las opciones comunes de los gráficos de curvas, ampliadas con extra.
+       */
       var opts = function(extra){ return Object.assign({ autoSize: true, layout: { background: { color: '#0d1117' }, textColor: '#d1d4dc', fontSize: 11 },
         grid: { vertLines: { color: '#161b22' }, horzLines: { color: '#161b22' } }, rightPriceScale: { borderColor: '#30363d', minimumWidth: 64 },
         timeScale: { borderColor: '#30363d', timeVisible: true, secondsVisible: false } }, extra || {}); };
@@ -345,12 +444,20 @@
       sd.setData(datosDD);
       ceq.timeScale().fitContent(); cdd.timeScale().fitContent();
       var bloqueo = false;   // los dos gráficos se desplazan juntos
+      /**
+       * Auxiliar de btDibujarCurvas: hace que al desplazar el gráfico a también se desplace b, evitando bucles con la
+       * bandera bloqueo.
+       */
       function enlazar(a, b){ a.timeScale().subscribeVisibleLogicalRangeChange(function(rg){ if (bloqueo || !rg) return; bloqueo = true; b.timeScale().setVisibleLogicalRange(rg); bloqueo = false; }); }
       enlazar(ceq, cdd); enlazar(cdd, ceq);
       btCharts = { eq: ceq, dd: cdd };
     }
 
     // ---------- Marcas en el gráfico principal ----------
+    /**
+     * Crea las marcas de entrada y salida de las operaciones sobre el gráfico principal (flechas y círculos con el
+     * resultado), limitadas a las 600 más recientes, y las aplica.
+     */
     function btMarcar(){
       var u = btUltimo; if (!u) return;
       var ms = [], tIni = datosActuales.length ? datosActuales[0].time : 0, d = u.datos;
@@ -364,10 +471,12 @@
       marcasBT = ms.length > 600 ? ms.slice(-600) : ms;   // más de eso ilegible; se muestran las más recientes
       aplicarMarcasBT();
     }
+    /** Aplica a la serie principal las marcas de backtest guardadas (o las borra si no hay). */
     function aplicarMarcasBT(){
       try { if (serie) serie.setMarkers(marcasBT || []); } catch (e) {}
     }
 
+    /** Exporta las operaciones del último backtest a un CSV separado por punto y coma y lo descarga. */
     function btCSV(){
       var u = btUltimo; if (!u) return;
       var filas = ['n;lado;entrada;precio_entrada;salida;precio_salida;motivo;velas;resultado_pct;capital'];
@@ -381,15 +490,32 @@
     }
 
     // ---------- Abrir / cerrar ----------
+    /** Abre la ventana del backtest, dibuja el formulario y, si hay un resultado previo, lo muestra. */
     function btAbrir(){
       btOverlay.style.display = 'flex';
       btPintarForm();
       if (btUltimo) btPintarResultados();
     }
+    /** Cierra la ventana del backtest. */
     function btCerrar(){ btOverlay.style.display = 'none'; }
+    // Eventos de la ventana: abrir con el botón, cerrar con la X, con clic fuera o con Escape (si no hay otra ventana abierta)
     document.getElementById('btn-bt-open').addEventListener('click', function(e){ e.stopPropagation(); btAbrir(); });
     document.getElementById('bt-close').addEventListener('click', btCerrar);
     btOverlay.addEventListener('click', function(e){ if (e.target === btOverlay) btCerrar(); });
     document.addEventListener('keydown', function(e){
       if (e.key === 'Escape' && btOverlay.style.display !== 'none' && cfgOverlay.style.display === 'none' && modalOverlay.style.display === 'none') btCerrar();
     });
+
+/* -------------------------------------------------------------------------------------------------------
+   ---------------------------------- FIN Piña y Jara 61_backtest_ui .JS ---------------------------------
+   ------------------------------------------------------------------------------------------------------- */
+
+/*
+Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+Dirección: José Joaquín Prieto #5373 -
+San Miguel - Santiago - Chile
+contacto.pinayjara@gmail.com
+https://www.pinayjara.cl
+Creado, Programado y Diseñado por Piña y Jara
+Transportes y Servicios Ltda.
+*/

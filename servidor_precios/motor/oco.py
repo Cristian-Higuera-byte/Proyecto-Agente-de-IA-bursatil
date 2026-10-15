@@ -1,4 +1,22 @@
-"""OCO (One-Cancels-the-Other) del motor."""
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# -------------------------------------- INICIO Piña y Jara oco .PY -------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+"""OCO (One-Cancels-the-Other) del motor.
+
+Mixin que añade a MotorPrecios la vigilancia de pares de órdenes pendientes vinculadas.
+Lee la configuración de herramientas.almacen_oco (data/oco.json) y cancela en MT5 la
+pata sobrante cuando la otra se ejecuta.
+"""
 import MetaTrader5 as mt5  # type: ignore[import-untyped]
 from herramientas import almacen_oco
 from herramientas.puente_mt5 import eliminar_orden
@@ -7,23 +25,45 @@ from ..constantes import CANDADO_MT5
 
 
 class MixinOco:
+    """Mixin de MotorPrecios con la lógica OCO.
+
+    Usa los atributos de estado que define MotorPrecios.__init__: _oco (pares vigentes),
+    _oco_mtime (fecha del archivo ya cargado) y _oco_armados (pares con ambas patas vistas).
+    """
+
     # --- OCO (One-Cancels-the-Other) --------------------------------------
     # Dos órdenes pendientes vinculadas: cuando UNA se ejecuta (pasa a posición),
     # se cancela la otra. MT5 no tiene OCO nativo: la lógica vive aquí (cliente),
     # por eso solo funciona con este proceso vivo. La config la escribe el ticket
     # de órdenes en data/oco.json (otro proceso).
     def _recargar_oco(self):
+        """Recarga los pares OCO desde disco solo si el archivo cambió (compara mtime).
+
+        Efecto: actualiza _oco y _oco_mtime y descarta de _oco_armados los pares que ya no existen.
+        """
+        # Compara la fecha de modificación para evitar leer el JSON en cada ciclo
         m = almacen_oco.mtime()
         if m != self._oco_mtime:
+            # Archivo nuevo o modificado: vuelve a leerlo
             self._oco = almacen_oco.leer()
             self._oco_mtime = m
             # olvida pares "armados" que ya no existen
             self._oco_armados &= set(self._oco.keys())
 
     def _paso_oco(self):
+        """Ejecuta un ciclo de vigilancia OCO (lo llama el bucle principal del motor).
+
+        Consulta órdenes y posiciones en MT5 y, por cada par: lo marca como armado cuando
+        ambas patas están vivas; si una sale del libro porque se ejecutó (es posición),
+        elimina la otra pata; si fue cancelada a mano, solo rompe el vínculo.
+        Efectos: llamadas a MT5 (orders_get, positions_get, eliminar_orden) y escritura
+        en el almacén OCO al cerrar pares.
+        """
+        # Sincroniza la configuración antes de evaluar
         self._recargar_oco()
         if not self._oco:
             return
+        # Foto del estado de MT5 bajo candado
         with CANDADO_MT5:
             ordenes = mt5.orders_get() or []
             posiciones = mt5.positions_get() or []
@@ -35,6 +75,7 @@ class MixinOco:
         for p in posiciones:
             en_posicion.add(int(p.ticket))
             en_posicion.add(int(getattr(p, "identifier", p.ticket)))
+        # Evalúa cada par (copia de las claves: _cerrar_oco modifica el dict)
         for par_id in list(self._oco.keys()):
             cfg = self._oco[par_id]
             a, b = int(cfg["a"]), int(cfg["b"])
@@ -59,7 +100,25 @@ class MixinOco:
             self._cerrar_oco(par_id)
 
     def _cerrar_oco(self, par_id):
+        """Da por terminado un par OCO: lo quita del almacén en disco y del estado en memoria.
+
+        Recibe el identificador del par. Actualiza _oco_mtime para no recargar el archivo que
+        acaba de modificar este mismo proceso.
+        """
         almacen_oco.quitar_par(par_id)
         self._oco.pop(par_id, None)
         self._oco_mtime = almacen_oco.mtime()
         self._oco_armados.discard(par_id)
+
+
+# -------------------------------------------------------------------------------------------------------
+# --------------------------------------- FIN Piña y Jara oco .PY ---------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

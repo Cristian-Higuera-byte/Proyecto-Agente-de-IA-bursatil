@@ -1,4 +1,20 @@
+/*
+Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+Dirección: José Joaquín Prieto #5373 -
+San Miguel - Santiago - Chile
+contacto.pinayjara@gmail.com
+https://www.pinayjara.cl
+Creado, Programado y Diseñado por Piña y Jara
+Transportes y Servicios Ltda.
+*/
+
+
+/* -------------------------------------------------------------------------------------------------------
+   ---------------------------- INICIO Piña y Jara 31_indicadores_paneles .JS ----------------------------
+   ------------------------------------------------------------------------------------------------------- */
+
 // [grafico] Indicadores: motor (series sobre el precio, paneles de osciladores, leyenda y actualización)
+    // Formato de precio automático: decide los decimales según la magnitud del valor, para indicadores sin escala fija
     var PF_AUTO = {   // decimales según la magnitud del valor: sirve para indicadores sin escala fija (MACD, OBV, ATR…)
       type: 'custom', minMove: 1e-8,
       formatter: function(v){
@@ -10,16 +26,28 @@
         return v.toFixed(Math.min(8, 1 + Math.ceil(-Math.log10(a))));
       }
     };
+    /**
+     * Devuelve el priceFormat de un panel de oscilador según la definición df: el formato automático si dec es auto,
+     * o precisión fija de df.dec decimales (2 por defecto).
+     */
     function formatoPanel(df){
       if (df.dec === 'auto') return PF_AUTO;
       var n = (typeof df.dec === 'number') ? df.dec : 2;
       return { type: 'price', precision: n, minMove: Math.pow(10, -n) };
     }
     // Formato final de un indicador: el elegido en sus ajustes (Precisión) o el suyo por defecto
+    /**
+     * Devuelve el priceFormat final de una instancia: la precisión elegida por el usuario en sus ajustes (inst.pr) o,
+     * si no hay, la del indicador (en panel) o la del símbolo (sobre el precio).
+     */
     function formatoInst(df, inst, enPanel){
       if (inst.pr !== null && inst.pr !== undefined) return { type: 'price', precision: inst.pr, minMove: Math.pow(10, -inst.pr) };
       return enPanel ? formatoPanel(df) : PF;
     }
+    /**
+     * Da formato de texto al valor v de un indicador para la línea de estado, respetando la precisión elegida, los
+     * decimales del panel o los dígitos del símbolo.
+     */
     function textoValor(df, inst, v){
       if (inst.pr !== null && inst.pr !== undefined) return v.toFixed(inst.pr);
       if (df.destino !== 'panel') return v.toFixed(DIGITS);
@@ -27,9 +55,15 @@
       return v.toFixed(typeof df.dec === 'number' ? df.dec : 2);
     }
 
+    // renders: uid de instancia -> { series, panel, capas } con lo que cada indicador tiene dibujado
     var renders = {};   // uid -> { series: [], panel: bool }
 
     // ---------- Paneles de osciladores ----------
+    /**
+     * Crea (o reutiliza) el panel de oscilador de la instancia inst: contenedor con título, valores, botones de
+     * ajustes y quitar, y un gráfico LightweightCharts propio sincronizado con el principal. Registra el panel en
+     * PANES y devuelve su registro.
+     */
     function crearPane(inst){
       var id = inst.uid;
       if (PANES[id]) return PANES[id];
@@ -66,6 +100,10 @@
       return PANES[id];
     }
 
+    /**
+     * Destruye el panel de oscilador con identificador id (gráfico y elemento DOM), lo borra de PANES, reparte la
+     * altura y oculta el contenedor si ya no queda ninguno.
+     */
     function quitarPane(id){
       var p = PANES[id];
       if (!p) return;
@@ -76,11 +114,19 @@
     }
 
     // Altura de cada panel: 110 px si hay uno; con varios se reparten ~220 px (mínimo 70) y el contenedor hace scroll
+    /**
+     * Recalcula la altura de cada panel abierto: 110 px si hay uno y, con varios, se reparten unos 220 px con un
+     * mínimo de 70 px.
+     */
     function reajustarPanes(){
       var ids = Object.keys(PANES), h = ids.length ? Math.max(70, Math.floor(Math.min(110, 220 / ids.length))) : 0;
       ids.forEach(function(id){ PANES[id].el.style.height = h + 'px'; });
     }
 
+    /**
+     * Aplica el rango lógico visible del gráfico principal a todos los paneles de osciladores para que sus barras
+     * queden alineadas. Recibe el rango y no hace nada si es nulo.
+     */
     function sincronizarPanes(range){
       if (!range) return;
       Object.keys(PANES).forEach(function(id){ PANES[id].chart.timeScale().setVisibleLogicalRange(range); });
@@ -89,6 +135,11 @@
     // ---------- Datos de cada capa ----------
     // Una vela = un punto; donde el indicador aún no tiene valor va un punto vacío ({time}) para que los
     // paneles queden alineados con el gráfico principal. `desp` desplaza la línea (positivo = hacia el futuro).
+    /**
+     * Convierte una capa calculada (vals, cols, desp) en los puntos de la serie: un punto por vela, con punto vacío
+     * donde no hay valor para mantener la alineación. El desplazamiento (desp) mueve la línea hacia el futuro
+     * extrapolando el tiempo.
+     */
     function puntosDeCapa(capa, datos){
       var n = datos.length, d = capa.desp || 0, out = [];
       var dt = n > 1 ? (datos[n-1].time - datos[n-2].time) : 3600, total = n + Math.max(0, d);
@@ -108,6 +159,10 @@
 
     // ---------- Construcción y borrado de lo dibujado ----------
     // Opciones de estilo de una capa (color, grosor, tipo de línea, visibilidad, etiqueta en la escala, formato)
+    /**
+     * Construye las opciones de estilo de la capa i de una instancia: color, visibilidad, formato de precio y, si es
+     * línea, grosor, tipo de trazo y etiqueta en la escala de precios.
+     */
     function opcionesEstiloCapa(df, inst, i, enPanel){
       var tipo = df.capas[i][2] || 'linea';
       var etiqueta = inst.et && (df.capas.length === 1 || df.etiq === true) && i === 0;
@@ -115,6 +170,10 @@
       if (tipo === 'linea') { o.lineWidth = anchoCapa(inst, i); o.lineStyle = estiloLineaCapa(inst, i); o.lastValueVisible = etiqueta; }
       return o;
     }
+    /**
+     * Crea en el gráfico ch la serie de la capa i (histograma, puntos o línea según su tipo) con su estilo y, en
+     * paneles con rango fijo, fija la escala automática de la serie. Devuelve la serie.
+     */
     function crearSerieCapa(ch, df, inst, i, enPanel){
       var tipo = df.capas[i][2] || 'linea', op = opcionesEstiloCapa(df, inst, i, enPanel), s;
       if (tipo === 'hist') {
@@ -136,12 +195,17 @@
     }
 
     // Aplica el estilo actual de `inst` a lo que ya está dibujado (sin reconstruirlo)
+    /** Aplica el estilo actual de la instancia inst a las series ya dibujadas, sin reconstruirlas. */
     function aplicarEstiloInd(inst){
       var r = renders[inst.uid], df = DEFS[inst.id];
       if (!r) return;
       r.series.forEach(function(s, i){ s.applyOptions(opcionesEstiloCapa(df, inst, i, r.panel)); });
     }
 
+    /**
+     * Crea las series de un indicador (en su panel o sobre el gráfico principal), añade las líneas guía de nivel en
+     * paneles y devuelve el registro { series, panel, capas } que se guarda en renders.
+     */
     function construirRender(inst, capas){
       var df = DEFS[inst.id], enPanel = df.destino === 'panel', series = [], ch;
       if (enPanel) ch = crearPane(inst).chart; else ch = chart;
@@ -160,6 +224,10 @@
       return { series: series, panel: enPanel, capas: capas };
     }
 
+    /**
+     * Elimina lo dibujado por el indicador de identificador uid (panel completo o series del gráfico principal) y lo
+     * borra de renders.
+     */
     function quitarRender(uid){
       var r = renders[uid];
       if (!r) return;
@@ -169,7 +237,12 @@
     }
 
     // ---------- Valores en la línea de estado (último dato, o el de la vela bajo el cursor) ----------
+    // idxCursor: índice de la vela bajo el cursor (null = usar la última vela)
     var idxCursor = null;
+    /**
+     * Escribe en la línea de estado de cada indicador el valor de sus capas en la vela bajo el cursor (o en la última
+     * si no hay cursor), con el color de cada capa.
+     */
     function pintarValoresInd(){
       var n = datosActuales.length;
       if (!n) return;
@@ -189,7 +262,9 @@
         cont.innerHTML = partes.join(' ');
       });
     }
+    // refsValores: uid -> elemento HTML donde se escriben los valores (leyenda o título del panel)
     var refsValores = {};   // uid -> elemento donde se escriben los valores (leyenda o título del panel)
+    // Al mover el cursor se guarda la vela señalada y se repintan los valores de los indicadores
     chart.subscribeCrosshairMove(function(param){
       var nuevo = (param && param.point && param.logical !== undefined) ? Math.round(param.logical) : null;
       if (nuevo === idxCursor) return;
@@ -198,7 +273,12 @@
     });
 
     // ---------- Leyenda de los indicadores sobre el gráfico ----------
+    // firmaLeyendaInd: resumen del estado de la leyenda para evitar reconstruirla si nada cambió
     var firmaLeyendaInd = '';
+    /**
+     * Reconstruye la leyenda de indicadores sobre el gráfico (nombre, valores y botones mostrar/ocultar, ajustes y
+     * quitar) solo si cambió su firma; actualiza también los títulos de los paneles.
+     */
     function refrescarLeyendaInd(){
       var cont = document.getElementById('tv-ind-legend');
       if (!cont) return;
@@ -221,6 +301,10 @@
         var vals = document.createElement('span'); vals.className = 'ind-valores'; it.appendChild(vals);
         refsValores[inst.uid] = vals;
         it.addEventListener('dblclick', function(ev){ ev.stopPropagation(); abrirAjustesInd(inst.uid); });
+        /**
+         * Auxiliar de refrescarLeyendaInd: crea un botón con texto txt, título titulo y clase opcional cls que
+         * ejecuta fn al pulsarse (sin propagar el clic) y lo añade a la fila de la leyenda.
+         */
         function boton(txt, titulo, fn, cls){
           var b = document.createElement('button'); b.className = 'ind-btn' + (cls ? ' ' + cls : ''); b.textContent = txt; b.title = titulo;
           b.addEventListener('click', function(ev){ ev.stopPropagation(); fn(); });
@@ -235,10 +319,18 @@
     }
 
     // ---------- Altas, bajas y cambios ----------
+    /**
+     * Guarda la configuración recordada y recalcula/redibuja todos los indicadores activos. Se llama tras cualquier
+     * alta, baja o cambio.
+     */
     function cambioIndicadores(){
       guardarConfig();
       actualizarIndicadoresActivos();
     }
+    /**
+     * Añade una instancia nueva del indicador id (con periodo y color distintos si ya existía otra), guarda y
+     * redibuja. Devuelve la instancia o null si el id no existe.
+     */
     function anadirIndicador(id){
       var df = DEFS[id];
       if (!df) return null;
@@ -256,6 +348,10 @@
       cambioIndicadores();
       return inst;
     }
+    /**
+     * Elimina la instancia uid de los indicadores activos, quita su dibujo, cierra su ventana de ajustes si estaba
+     * abierta y guarda los cambios.
+     */
     function quitarIndicador(uid){
       indActivos = indActivos.filter(function(i){ return i.uid !== uid; });
       quitarRender(uid);
@@ -263,12 +359,20 @@
       cambioIndicadores();
     }
     // Cambió un parámetro, color, grosor, visibilidad…: se recalcula y se aplica el estilo sin rehacer los paneles
+    /**
+     * Tras cambiar un parámetro, color, grosor o visibilidad de inst, aplica el estilo a lo dibujado y recalcula
+     * todo.
+     */
     function reconstruirIndicador(inst){
       aplicarEstiloInd(inst);
       cambioIndicadores();
     }
 
     // ---------- Actualización ----------
+    /**
+     * Recalcula todos los indicadores activos con las velas actuales: crea o quita sus dibujos según visibilidad,
+     * temporalidad y modo comparar, vuelca los datos en las series y refresca leyenda y valores.
+     */
     function actualizarIndicadoresActivos(){
       var vivos = {};
       indActivos.forEach(function(inst){
@@ -292,7 +396,12 @@
     }
 
     // En tiempo real (cada tick) no se recalcula todo cada vez: como mucho una vez cada 0,6 s
+    // ultCalcInd: instante del último recálculo; timerInd: temporizador pendiente de la limitación por tick
     var ultCalcInd = 0, timerInd = null;
+    /**
+     * Versión con limitación para tiempo real: recalcula los indicadores como máximo una vez cada 0,6 s, programando
+     * un temporizador si llega otro tick antes.
+     */
     function actualizarIndicadoresTick(){
       if (!indActivos.length) return;
       var ahora = Date.now();
@@ -301,6 +410,10 @@
     }
 
     // ---------- Doble clic sobre una línea de indicador (sobre el precio) abre sus ajustes ----------
+    /**
+     * Busca el indicador sobre el precio cuya línea pasa más cerca (tolerancia de unos 9 px) del punto (x, y) del
+     * gráfico. Devuelve el uid del indicador o null.
+     */
     function indicadorBajoPunto(x, y){
       var mejor = null, dMejor = 9;   // tolerancia en píxeles
       var k = chart.timeScale().coordinateToLogical(x);
@@ -323,8 +436,23 @@
       });
       return mejor;
     }
+    // Doble clic sobre una línea de indicador: abre sus ajustes (fase de captura para adelantarse a otros manejadores)
     document.getElementById('chart-wrapper').addEventListener('dblclick', function(ev){
       var caja = document.getElementById('c').getBoundingClientRect();
       var uid = indicadorBajoPunto(ev.clientX - caja.left, ev.clientY - caja.top);
       if (uid) { ev.stopPropagation(); ev.preventDefault(); abrirAjustesInd(uid); }
     }, true);
+
+/* -------------------------------------------------------------------------------------------------------
+   ------------------------------ FIN Piña y Jara 31_indicadores_paneles .JS -----------------------------
+   ------------------------------------------------------------------------------------------------------- */
+
+/*
+Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+Dirección: José Joaquín Prieto #5373 -
+San Miguel - Santiago - Chile
+contacto.pinayjara@gmail.com
+https://www.pinayjara.cl
+Creado, Programado y Diseñado por Piña y Jara
+Transportes y Servicios Ltda.
+*/

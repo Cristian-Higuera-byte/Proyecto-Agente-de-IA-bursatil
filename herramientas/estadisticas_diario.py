@@ -1,3 +1,16 @@
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------ INICIO Piña y Jara estadisticas_diario .PY -----------------------------
+# -------------------------------------------------------------------------------------------------------
+
 """
 estadisticas_diario.py
 ----------------
@@ -30,6 +43,8 @@ from herramientas.puente_mt5 import MT5_LOCK, inicializar_mt5
 from herramientas import gestor_lista_activos as wl
 from herramientas import almacen_diario
 
+# MetaTrader5 es opcional: si no se puede importar (p. ej. fuera de Windows),
+# `mt5` queda en None y las funciones devuelven resultados vacíos.
 try:
     import MetaTrader5 as mt5
 except Exception:                      # pragma: no cover
@@ -37,6 +52,12 @@ except Exception:                      # pragma: no cover
 
 
 def _leer_deals(dias: int):
+    """Lee de MT5 los deals (ejecuciones) de los últimos `dias` días.
+
+    Toma el candado global de MT5, inicializa la conexión y consulta
+    `history_deals_get` hasta mañana. Devuelve una lista (vacía si MT5 no está
+    disponible, no inicializa o ocurre cualquier error); nunca lanza excepciones.
+    """
     if mt5 is None:
         return []
     try:
@@ -51,17 +72,27 @@ def _leer_deals(dias: int):
 
 
 def operaciones(dias: int = 365, limite: int = 500) -> list:
-    """Operaciones cerradas reconstruidas (IN+OUT por position_id). Más reciente
-    primero. Cada una: pos_id, symbol, nombre, tipo, volumen, entrada, salida,
-    hora_in, hora_out, neto, profit, comision, swap, duracion_s."""
+    """Reconstruye las operaciones cerradas emparejando los deals IN y OUT por position_id.
+
+    Recibe los días de historial a consultar y el máximo de operaciones a devolver.
+    Devuelve una lista ordenada de la más reciente a la más antigua; cada elemento
+    trae: pos_id, symbol, nombre, tipo, volumen, entrada, salida, hora_in, hora_out,
+    neto, profit, comision, swap, duracion_s, y los datos del diario (estrategia,
+    emocion, razon, plan, sl, tp, rr_plan, rr_real). Las posiciones aún abiertas se
+    omiten. Lee MT5 (vía `_leer_deals`) y `data/journal.json`; no escribe nada.
+    """
     if mt5 is None:
         return []
+    # Constantes de MT5 con valores por defecto por si la versión no las expone.
     ENTRY_IN = getattr(mt5, "DEAL_ENTRY_IN", 0)
     ENTRY_OUT = getattr(mt5, "DEAL_ENTRY_OUT", 1)
     TYPE_BUY = getattr(mt5, "DEAL_TYPE_BUY", 0)
 
+    # Paso 1: agrupar los deals por posición, acumulando volumen, precio ponderado,
+    # horas y resultados (soporta cierres parciales con varios OUT).
     porpos: dict = {}
     for d in _leer_deals(dias):
+        # Se ignoran deals sin posición (depósitos, balance) o que no sean entrada/salida.
         pid = int(getattr(d, "position_id", 0) or 0)
         entry = getattr(d, "entry", None)
         if pid == 0 or entry not in (ENTRY_IN, ENTRY_OUT):
@@ -70,42 +101,51 @@ def operaciones(dias: int = 365, limite: int = 500) -> list:
                                     "out_pv": 0.0, "t_in": None, "t_out": None,
                                     "neto": 0.0, "profit": 0.0, "com": 0.0, "swap": 0.0,
                                     "symbol": getattr(d, "symbol", ""), "tipo": None})
+        # Extracción defensiva de los campos numéricos del deal.
         vol = float(getattr(d, "volume", 0.0) or 0.0)
         precio = float(getattr(d, "price", 0.0) or 0.0)
         t = int(getattr(d, "time", 0) or 0)
         prof = float(getattr(d, "profit", 0.0) or 0.0)
         com = float(getattr(d, "commission", 0.0) or 0.0) + float(getattr(d, "fee", 0.0) or 0.0)
         sw = float(getattr(d, "swap", 0.0) or 0.0)
+        # Neto = ganancia + comisión/fee + swap (los costos vienen en negativo).
         r["neto"] += prof + com + sw
         r["profit"] += prof
         r["com"] += com
         r["swap"] += sw
+        # Entrada: acumula volumen y precio ponderado; fija la hora más temprana y el tipo.
         if entry == ENTRY_IN:
             r["in_vol"] += vol
             r["in_pv"] += vol * precio
             r["t_in"] = t if r["t_in"] is None else min(r["t_in"], t)
             if r["tipo"] is None:
                 r["tipo"] = "Compra" if getattr(d, "type", TYPE_BUY) == TYPE_BUY else "Venta"
+        # Salida: acumula volumen y precio ponderado; fija la hora más tardía.
         else:
             r["out_vol"] += vol
             r["out_pv"] += vol * precio
             r["t_out"] = t if r["t_out"] is None else max(r["t_out"], t)
 
     notas = almacen_diario.leer()           # notas del usuario + plan por position_id (B/C)
+    # Paso 2: convertir cada posición cerrada en una operación completa, con precios
+    # medios de entrada/salida y el R/R (planificado y realizado) si hay stop.
     salida = []
     for pid, r in porpos.items():
         if r["t_out"] is None or r["in_vol"] <= 0:
             continue                       # posición aún abierta (sin cierre) → no es del diario
+        # Precios medios ponderados por volumen.
         entrada = r["in_pv"] / r["in_vol"] if r["in_vol"] else 0.0
         salida_p = r["out_pv"] / r["out_vol"] if r["out_vol"] else 0.0
         sym = r["symbol"]
         compra = (r["tipo"] == "Compra")
 
+        # Plan guardado al abrir (SL/TP/entrada); si falta entrada, usa la real.
         info = notas.get(str(pid), {})
         plan = info.get("plan") or {}
         sl = float(plan.get("sl", 0.0) or 0.0)
         tp = float(plan.get("tp", 0.0) or 0.0)
         ent_plan = float(plan.get("entrada", 0.0) or 0.0) or entrada
+        # R/R solo se calcula si hubo un stop con riesgo positivo.
         rr_plan = rr_real = None
         if sl > 0:
             riesgo = (ent_plan - sl) if compra else (sl - ent_plan)   # distancia al stop
@@ -127,23 +167,33 @@ def operaciones(dias: int = 365, limite: int = 500) -> list:
             "razon": info.get("razon", ""), "plan": plan,
             "sl": sl, "tp": tp, "rr_plan": rr_plan, "rr_real": rr_real,
         })
+    # Más recientes primero y recorte al límite pedido.
     salida.sort(key=lambda x: x["hora_out"], reverse=True)
     return salida[:limite]
 
 
 def estadisticas(ops: list) -> dict:
-    """Métricas del diario a partir de las operaciones cerradas."""
+    """Calcula las métricas del diario a partir de la lista de operaciones cerradas.
+
+    Devuelve un dict con n, win_rate (%), pnl, profit_factor, expectancy ($ por
+    operación), rr_prom (payoff), avg_win, avg_loss, max_dd, ganadoras, perdedoras,
+    r_medio (múltiplo de R medio, None si ninguna tuvo stop) y con_plan. Con lista
+    vacía devuelve todo en cero. Puede devolver `inf` si no hay pérdidas.
+    """
     n = len(ops)
+    # Sin operaciones: resultado neutro para que la UI no falle.
     if n == 0:
         return {"n": 0, "win_rate": 0.0, "pnl": 0.0, "profit_factor": 0.0,
                 "expectancy": 0.0, "rr_prom": 0.0, "avg_win": 0.0, "avg_loss": 0.0,
                 "max_dd": 0.0, "ganadoras": 0, "perdedoras": 0}
+    # Separación de ganadoras y perdedoras por resultado neto.
     ganadoras = [o for o in ops if o["neto"] > 0]
     perdedoras = [o for o in ops if o["neto"] < 0]
     g_brutas = sum(o["neto"] for o in ganadoras)
     p_brutas = -sum(o["neto"] for o in perdedoras)          # positivo
     pnl = sum(o["neto"] for o in ops)
     nw, nl = len(ganadoras), len(perdedoras)
+    # Tasa de acierto y promedios; los cocientes protegen la división entre cero.
     win_rate = nw / n * 100.0
     avg_win = (g_brutas / nw) if nw else 0.0
     avg_loss = (p_brutas / nl) if nl else 0.0
@@ -169,5 +219,22 @@ def estadisticas(ops: list) -> dict:
 
 
 def calcular(dias: int = 365, limite: int = 500) -> dict:
+    """Atajo que devuelve {"operaciones": [...], "stats": {...}} para el rango pedido.
+
+    Encadena `operaciones` y `estadisticas`; es el punto de entrada que usa la vista del diario.
+    """
     ops = operaciones(dias, limite)
     return {"operaciones": ops, "stats": estadisticas(ops)}
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------- FIN Piña y Jara estadisticas_diario .PY -------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

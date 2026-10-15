@@ -1,3 +1,16 @@
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ----------------------------------- INICIO Piña y Jara __init__ .PY -----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
 """Informe integral de la cartera abierta.
 
 NOMBRE DEL ARCHIVO: herramientas_agente/informe_cartera_herramientas
@@ -9,6 +22,11 @@ informa en `secciones_no_disponibles` y el resto sigue valiendo. Los importes sa
 beneficios de MT5 (moneda de la cuenta); nada se inventa ni se estima con tablas fijas.
 
 Archivos: herramientas.py (registro de las herramientas), auxiliares.py, esquemas.json.
+
+Este paquete es una fachada: reexporta las constantes de umbrales y los helpers
+de cálculo de ``auxiliares`` y la herramienta ``informe_cartera`` de
+``herramientas``, de modo que el resto del proyecto puede importar todo desde
+``herramientas_agente.informe_cartera_herramientas`` sin conocer los archivos internos.
 """
 from herramientas_agente.informe_cartera_herramientas.auxiliares import (
     MAX_SIMBOLOS_VOLATILIDAD,
@@ -27,3 +45,16 @@ from herramientas_agente.informe_cartera_herramientas.auxiliares import (
     _alertas,
 )
 from herramientas_agente.informe_cartera_herramientas.herramientas import informe_cartera
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------------- FIN Piña y Jara __init__ .PY ------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

@@ -1,3 +1,16 @@
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ----------------------------------- INICIO Piña y Jara analisis .PY -----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
 """Agente del análisis (sin herramientas de ejecución) y mensaje que se le envía en cada chequeo.
 
 `fabrica_agente` se puede sustituir (las pruebas inyectan un agente falso): se lee desde este módulo en cada chequeo."""
@@ -15,24 +28,34 @@ from nucleo_agente.vigilancia.configuracion import HERRAMIENTAS_EXCLUIDAS
 
 class _RegistroSinEjecucion:
     """Registro de herramientas para el análisis automático: el de siempre MENOS las que proponen o
-    programan órdenes. Así el modelo no puede ejecutar nada por su cuenta; solo analiza y decide."""
+    programan órdenes. Así el modelo no puede ejecutar nada por su cuenta; solo analiza y decide.
+
+    Imita la interfaz del registro real (nombres, esquemas, ejecutar) para poder pasarse al Agente."""
 
     def __init__(self, base: Any, excluidas: frozenset = HERRAMIENTAS_EXCLUIDAS) -> None:
+        """Guarda el registro base y el conjunto de nombres de herramientas que deben ocultarse."""
         self._base, self._excluidas = base, excluidas
 
     def nombres(self) -> list[str]:
+        """Devuelve los nombres de herramientas del registro base sin las excluidas."""
         return [n for n in self._base.nombres() if n not in self._excluidas]
 
     def esquemas(self) -> list[dict[str, Any]]:
+        """Devuelve los esquemas de herramientas que se envían al modelo, sin los de las excluidas."""
         return [e for e in self._base.esquemas() if e.get("function", {}).get("name") not in self._excluidas]
 
     def ejecutar(self, nombre: str, argumentos: dict[str, Any]) -> str:
+        """Ejecuta una herramienta del registro base; si está excluida devuelve un JSON de error sin ejecutarla
+        (defensa extra por si el modelo la invoca aunque no la vea)."""
         if nombre in self._excluidas:
             return json.dumps({"error": "Esa herramienta no está disponible en el análisis automático."}, ensure_ascii=False)
         return self._base.ejecutar(nombre, argumentos)
 
 
 def _fabrica_agente_real() -> Any:
+    """Crea el agente real del análisis: perfil de vigilancia, registro sin herramientas de ejecución y sin usuario.
+
+    Los imports son tardíos para evitar ciclos y no cargar el modelo hasta que haga falta."""
     from nucleo_agente.agente import Agente  # import tardío: evita ciclos y no carga el modelo si no hace falta
     from herramientas_agente.base import REGISTRO
     # usuario_id=None: sin memoria persistente; cada chequeo es una conversación nueva y barata.
@@ -44,6 +67,12 @@ fabrica_agente: Callable[[], Any] = _fabrica_agente_real
 
 
 def _mensaje_analisis(v: dict[str, Any], posiciones: list[Any]) -> str:
+    """Construye el mensaje que se envía al agente en cada chequeo.
+
+    Recibe la vigilancia y sus posiciones abiertas. Incluye activo, instrucción del usuario, avance de
+    operaciones, riesgo fijado, posiciones con su resultado, permiso de cierre, el último resumen y las
+    instrucciones para responder con el bloque ```decision``` que lee parsear_decision."""
+    # Lista de posiciones propias abiertas, una línea por ticket.
     if posiciones:
         filas = []
         for p in posiciones:
@@ -78,3 +107,16 @@ Qué hacer:
 ```
 Para abrir: {{"accion": "abrir", "lado": "compra" o "venta", "stop_loss": precio, "take_profit": precio, "resumen": "..."}}
 Para cerrar una de las posiciones listadas: {{"accion": "cerrar", "ticket": número, "resumen": "..."}}"""
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------------- FIN Piña y Jara analisis .PY ------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

@@ -1,34 +1,64 @@
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------------- INICIO Piña y Jara fila .PY -------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
 """Fila de un activo de la lista: tarjeta con ícono, precio y variación en vivo, y sus tres botones
-(seleccionar, favorito y quitar)."""
+(seleccionar, favorito y quitar).
+
+Los botones se superponen a la tarjeta mediante estilos.css (claves de contenedor `wlrow_*`, `wlsel_*`,
+`wlfav_*` y `wlrm_*`). Precio y variación llevan atributos `data-pj-*` para el feed en vivo.
+"""
 import html
 import re
 
 import streamlit as st
 
-from componentes_plataforma.iconos import icono_activo
+# Ícono del activo, acciones de lista/favoritos, atributos del feed y gestor de la watchlist.
+from componentes_plataforma.iconografia import icono_activo
 from componentes_plataforma.lista_activos.acciones import agregar_favorito, quitar_de_lista, quitar_favorito
-from componentes_plataforma.flujo_vivo import attrs as _live
+from componentes_plataforma.flujo_precios import atributos as _en_vivo
 from herramientas import gestor_lista_activos as wl
 
 
 def dibujar_fila(ticker: str, item: dict) -> None:
+    """Dibuja una fila de la lista de activos con sus tres botones de acción.
+
+    Recibe el `ticker` y `item`, el diccionario de mercado (nombre, precio, var, sube). Pinta la tarjeta
+    con ícono, símbolo, nombre, precio y variación, y añade botones invisibles/pequeños: seleccionar
+    (fija `activo_seleccionado` y relanza toda la app), estrella de favorito y ✕ para quitar de la lista.
+    """
+    # Nombre visible del símbolo y slug seguro para las claves de widgets.
     base = wl.nombre_visible(ticker)
     slug = re.sub(r"\W", "", ticker)
+    # Estado de la fila: seleccionada, color según tendencia.
     is_selected = (st.session_state.activo_seleccionado == ticker)
     color_var = "#2ebd85" if item.get("sube", True) else "#f6465d"
 
+    # Precio con formato: con signo de dólar y 2 decimales si supera 100, si no 5 decimales.
     precio_val = item.get('precio', 1.0)
     formato_precio = f"${precio_val:,.2f}" if precio_val > 100 else f"{precio_val:,.5f}"
 
+    # Textos escapados para insertarlos de forma segura en HTML.
     nombre = html.escape(str(item.get('nombre', ticker)))
     variacion = html.escape(str(item.get('var', '+0.00%')))
     clase_sel = " sel" if is_selected else ""
     dir_cls = "up" if item.get("sube", True) else "down"
 
+    # Aspecto y ayuda de la estrella según el estado de favorito.
     es_favorito = ticker in st.session_state.get("favoritos", [])
     estrella = ":material/star:" if es_favorito else ":material/star_border:"
     ayuda = "Quitar de favoritos" if es_favorito else "Agregar a favoritos"
 
+    # Contenedor con clave propia por fila: el CSS lo usa para superponer los botones a la tarjeta.
     with st.container(key=f"wlrow_{slug}"):
         # Tarjeta visual del activo
         st.markdown(f"""
@@ -39,8 +69,8 @@ def dibujar_fila(ticker: str, item: dict) -> None:
                     <div class='wl-nm'>{nombre}</div>
                 </div>
                 <div class='wl-right'>
-                    <div class='wl-px' {_live(ticker, 'px', pre='$' if precio_val > 100 else '')}>{formato_precio}</div>
-                    <div class='wl-var' {_live(ticker, 'var', up='#2ebd85', dn='#f6465d')} style='color: {color_var};'>{variacion}</div>
+                    <div class='wl-px' {_en_vivo(ticker, 'px', pre='$' if precio_val > 100 else '')}>{formato_precio}</div>
+                    <div class='wl-var' {_en_vivo(ticker, 'var', up='#2ebd85', dn='#f6465d')} style='color: {color_var};'>{variacion}</div>
                 </div>
             </div>
         """, unsafe_allow_html=True)
@@ -75,3 +105,16 @@ def dibujar_fila(ticker: str, item: dict) -> None:
         if st.button(":material/close:", key=f"wlrm_{slug}", help="Quitar de mi lista"):
             quitar_de_lista(ticker)
             st.rerun(scope="app")
+
+
+# -------------------------------------------------------------------------------------------------------
+# --------------------------------------- FIN Piña y Jara fila .PY --------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

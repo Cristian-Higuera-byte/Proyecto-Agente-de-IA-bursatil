@@ -1,8 +1,27 @@
+/*
+Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+Dirección: José Joaquín Prieto #5373 -
+San Miguel - Santiago - Chile
+contacto.pinayjara@gmail.com
+https://www.pinayjara.cl
+Creado, Programado y Diseñado por Piña y Jara
+Transportes y Servicios Ltda.
+*/
+
+
+/* -------------------------------------------------------------------------------------------------------
+   ------------------------------ INICIO Piña y Jara 29_dibujo_cursores .JS ------------------------------
+   ------------------------------------------------------------------------------------------------------- */
+
 // [grafico] Dibujo: tipos de cursor (cruce, punto, flecha, demostración) y borrador
+    // Modo de cursor activo: 'cross' (cruz con líneas), 'dot' (punto), 'pointer' (flecha) o 'demo' (puntero láser con estela).
     var modoCursor = 'cross';
+    // Puntos recientes {x, y, t} del ratón para dibujar la estela del modo demostración (máximo 60).
     var demoPuntos = [];
+    // Modos de cursor que no son una herramienta de dibujo: al activarlos solo cambian el cursor y se vuelve a la herramienta de cruz.
     var CURSORES_PUROS = { dot: 1, pointer: 1, demo: 1 };
 
+    /** Aplica un modo de cursor al gráfico: muestra u oculta las líneas de la cruz (y sus etiquetas), alterna las clases modo-punto, modo-flecha y modo-demo del contenedor y limpia la estela si no es la demostración. Recibe 'cross', 'dot', 'pointer' o 'demo'. */
     function aplicarModoCursor(m){
       modoCursor = m;
       var linea = (m === 'cross');
@@ -16,8 +35,12 @@
     }
 
     // El borrador es un modo de la herramienta de selección: con un clic sobre un dibujo lo elimina
+    // El borrador es un modo de la herramienta de selección: con un clic sobre un dibujo lo elimina
+    // Indica si el modo borrador está activo (herramienta 'eraser').
     var modoBorrador = false;
+    // Guarda la versión anterior de activarHerramienta.
     var activarAntesCursores = activarHerramienta;
+    /** Versión de activarHerramienta que añade los modos de cursor y el borrador: los cursores puros solo aplican su modo y el borrador deja la herramienta de cruz con el botón marcado como 'eraser'. Delega en la versión anterior con la herramienta ya resuelta. Recibe el nombre de la herramienta. */
     activarHerramienta = function(t){
       var borrador = (t === 'eraser');
       if (CURSORES_PUROS[t]) { aplicarModoCursor(t); t = 'cross'; }
@@ -30,11 +53,14 @@
       if (borrador) { seleccionadoId = null; redibujarTodo(); }
     };
     // elegir "Cruce" en el menú devuelve el cursor normal
+    // elegir "Cruce" en el menú devuelve el cursor normal
+    /** Función autoejecutable que conecta la opción "Cruce" del menú de cursores (#cursor-flyout) para restablecer el modo de cursor normal. */
     (function(){
       var it = document.querySelector('#cursor-flyout .tvtool-flyout-item[data-tool="cross"]');
       if (it) it.addEventListener('click', function(){ aplicarModoCursor('cross'); });
     })();
 
+    // Clic con el borrador activo (fase de captura): elimina el dibujo bajo el cursor y confirma el cambio.
     window.addEventListener('mousedown', function(e){
       if (!modoBorrador || e.button !== 0 || bloqueado || !serie) return;
       if (!wrapEl.contains(e.target) || (e.target.closest && e.target.closest('.tv-ui'))) return;
@@ -45,16 +71,21 @@
       e.preventDefault(); e.stopPropagation();
       elementosDibujados.splice(hit.idx, 1); seleccionadoId = null; hoverId = null; confirmarCambio();
     }, true);
+    // Mouse move en modo demostración: acumula los puntos del ratón (máximo 60) para la estela láser y repinta.
     window.addEventListener('mousemove', function(e){
       if (modoCursor === 'demo' && activeTool === 'cross' && !modoBorrador) {
         var p = posMouse(e);
         if (p.x >= 0 && p.y >= 0 && p.x <= cssW && p.y <= cssH) { demoPuntos.push({ x: p.x, y: p.y, t: Date.now() }); if (demoPuntos.length > 60) demoPuntos.shift(); redibujarTodo(); }
       }
     });
+    // Al salir el ratón del gráfico se borra la estela de la demostración.
     wrapEl.addEventListener('mouseleave', function(){ if (demoPuntos.length) { demoPuntos = []; redibujarTodo(); } });
 
     // ---------- Demostración: puntero láser con estela ----------
+    // ---------- Demostración: puntero láser con estela ----------
+    // Guarda la versión anterior de pintar.
     var pintarAntesCursores = pintar;
+    /** Versión de pintar que, en el modo demostración, dibuja encima la estela del ratón (puntos rojos que se desvanecen en 650 ms) y un resplandor radial en la posición actual. */
     pintar = function(){
       pintarAntesCursores();
       if (modoCursor !== 'demo' || !demoPuntos.length) return;
@@ -75,7 +106,22 @@
       ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.stroke();
       ctx.restore();
     };
+    /** Bucle por fotograma de la demostración: pide repintar mientras haya estela para que se apague sola con el tiempo. Se reprograma con requestAnimationFrame. */
     (function bucleDemo(){
       if (modoCursor === 'demo' && demoPuntos.length) redibujarTodo();   // la estela se apaga sola
       requestAnimationFrame(bucleDemo);
     })();
+
+/* -------------------------------------------------------------------------------------------------------
+   -------------------------------- FIN Piña y Jara 29_dibujo_cursores .JS -------------------------------
+   ------------------------------------------------------------------------------------------------------- */
+
+/*
+Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+Dirección: José Joaquín Prieto #5373 -
+San Miguel - Santiago - Chile
+contacto.pinayjara@gmail.com
+https://www.pinayjara.cl
+Creado, Programado y Diseñado por Piña y Jara
+Transportes y Servicios Ltda.
+*/

@@ -1,3 +1,16 @@
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ----------------------------------- INICIO Piña y Jara __init__ .PY -----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
 """
 componentes_plataforma/flujo_precios
 ---------------
@@ -6,7 +19,7 @@ Feed de precios EN VIVO del navegador (streaming por SSE desde servidor_datos.py
 Cómo funciona:
   - Los componentes marcan sus números con atributos `data-pj-*`
     (p. ej. <span data-pj-s="EURUSD..." data-pj-f="px">1.12010</span>).
-  - `inyectar_feed()` mete un iframe invisible con un script que:
+  - `inyectar_flujo()` mete un iframe invisible con un script que:
       1) junta todos los símbolos marcados en la página,
       2) abre UNA conexión SSE a `/stream?s=...` del servidor de datos,
       3) en cada tick reescribe SOLO el texto/color de esos elementos en el DOM
@@ -39,9 +52,33 @@ Atributos soportados:
 
 Si el servidor de datos NO está corriendo, no se inyecta nada y los fragmentos
 `run_every` siguen refrescando como antes (intervalo rápido).
-"""
-from componentes_plataforma.flujo_precios.atributos import attrs
-from componentes_plataforma.flujo_precios.inyeccion import inyectar_feed
-from componentes_plataforma.flujo_precios.servidor import API_URL, feed_activo, intervalo
 
-__all__ = ["API_URL", "feed_activo", "intervalo", "attrs", "inyectar_feed"]
+Estructura del paquete (este `__init__` es una fachada que reexporta la API pública):
+  atributos.py    genera los atributos `data-pj-*` para las etiquetas HTML
+  servidor.py     detecta si servidor_datos.py responde y decide el intervalo de refresco
+  ensamblador.py  concatena los fragmentos de `js/` en un único script
+  inyeccion.py    inserta ese script en la página de Streamlit
+  js/             fragmentos del script del navegador (se concatenan en orden alfabético)
+"""
+# Generador de atributos data-pj-* para marcar números en vivo.
+from componentes_plataforma.flujo_precios.atributos import atributos
+# Inserta el script del feed en la página.
+from componentes_plataforma.flujo_precios.inyeccion import inyectar_flujo
+# URL del servidor de datos, estado del feed e intervalo de refresco.
+from componentes_plataforma.flujo_precios.servidor import API_URL, flujo_activo, intervalo
+
+# API pública del paquete.
+__all__ = ["API_URL", "flujo_activo", "intervalo", "atributos", "inyectar_flujo"]
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------------- FIN Piña y Jara __init__ .PY ------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

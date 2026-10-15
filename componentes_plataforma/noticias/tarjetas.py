@@ -1,7 +1,26 @@
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ----------------------------------- INICIO Piña y Jara tarjetas .PY -----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
 """Tarjeta HTML de una noticia (la usan el carrusel y "Más noticias")."""
 
 
 def tarjeta_html(n: dict) -> str:
+    """Devuelve el HTML de una tarjeta de noticia: imagen, título (2 líneas), descripción (2 líneas, 110
+    caracteres) y fecha.
+
+    Recibe el diccionario de la noticia (`img`, `title`, `desc`, `fecha`). Los estilos van en línea y el
+    recorte a dos líneas usa `-webkit-line-clamp`. Quien la llama pone encima un botón invisible (ver
+    `estilos.css`) para que toda la tarjeta sea clicable."""
     return f"""
       <div style="display:flex; flex-direction:column;">
         <img src="{n['img']}" referrerpolicy="no-referrer"
@@ -15,3 +34,16 @@ def tarjeta_html(n: dict) -> str:
         <span style="color:#586174; font-size:11px;">{n['fecha']}</span>
       </div>
     """
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------------- FIN Piña y Jara tarjetas .PY ------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

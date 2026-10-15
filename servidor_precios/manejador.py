@@ -1,4 +1,22 @@
-"""Rutas HTTP del servidor: GET (velas, ticks, símbolos, salud), SSE (/stream) y POST (SL/TP y órdenes)."""
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ----------------------------------- INICIO Piña y Jara manejador .PY ----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+"""Rutas HTTP del servidor: GET (velas, ticks, símbolos, salud), SSE (/stream) y POST (SL/TP y órdenes).
+
+Define `Manejador`, el BaseHTTPRequestHandler que usa ejecucion.py. Los GET solo leen datos
+del motor o de MT5; los POST modifican posiciones/órdenes y solo se aceptan desde páginas
+de localhost (protección CORS/Origin) y bajo CANDADO_MT5.
+"""
 import json
 import time
 from http.server import BaseHTTPRequestHandler
@@ -14,11 +32,22 @@ from .velas import obtener_velas
 
 
 def _lista_simbolos(qs) -> list:
+    """Extrae del query string el parámetro `s` (símbolos separados por comas).
+
+    Recibe el dict de parse_qs y devuelve una lista sin vacíos ni espacios, limitada a 80
+    símbolos para acotar la carga del motor.
+    """
     crudo = qs.get("s", [""])[0]
     return [s for s in (x.strip() for x in crudo.split(",")) if s][:80]
 
 
 class Manejador(BaseHTTPRequestHandler):
+    """Atiende las peticiones HTTP del dashboard: JSON, SSE, CORS restringido a localhost y POST de trading.
+
+    Una instancia por petición (ThreadingHTTPServer). Delega los datos en vivo en MOTOR.
+    """
+
+    # HTTP/1.1 es necesario para mantener abierta la conexión del flujo SSE
     protocol_version = "HTTP/1.1"
 
     def _origen_permitido(self):
@@ -36,6 +65,8 @@ class Manejador(BaseHTTPRequestHandler):
             self.send_header("Vary", "Origin")
 
     def _responder(self, obj):
+        """Envía `obj` serializado como JSON con estado 200 y cabecera CORS (si el origen es local)."""
+        # Serializa a bytes UTF-8 para calcular Content-Length exacto
         cuerpo = json.dumps(obj).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
@@ -46,21 +77,33 @@ class Manejador(BaseHTTPRequestHandler):
 
     def _stream(self, simbolos):
         """SSE: envía la foto completa y luego solo los cambios, hasta que el
-        navegador cierre la conexión."""
+        navegador cierre la conexión.
+
+        Recibe la lista de símbolos a seguir. Registra la suscripción en el motor, y en bucle
+        espera cambios (MOTOR.esperar), envía eventos `data:` con ticks ("t") y cuenta ("acc"),
+        o un comentario `: ping` de keep-alive cada PING_SSE segundos. Termina silenciosamente
+        cuando el cliente se desconecta.
+        """
+        # Cabeceras estándar de un flujo Server-Sent Events
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
         self.send_header("Cache-Control", "no-cache")
         self.send_header("Connection", "keep-alive")
         self._cabecera_cors()
         self.end_headers()
+        # Suscribe los símbolos para que el motor empiece a leerlos
         MOTOR.suscribir(simbolos)
+        # seq = último cambio ya enviado a este cliente
         seq = 0
         ultimo_envio = time.time()
         try:
+            # Indica al navegador reconectar a los 2 s si se corta
             self.wfile.write(b"retry: 2000\n\n")
             while True:
+                # Solo lo que cambió desde la última secuencia enviada
                 nuevo, ticks, cuenta = MOTOR.foto(simbolos, seq)
                 seq = nuevo
+                # Hay novedades: las envía; si no, emite ping si pasó mucho tiempo
                 if ticks or cuenta:
                     msg = {"t": ticks}
                     if cuenta:
@@ -78,6 +121,11 @@ class Manejador(BaseHTTPRequestHandler):
             pass   # el navegador cerró la pestaña o cambió de vista
 
     def do_GET(self):
+        """Enruta las peticiones GET: /stream, /ticks, /simbolos, /salud, /velas/<s> y /ultima/<s>.
+
+        Los errores se devuelven como JSON {"error": ...}; las rutas desconocidas también.
+        """
+        # Separa ruta (por tramos) y parámetros de consulta; tf por defecto H1
         parsed = urlparse(self.path)
         partes = [unquote(p) for p in parsed.path.strip("/").split("/")]
         qs = parse_qs(parsed.query)
@@ -110,12 +158,15 @@ class Manejador(BaseHTTPRequestHandler):
 
     # --- Modificaciones (POST) ----------------------------------------------
     def _origen_local(self) -> bool:
-        """Solo páginas servidas desde este equipo (el dashboard en localhost) pueden
+        """Devuelve True si el encabezado Origin pertenece a localhost o 127.0.0.1 (autoriza los POST).
+
+        Solo páginas servidas desde este equipo (el dashboard en localhost) pueden
         modificar posiciones: otra web abierta en el navegador no puede."""
         host = urlparse(self.headers.get("Origin", "") or "").hostname
         return host in ("localhost", "127.0.0.1")
 
     def do_OPTIONS(self):
+        """Responde la verificación previa (preflight) de CORS con 204 y los métodos/cabeceras permitidos."""
         self.send_response(204)
         self._cabecera_cors()
         self.send_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
@@ -124,6 +175,13 @@ class Manejador(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self):
+        """Enruta las órdenes de trading: /sltp, /orden, /orden/modificar, /orden/eliminar y /mercado.
+
+        Rechaza con 403 los orígenes que no sean locales. Lee el cuerpo JSON, ejecuta la
+        operación en MT5 bajo CANDADO_MT5 mediante herramientas.puente_mt5 y responde con el
+        resultado (o {"error": ...}). Efecto: modifica posiciones u órdenes reales en MT5.
+        """
+        # Bloquea peticiones de páginas externas (CSRF)
         if not self._origen_local():
             cuerpo = b'{"error": "origen no permitido"}'
             self.send_response(403)
@@ -133,6 +191,7 @@ class Manejador(BaseHTTPRequestHandler):
             self.wfile.write(cuerpo)
             return
         try:
+            # Lee y decodifica el cuerpo JSON según Content-Length
             n = int(self.headers.get("Content-Length", 0) or 0)
             datos = json.loads(self.rfile.read(n) or b"{}")
             ruta = urlparse(self.path).path.strip("/")
@@ -168,4 +227,18 @@ class Manejador(BaseHTTPRequestHandler):
                 pass
 
     def log_message(self, *args):
+        """Anula el registro de accesos del servidor base para no saturar la consola."""
         pass  # silencia los logs de acceso en consola
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------------ FIN Piña y Jara manejador .PY ------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

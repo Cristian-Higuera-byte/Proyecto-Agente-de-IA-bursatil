@@ -1,5 +1,24 @@
-"""Lista de activos del USUARIO (los de su watchlist de Supabase) con scroll, favoritos y botón para agregar."""
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------------- INICIO Piña y Jara panel .PY ------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+"""Lista de activos del USUARIO (los de su watchlist de Supabase) con scroll, favoritos y botón para agregar.
+
+Lee `datos_mercado_real` y `watchlist_simbolos` de session_state y dibuja una fila por activo con
+`dibujar_fila`. Los estilos se inyectan una vez por render con `st.markdown`.
+"""
 import streamlit as st
+
+# Estilos del panel y dibujo de cada fila.
 
 from componentes_plataforma.lista_activos.estilos import CSS
 from componentes_plataforma.lista_activos.fila import dibujar_fila
@@ -9,12 +28,19 @@ ALTURA_LISTA = 640
 
 
 def renderizar_watchlist():
+    """Dibuja el panel «Lista de activos»: encabezado, zona con scroll con las filas y botón «Agregar activo».
+
+    No recibe parámetros ni devuelve nada. Si no hay activo seleccionado fija EURUSD... por defecto. El
+    botón «Agregar activo» abre el buscador y relanza la app para que aplicacion.py muestre el diálogo.
+    """
     # Lista de activos del USUARIO (los que tenga en su watchlist de Supabase)
     info_activos_real = st.session_state.get("datos_mercado_real", {})
     tickers_watchlist = st.session_state.get("watchlist_simbolos") or list(info_activos_real.keys())
 
+    # Inyecta los estilos del panel.
     st.markdown(CSS, unsafe_allow_html=True)
 
+    # Activo por defecto en la primera carga.
     if "activo_seleccionado" not in st.session_state:
         st.session_state.activo_seleccionado = "EURUSD..."
 
@@ -35,6 +61,7 @@ def renderizar_watchlist():
 
         # Contenedor con altura fija y scroll vertical individual
         with st.container(height=ALTURA_LISTA, border=False, key="wl_scroll"):
+            # Si un ticker aún no tiene datos de mercado se usa un item neutro.
             for ticker in tickers_watchlist:
                 item = info_activos_real.get(ticker, {
                     "nombre": ticker,
@@ -44,8 +71,23 @@ def renderizar_watchlist():
                 })
                 dibujar_fila(ticker, item)
 
+        # Botón de agregar activo, en un contenedor con clave para estilizarlo.
         with st.container(key="wl_add"):
             if st.button("Agregar activo", icon=":material/add:", width="stretch"):
+                # Importación diferida del buscador (diálogo de búsqueda de activos).
                 from componentes_plataforma.buscador import abrir_buscador
                 abrir_buscador()
                 st.rerun()  # app scope: para que aplicacion.py renderice el diálogo
+
+
+# -------------------------------------------------------------------------------------------------------
+# -------------------------------------- FIN Piña y Jara panel .PY --------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

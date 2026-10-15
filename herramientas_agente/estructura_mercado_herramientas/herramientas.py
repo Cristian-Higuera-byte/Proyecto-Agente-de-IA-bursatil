@@ -1,4 +1,21 @@
-"""Herramientas registradas para el agente (los esquemas viven en esquemas.json)."""
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# --------------------------------- INICIO Piña y Jara herramientas .PY ---------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+"""Herramientas registradas para el agente (los esquemas viven en esquemas.json).
+
+Herramientas de estructura de mercado: pivotes y swings (Price Action), Fair Value Gaps y Order
+Blocks (Smart Money Concepts) y perfil de volumen (POC, VAH y VAL).
+"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -7,6 +24,7 @@ from typing import Any
 from herramientas_agente.base import cargar_json, herramienta
 from herramientas_agente.estructura_mercado_herramientas.auxiliares import _obtener_velas_historicas
 
+# Esquemas (descripción y parámetros que ve el modelo) leídos de esquemas.json junto a este archivo.
 _ESQ = cargar_json(Path(__file__).parent / "esquemas.json")
 
 
@@ -16,19 +34,29 @@ def detectar_niveles_clave(
     timeframe: str = "H1",
     cantidad_velas: int = 100,
 ) -> dict[str, Any]:
+    """Detecta niveles clave: pivotes clásicos y últimos swing highs/lows.
+
+    Recibe `simbolo`, `timeframe` (H1) y `cantidad_velas` (100). Los pivotes (pivot, R1, R2, S1, S2)
+    se calculan con la penúltima vela (la última cerrada); los swings son máximos/mínimos locales
+    que superan a las 2 velas vecinas de cada lado. Devuelve los 3 swings más recientes de cada tipo
+    y el precio actual, o {"error": ...} con menos de 10 velas. Consulta MT5 o Yahoo Finance.
+    """
     velas = _obtener_velas_historicas(simbolo, timeframe=timeframe, cantidad=cantidad_velas)
     if not velas or len(velas) < 10:
         return {"error": f"Sin datos suficientes para detectar niveles clave en {simbolo}."}
 
+    # Vela de referencia para los pivotes: la última ya cerrada.
     v_ref = velas[-2] if len(velas) > 1 else velas[-1]
     h, l, c = v_ref.get("high", 0.0), v_ref.get("low", 0.0), v_ref.get("close", 0.0)
 
+    # Fórmulas clásicas de puntos pivote.
     pivot = (h + l + c) / 3.0
     r1 = (2 * pivot) - l
     s1 = (2 * pivot) - h
     r2 = pivot + (h - l)
     s2 = pivot - (h - l)
 
+    # Un swing se confirma si supera estrictamente a las dos velas anteriores y a las dos posteriores.
     swing_highs: list[float] = []
     swing_lows: list[float] = []
 
@@ -75,6 +103,13 @@ def identificar_order_blocks_fvg(
     timeframe: str = "H1",
     cantidad_velas: int = 60,
 ) -> dict[str, Any]:
+    """Escanea Fair Value Gaps (FVG) y Order Blocks (OB) de Smart Money Concepts.
+
+    Recibe `simbolo`, `timeframe` (H1) y `cantidad_velas` (60). Un FVG es un hueco entre el máximo de
+    la vela 1 y el mínimo de la vela 3 (alcista) o viceversa (bajista). Un OB es una vela contraria
+    seguida de otra de cuerpo mayor a 1.8 veces el suyo. Devuelve hasta 5 FVG (empezando por los más
+    recientes) y los últimos 5 OB, o {"error": ...} con menos de 5 velas. Consulta MT5 o Yahoo Finance.
+    """
     velas = _obtener_velas_historicas(simbolo, timeframe=timeframe, cantidad=cantidad_velas)
     if not velas or len(velas) < 5:
         return {"error": f"Datos insuficientes para escanear FVG u Order Blocks en {simbolo}."}
@@ -82,6 +117,7 @@ def identificar_order_blocks_fvg(
     fvgs: list[dict[str, Any]] = []
     order_blocks: list[dict[str, Any]] = []
 
+    # FVG: recorrido de la más reciente a la más antigua con ventanas de 3 velas consecutivas.
     for i in range(len(velas) - 3, 0, -1):
         v1, v2, v3 = velas[i - 1], velas[i], velas[i + 1]
 
@@ -103,6 +139,7 @@ def identificar_order_blocks_fvg(
                 "timestamp": v2.get("time"),
             })
 
+    # Order Blocks: vela de color contrario antes de un impulso fuerte (cuerpo siguiente > 1.8 x cuerpo).
     for i in range(2, len(velas) - 2):
         cuerpo = abs(velas[i]["close"] - velas[i]["open"])
         cuerpo_siguiente = abs(velas[i + 1]["close"] - velas[i + 1]["open"])
@@ -141,6 +178,14 @@ def calcular_perfil_volumen(
     cantidad_velas: int = 100,
     niveles_precio: int = 24,
 ) -> dict[str, Any]:
+    """Calcula el perfil de volumen: POC, área de valor (VAH/VAL) y su % del volumen.
+
+    Recibe `simbolo`, `timeframe` (H1), `cantidad_velas` (100) y `niveles_precio` (24 franjas). El
+    rango se divide en franjas y el volumen de tick de cada vela se asigna a la franja de su precio
+    medio. El POC es el centro de la franja con más volumen y el área de valor se expande desde ahí
+    hasta reunir el 70% del volumen. Devuelve {"error": ...} con menos de 10 velas o rango plano.
+    Consulta MT5 o Yahoo Finance.
+    """
     velas = _obtener_velas_historicas(simbolo, timeframe=timeframe, cantidad=cantidad_velas)
     if not velas or len(velas) < 10:
         return {"error": f"Sin datos para calcular el Perfil de Volumen en {simbolo}."}
@@ -151,6 +196,7 @@ def calcular_perfil_volumen(
     if max_p == min_p:
         return {"error": "El rango de precio es plano en la muestra seleccionada."}
 
+    # Ancho de cada franja de precio y acumulador de volumen por franja.
     paso = (max_p - min_p) / niveles_precio
     bins = [0.0] * niveles_precio
 
@@ -160,9 +206,11 @@ def calcular_perfil_volumen(
         idx = min(int((p_medio - min_p) / paso), niveles_precio - 1)
         bins[idx] += vol
 
+    # Punto de control (POC): franja con mayor volumen.
     max_vol_idx = max(range(niveles_precio), key=lambda i: bins[i])
     poc_precio = min_p + (max_vol_idx + 0.5) * paso
 
+    # Área de valor: se amplía hacia la franja vecina con más volumen hasta alcanzar el 70% del total.
     vol_total = sum(bins)
     vol_objetivo = vol_total * 0.70
 
@@ -199,3 +247,16 @@ def calcular_perfil_volumen(
         },
         "distribucion_volumen_pct_value_area": round((vol_acum / vol_total) * 100, 2),
     }
+
+
+# -------------------------------------------------------------------------------------------------------
+# ----------------------------------- FIN Piña y Jara herramientas .PY ----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

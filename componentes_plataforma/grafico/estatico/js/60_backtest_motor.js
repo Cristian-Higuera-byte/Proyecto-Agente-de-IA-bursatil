@@ -1,3 +1,18 @@
+/*
+Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+Dirección: José Joaquín Prieto #5373 -
+San Miguel - Santiago - Chile
+contacto.pinayjara@gmail.com
+https://www.pinayjara.cl
+Creado, Programado y Diseñado por Piña y Jara
+Transportes y Servicios Ltda.
+*/
+
+
+/* -------------------------------------------------------------------------------------------------------
+   ------------------------------- INICIO Piña y Jara 60_backtest_motor .JS ------------------------------
+   ------------------------------------------------------------------------------------------------------- */
+
 // [grafico] Backtest: motor de simulación (reglas -> señales -> operaciones -> métricas). Sin acceso a la pantalla.
     //
     // Reglas de realismo (para que el resultado no salga artificialmente bueno):
@@ -11,14 +26,21 @@
     //  - Si la vela abre más allá del stop (hueco), se sale a la apertura (peor que el nivel).
     //  - Los indicadores que usan velas futuras (fractales, ZigZag, regresión) no se pueden usar en reglas.
 
+    // BT_NO_CAUSAL: indicadores que usan velas futuras y no se permiten en reglas
     var BT_NO_CAUSAL = { fractales: true, zigzag: true, regresion: true };
+    // BT_OPS: operadores de comparación disponibles [valor, texto]
     var BT_OPS = [['gt', 'es mayor que'], ['lt', 'es menor que'], ['ge', 'es mayor o igual que'], ['le', 'es menor o igual que'],
                   ['cruzaArriba', 'cruza hacia arriba'], ['cruzaAbajo', 'cruza hacia abajo']];
+    // BT_PRECIOS: operandos de precio disponibles [valor, texto]
     var BT_PRECIOS = [['close', 'Precio: Cierre'], ['open', 'Precio: Apertura'], ['high', 'Precio: Máximo'], ['low', 'Precio: Mínimo'],
                       ['hl2', 'Precio: Mediana (H+L)/2'], ['hlc3', 'Precio: Típico (H+L+C)/3'], ['volume', 'Volumen (ticks)']];
 
     // ---------- Reglas -> señales ----------
     // Devuelve el valor de un operando en cada vela: { arr: [...], num: null } o { arr: null, num: valor }
+    /**
+     * Evalúa un operando de una condición (número fijo, precio o salida de indicador) sobre las velas. Devuelve {
+     * arr, num }; usa una caché de indicadores y lanza Error si es inválido o usa velas futuras.
+     */
     function btOperando(op, datos, cache){
       if (!op) throw new Error('Falta un operando en una condición.');
       if (op.k === 'num') {
@@ -41,12 +63,19 @@
       if (d > 0) arr = arr.map(function(_, i){ return i - d >= 0 ? c.vals[i - d] : null; });   // un desplazamiento positivo solo usa datos pasados
       return { arr: arr, num: null };
     }
+    /**
+     * Devuelve el índice desde el que un operando tiene datos (0 si es un número fijo, Infinity si nunca los tiene).
+     */
     function btPrimerValido(o){
       if (o.arr === null) return 0;
       var i = primerValido(o.arr);
       return i < 0 ? Infinity : i;
     }
     // Lista de condiciones (unidas con 'y' u 'o') -> array de booleanos por vela, y la primera vela con todos los datos
+    /**
+     * Evalúa una lista de condiciones unidas con y/o sobre todas las velas. Devuelve { sig (booleanos por vela),
+     * inicio (primera vela con datos), vacio }.
+     */
     function btEvaluarCondiciones(conds, logica, datos, cache){
       var n = datos.length, out = new Array(n).fill(false), inicio = 0;
       if (!conds || !conds.length) return { sig: out, inicio: 0, vacio: true };
@@ -56,6 +85,10 @@
         inicio = Math.max(inicio, btPrimerValido(a) + (cruz ? 1 : 0), btPrimerValido(b) + (cruz ? 1 : 0));
         return { a: a, b: b, op: c.op };
       });
+      /**
+       * Auxiliar de btEvaluarCondiciones: devuelve el valor del operando o en la vela i (número fijo o elemento del
+       * array).
+       */
       function val(o, i){ return o.arr === null ? o.num : o.arr[i]; }
       for (var i = 0; i < n; i++){
         var resultados = ev.map(function(e){
@@ -75,9 +108,17 @@
       }
       return { sig: out, inicio: inicio, vacio: false };
     }
+    /**
+     * Traduce la estrategia est a señales por vela: entrada y salida de compra (el, xl) y de venta (es, xs), y la
+     * primera vela utilizable. Lanza Error si falta una condición de entrada.
+     */
     function btSenales(datos, est){
       var cache = {}, n = datos.length, vacio = new Array(n).fill(false), inicio = 0;
       var quiereLargo = est.dir !== 'corto', quiereCorto = est.dir !== 'largo';
+      /**
+       * Auxiliar de btSenales: evalúa un bloque de condiciones si está activo (y exige al menos una condición si es
+       * obligatorio) y actualiza el inicio común.
+       */
       function bloque(b, activo, nombre, obligatoria){
         if (!activo || !b) return { sig: vacio, inicio: 0 };
         var r = btEvaluarCondiciones(b.cond, b.logica, datos, cache);
@@ -95,13 +136,23 @@
     // ---------- Simulación ----------
     // est: { dir, sl, tp, trail, maxBarras, invertir, tam: { modo, valor, apalMax } }
     // cost: { spreadModo ('fijo'|'mt5'), spreadPips, slipPips, comision, pip, punto }
+    /**
+     * Simula la estrategia con las señales: ejecuta las órdenes en la apertura siguiente, aplica spread, slippage y
+     * comisión, gestiona stop, objetivo, trailing y tiempo máximo, y valora la cuenta vela a vela. Devuelve { trades,
+     * curva, ruina }.
+     */
     function btSimular(datos, sig, est, cost, capital){
       var n = datos.length, inicio = sig.inicio, eq = capital, trades = [], curva = new Array(n).fill(null), pos = null, pend = null, ruina = false;
       var slip = (cost.slipPips || 0) * cost.pip, comis = (cost.comision || 0) / 100;
+      /** Auxiliar de btSimular: devuelve el spread en precio de la vela i (histórico de MT5 o fijo en pips). */
       function spread(i){
         if (cost.spreadModo === 'mt5' && datos[i].spread > 0) return datos[i].spread * cost.punto;
         return (cost.spreadPips || 0) * cost.pip;
       }
+      /**
+       * Auxiliar de btSimular: abre una posición de dirección dir en la apertura de la vela i, con precio de entrada,
+       * tamaño, stop y objetivo, y descuenta la comisión de entrada.
+       */
       function abrir(dir, i){
         var b = datos[i], sp = spread(i);
         var fill = dir > 0 ? b.open + sp + slip : b.open - slip;
@@ -111,6 +162,10 @@
         eq -= eq * f * comis;   // comisión de entrada
         pos.eqBase = eq;
       }
+      /**
+       * Auxiliar de btSimular: cierra la posición al precio dado en la vela i por el motivo indicado, descuenta la
+       * comisión de salida, registra la operación y detecta la ruina.
+       */
       function cerrar(precio, i, motivo){
         var ret = pos.f * pos.dir * (precio / pos.fill - 1);
         eq = pos.eqBase * (1 + ret);
@@ -189,6 +244,10 @@
     }
 
     // ---------- Métricas ----------
+    /**
+     * Calcula las métricas de una simulación: rentabilidad, anualizada, win rate, profit factor, drawdown, Sharpe,
+     * mejor y peor operación, rachas, exposición y comparación con comprar y mantener.
+     */
     function btMetricas(datos, sim, inicio, capital, bh){
       var n = datos.length, trades = sim.trades, curva = sim.curva;
       var eqFin = curva[n - 1] === null ? capital : curva[n - 1];
@@ -237,6 +296,10 @@
     }
 
     // Ejecuta todo: devuelve { m (con costes), mSinCostes, trades, curva, inicio, ... } o lanza un Error con un mensaje claro
+    /**
+     * Orquesta el backtest: valida los datos, genera señales, simula con y sin costes y calcula métricas. Devuelve {
+     * m, mSinCostes, trades, curva, inicio, capital } o lanza un Error con un mensaje claro.
+     */
     function btEjecutar(datos, est, cost, capital){
       if (!datos || datos.length < 50) throw new Error('Hay muy pocas velas para probar la estrategia.');
       if (est.tam.modo === 'riesgo' && !(est.sl > 0)) throw new Error('El tamaño por riesgo necesita un Stop Loss (%).');
@@ -248,3 +311,17 @@
       var sim0 = btSimular(datos, sig, est, sinCostes, capital), m0 = btMetricas(datos, sim0, inicio, capital, bh);
       return { m: m, mSinCostes: m0, trades: sim.trades, curva: sim.curva, inicio: inicio, capital: capital };
     }
+
+/* -------------------------------------------------------------------------------------------------------
+   -------------------------------- FIN Piña y Jara 60_backtest_motor .JS --------------------------------
+   ------------------------------------------------------------------------------------------------------- */
+
+/*
+Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+Dirección: José Joaquín Prieto #5373 -
+San Miguel - Santiago - Chile
+contacto.pinayjara@gmail.com
+https://www.pinayjara.cl
+Creado, Programado y Diseñado por Piña y Jara
+Transportes y Servicios Ltda.
+*/

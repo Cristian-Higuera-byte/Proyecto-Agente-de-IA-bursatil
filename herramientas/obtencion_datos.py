@@ -1,9 +1,26 @@
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# -------------------------------- INICIO Piña y Jara obtencion_datos .PY -------------------------------
+# -------------------------------------------------------------------------------------------------------
+
 """
 obtencion_datos.py
 ----------------
 Módulo encargado de conectarse a Yahoo Finance mediante la biblioteca
 'yfinance' y extraer información bursátil (precios históricos, datos
 fundamentales, dividendos, etc.) para un ticker dado.
+
+Es la capa de acceso a datos de mercado que usan `analisis.py` y las
+herramientas del agente. Todas las funciones hacen llamadas de red; no
+escriben en disco ni modifican estado de sesión.
 """
 
 import pandas as pd  # type: ignore[import-untyped]
@@ -24,8 +41,11 @@ def obtener_datos_historicos(ticker: str, periodo: str = "6mo", intervalo: str =
         pd.DataFrame: DataFrame con columnas Open, High, Low, Close,
                        Volume, Dividends, Stock Splits, indexado por fecha.
     """
+    # Objeto yfinance del ticker y descarga del histórico pedido.
     activo = yf.Ticker(ticker)
     historico = activo.history(period=periodo, interval=intervalo)
+
+    # Un DataFrame vacío indica ticker inexistente o sin datos.
 
     if historico.empty:
         raise ValueError(f"No se encontraron datos para el ticker '{ticker}'.")
@@ -46,6 +66,7 @@ def obtener_info_general(ticker: str) -> dict:
     activo = yf.Ticker(ticker)
     info = activo.info  # Puede tardar unos segundos (llamada a la API)
 
+    # Se seleccionan solo los campos de interés y se renombran a claves en español.
     campos_relevantes = {
         "nombre": info.get("longName"),
         "sector": info.get("sector"),
@@ -76,6 +97,7 @@ def obtener_precio_en_fecha(ticker: str, fecha: str) -> float:
     inicio = (fecha_dt - pd.Timedelta(days=5)).strftime("%Y-%m-%d")
     fin = (fecha_dt + pd.Timedelta(days=5)).strftime("%Y-%m-%d")
 
+    # Descarga la ventana de +-5 días alrededor de la fecha.
     historico = activo.history(start=inicio, end=fin)
     if historico.empty:
         raise ValueError(f"No hay datos disponibles cerca de la fecha {fecha} para {ticker}.")
@@ -96,6 +118,7 @@ def obtener_noticias_activo(ticker: str, limite: int = 5) -> list:
     Retorna:
         list: Lista de diccionarios con título, fuente y enlace de cada noticia.
     """
+    # Cualquier error de red/estructura se devuelve como un elemento con la clave "error".
     try:
         tk = yf.Ticker(ticker)
         noticias = tk.news
@@ -103,6 +126,7 @@ def obtener_noticias_activo(ticker: str, limite: int = 5) -> list:
         if not noticias:
             return [{"titulo": "No hay noticias recientes disponibles para este ticker."}]
 
+        # Se recorren solo las primeras `limite` noticias.
         resultados = []
         for item in noticias[:limite]:
             # yfinance maneja la estructura de diccionarios (puede variar según la versión)
@@ -132,6 +156,7 @@ def obtener_indicadores_macro() -> dict:
     Retorna:
         dict: Valores actuales del Bono del Tesoro (Tasas), Oro (Inflación/Refugio), y Petróleo (Energía).
     """
+    # Símbolos de Yahoo usados como proxy -> descripción legible.
     indicadores = {
         "^TNX": "Bonos del Tesoro 10 Años (Tasas de Interés)",
         "GC=F": "Oro (Refugio / Inflación)",
@@ -141,6 +166,7 @@ def obtener_indicadores_macro() -> dict:
     resultados_macro = {}
 
     try:
+        # Para cada proxy: último cierre y variación frente al cierre previo.
         for ticker, descripcion in indicadores.items():
             tk = yf.Ticker(ticker)
             hist = tk.history(period="5d")
@@ -162,9 +188,22 @@ def obtener_indicadores_macro() -> dict:
         return {"error": f"No se pudieron obtener los indicadores macroeconómicos: {str(e)}"}
 
 if __name__ == "__main__":
-    # Prueba rápida del módulo
+    # Prueba rápida del módulo (solo al ejecutarlo directamente, no al importarlo)
     datos = obtener_datos_historicos("AAPL", periodo="1mo")
     print(datos.tail())
 
     info = obtener_info_general("AAPL")
     print(info)
+
+
+# -------------------------------------------------------------------------------------------------------
+# --------------------------------- FIN Piña y Jara obtencion_datos .PY ---------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

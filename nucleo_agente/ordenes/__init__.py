@@ -1,3 +1,16 @@
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ----------------------------------- INICIO Piña y Jara __init__ .PY -----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
 """Órdenes del agente - FASE 1: el agente PROPONE, el usuario CONFIRMA.
 
 NOMBRE DEL PAQUETE: nucleo_agente/ordenes
@@ -15,10 +28,14 @@ Garantías de diseño:
   * Una propuesta solo se ejecuta una vez (se "reclama" de forma atómica), así que
     un doble clic o un reintento no duplica la orden.
 
-Archivos: limites.py (LIMITES), db.py + sql/ (SQLite), mt5_utiles.py, validacion.py, propuestas.py (API del agente),
-envio.py (órdenes a MT5) y dashboard.py (listar / rechazar / confirmar). Aquí se reexportan todos los nombres que
-tenía el módulo único (incluidos los privados que usan vigilancia.py y las herramientas) para que
-`from nucleo_agente import ordenes` y `ordenes.confirmar_orden(...)` sigan funcionando igual."""
+Archivos: limites.py (LIMITES), base_datos.py + sql/ (SQLite), mt5_utiles.py, validacion.py, propuestas.py (API del
+agente), envio.py (órdenes a MT5) y tablero.py (listar / rechazar / confirmar).
+
+Este archivo es una FACHADA: no define lógica propia, solo reexporta los nombres de los submódulos (incluidos los
+privados que usan el paquete vigilancia y las herramientas del agente) para que
+`from nucleo_agente import ordenes` y `ordenes.confirmar_orden(...)` sigan funcionando igual que cuando todo vivía
+en un único módulo. Cada bloque de importación de abajo agrupa lo que sale de un submódulo."""
+# Límites de riesgo y constantes de MT5 (limites.py).
 from nucleo_agente.ordenes.limites import (
     LIMITES,
     LimitesRiesgo,
@@ -26,11 +43,12 @@ from nucleo_agente.ordenes.limites import (
     TOLERANCIA_RIESGO,
     TOLERANCIA_VS_PROPUESTA,
 )  # noqa: F401
+# Acceso a SQLite, esquema y interruptor de emergencia (base_datos.py).
 from nucleo_agente.ordenes.base_datos import (
     DIR_DATOS,
     RUTA_DB,
     kill_switch_activo,
-    set_kill_switch,
+    fijar_kill_switch,
     _COLUMNAS_NUEVAS_ORDENES,
     _DB_LOCK,
     _SQL_ORDENES,
@@ -41,6 +59,7 @@ from nucleo_agente.ordenes.base_datos import (
     _ejecutar,
     _insertar,
 )  # noqa: F401
+# Utilidades de MetaTrader 5: símbolos, reloj, pérdida del día, riesgo y chequeos globales (mt5_utiles.py).
 from nucleo_agente.ordenes.mt5_utiles import (
     MT5_LOCK,
     inicializar_mt5,
@@ -58,11 +77,13 @@ from nucleo_agente.ordenes.mt5_utiles import (
     _riesgo_expuesto,
     _simbolos_para_reloj,
 )  # noqa: F401
+# Validación de aperturas y de la cuenta demo (validacion.py).
 from nucleo_agente.ordenes.validacion import (
     cuenta_demo,
     validar_simbolo,
     _evaluar_apertura,
 )  # noqa: F401
+# API del agente: proponer y consultar, sin ejecutar nada (propuestas.py).
 from nucleo_agente.ordenes.propuestas import (
     estado_riesgo,
     proponer_apertura,
@@ -71,11 +92,13 @@ from nucleo_agente.ordenes.propuestas import (
     _propuesta_pendiente,
     _respuesta_duplicada,
 )  # noqa: F401
+# Envío real de órdenes a MT5 (envio.py).
 from nucleo_agente.ordenes.envio import (
     _enviar_apertura,
     _enviar_cierre,
     _interpretar,
 )  # noqa: F401
+# API del dashboard: listar, rechazar, expirar y confirmar (tablero.py).
 from nucleo_agente.ordenes.tablero import (
     confirmar_orden,
     expirar_vencidas,
@@ -83,3 +106,16 @@ from nucleo_agente.ordenes.tablero import (
     listar_pendientes,
     rechazar_orden,
 )  # noqa: F401
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------------- FIN Piña y Jara __init__ .PY ------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

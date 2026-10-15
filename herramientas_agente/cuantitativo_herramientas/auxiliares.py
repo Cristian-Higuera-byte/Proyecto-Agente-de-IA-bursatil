@@ -1,4 +1,21 @@
-"""Funciones y constantes auxiliares de las herramientas (sin registrar nada)."""
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ---------------------------------- INICIO Piña y Jara auxiliares .PY ----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+"""Funciones y constantes auxiliares de las herramientas (sin registrar nada).
+
+Traduce símbolos de MT5 a tickers de Yahoo Finance y obtiene retornos diarios (MT5 primero, Yahoo
+Finance como respaldo) para las herramientas cuantitativas.
+"""
 from __future__ import annotations
 
 from fuentes import mt5_fuentes as mt5_fuente
@@ -6,6 +23,11 @@ from fuentes import yfinance_fuente as yf_fuente
 
 
 def _mapear_simbolo_yf(simbolo: str) -> str:
+    """Convierte un símbolo estilo MT5 al ticker equivalente de Yahoo Finance.
+
+    Casos conocidos (EURUSD, USDCLP, GBPUSD, oro, WTI, BTCUSD) se mapean explícitamente; cualquier
+    otro par de 6 letras recibe el sufijo "=X" (divisas) y el resto se devuelve en mayúsculas.
+    """
     s = (simbolo or "").strip().upper().replace("/", "")
     if s == "EURUSD": return "EURUSD=X"
     if s == "USDCLP": return "USDCLP=X"
@@ -19,16 +41,23 @@ def _mapear_simbolo_yf(simbolo: str) -> str:
 
 
 def _obtener_retornos_historicos(simbolo: str, cantidad: int = 100) -> list[float]:
-    """Obtiene serie de retornos porcentuales diarios para un activo."""
+    """Obtiene la serie de retornos diarios (variación relativa, no en %) de un activo.
+
+    Recibe `simbolo` y `cantidad` de velas diarias. Primero intenta MT5 (velas D1); si devuelve menos
+    de 10 cierres, recurre a Yahoo Finance (6 meses, 1d). Los errores de cada fuente se ignoran en
+    silencio. Devuelve [] si hay menos de 2 cierres; si no, (cierre_i - cierre_i-1) / cierre_i-1.
+    """
     s_clean = simbolo.strip().upper()
     cierres = []
     
+    # Fuente primaria: velas diarias de MT5.
     try:
         res = mt5_fuente.velas(simbolo=s_clean, timeframe="D1", cantidad=cantidad, ultimas_velas=cantidad)
         cierres = [v["close"] for v in res.get("ultimas_velas", []) if v.get("close")]
     except Exception:
         pass
 
+    # Respaldo: Yahoo Finance si MT5 no entregó datos suficientes.
     if not cierres or len(cierres) < 10:
         try:
             yf_sym = _mapear_simbolo_yf(s_clean)
@@ -40,5 +69,19 @@ def _obtener_retornos_historicos(simbolo: str, cantidad: int = 100) -> list[floa
     if len(cierres) < 2:
         return []
 
+    # Retorno simple día a día.
     retornos = [(cierres[i] - cierres[i - 1]) / cierres[i - 1] for i in range(1, len(cierres))]
     return retornos
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------------ FIN Piña y Jara auxiliares .PY -----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

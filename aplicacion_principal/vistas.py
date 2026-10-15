@@ -1,4 +1,22 @@
-"""Enrutado: qué vista se dibuja en el área de contenido según la barra lateral."""
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------------ INICIO Piña y Jara vistas .PY ------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+"""
+Enrutado de vistas: decide qué pantalla se dibuja en el área de contenido.
+
+La vista activa depende del botón elegido en la barra lateral, que queda guardado en
+`st.session_state["nav_activo"]`.
+"""
 import streamlit as st
 
 from componentes_plataforma.noticias_panel import renderizar_panel_noticias
@@ -7,37 +25,59 @@ from .vista_operativa import renderizar_vista_operativa
 
 
 def renderizar_vista(fragmentos, consola) -> None:
-    """Área de contenido principal — cambia según la vista de la barra lateral."""
+    """
+    Dibuja en el área de contenido la vista que corresponde al botón activo de la barra lateral.
+
+    Vistas disponibles: noticias, cotizaciones, copytrading, trading, portafolio (cartera),
+    resumen y journal (diario). Cualquier otro valor, o ninguno, muestra la vista de Inicio, de
+    modo que los botones sin vista propia caen ahí. Los paneles menos usados se importan al
+    momento de dibujarlos para que un problema en uno no impida abrir los demás.
+    Recibe `fragmentos` (de `crear_fragmentos()`) y `consola` (módulo `consola_agente` o `None`).
+    """
+    # Pequeño espacio superior para separar el contenido de la barra fija.
     st.markdown("<div style='height: 0.2rem'></div>", unsafe_allow_html=True)
 
-    _nav = st.session_state.get("nav_activo")
-    if _nav == "noticias":
+    vista_activa = st.session_state.get("nav_activo")
+    if vista_activa == "noticias":
         # --- VISTA DE NOTICIAS ---
         renderizar_panel_noticias(consola)
-    elif _nav == "cotizaciones":
+    elif vista_activa == "cotizaciones":
         # --- VISTA DE COTIZACIONES (tablas estilo Investing) ---
         from componentes_plataforma.mercados_panel import renderizar_panel_mercados
         renderizar_panel_mercados(consola)
-    elif _nav == "copytrading":
-        # --- VISTA COPY TRADING (estrategias, MVP mock) ---
+    elif vista_activa == "copytrading":
+        # --- VISTA COPY TRADING (estrategias, MVP de demostración) ---
         from componentes_plataforma.copytrading_panel import renderizar_panel_copytrading
         renderizar_panel_copytrading(consola)
-    elif _nav == "trading":
+    elif vista_activa == "trading":
         # --- VISTA TRADING (favoritos + watchlist + gráfico + ticket de orden) ---
         renderizar_vista_operativa(fragmentos.watchlist, fragmentos, consola)
-    elif _nav == "portafolio":
+    elif vista_activa == "portafolio":
         # --- VISTA CARTERA (igual a Trading, pero la lista izquierda son las
         #     posiciones abiertas en vez del watchlist) ---
         renderizar_vista_operativa(fragmentos.cartera, fragmentos, consola)
-    elif _nav == "resumen":
+    elif vista_activa == "resumen":
         # --- VISTA RESUMEN (dashboard del portafolio: KPIs + curva + exposición) ---
         from componentes_plataforma.resumen_panel import renderizar_panel_resumen
         renderizar_panel_resumen(consola)
-    elif _nav == "journal":
+    elif vista_activa == "journal":
         # --- VISTA DIARIO (trading journal: operaciones + métricas + notas) ---
         from componentes_plataforma.diario_panel import renderizar_panel_journal
         renderizar_panel_journal(consola)
     else:
-        # --- VISTA INICIO (panel de cuenta estilo XM) — también para botones sin vista propia ---
+        # --- VISTA INICIO (panel de cuenta estilo XM), también para botones sin vista propia ---
         from componentes_plataforma.inicio_panel import renderizar_panel_inicio
         renderizar_panel_inicio(consola)
+
+
+# -------------------------------------------------------------------------------------------------------
+# -------------------------------------- FIN Piña y Jara vistas .PY -------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

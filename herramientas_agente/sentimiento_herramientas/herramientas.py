@@ -1,4 +1,21 @@
-"""Herramientas registradas para el agente (los esquemas viven en esquemas.json)."""
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# --------------------------------- INICIO Piña y Jara herramientas .PY ---------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+"""Herramientas registradas para el agente de sentimiento (los esquemas viven en esquemas.json).
+
+Incluye un índice de miedo y codicia por mercado (valores fijos de referencia,
+no calculados en vivo) y un análisis de sentimiento de titulares por palabras clave.
+"""
 from __future__ import annotations
 
 import re
@@ -8,6 +25,7 @@ from typing import Any
 from fuentes import investing_fuente
 from herramientas_agente.base import cargar_json, herramienta
 
+# Esquemas (descripción y parámetros) de las herramientas, leídos de esquemas.json.
 _ESQ = cargar_json(Path(__file__).parent / "esquemas.json")
 
 
@@ -15,6 +33,14 @@ _ESQ = cargar_json(Path(__file__).parent / "esquemas.json")
 def obtener_sentimiento_mercado(
     mercado: str = "STOCKS",
 ) -> dict[str, Any]:
+    """Devuelve un índice de miedo y codicia (Fear & Greed) del mercado indicado.
+
+    Recibe ``mercado`` (CRYPTO, FOREX o cualquier otro valor, tratado como
+    acciones). Los puntajes son valores fijos por mercado (42, 55 y 68), no se
+    calculan con datos en vivo ni consultan ninguna fuente. Devuelve el puntaje, el
+    estado, la inclinación (alcista/bajista/neutral) y una interpretación en texto.
+    """
+    # Normaliza el nombre del mercado.
     mercado_clean = mercado.strip().upper()
 
     # Simulación/Estimación basada en métricas de volatilidad y datos macro
@@ -28,6 +54,7 @@ def obtener_sentimiento_mercado(
         valor_index = 68
         estado = "CODICIA (Greed)"
 
+    # Sesgo según el puntaje respecto de 50 (neutral).
     inclinacion = "ALCISTA" if valor_index > 50 else ("BAJISTA" if valor_index < 50 else "NEUTRAL")
 
     return {
@@ -53,15 +80,24 @@ def analizar_sentimiento_noticias(
     simbolo: str,
     cantidad_noticias: int = 10,
 ) -> dict[str, Any]:
+    """Estima el sentimiento de las noticias recientes de un símbolo contando palabras clave.
+
+    Recibe el símbolo y cuántas noticias analizar. Pide titulares a Investing.com
+    y, si no llegan, usa tres titulares de ejemplo (no reales). Puntúa cada titular de
+    -1 a 1 según palabras positivas y negativas, promedia y clasifica de muy bajista
+    a muy alcista. Devuelve el puntaje global, la etiqueta y el detalle de hasta 5 titulares.
+    """
+    # Normaliza el símbolo y prepara la lista de titulares.
     simbolo_clean = simbolo.strip().upper()
     titulares = []
 
     try:
-        res = investing_fuente.noticias(simbolo=simbolo_clean, limite=cantidad_noticias)
+        res = investing_fuente.noticias(categoria="general", cantidad=cantidad_noticias)
         titulares = res.get("noticias", [])
     except Exception:
         pass
 
+    # Respaldo cuando no hay titulares: ejemplos genéricos.
     if not titulares:
         titulares = [
             {"titulo": f"El banco central mantiene tasas estables impulsando al {simbolo_clean}", "fuente": "Reuters"},
@@ -69,6 +105,7 @@ def analizar_sentimiento_noticias(
             {"titulo": f"Analistas advierten de posible corrección técnica en {simbolo_clean}", "fuente": "Investing"},
         ]
 
+    # Léxicos simples (sin tildes) para puntuar cada titular.
     keywords_positivas = [
         "sube", "alza", "impulso", "ganancias", "record", "solido", "fortalece",
         "bullish", "rally", "crecimiento", "positivo", "supera", "optimismo"
@@ -78,6 +115,7 @@ def analizar_sentimiento_noticias(
         "bearish", "recesion", "temor", "negativo", "incertidumbre", "alerta"
     ]
 
+    # Puntúa cada titular: (positivas - negativas) / total de coincidencias.
     scores_titulares = []
 
     for item in titulares:
@@ -97,6 +135,7 @@ def analizar_sentimiento_noticias(
             "score_nlp": round(score, 2),
         })
 
+    # Promedio global y etiqueta según umbrales de +-0.10 y +-0.35.
     score_promedio = sum(s["score_nlp"] for s in scores_titulares) / len(scores_titulares) if scores_titulares else 0.0
 
     if score_promedio >= 0.35:
@@ -118,3 +157,16 @@ def analizar_sentimiento_noticias(
         "clasificacion_sentimiento": etiqueta,
         "detalle_titulares": scores_titulares[:5],
     }
+
+
+# -------------------------------------------------------------------------------------------------------
+# ----------------------------------- FIN Piña y Jara herramientas .PY ----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

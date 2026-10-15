@@ -1,4 +1,21 @@
-"""API para el AGENTE: solo proponer / consultar. NADA se ejecuta aquí."""
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ---------------------------------- INICIO Piña y Jara propuestas .PY ----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+"""API para el AGENTE: solo proponer / consultar. NADA se ejecuta aquí.
+
+Las herramientas del agente (herramientas_agente/ordenes_herramientas) llaman a estas funciones. Cada propuesta
+válida queda PENDIENTE en SQLite hasta que el usuario la confirme; las rechazadas también se guardan como
+auditoría. El motor de vigilancia las reutiliza con origen="automatica"."""
 from dataclasses import asdict
 from typing import Any
 
@@ -23,6 +40,8 @@ def _propuesta_pendiente(accion: str, **filtros: Any) -> str | None:
 
 
 def _respuesta_duplicada(id_: str) -> dict[str, Any]:
+    """Construye la respuesta para el modelo cuando ya existe una propuesta pendiente igual (con su id)
+    e instruye no volver a proponerla."""
     return {
         "estado": "PROPUESTA_DUPLICADA",
         "id": id_,
@@ -38,17 +57,27 @@ def proponer_apertura(
     simbolo: str, lado: str, stop_loss: Any, take_profit: Any, riesgo_pct: float, justificacion: str,
     origen: str = "agente", vigilancia_id: str | None = None,
 ) -> dict[str, Any]:
+    """Registra una propuesta de apertura PENDIENTE de confirmación (no envía nada a MT5).
+
+    Recibe símbolo, lado, SL, TP, riesgo en % del equity, justificación, el origen ("agente" o "automatica") y
+    el id de la vigilancia si aplica. Aplica los chequeos globales, evita duplicados y valida con
+    _evaluar_apertura. Si algo falla guarda la orden como RECHAZADA_RIESGO (auditoría) y devuelve
+    {"estado": "RECHAZADA", "motivo"}; si todo va bien devuelve {"estado": "PROPUESTA_PENDIENTE", "id",
+    "resumen", "mensaje"}. Efecto: inserta filas en SQLite y consulta MT5."""
+    # Paso 1: chequeos globales y detección de propuesta duplicada (mismo símbolo y lado).
     cuenta, motivo = _chequeos_globales(para_abrir=True)
     if not motivo:
         previa = _propuesta_pendiente("abrir", simbolo=_resolver_simbolo(simbolo), lado=str(lado).strip().lower())
         if previa:
             return _respuesta_duplicada(previa)
+    # Paso 2: validación completa de la apertura (solo si no hay motivo previo).
     ev: dict[str, Any] | None = None
     if not motivo:
         ev = _evaluar_apertura(cuenta, simbolo, lado, stop_loss, take_profit, riesgo_pct)
         if ev is not None and not ev["ok"]:
             motivo = ev["motivo"]
 
+    # Rechazo: se guarda con su motivo para la auditoría y se informa al modelo.
     if motivo:
         _insertar(
             estado="RECHAZADA_RIESGO", accion="abrir", simbolo=_resolver_simbolo(simbolo), lado=str(lado).lower(),
@@ -56,6 +85,7 @@ def proponer_apertura(
         )
         return {"estado": "RECHAZADA", "motivo": motivo}
 
+    # Paso 3: propuesta válida; se guarda PENDIENTE con los datos calculados (volumen, precio de referencia, riesgo).
     assert ev is not None and ev["ok"]
     d = ev["datos"]
     id_ = _insertar(
@@ -83,9 +113,16 @@ def proponer_apertura(
 def proponer_cierre(
     ticket: Any, justificacion: str, origen: str = "agente", vigilancia_id: str | None = None,
 ) -> dict[str, Any]:
+    """Registra una propuesta de cierre de una posición abierta, PENDIENTE de confirmación.
+
+    Recibe el ticket (se convierte a entero), la justificación, el origen y la vigilancia. Comprueba MT5 y
+    cuenta demo, evita duplicados y verifica que la posición exista. Devuelve {"estado": "RECHAZADA", "motivo"}
+    (guardada como auditoría) o {"estado": "PROPUESTA_PENDIENTE", "id", "resumen", "mensaje"}.
+    Efecto: inserta una fila en SQLite; no cierra nada."""
     cuenta, motivo = _chequeos_globales(para_abrir=False)
 
     def rechazo(txt: str) -> dict[str, Any]:
+        """Guarda una orden de cierre RECHAZADA_RIESGO con el motivo y devuelve la respuesta de rechazo."""
         _insertar(estado="RECHAZADA_RIESGO", accion="cerrar", justificacion=justificacion, detalle=txt,
                   origen=origen, vigilancia_id=vigilancia_id)
         return {"estado": "RECHAZADA", "motivo": txt}
@@ -103,6 +140,7 @@ def proponer_cierre(
     if not posiciones:
         return rechazo(f"No existe una posición abierta con ticket {ticket}.")
 
+    # Precio de referencia: el de cierre (bid para una compra, ask para una venta).
     p = posiciones[0]
     es_compra = p.type == mt5.POSITION_TYPE_BUY
     tick = mt5.symbol_info_tick(p.symbol)
@@ -129,6 +167,9 @@ def proponer_cierre(
 
 @_con_lock
 def resumen_posiciones() -> dict[str, Any]:
+    """Devuelve el estado de la cuenta (tipo, balance, equity, margen libre, flotante) y las posiciones abiertas.
+
+    Es solo lectura sobre MT5; si MT5 no está listo devuelve {"error": ...}."""
     error = _preparar_mt5()
     if error:
         return {"error": error}
@@ -156,6 +197,8 @@ def resumen_posiciones() -> dict[str, Any]:
 
 @_con_lock
 def estado_riesgo() -> dict[str, Any]:
+    """Devuelve los límites de riesgo vigentes, el interruptor de emergencia y, si MT5 responde, la pérdida del día,
+    el número de posiciones abiertas, el riesgo en juego (abiertas + pendientes) y la moneda."""
     out: dict[str, Any] = {"limites": asdict(LIMITES), "interruptor_emergencia": kill_switch_activo()}
     error = _preparar_mt5()
     cuenta = None if error else mt5.account_info()
@@ -165,3 +208,16 @@ def estado_riesgo() -> dict[str, Any]:
         out["riesgo_en_juego"] = round(_riesgo_expuesto(cuenta, incluir_pendientes=True), 2)  # abiertas + pendientes
         out["moneda"] = cuenta.currency
     return out
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------------ FIN Piña y Jara propuestas .PY -----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

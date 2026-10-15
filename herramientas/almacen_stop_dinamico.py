@@ -1,3 +1,16 @@
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ----------------------------- INICIO Piña y Jara almacen_stop_dinamico .PY ----------------------------
+# -------------------------------------------------------------------------------------------------------
+
 """
 almacen_stop_dinamico.py
 -----------------
@@ -20,12 +33,16 @@ import os
 import tempfile
 import threading
 
+# Carpeta `data/` en la raíz del proyecto.
 _DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+# Archivo JSON compartido con las configuraciones de trailing por ticket.
 _RUTA = os.path.join(_DIR, "trailing.json")
+# Candado que serializa las modificaciones dentro del proceso.
 _LOCK = threading.Lock()
 
 
 def _leer_crudo() -> dict:
+    """Lee `trailing.json` tal cual (sin validar); devuelve {} si falta o está corrupto."""
     try:
         with open(_RUTA, "r", encoding="utf-8") as f:
             return json.load(f)
@@ -36,6 +53,7 @@ def _leer_crudo() -> dict:
 def leer() -> dict:
     """Devuelve {ticket(int): {"dist": float, "paso": float}}."""
     out = {}
+    # Convierte claves a int y valores a float; descarta entradas dañadas.
     for k, v in _leer_crudo().items():
         try:
             out[int(k)] = {"dist": float(v.get("dist", 0.0)), "paso": float(v.get("paso", 0.0))}
@@ -45,6 +63,7 @@ def leer() -> dict:
 
 
 def _guardar(d: dict) -> None:
+    """Escribe las configuraciones en `trailing.json` de forma atómica (claves convertidas a texto)."""
     os.makedirs(_DIR, exist_ok=True)
     tmp = tempfile.NamedTemporaryFile("w", delete=False, dir=_DIR, encoding="utf-8")
     try:
@@ -57,7 +76,11 @@ def _guardar(d: dict) -> None:
 
 
 def fijar(ticket: int, dist: float, paso: float = 0.0) -> None:
-    """Activa / actualiza el trailing de una posición."""
+    """Activa o actualiza el trailing de una posición.
+
+    Recibe el ticket, la distancia `dist` (en precio) del SL respecto al precio y el
+    `paso` mínimo de mejora. Persiste el cambio para que el motor lo lea.
+    """
     with _LOCK:
         d = leer()
         d[int(ticket)] = {"dist": float(dist), "paso": float(paso)}
@@ -79,3 +102,16 @@ def mtime() -> float:
         return os.path.getmtime(_RUTA)
     except OSError:
         return 0.0
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------ FIN Piña y Jara almacen_stop_dinamico .PY ------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

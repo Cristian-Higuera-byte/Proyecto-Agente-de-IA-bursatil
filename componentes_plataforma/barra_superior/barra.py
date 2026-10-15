@@ -1,4 +1,23 @@
-"""Barra de navegación superior (estilo terminal de trading): buscador, saldo y métricas, campana y usuario."""
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------------- INICIO Piña y Jara barra .PY ------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+"""Barra de navegación superior (estilo terminal de trading): buscador, saldo y métricas, campana y usuario.
+
+Ensambla, en una fila de columnas de Streamlit, el botón del menú (que alterna la barra
+lateral mediante el JS de barra_lateral/estatico/barra_lateral.js), el botón que abre el buscador, las tarjetas de capital y
+métricas, la campana de notificaciones y el menú del usuario. aplicacion.py la dibuja dentro del contenedor fijo
+`barra_nav_fija`.
+"""
 from pathlib import Path
 
 import streamlit as st
@@ -11,6 +30,7 @@ from componentes_plataforma.barra_superior.notificaciones import campana, usuari
 from componentes_plataforma.buscador import abrir_buscador
 from nucleo_agente import vigilancia
 
+# Carpeta de este paquete (para localizar usuario_menu.html).
 _DIR = Path(__file__).parent
 
 
@@ -20,7 +40,17 @@ def renderizar_barra_navegacion(usuario: str = "Emilio Fuentes",
                                 pl: float | None = None,
                                 usuario_id: str | None = None,
                                 metricas: dict | None = None):
+    """Dibuja la barra superior fija con buscador, capital, métricas, campana y usuario.
+
+    Recibe `usuario` (nombre mostrado), `saldo` (equity de MT5 o None si no hay conexión),
+    `moneda`, `pl` (ganancia/pérdida flotante), `usuario_id` (id para las notificaciones; si
+    es None se toma de la sesión) y `metricas` (diccionario de métricas de la barra, o None).
+    Efectos secundarios: inicia el motor de vigilancias (idempotente), inyecta el CSS, y el
+    botón del buscador activa la bandera del diálogo y reejecuta la app.
+    """
+    # Iniciales para el avatar (hasta dos palabras)
     iniciales = "".join([p[0] for p in usuario.split()[:2]]).upper() or "U"
+    # Retoma las vigilancias activas tras un reinicio de la app
     try:
         vigilancia.iniciar_motor()   # idempotente: retoma las vigilancias activas tras reiniciar la app
     except Exception:  # noqa: BLE001 - la barra nunca debe fallar por esto
@@ -50,6 +80,7 @@ def renderizar_barra_navegacion(usuario: str = "Emilio Fuentes",
         f"font-family:monospace;'>{saldo_txt}</span>{pl_span}",
     )
 
+    # Chips de Riesgo, Drawdown y Mercado (cadena vacía si no hay métricas)
     chips_metricas = _calcular_chips(metricas)
 
     # Estilos de la navbar + del botón buscador
@@ -63,6 +94,7 @@ def renderizar_barra_navegacion(usuario: str = "Emilio Fuentes",
         </div>
     """
 
+    # Menú del usuario: plantilla HTML con marcadores sustituidos por las iniciales y el nombre
     html_usuario = (texto(_DIR / "usuario_menu.html")
                     .replace("__INICIALES__", iniciales).replace("__USUARIO__", usuario))
 
@@ -70,19 +102,35 @@ def renderizar_barra_navegacion(usuario: str = "Emilio Fuentes",
     c_toggle, c_buscar, c_spacer, c_saldo, c_campana, c_usuario = st.columns(
         [0.2, 1.3, 1.49, 1.05, 0.16, 0.6], vertical_alignment="center")
     with c_toggle:
-        # El clic lo intercepta un script en el navegador (nav_bar.py, _JS_SIDEBAR)
+        # El clic lo intercepta un script en el navegador (barra_lateral/estatico/barra_lateral.js)
         # que alterna la barra lateral con animación CSS, SIN reejecutar Python.
         st.button(":material/menu:", key="top_toggle")
     with c_buscar:
+        # Abre el diálogo del buscador mediante la bandera de sesión y reejecuta
         if st.button("Buscar activo, par o ticker...", icon=":material/search:",
                      key="btn_abrir_buscador", width="stretch"):
             abrir_buscador()
             st.rerun()
     with c_spacer:
+        # Columna vacía que empuja el resto a la derecha (ver estilos.css)
         st.empty()
     with c_saldo:
         st.markdown(html_saldo, unsafe_allow_html=True)
     with c_campana:
+        # Campana de notificaciones del usuario
         campana(usuario_id or _usuario_id())
     with c_usuario:
         st.markdown(html_usuario, unsafe_allow_html=True)
+
+
+# -------------------------------------------------------------------------------------------------------
+# -------------------------------------- FIN Piña y Jara barra .PY --------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

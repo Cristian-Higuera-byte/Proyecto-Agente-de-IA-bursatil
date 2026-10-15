@@ -1,7 +1,22 @@
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ----------------------------------- INICIO Piña y Jara __init__ .PY -----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
 """
 componentes_plataforma/mercados
 -------------------
-Página "Mercados" (barra lateral), con diseño de plataforma de bróker:
+Paquete de la página "Mercados" (barra lateral), con diseño de plataforma de bróker. Expone solo
+`renderizar_panel_mercados`, que arma la página completa; el resto de módulos son piezas internas.
+
 - Resumen del mercado: 5 referencias (S&P 500, Nasdaq, Oro, EUR/USD, Bitcoin)
   con precio y variación del día en vivo + tendencia de las últimas 24 h.
 - Pestañas por categoría (con cantidad), buscador y orden.
@@ -25,6 +40,21 @@ acciones, el ticker que MT5 trae en la descripción ("Apple Inc (AAPL.OQ)").
 Archivos: panel.py (arma la página), secciones.py (pulso + tabla), ficha.py (modal), grafico.py,
 piezas.py (HTML), broker.py (datos MT5), constantes.py + datos.json (catálogo), estilos.css y estatico/.
 """
+# Fachada: reexporta la única función pública del paquete para que se importe como `mercados.renderizar_panel_mercados`
 from componentes_plataforma.mercados.panel import renderizar_panel_mercados
 
+# Nombres públicos del paquete
 __all__ = ["renderizar_panel_mercados"]
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------------- FIN Piña y Jara __init__ .PY ------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

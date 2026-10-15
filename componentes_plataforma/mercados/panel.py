@@ -1,23 +1,47 @@
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------------- INICIO Piña y Jara panel .PY ------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
 """Página "Mercados": cabecera, pulso del mercado, pestañas por categoría con buscador y orden, tabla en vivo y
-ficha del instrumento (modal)."""
+ficha del instrumento (modal).
+
+Es el punto de entrada del paquete: ensambla las secciones de `secciones.py`, el modal de `ficha.py` y los
+estilos de `estilos.css`.
+"""
 from datetime import datetime
 
 import streamlit as st
 import streamlit.components.v1 as components
 
-from componentes_plataforma.flujo_vivo import intervalo
-from componentes_plataforma.mercados.broker import items
+from componentes_plataforma.flujo_precios import intervalo
+from componentes_plataforma.mercados.broker import elementos
 from componentes_plataforma.mercados.cargando import JS_CARGANDO
 from componentes_plataforma.mercados.constantes import CATALOGO, ORDENES
 from componentes_plataforma.mercados.estilos import CSS
 from componentes_plataforma.mercados.ficha import mostrar_ficha
-from componentes_plataforma.mercados.secciones import render_tabla, resumen
+from componentes_plataforma.mercados.secciones import renderizar_tabla, resumen
 from herramientas.puente_mt5 import inicializar_mt5
 
 
 def renderizar_panel_mercados(main=None):
+    """Dibuja la página Mercados completa.
+
+    El parámetro `main` se acepta por compatibilidad con la firma de las demás páginas y no se usa.
+    Inicializa MT5, inyecta el CSS, pinta la cabecera, el pulso del mercado y la tabla (ambos en fragmentos
+    que se refrescan solos), los controles de categoría, búsqueda y orden, el script del indicador
+    "cargando" y, si hay un instrumento seleccionado en `mkt_detalle`, abre su ficha. No devuelve nada."""
     inicializar_mt5()
     st.html(CSS)
+    # intervalo("x") es None cuando el feed SSE en vivo está activo; si no, se refresca por sondeo
     en_vivo = intervalo("x") is None
     st.html(
         "<div class='mkt-hdr'><div><div class='mkt-title'>Mercados</div>"
@@ -29,16 +53,18 @@ def renderizar_panel_mercados(main=None):
 
     @st.fragment(run_every=intervalo("3s", "30s"))
     def _resumen_vivo():
+        """Fragmento que repinta las tarjetas del pulso del mercado en cada refresco."""
         resumen()
     _resumen_vivo()
     st.html("<div style='height:6px;'></div>")
 
+    # Controles: pestañas por categoría (con cantidad de instrumentos), buscador y selector de orden
     categorias = list(CATALOGO.keys())
-    conteo = {c: len(items(c)) for c in categorias}
+    conteo = {c: len(elementos(c)) for c in categorias}
     c_tabs, c_q, c_ord = st.columns([3.2, 1.3, 0.9], vertical_alignment="bottom")
     with c_tabs:
         with st.container(key="mkt_tabs"):
-            cat = st.segmented_control(
+            st.segmented_control(
                 "Categoría", categorias, default=categorias[0], key="mkt_cat",
                 format_func=lambda c: f"{c}  {conteo.get(c, 0)}", label_visibility="collapsed",
             ) or categorias[0]
@@ -50,11 +76,12 @@ def renderizar_panel_mercados(main=None):
 
     @st.fragment(run_every=intervalo("3s", "30s"))
     def _tabla_en_vivo():
+        """Fragmento que repinta la nota, la tabla de la categoría activa y el pie con la hora de actualización."""
         categoria = st.session_state.get("mkt_cat") or categorias[0]
-        n = len(items(categoria))
+        n = len(elementos(categoria))
         st.html(f"<div class='mkt-nota'><span class='ico'>local_fire_department</span>"
                 f"<span>Mostrando <b>los {n} {categoria.lower()} más seguidos del mercado</b></span></div>")
-        total, mostrados = render_tabla(categoria)
+        total, mostrados = renderizar_tabla(categoria)
         st.html(f"<div class='mkt-pie'>{mostrados} de {total} instrumentos · {categoria} · "
                 f"actualizado {datetime.now().strftime('%H:%M:%S')}</div>")
     _tabla_en_vivo()
@@ -67,3 +94,16 @@ def renderizar_panel_mercados(main=None):
     # vivo) para no chocar con su auto-refresco (evita pantallas en blanco).
     if st.session_state.get("mkt_detalle"):
         mostrar_ficha()
+
+
+# -------------------------------------------------------------------------------------------------------
+# -------------------------------------- FIN Piña y Jara panel .PY --------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

@@ -1,26 +1,63 @@
+/*
+Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+Dirección: José Joaquín Prieto #5373 -
+San Miguel - Santiago - Chile
+contacto.pinayjara@gmail.com
+https://www.pinayjara.cl
+Creado, Programado y Diseñado por Piña y Jara
+Transportes y Servicios Ltda.
+*/
+
+
+/* -------------------------------------------------------------------------------------------------------
+   ----------------------------------- INICIO Piña y Jara estilos .CSS -----------------------------------
+   ------------------------------------------------------------------------------------------------------- */
+
+    /* BOTONES DEL CARRUSEL (flechas anterior y siguiente; keys news_prev y news_next de secciones.py) */
+    /* Boton circular oscuro; !important porque debe ganar al estilo por defecto de los botones de Streamlit */
     [class*="st-key-news_prev"] button, [class*="st-key-news_next"] button {
         background:#161b22 !important; border:1px solid #30363d !important;
-        color:#e6edf3 !important; border-radius:50% !important;
+        color:#e6edf3 !important; border-radius:50% !important; /* forma circular */
         width:40px !important; height:40px !important; min-height:40px !important;
         font-size:20px !important; padding:0 !important;
     }
+    /* Al pasar el raton, borde y flecha en azul */
     [class*="st-key-news_prev"] button:hover, [class*="st-key-news_next"] button:hover {
         border-color:#58a6ff !important; color:#58a6ff !important;
     }
+    /* TARJETAS Y NOTICIA PRINCIPAL CLICABLES */
     /* Tarjeta / principal clicables: botón invisible que cubre todo.
        Se fijan los 4 bordes explícitos (no el shorthand inset) — igual que en
        watchlist.py — porque con inset el área clicable no se activa bien. */
+    /* Contenedores de la noticia principal (nhero), del carrusel (nc_N) y de Mas noticias (ync_N): referencia de posicion del boton */
     .st-key-nhero, [class*="st-key-nc_"], [class*="st-key-ync_"] { position:relative; }
+    /* Contenedor del boton "abrir" de cada noticia: se estira sobre todo el contenedor padre y queda por encima del HTML */
     [class*="st-key-nhero_btn"], [class*="st-key-ncb_"], [class*="st-key-yncb_"] {
         position:absolute !important;
         top:0 !important; right:0 !important; bottom:0 !important; left:0 !important;
         width:100% !important; height:100% !important;
-        margin:0 !important; padding:0 !important; z-index:2;
+        margin:0 !important; padding:0 !important; z-index:2; /* encima de la tarjeta para recibir el clic */
     }
+    /* Todos los descendientes ocupan el 100% y pierden margenes, para que el boton cubra el area completa */
     [class*="st-key-nhero_btn"] *, [class*="st-key-ncb_"] *, [class*="st-key-yncb_"] * {
         width:100% !important; height:100% !important; min-height:0 !important;
         margin:0 !important; padding:0 !important;
     }
+    /* El boton es transparente: la tarjeta se ve pero el clic lo recibe el boton, que abre el modal de la noticia */
     [class*="st-key-nhero_btn"] button, [class*="st-key-ncb_"] button, [class*="st-key-yncb_"] button {
         opacity:0 !important; cursor:pointer !important;
     }
+
+/* -------------------------------------------------------------------------------------------------------
+   ------------------------------------- FIN Piña y Jara estilos .CSS ------------------------------------
+   ------------------------------------------------------------------------------------------------------- */
+
+/*
+Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+Dirección: José Joaquín Prieto #5373 -
+San Miguel - Santiago - Chile
+contacto.pinayjara@gmail.com
+https://www.pinayjara.cl
+Creado, Programado y Diseñado por Piña y Jara
+Transportes y Servicios Ltda.
+*/

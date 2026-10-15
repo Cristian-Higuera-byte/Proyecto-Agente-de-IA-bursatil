@@ -1,4 +1,22 @@
-"""Núcleo del motor: suscripciones, lectura de ticks y cuenta, bucle principal y lectura para los clientes."""
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------------- INICIO Piña y Jara base .PY -------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+"""Núcleo del motor: suscripciones, lectura de ticks y cuenta, bucle principal y lectura para los clientes.
+
+Define `MotorPrecios` (compuesta con los mixins de stop dinámico y OCO) y la instancia única
+`MOTOR`. Un solo hilo consulta MT5; los hilos HTTP (SSE) solo leen la última foto y esperan
+novedades en una Condition.
+"""
 import threading
 import time
 
@@ -14,9 +32,15 @@ from .stop_dinamico import MixinStopDinamico
 
 class MotorPrecios(MixinStopDinamico, MixinOco):
     """Lee ticks de MT5 en un solo hilo y guarda la última foto de cada símbolo.
-    Los clientes SSE esperan en una Condition y reciben SOLO lo que cambió."""
+    Los clientes SSE esperan en una Condition y reciben SOLO lo que cambió.
+
+    Hereda _paso_trailing/_paso_oco de los mixins. Los diccionarios de estado se describen
+    en __init__; las escrituras se hacen bajo self._cond.
+    """
 
     def __init__(self):
+        """Crea el estado vacío del motor: condición de sincronización, cachés y configuración de trailing/OCO."""
+        # Condition: protege el estado y despierta a los clientes SSE cuando hay cambios
         self._cond = threading.Condition()
         self._seq = 0                 # contador global de cambios
         self._ticks: dict = {}        # pedido -> {"b","a","l","t","ch","pct","seq"}
@@ -33,12 +57,14 @@ class MotorPrecios(MixinStopDinamico, MixinOco):
 
     # --- suscripciones -----------------------------------------------------
     def suscribir(self, simbolos):
+        """Registra (o renueva) el interés de un cliente en los símbolos indicados, marcando la hora actual."""
         ahora = time.time()
         with self._cond:
             for s in simbolos:
                 self._subs[s] = ahora
 
     def _activos(self):
+        """Devuelve los símbolos con suscripción vigente y elimina los que superaron TTL_SUSCRIPCION sin renovarse."""
         limite = time.time() - TTL_SUSCRIPCION
         with self._cond:
             for s in [s for s, t in self._subs.items() if t < limite]:
@@ -47,6 +73,10 @@ class MotorPrecios(MixinStopDinamico, MixinOco):
 
     # --- lecturas de MT5 (solo desde el hilo del motor) -------------------
     def _real(self, pedido):
+        """Traduce el símbolo pedido por el cliente al nombre real del terminal (con caché).
+
+        La primera vez resuelve el nombre y lo activa en Market Watch con symbol_select.
+        """
         real = self._reales.get(pedido)
         if real is None:
             with CANDADO_MT5:
@@ -56,7 +86,11 @@ class MotorPrecios(MixinStopDinamico, MixinOco):
         return real
 
     def _cierre_previo(self, real):
-        """Cierre de la vela diaria ANTERIOR: base de la variación del día."""
+        """Cierre de la vela diaria ANTERIOR: base de la variación del día.
+
+        Usa caché por símbolo real durante TTL_REFERENCIA segundos. Si solo hay una vela
+        diaria, usa su apertura. Devuelve None si MT5 no entrega datos.
+        """
         ref = self._ref.get(real)
         if ref and time.time() - ref[1] < TTL_REFERENCIA:
             return ref[0]
@@ -71,7 +105,14 @@ class MotorPrecios(MixinStopDinamico, MixinOco):
         return valor
 
     def _leer_ticks(self):
+        """Lee el último tick de cada símbolo activo y devuelve solo los que cambiaron.
+
+        Devuelve {pedido: {b, a, l, t, ch, pct}}: bid, ask, último precio (last o bid),
+        hora del tick, variación absoluta y porcentual frente al cierre previo. Omite símbolos
+        sin precio o sin tick nuevo (mismo time_msc) y los que fallen. Solo se llama desde el hilo del motor.
+        """
         cambios = {}
+        # Recorre los símbolos con suscripción vigente
         for pedido in self._activos():
             try:
                 real = self._real(pedido)
@@ -95,12 +136,21 @@ class MotorPrecios(MixinStopDinamico, MixinOco):
         return cambios
 
     def _leer_cuenta(self):
+        """Arma la foto de la cuenta: saldo, equity, margen, P/G, posiciones y órdenes pendientes.
+
+        Devuelve un dict listo para enviar por SSE (claves equity, balance, profit, currency,
+        margin..., uso_margen, pos, pc, pi y ord) o None si MT5 no entrega la cuenta.
+        Marca con "tr" las posiciones con stop dinámico y con "oco" las órdenes en un par OCO.
+        Efecto: lecturas de MT5 bajo candado y de los almacenes en disco.
+        """
         with CANDADO_MT5:
             info = mt5.account_info()
             posiciones = mt5.positions_get() or []
             ordenes = mt5.orders_get() or []          # órdenes pendientes
+        # Sin cuenta (terminal desconectado): no hay nada que publicar
         if info is None:
             return None
+        # Resumen de posiciones abiertas
         # P/G neto por posición (profit + swap) → la suma coincide con info.profit
         pos = {str(p.ticket): round(p.profit + p.swap, 2) for p in posiciones}
         pc = {str(p.ticket): p.price_current for p in posiciones}   # precio actual (Inicio)
@@ -110,6 +160,8 @@ class MotorPrecios(MixinStopDinamico, MixinOco):
         pi = {}
         specs = {}
         def _spec(simbolo):
+            """Devuelve (k, sm) del símbolo con caché local: k = valor monetario de 1 unidad de precio
+            por lote (tick_value / tick_size) y sm = distancia mínima de stops en precio."""
             if simbolo not in specs:
                 with CANDADO_MT5:
                     si = mt5.symbol_info(simbolo)
@@ -119,12 +171,14 @@ class MotorPrecios(MixinStopDinamico, MixinOco):
                     float(getattr(si, "trade_stops_level", 0) or 0) * float(getattr(si, "point", 0) or 0),
                 )
             return specs[simbolo]
+        # Tickets con stop dinámico y detalle por posición
         tr = almacen_stop_dinamico.leer()      # tickets con stop dinámico activo (etiqueta "auto")
         for p in posiciones:
             k, sm = _spec(p.symbol)
             pi[str(p.ticket)] = {"s": p.symbol, "t": int(p.type), "v": p.volume, "po": p.price_open,
                                  "sl": p.sl, "tp": p.tp, "k": k, "sm": sm,
                                  "tr": 1 if p.ticket in tr else 0}
+        # Resumen de órdenes pendientes
         # órdenes pendientes (t: 2 Buy Limit, 3 Sell Limit, 4 Buy Stop, 5 Sell Stop)
         oco_tks = almacen_oco.tickets_en_oco()   # tickets vinculados en un par OCO (etiqueta "OCO")
         orden = {}
@@ -163,10 +217,20 @@ class MotorPrecios(MixinStopDinamico, MixinOco):
 
     # --- bucle principal ---------------------------------------------------
     def correr(self):
+        """Bucle infinito del hilo del motor (se ejecuta en un hilo demonio).
+
+        Cada INTERVALO_TICKS lee ticks y, cada INTERVALO_CUENTA, la cuenta; publica los
+        cambios con un nuevo número de secuencia y despierta a los clientes. Luego ejecuta
+        los pasos de stop dinámico, OCO y registro de equity. Ante un error lo imprime y
+        espera 1 s.
+        """
+        # Instante de la última lectura de cuenta (limita la frecuencia a INTERVALO_CUENTA)
         ultima_cuenta = 0.0
+        # Ciclo permanente del motor
         while True:
             inicio = time.time()
             try:
+                # 1) Ticks nuevos de los símbolos suscritos
                 cambios = self._leer_ticks()
                 cuenta = None
                 if inicio - ultima_cuenta >= INTERVALO_CUENTA:
@@ -174,6 +238,7 @@ class MotorPrecios(MixinStopDinamico, MixinOco):
                     cuenta = self._leer_cuenta()
                     if cuenta and all(self._cuenta.get(k) == v for k, v in cuenta.items()):
                         cuenta = None   # sin cambios
+                # 2) Publica los cambios con una nueva secuencia y avisa a los clientes SSE
                 if cambios or cuenta:
                     with self._cond:
                         self._seq += 1
@@ -184,17 +249,22 @@ class MotorPrecios(MixinStopDinamico, MixinOco):
                             cuenta["seq"] = self._seq
                             self._cuenta = cuenta
                         self._cond.notify_all()
+                # 3) Tareas del cliente que no dependen de si hubo cambios
                 self._paso_trailing()          # mueve los stops dinámicos activos
                 self._paso_oco()               # cancela la pata sobrante de los OCO ejecutados
                 self._paso_equity_log()        # snapshot de equity (drawdown real, Tanda 2)
             except Exception as e:
                 print(f"[motor] error leyendo MT5: {e}")
                 time.sleep(1)
+            # Duerme lo que falte para completar el intervalo
             time.sleep(max(0.0, INTERVALO_TICKS - (time.time() - inicio)))
 
     # --- lectura para los clientes ----------------------------------------
     def foto(self, simbolos, desde_seq=0):
-        """Ticks (de esos símbolos) y cuenta que cambiaron después de `desde_seq`."""
+        """Ticks (de esos símbolos) y cuenta que cambiaron después de `desde_seq`.
+
+        Devuelve (secuencia_actual, ticks, cuenta); cuenta es None si no cambió. Quita la clave interna "seq".
+        """
         with self._cond:
             ticks = {s: {k: v for k, v in self._ticks[s].items() if k != "seq"}
                      for s in simbolos
@@ -205,9 +275,24 @@ class MotorPrecios(MixinStopDinamico, MixinOco):
             return self._seq, ticks, cuenta
 
     def esperar(self, seq, timeout):
+        """Bloquea hasta que la secuencia global supere `seq` o pase `timeout` segundos; devuelve la secuencia actual."""
         with self._cond:
             self._cond.wait_for(lambda: self._seq > seq, timeout=timeout)
             return self._seq
 
 
+# Instancia única compartida por ejecucion.py (hilo) y manejador.py (clientes)
 MOTOR = MotorPrecios()
+
+
+# -------------------------------------------------------------------------------------------------------
+# --------------------------------------- FIN Piña y Jara base .PY --------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

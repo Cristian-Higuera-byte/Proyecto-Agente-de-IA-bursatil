@@ -1,4 +1,21 @@
-"""Herramientas registradas para el agente (los esquemas viven en esquemas.json)."""
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# --------------------------------- INICIO Piña y Jara herramientas .PY ---------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+"""Herramientas registradas para el agente de simulación (los esquemas viven en esquemas.json).
+
+Registra ``simular_escenario_cartera``, que proyecta el efecto de variaciones
+porcentuales hipotéticas sobre las posiciones abiertas de MT5.
+"""
 from __future__ import annotations
 
 import json
@@ -14,6 +31,7 @@ from herramientas_agente.simulacion_herramientas.auxiliares import (
     _normalizar_simbolo,
 )
 
+# Esquemas (descripción y parámetros) de la herramienta, leídos de esquemas.json.
 _ESQ = cargar_json(Path(__file__).parent / "esquemas.json")
 
 
@@ -22,6 +40,17 @@ def simular_escenario_cartera(
     variaciones_pct: str | dict[str, float],
     incluir_noticias_contexto: bool = True,
 ) -> dict[str, Any]:
+    """Simula el efecto de variaciones porcentuales hipotéticas sobre la cartera abierta.
+
+    Recibe ``variaciones_pct`` (diccionario o texto JSON/"SIMBOLO:valor" con la
+    variación % por activo) e indica si se incluyen noticias de contexto. Lee la
+    cuenta y las posiciones de MT5; a cada posición le aplica la variación directa
+    o, si no hay, una indirecta por elasticidad cruzada; calcula el cambio de PnL por valor
+    nocional estimado, la equidad y el nivel de margen proyectados y un estado de
+    riesgo (stop out, margin call, drawdown, etc.). Opcionalmente busca noticias en
+    Investing.com. No ejecuta operaciones. Devuelve el resumen de cartera,
+    el impacto por posición y las noticias (hasta 5).
+    """
     # Parsear parámetro de entrada
     if isinstance(variaciones_pct, str):
         try:
@@ -36,6 +65,7 @@ def simular_escenario_cartera(
     else:
         variaciones_dict = variaciones_pct
 
+    # Normaliza los símbolos de las variaciones para poder compararlos con las posiciones.
     variaciones_norm = {_normalizar_simbolo(k): float(v) for k, v in variaciones_dict.items()}
 
     # Obtener estado actual de la cuenta y posiciones
@@ -45,14 +75,16 @@ def simular_escenario_cartera(
     equidad_actual = cuenta.get("equidad") or 0.0
     balance_actual = cuenta.get("balance") or 0.0
     margen_usado = cuenta.get("margen_usado") or 0.0
-    nivel_margen_actual = cuenta.get("nivel_margen") or 0.0
+    nivel_margen_actual = cuenta.get("nivel_margen_pct", cuenta.get("nivel_margen")) or 0.0
     pnl_flotante_actual = cuenta.get("beneficio_flotante") or 0.0
 
+    # Lista de posiciones y acumuladores del desglose y del PnL simulado.
     posiciones = posiciones_data.get("posiciones", [])
 
     desglose_posiciones = []
     pnl_simulado_total = 0.0
 
+    # Proyecta cada posición por separado.
     for pos in posiciones:
         ticket = pos["ticket"]
         sym_raw = pos["simbolo"]
@@ -79,7 +111,7 @@ def simular_escenario_cartera(
                     tipo_impacto = f"INDIRECTO (vía {causa}, Beta={beta})"
                     break
 
-        # Cálculo del cambio de PnL
+        # Cálculo del cambio de PnL (valor nocional x variación x signo según compra o venta)
         contract_size = _estimar_tamano_contrato(sym_raw)
         valor_nocional = precio_act * lotes * contract_size
         
@@ -102,7 +134,7 @@ def simular_escenario_cartera(
             "pnl_flotante_proyectado_usd": round(pnl_proyectado, 2),
         })
 
-    # Recálculo de métricas de cuenta
+    # Recálculo de métricas de cuenta (equidad, nivel de margen = equidad / margen usado)
     equidad_proyectada = equidad_actual + pnl_simulado_total
     pnl_flotante_proyectado_total = pnl_flotante_actual + pnl_simulado_total
     
@@ -118,7 +150,7 @@ def simular_escenario_cartera(
         else 0.0
     )
 
-    # Evaluación de estado de riesgo
+    # Evaluación de estado de riesgo con umbrales de margen (50 % y 100 %) y de caída de equidad (15 %)
     if nivel_margen_proyectado <= 50.0:
         estado_riesgo = "CRÍTICO - STOP OUT (Riesgo inminente de liquidación forzosa)"
     elif nivel_margen_proyectado <= 100.0:
@@ -156,3 +188,16 @@ def simular_escenario_cartera(
         "impacto_por_posicion": desglose_posiciones,
         "contexto_noticias_macro": noticias_contexto[:5],
     }
+
+
+# -------------------------------------------------------------------------------------------------------
+# ----------------------------------- FIN Piña y Jara herramientas .PY ----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
