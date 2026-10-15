@@ -1,0 +1,85 @@
+    .nav-user > summary { list-style: none; }
+    .nav-user > summary::-webkit-details-marker { display: none; }
+    .nav-user[open] .nav-flecha { transform: rotate(180deg); }
+    .nav-menu-item:hover { background: #21262d; }
+    .nav-ico { color:#8b949e; cursor:pointer; display:flex; align-items:center;
+               transition: color .15s ease; }
+    .nav-ico:hover { color:#e6edf3; }
+    /* Centrado vertical robusto */
+    .st-key-barra_nav_fija [data-testid="stHorizontalBlock"] { align-items:center !important; }
+    .st-key-barra_nav_fija [data-testid="stColumn"] {
+        display:flex !important; flex-direction:column; justify-content:center !important;
+    }
+    .st-key-barra_nav_fija [data-testid="stColumn"] [data-testid="stMarkdownContainer"] { margin:0 !important; }
+    .st-key-barra_nav_fija .stButton { margin:0 !important; }
+    /* Grupo derecho (saldo · campana · usuario) pegado al borde: esas 3 columnas toman el ancho de su
+       contenido y la columna vacía (3ª) absorbe todo el espacio sobrante. */
+    .st-key-barra_nav_fija [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(1) {
+        flex:0 0 4% !important; min-width:0 !important; }
+    .st-key-barra_nav_fija [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(2) {
+        flex:0 0 26.5% !important; min-width:0 !important; }
+    .st-key-barra_nav_fija [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(3) {
+        flex:1 1 0 !important; min-width:0 !important; }
+    .st-key-barra_nav_fija [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(n+4) {
+        flex:0 0 auto !important; width:auto !important; min-width:0 !important; }
+    .st-key-barra_nav_fija [data-testid="stElementContainer"]:has(style) { display:none !important; }
+    /* Botón que abre el buscador: se expande para aprovechar el espacio del antiguo logo */
+    [class*="st-key-btn_abrir_buscador"] button {
+        background:#161b22 !important; border:1px solid #30363d !important;
+        border-radius:20px !important; color:#8b949e !important;
+        justify-content:flex-start !important; font-weight:400 !important;
+        padding:4px 16px !important; height:32px; min-height:32px !important;
+    }
+    [class*="st-key-btn_abrir_buscador"] button:hover {
+        border-color:#58a6ff !important; color:#e6edf3 !important;
+    }
+    /* Campana de notificaciones (popover) con insignia */
+    .st-key-notif_bell { position:relative; display:flex; justify-content:center; }
+    .st-key-notif_bell [data-testid="stVerticalBlock"] { gap:0 !important; }
+    .st-key-notif_bell [data-testid="stPopover"] button {
+        background:transparent !important; border:none !important; box-shadow:none !important;
+        color:#8b949e !important; padding:0 !important; min-height:32px !important; height:32px;
+        width:32px !important; border-radius:8px !important; }
+    .st-key-notif_bell [data-testid="stPopover"] button:hover { color:#e6edf3 !important;
+        background:rgba(255,255,255,0.06) !important; }
+    .st-key-notif_bell [data-testid="stPopoverButton"] div[aria-hidden="true"] { display:none !important; }
+    .st-key-notif_bell [data-testid="stPopover"] button span[data-testid="stIconMaterial"] { font-size:22px !important; }
+    .nt-badge { position:absolute; top:-3px; right:-1px; z-index:5; min-width:16px; height:16px; padding:0 4px;
+        border-radius:999px; background:linear-gradient(135deg,#ff4b4b,#ff8f00); color:#fff; font-size:10px;
+        font-weight:800; display:flex; align-items:center; justify-content:center; pointer-events:none;
+        box-shadow:0 0 0 2px #0d1117; }
+    [data-testid="stPopoverBody"] { min-width:350px; background:#0d1117 !important;
+        border:1px solid #1f2937 !important; border-radius:14px !important; }
+    .nt-cab { display:flex; justify-content:space-between; align-items:center; color:#fff; font-size:15px;
+        font-weight:800; padding:2px 2px 6px; }
+    .nt-cuenta { font-size:10.5px; font-weight:700; color:#ff8f00; background:rgba(255,143,0,.12);
+        border:1px solid rgba(255,143,0,.35); border-radius:999px; padding:2px 9px; }
+    .nt-item { display:flex; gap:10px; background:#151c27; border:1px solid #202a37; border-radius:12px;
+        padding:9px 11px; margin-bottom:7px; }
+    .nt-item.nueva { border-color:#3b2f22; background:#1a1f27; }
+    .nt-ic { font-size:17px; line-height:1.2; }
+    .nt-titulo { color:#e6edf3; font-size:13px; font-weight:700; display:flex; align-items:center; gap:7px; }
+    .nt-punto { width:7px; height:7px; border-radius:50%; background:#ff8f00; }
+    .nt-texto { color:#9aa5b1; font-size:12px; margin-top:2px; line-height:1.35; overflow-wrap:anywhere; }
+    .nt-hace { color:#6b7686; font-size:10.5px; margin-top:3px; }
+    .nt-vacio { color:#8b949e; font-size:12.5px; text-align:center; padding:18px 8px; line-height:1.45; }
+    [data-testid="stPopoverBody"] [class*="st-key-notif_ir"] button { height:42px; border:none !important;
+        border-radius:12px !important; background:linear-gradient(135deg,#ff4b4b 0%,#ff8f00 100%) !important;
+        color:#fff !important; }
+    [data-testid="stPopoverBody"] [class*="st-key-notif_leer"] button { height:42px; border-radius:12px !important;
+        background:#161b22 !important; border:1px solid #30363d !important; color:#fff !important; }
+    [data-testid="stPopoverBody"] [class*="st-key-notif_ir"] button p,
+    [data-testid="stPopoverBody"] [class*="st-key-notif_leer"] button p { font-size:14px !important;
+        font-weight:700 !important; color:#fff !important; }
+    /* Botón ☰ que expande/colapsa la barra lateral (estilo SIGMA) */
+    [class*="st-key-top_toggle"] button {
+        background:transparent !important; border:none !important; box-shadow:none !important;
+        color:#8b949e !important; padding:0 !important; height:40px; min-height:40px !important;
+        width:40px !important; border-radius:8px !important;
+    }
+    [class*="st-key-top_toggle"] button:hover {
+        color:#e6edf3 !important; background:rgba(255,255,255,0.06) !important;
+    }
+    [class*="st-key-top_toggle"] button p,
+    [class*="st-key-top_toggle"] button p *,
+    [class*="st-key-top_toggle"] button span[data-testid="stIconMaterial"] { font-size:28px !important; }

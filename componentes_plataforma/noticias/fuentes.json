@@ -1,0 +1,15 @@
+{
+  "fuentes": [
+    "https://es.investing.com/rss/news_25.rss",
+    "https://es.investing.com/rss/news.rss",
+    "https://es.investing.com/rss/news_285.rss"
+  ],
+  "fuentes_mas": [
+    "https://es.investing.com/rss/news_301.rss",
+    "https://es.investing.com/rss/news_1.rss",
+    "https://es.investing.com/rss/news_95.rss"
+  ],
+  "placeholder": "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=600&q=60",
+  "por_pagina": 4,
+  "max_carrusel": 20
+}

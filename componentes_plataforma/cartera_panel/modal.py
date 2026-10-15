@@ -1,0 +1,59 @@
+"""
+cartera_panel/modal.py
+----------------------
+Modal de confirmación de cierre de posición (estilo XM): tarjeta azul oscuro, botón
+grande con el monto (naranja P&J) y "Cancelar". Se renderiza FUERA del fragmento de la
+lista (lo llama aplicacion.py vía render_modal_cerrar), para no chocar con el auto-refresco. El
+texto del botón lo actualiza el feed en vivo con el P/G neto de esa posición.
+"""
+import streamlit as st
+
+from herramientas.puente_mt5 import obtener_posiciones, cerrar_posicion
+
+from .comun import neto, texto_cerrar, css_modal
+
+
+def _al_descartar():
+    """Clic fuera del modal / Esc: se descarta la intención de cierre (si no,
+    el modal reaparecería en la siguiente reejecución)."""
+    st.session_state.ca_cerrar = None
+
+
+@st.dialog("¿Quiere cerrar su posición?", on_dismiss=_al_descartar)
+def _dialogo_cerrar():
+    c = st.session_state.get("ca_cerrar") or {}
+    ticket = c.get("ticket")
+    # P/G FRESCO de MT5 al abrir (el de la fila podía tener hasta 5 s de atraso:
+    # la fila la pinta el feed en vivo, pero el dato guardado era del último refresco).
+    prof = c.get("profit", 0.0)
+    try:
+        fresca = next((p for p in obtener_posiciones() if p.get("ticket") == ticket), None)
+        if fresca:
+            prof = neto(fresca)
+    except Exception:
+        pass
+    css_modal()
+    etiqueta = texto_cerrar(prof)
+    # El contenedor lleva el ticket en su clave: flujo_vivo.py actualiza el texto
+    # del botón en vivo con el P/G neto de esa posición (mismo dato que la fila).
+    with st.container(key=f"ca_btncerrar_{ticket}"):
+        cerrar = st.button(etiqueta, type="primary", width="stretch", key="ca_cerrar_ok")
+    if cerrar:
+        res = cerrar_posicion(c.get("ticket"))
+        if "error" in res:
+            st.session_state.ca_result = ("error", f"No se pudo cerrar: {res['error']}")
+        else:
+            # P/G exacto para la tarjeta de posición cerrada (lo usa _detectar_cierres).
+            st.session_state.setdefault("ca_pg_real", {})[c.get("ticket")] = float(res.get("profit", prof))
+            st.session_state.pop("ca_result", None)
+        st.session_state.ca_cerrar = None
+        st.rerun()
+    if st.button("Cancelar", width="stretch", key="ca_cerrar_cancel"):
+        st.session_state.ca_cerrar = None
+        st.rerun()
+
+
+def render_modal_cerrar():
+    """Llamar desde aplicacion.py (fuera de los fragmentos en vivo)."""
+    if st.session_state.get("ca_cerrar"):
+        _dialogo_cerrar()

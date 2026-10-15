@@ -1,0 +1,31 @@
+"""
+componentes_plataforma/riel
+---------------
+Rail de iconos FIJO a la derecha (estilo XM), gemelo de la barra lateral izquierda
+(componentes_plataforma/barra_lateral.py), pero debajo de la barra superior. Cada icono despliega /
+oculta su panel.
+
+Rendimiento: el toggle NO reejecuta Python (como el ☰ del nav izquierdo). Los
+paneles (Operar, DOM) se dibujan SIEMPRE; un script intercepta el clic del icono
+(antes de que llegue a Streamlit) y alterna clases en <html>; el CSS desliza el
+panel y reserva el espacio a la derecha → aparece al instante, sin recargar el
+gráfico (es autoSize, solo se reajusta).
+
+Estados (clase en <html>):
+  - (sin clase)      → Operar abierto (DEFAULT: al entrar o F5 el ticket está visible)
+  - pj-panel-dom     → DOM abierto (Operar oculto)
+  - pj-panel-none    → todo oculto (gráfico a pantalla completa)
+Así, tras un F5 (ventana nueva, sin clases) el ticket queda desplegado; el usuario
+lo oculta con su botón. El estado se mantiene al navegar entre vistas (la clase
+vive en <html>), solo se reinicia con F5.
+
+Tooltip: en vez del `help` de Streamlit (que en un contenedor fijo se queda
+pegado), el nombre se muestra con un tooltip CSS propio (::after) al pasar el mouse.
+
+Archivos: panel.py (dibuja paneles y rail), estilos.py + estilos.css (plantilla con las medidas), datos.py +
+botones.json, riel.js (alterna los paneles sin reejecutar Python).
+"""
+from componentes_plataforma.riel.datos import BOTONES, PANEL, RAIL, TOP
+from componentes_plataforma.riel.panel import inyectar_css_rail, renderizar_rail_y_paneles
+
+__all__ = ["RAIL", "PANEL", "TOP", "BOTONES", "inyectar_css_rail", "renderizar_rail_y_paneles"]

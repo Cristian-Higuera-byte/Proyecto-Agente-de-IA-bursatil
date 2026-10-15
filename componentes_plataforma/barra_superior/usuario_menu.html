@@ -1,0 +1,29 @@
+        <div style='display:flex; align-items:center; justify-content:flex-end; white-space:nowrap;'>
+            <details class='nav-user' style='position:relative;'>
+                <summary style='display:flex; align-items:center; gap:8px; cursor:pointer;'>
+                    <div style='width:30px; height:30px; border-radius:50%;
+                                background:#1f6feb; color:#ffffff; display:flex;
+                                align-items:center; justify-content:center;
+                                font-weight:bold; font-size:12px;'>__INICIALES__</div>
+                    <span style='color:#e6edf3; font-size:13px;'>__USUARIO__</span>
+                    <span class='nav-flecha' style='color:#8b949e; font-size:11px;
+                          transition:transform .15s ease;'>▾</span>
+                </summary>
+                <div style='position:absolute; right:0; top:calc(100% + 10px);
+                            background:#161b22; border:1px solid #30363d; border-radius:8px;
+                            min-width:190px; padding:6px; z-index:3000;
+                            box-shadow:0 8px 24px rgba(0,0,0,0.5);'>
+                    <div class='nav-menu-item' style='display:flex; align-items:center; gap:10px;
+                         padding:9px 12px; border-radius:6px; color:#e6edf3; font-size:13px;
+                         cursor:pointer;'>👤 Mi perfil</div>
+                    <div class='nav-menu-item' style='display:flex; align-items:center; gap:10px;
+                         padding:9px 12px; border-radius:6px; color:#e6edf3; font-size:13px;
+                         cursor:pointer;'>⚙️ Configuración</div>
+                    <div style='height:1px; background:#30363d; margin:4px 6px;'></div>
+                    <a href='?logout=1' target='_self' class='nav-menu-item'
+                       style='display:flex; align-items:center; gap:10px;
+                         padding:9px 12px; border-radius:6px; color:#f85149; font-size:13px;
+                         cursor:pointer; text-decoration:none;'>🚪 Cerrar sesión</a>
+                </div>
+            </details>
+        </div>
