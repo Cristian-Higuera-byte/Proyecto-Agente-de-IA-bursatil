@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Tuple
 
-import MetaTrader5 as mt5  # type: ignore[import-untyped]
+from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
 from herramientas.puente_mt5 import MT5_LOCK, resolver_simbolo
 

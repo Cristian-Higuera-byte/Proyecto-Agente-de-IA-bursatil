@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Any
 
-import MetaTrader5 as mt5  # type: ignore[import-untyped]
+from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
 from nucleo_agente import ordenes
 from nucleo_agente.vigilancia import analisis

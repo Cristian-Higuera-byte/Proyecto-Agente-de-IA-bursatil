@@ -31,7 +31,7 @@ from herramientas import gestor_lista_activos as wl
 from herramientas import almacen_diario
 
 try:
-    import MetaTrader5 as mt5
+    from proveedores.selector_mt5 import mt5
 except Exception:                      # pragma: no cover
     mt5 = None
 

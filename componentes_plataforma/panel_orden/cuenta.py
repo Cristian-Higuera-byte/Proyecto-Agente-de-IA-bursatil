@@ -5,7 +5,7 @@ Lecturas de MetaTrader 5 que alimentan el ticket: info del símbolo, margen requ
 margen libre y capital de la cuenta. Todo acotado por MT5_LOCK (acceso serializado).
 Cada función devuelve None / valores neutros si MT5 no responde, para que la UI no falle.
 """
-import MetaTrader5 as mt5  # type: ignore[import-untyped]
+from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
 from herramientas.puente_mt5 import MT5_LOCK
 

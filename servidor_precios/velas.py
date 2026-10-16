@@ -1,6 +1,6 @@
 """Velas OHLC de MT5 en el formato que espera Lightweight Charts."""
 from herramientas.puente_mt5 import inicializar_mt5, obtener_datos_historicos
-import MetaTrader5 as mt5  # type: ignore[import-untyped]
+from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
 from .constantes import CANDADO_MT5, TF_MAP
 

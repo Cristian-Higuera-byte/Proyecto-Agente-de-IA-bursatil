@@ -7,7 +7,7 @@ import json
 from datetime import datetime
 from typing import Any, Callable
 
-import MetaTrader5 as mt5  # type: ignore[import-untyped]
+from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
 from nucleo_agente.vigilancia import configuracion
 from nucleo_agente.vigilancia.configuracion import HERRAMIENTAS_EXCLUIDAS

@@ -2,7 +2,7 @@
 import re
 
 import streamlit as st
-import MetaTrader5 as mt5  # type: ignore[import-untyped]
+from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
 from componentes_plataforma.mercado_datos import cierre_previo as _cierre_previo
 from componentes_plataforma.mercados.constantes import CATALOGO

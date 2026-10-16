@@ -1,7 +1,7 @@
 """Catálogo de símbolos del terminal (ventana "Comparar" del gráfico), con caché."""
 import time
 
-import MetaTrader5 as mt5  # type: ignore[import-untyped]
+from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 from herramientas.puente_mt5 import inicializar_mt5
 
 from .constantes import CANDADO_MT5, TTL_SIMBOLOS

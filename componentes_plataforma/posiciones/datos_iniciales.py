@@ -1,7 +1,7 @@
 """Posiciones y órdenes del símbolo con el formato del feed, más volumen mínimo, distancia mínima y desfase horario."""
 import time
 
-import MetaTrader5 as mt5  # type: ignore[import-untyped]
+from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
 from herramientas import almacen_oco, almacen_stop_dinamico
 from herramientas.puente_mt5 import MT5_LOCK, inicializar_mt5

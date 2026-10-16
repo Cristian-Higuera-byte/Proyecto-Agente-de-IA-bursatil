@@ -1,6 +1,6 @@
 """Mini-gráfico (sparkline) de cada símbolo: semilla con histórico M1 y buffer que crece con cada tick."""
 import streamlit as st
-import MetaTrader5 as mt5  # type: ignore[import-untyped]
+from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
 from componentes_plataforma.mercado_datos.referencias import SinDatos
 from herramientas.puente_mt5 import obtener_datos_historicos

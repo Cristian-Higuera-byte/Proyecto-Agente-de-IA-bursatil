@@ -25,24 +25,31 @@ def renderizar_vista_operativa(renderizar_lista_izquierda, fragmentos, consola) 
     fragmentos.favoritos()
     inyectar_estilos_agente()
 
-    # El ticket ya no va como columna: vive en el rail de iconos fijo a la derecha
-    # (componentes_plataforma/panel_riel.py). CSS del rail ANTES de las columnas para que el
-    # gráfico se mida con el espacio reservado a la derecha.
+    # El ticket vive en el rail fijo de la derecha (componentes_plataforma/riel). La lista
+    # (watchlist o posiciones) sigue en su columna de siempre, con el historial debajo, pero
+    # con una PESTAÑA para ocultarla/mostrarla (componentes_plataforma/lista_colapsable): al
+    # ocultarla, su columna colapsa a 0 y el gráfico/chat se ensanchan. CSS ANTES del gráfico.
+    from componentes_plataforma.lista_colapsable import (inyectar_css_lista_colapsable, marca_columna,
+                                                         renderizar_toggle_lista)
     from componentes_plataforma.panel_riel import inyectar_css_rail, renderizar_rail_y_paneles
+    inyectar_css_lista_colapsable()
     inyectar_css_rail()
 
     col_izquierda, col_center = st.columns([COLUMNAS_OPERAR[0],
                                             COLUMNAS_OPERAR[1] + COLUMNAS_OPERAR[2]])
     with col_izquierda:
+        marca_columna()
         renderizar_lista_izquierda()
     with col_center:
         renderizar_panel_central(consola)
     renderizar_rail_y_paneles(consola)
+    renderizar_toggle_lista()
 
     st.markdown("---")
 
     col_historial, col_chat, col_propuestas = st.columns(COLUMNAS_OPERAR)
     with col_historial:
+        # El historial del agente NO se oculta con el watchlist: se queda siempre (sin marca_columna).
         renderizar_historial_agente(altura=ALTURA_HISTORIAL)
     with col_chat:
         renderizar_chat_agente()

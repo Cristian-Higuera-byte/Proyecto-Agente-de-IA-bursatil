@@ -1,5 +1,5 @@
 """OCO (One-Cancels-the-Other) del motor."""
-import MetaTrader5 as mt5  # type: ignore[import-untyped]
+from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 from herramientas import almacen_oco
 from herramientas.puente_mt5 import eliminar_orden
 

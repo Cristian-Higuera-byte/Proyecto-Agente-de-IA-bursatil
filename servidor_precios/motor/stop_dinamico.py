@@ -1,5 +1,5 @@
 """Stop dinámico (trailing stop) del motor."""
-import MetaTrader5 as mt5  # type: ignore[import-untyped]
+from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 from herramientas import almacen_stop_dinamico
 from herramientas.puente_mt5 import modificar_sltp
 

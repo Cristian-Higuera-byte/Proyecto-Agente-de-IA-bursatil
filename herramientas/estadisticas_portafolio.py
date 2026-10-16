@@ -37,7 +37,7 @@ from herramientas import gestor_lista_activos as wl
 from herramientas import almacen_capital
 
 try:
-    import MetaTrader5 as mt5
+    from proveedores.selector_mt5 import mt5
 except Exception:                      # pragma: no cover - MT5 solo en Windows con terminal
     mt5 = None
 

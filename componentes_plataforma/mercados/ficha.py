@@ -2,7 +2,7 @@
 from datetime import datetime, timezone
 
 import streamlit as st
-import MetaTrader5 as mt5  # type: ignore[import-untyped]
+from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
 from componentes_plataforma.iconos import icono_activo
 from componentes_plataforma.flujo_vivo import attrs as _live, intervalo

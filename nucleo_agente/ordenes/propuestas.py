@@ -2,7 +2,7 @@
 from dataclasses import asdict
 from typing import Any
 
-import MetaTrader5 as mt5  # type: ignore[import-untyped]
+from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
 from nucleo_agente.ordenes.base_datos import _ahora, _consultar, _insertar, kill_switch_activo
 from nucleo_agente.ordenes.limites import LIMITES

@@ -2,7 +2,7 @@
 import math
 from typing import Any
 
-import MetaTrader5 as mt5  # type: ignore[import-untyped]
+from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
 from nucleo_agente.ordenes.limites import LIMITES, TOLERANCIA_RIESGO
 from nucleo_agente.ordenes.mt5_utiles import (_con_lock, _normalizar, _preparar_mt5, _resolver_simbolo, _riesgo_expuesto)

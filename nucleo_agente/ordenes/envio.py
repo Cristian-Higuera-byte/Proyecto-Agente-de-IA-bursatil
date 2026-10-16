@@ -1,7 +1,7 @@
 """Envío de órdenes a MetaTrader 5 (apertura y cierre) e interpretación del resultado. Solo lo llama confirmar_orden()."""
 from typing import Any
 
-import MetaTrader5 as mt5  # type: ignore[import-untyped]
+from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
 from nucleo_agente.ordenes.limites import MAGIC, TOLERANCIA_VS_PROPUESTA
 from nucleo_agente.ordenes.mt5_utiles import _chequeos_globales, _con_lock, _desviacion, _modo_llenado

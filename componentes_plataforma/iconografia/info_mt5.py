@@ -15,7 +15,7 @@ def info_mt5(simbolo: str) -> tuple:
         return _INFO_CACHE[simbolo]
     res = ("", "")
     try:
-        import MetaTrader5 as mt5  # type: ignore[import-untyped]
+        from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
         from herramientas.puente_mt5 import MT5_LOCK, resolver_simbolo
         with MT5_LOCK:
             info = mt5.symbol_info(resolver_simbolo(simbolo))

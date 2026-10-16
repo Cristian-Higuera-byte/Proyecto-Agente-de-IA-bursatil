@@ -1,5 +1,5 @@
 """Entrada de un símbolo para la watchlist (nombre, categoría, precio y variación)."""
-import MetaTrader5 as mt5  # type: ignore[import-untyped]
+from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
 from componentes_plataforma.mercado_datos.referencias import variacion
 from herramientas import gestor_lista_activos as wl

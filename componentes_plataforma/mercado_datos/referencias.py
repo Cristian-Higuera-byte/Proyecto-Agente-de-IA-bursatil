@@ -1,6 +1,6 @@
 """Referencias de precio de un símbolo: cierre diario anterior y variación del día."""
 import streamlit as st
-import MetaTrader5 as mt5  # type: ignore[import-untyped]
+from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
 from herramientas.puente_mt5 import obtener_datos_historicos
 

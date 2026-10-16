@@ -1,7 +1,7 @@
 """Puerto, versión de la API, temporalidades, intervalos del motor y candado de MT5."""
 import threading
 
-import MetaTrader5 as mt5  # type: ignore[import-untyped]
+from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
 PUERTO = 8000
 # Versión de la API. Se sube cuando cambian rutas o datos que usa el navegador:
@@ -29,8 +29,8 @@ TF_MAP = {
 # y el servidor atiende cada petición en su propio hilo).
 CANDADO_MT5 = threading.RLock()
 
-INTERVALO_TICKS = 0.25       # s entre lecturas de ticks (4 por segundo)
-INTERVALO_CUENTA = 1.0       # s entre lecturas de saldo / P-G
+INTERVALO_TICKS = 1.5        # s entre lecturas de ticks (suave para el límite REST de Capital; con MT5 puede bajar a 0.25)
+INTERVALO_CUENTA = 3.0       # s entre lecturas de saldo / P-G
 INTERVALO_EQUITY = 60.0      # s entre snapshots de equity (para el drawdown real)
 TTL_REFERENCIA = 300         # s que se reutiliza el cierre del día anterior
 TTL_SUSCRIPCION = 60         # s sin clientes pidiendo un símbolo -> se deja de leer

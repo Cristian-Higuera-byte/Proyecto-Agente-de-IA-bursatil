@@ -1,7 +1,7 @@
 """Piezas HTML de Mercados: mini-gráfico, pastilla de variación, rango del día, fila de la tabla y tarjeta."""
 import base64
 
-import MetaTrader5 as mt5  # type: ignore[import-untyped]
+from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
 from componentes_plataforma.iconos import icono_activo   # íconos estilo XM (comunes)
 from componentes_plataforma.flujo_vivo import attrs as _live

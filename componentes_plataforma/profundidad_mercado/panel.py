@@ -9,7 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import streamlit as st
-import MetaTrader5 as mt5  # type: ignore[import-untyped]
+from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
 from componentes_plataforma import _estaticos
 from componentes_plataforma.profundidad_mercado import escalera

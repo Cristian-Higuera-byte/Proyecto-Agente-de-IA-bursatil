@@ -9,7 +9,7 @@ from herramientas.puente_mt5 import obtener_info_cuenta
 def dibujar_cuenta(nombre: str):
     info = obtener_info_cuenta()
     if "error" in info:
-        st.warning("No se pudo conectar con MetaTrader 5. Abre el terminal para ver tu cuenta.")
+        st.warning("No se pudo conectar con el bróker. Revisa la conexión para ver tu cuenta.")
         return
     moneda = info.get("currency", "USD")
     login = info.get("login", "—")

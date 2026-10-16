@@ -6,7 +6,7 @@ Datos y lógica del buscador (sin UI): carga de TODOS los símbolos del broker M
 watchlist del usuario. `_agregar_a_watchlist` lo reutiliza también mercados_panel.py.
 """
 import streamlit as st
-import MetaTrader5 as mt5  # type: ignore[import-untyped]
+from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
 from herramientas.puente_mt5 import MT5_LOCK, inicializar_mt5
 from herramientas import gestor_lista_activos as wl
