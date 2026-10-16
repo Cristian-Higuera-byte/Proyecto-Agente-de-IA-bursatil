@@ -1,5 +1,22 @@
+<!--
+Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+Dirección: José Joaquín Prieto #5373 -
+San Miguel - Santiago - Chile
+contacto.pinayjara@gmail.com
+https://www.pinayjara.cl
+Creado, Programado y Diseñado por Piña y Jara
+Transportes y Servicios Ltda.
+-->
+
+
+<!-- -------------------------------------------------------------------------------------------------------
+   ---------------------------- INICIO Piña y Jara 20_barra_herramientas .HTML ---------------------------
+   ------------------------------------------------------------------------------------------------------- -->
+
 <!-- [grafico] Barra lateral de herramientas de dibujo -->
+            <!-- Barra lateral izquierda de herramientas de dibujo (css/30_cuerpo_y_herramientas.css). Cada botón .tvtool y cada opción .tvtool-flyout-item lleva data-tool con el identificador que interpreta el JS de dibujo (20_dibujo_base.js y siguientes). -->
             <div id="tv-toolbar-left">
+                <!-- Grupo de cursores: cruz, punto, flecha, demostración y borrador. El botón principal muestra el cursor elegido y abre el menú flotante #cursor-flyout. -->
                 <div class="tvtool-group" id="group-cursor">
                     <button class="tvtool active" id="tool-cross" data-tool="cross" title="Cursor">
                         <svg viewBox="0 0 20 20"><path d="M10 2.5v5M10 12.5v5M2.5 10h5M12.5 10h5"/></svg>
@@ -13,8 +30,10 @@
                         <div class="tvtool-flyout-item" data-tool="eraser"><svg viewBox="0 0 20 20"><path d="M4 13l7-8 5 4.5-6 6.5H6.5z"/><path d="M8.5 7.5l4.5 4"/><path d="M10 16h7"/></svg>Borrador</div>
                     </div>
                 </div>
+                <!-- Separador visual entre grupos. -->
                 <div class="tvsep"></div>
 
+                <!-- Grupo de líneas, canales y tridentes (menú #lines-flyout). -->
                 <div class="tvtool-group" id="group-lines">
                     <button class="tvtool" id="tool-trend" data-tool="trend" title="Líneas, canales y tridentes">
                         <svg viewBox="0 0 20 20"><path d="M5.2 14.8L14.8 5.2"/><circle cx="4" cy="16" r="1.5"/><circle cx="16" cy="4" r="1.5"/></svg>
@@ -31,11 +50,13 @@
                         <div class="tvtool-flyout-item" data-tool="hray"><svg viewBox="0 0 20 20"><path d="M4 10h12M16 10l-3-2M16 10l-3 2"/><circle cx="4" cy="10" r="1.5"/></svg>Rayo horizontal</div>
                         <div class="tvtool-flyout-item" data-tool="vline"><svg viewBox="0 0 20 20"><path d="M10 2v16"/></svg>Línea vertical</div>
                         <div class="tvtool-flyout-item" data-tool="crossline"><svg viewBox="0 0 20 20"><path d="M10 2v16M2 10h16"/><circle cx="10" cy="10" r="2"/></svg>Cruz</div>
+                        <!-- Sección de canales dentro del mismo menú. -->
                         <div class="tvtool-flyout-sec">CANALES</div>
                         <div class="tvtool-flyout-item" data-tool="channel"><svg viewBox="0 0 20 20"><path d="M3 12L15 4M5 16L17 8"/></svg>Canal paralelo</div>
                         <div class="tvtool-flyout-item" data-tool="regresion"><svg viewBox="0 0 20 20"><path d="M3 15L17 6M3 11l14-9M3 18l14-9"/></svg>Tendencia de regresión</div>
                         <div class="tvtool-flyout-item" data-tool="flat"><svg viewBox="0 0 20 20"><path d="M3 15L17 8M3 5h14"/><path d="M3 5l14 3" stroke-opacity=".0"/></svg>Plano superior/inferior</div>
                         <div class="tvtool-flyout-item" data-tool="disjoint"><svg viewBox="0 0 20 20"><path d="M3 11L10 6M10 16L17 11"/><circle cx="3" cy="11" r="1.3"/><circle cx="17" cy="11" r="1.3"/></svg>Canal disjunto</div>
+                        <!-- Sección de tridentes (horquillas de Andrews y variantes). -->
                         <div class="tvtool-flyout-sec">TRIDENTES</div>
                         <div class="tvtool-flyout-item" data-tool="pf_andrews"><svg viewBox="0 0 20 20"><path d="M3 16L9 9l8 0M3 16l13-8M8 17l9-6"/><path d="M4 16l6-8"/></svg>Tridente</div>
                         <div class="tvtool-flyout-item" data-tool="pf_schiff"><svg viewBox="0 0 20 20"><path d="M3 13L10 8M3 13l12-3M9 16l8-4"/><path d="M5 17L9 10"/></svg>Tridente de Schiff</div>
@@ -44,6 +65,7 @@
                     </div>
                 </div>
 
+                <!-- Grupo de Fibonacci y Gann (menú #fib-flyout). -->
                 <div class="tvtool-group" id="group-fibonacci">
                     <button class="tvtool" id="tool-fib" data-tool="fib" title="Fibonacci y Gann">
                         <svg viewBox="0 0 20 20"><path d="M3 4h14M3 9h14M3 14h14"/><path d="M5 17.5L15 2.5" stroke-dasharray="2 2"/></svg>
@@ -62,6 +84,7 @@
                         <div class="tvtool-flyout-item" data-tool="fib_arcs"><svg viewBox="0 0 20 20"><path d="M4 15a3 3 0 0 1 6 0M2 15a5 5 0 0 1 10 0M0.5 15a7 7 0 0 1 14 0" /><path d="M2 17h15"/></svg>Arcos de Fibonacci de resistencia de velocidad</div>
                         <div class="tvtool-flyout-item" data-tool="fib_wedge"><svg viewBox="0 0 20 20"><path d="M4 17V4M4 17h13M4 17L16 6M7 17a8 8 0 0 0-3-8M11 17a12 12 0 0 0-7-11"/></svg>Cuña de Fibonacci</div>
                         <div class="tvtool-flyout-item" data-tool="fib_pitchfan"><svg viewBox="0 0 20 20"><path d="M3 16L17 3M3 16l14-6M3 16l14 0M3 16l12 6"/><path d="M17 3v10" stroke-dasharray="2 2"/></svg>Tridente abanico o Pitchfan</div>
+                        <!-- Sección de herramientas de Gann. -->
                         <div class="tvtool-flyout-sec">GANN</div>
                         <div class="tvtool-flyout-item" data-tool="gann_box"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14"/><path d="M3 8h14M3 13h14M8 3v14M13 3v14"/></svg>Cuadrícula de Gann</div>
                         <div class="tvtool-flyout-item" data-tool="gann_square_fixed"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14"/><path d="M3 3l14 14M17 3L3 17M10 3v14M3 10h14"/></svg>Cuadrado de Gann fijo</div>
@@ -70,6 +93,7 @@
                     </div>
                 </div>
 
+                <!-- Grupo de patrones, ondas de Elliott y ciclos (menú #patterns-flyout). -->
                 <div class="tvtool-group" id="group-patterns">
                     <button class="tvtool" id="tool-patterns" data-tool="xabcd" title="Patrones, ondas de Elliott y ciclos">
                         <svg viewBox="0 0 20 20"><path d="M3 14l3-9 5 7 3-6 4 4"/><path d="M6 5l5 7" stroke-dasharray="2 2"/></svg>
@@ -83,12 +107,14 @@
                         <div class="tvtool-flyout-item" data-tool="abcd"><svg viewBox="0 0 20 20"><path d="M3 15l5-10 4 8 5-9"/><path d="M3 15l9-2M8 5l9 0" stroke-dasharray="2 2"/></svg>Patrón ABCD</div>
                         <div class="tvtool-flyout-item" data-tool="trianglepat"><svg viewBox="0 0 20 20"><path d="M3 5l12 4M3 15l12-4"/><path d="M3 5l5 9 5-8 4 4" /></svg>Patrón de triángulo</div>
                         <div class="tvtool-flyout-item" data-tool="threedrives"><svg viewBox="0 0 20 20"><path d="M2 15l3-8 2 4 3-8 2 5 3-9 3 6"/></svg>Patrón Three Drives</div>
+                        <!-- Sección de ondas de Elliott. -->
                         <div class="tvtool-flyout-sec">ONDAS DE ELLIOTT</div>
                         <div class="tvtool-flyout-item" data-tool="ell_impulse"><svg viewBox="0 0 20 20"><path d="M2 16l3-6 2 3 4-9 2 5 4-7"/></svg>Onda de impulso de Elliott (12345)</div>
                         <div class="tvtool-flyout-item" data-tool="ell_abc"><svg viewBox="0 0 20 20"><path d="M3 6l5 7 3-4 6 8"/></svg>Onda correctiva de Elliott (ABC)</div>
                         <div class="tvtool-flyout-item" data-tool="ell_triangle"><svg viewBox="0 0 20 20"><path d="M2 6l4 7 3-5 3 4 2-3 4 1"/></svg>Onda triangular de Elliott (ABCDE)</div>
                         <div class="tvtool-flyout-item" data-tool="ell_wxy"><svg viewBox="0 0 20 20"><path d="M2 14l4-7 3 5 4-8 5 9"/></svg>Onda de Elliott de doble combinación (WXY)</div>
                         <div class="tvtool-flyout-item" data-tool="ell_wxyxz"><svg viewBox="0 0 20 20"><path d="M2 15l3-6 2 3 3-7 2 5 3-6 3 7"/></svg>Onda de Elliott de triple combinación (WXYXZ)</div>
+                        <!-- Sección de ciclos. -->
                         <div class="tvtool-flyout-sec">CICLOS</div>
                         <div class="tvtool-flyout-item" data-tool="cyclic"><svg viewBox="0 0 20 20"><path d="M4 3v14M8 3v14M12 3v14M16 3v14"/></svg>Líneas cíclicas</div>
                         <div class="tvtool-flyout-item" data-tool="timecycles"><svg viewBox="0 0 20 20"><path d="M2 15a4 6 0 0 1 8 0a4 6 0 0 1 8 0"/></svg>Ciclos de tiempo</div>
@@ -96,6 +122,7 @@
                     </div>
                 </div>
 
+                <!-- Grupo de proyección (posiciones largas y cortas, previsión) y medidor (menú #projection-flyout). -->
                 <div class="tvtool-group" id="group-projection">
                     <button class="tvtool" id="tool-projection" data-tool="long_pos" title="Proyección y medidor">
                         <svg viewBox="0 0 20 20"><path d="M3 4h14v6H3z"/><path d="M3 10h14v6H3z" stroke-dasharray="2 2"/></svg>
@@ -109,6 +136,7 @@
                         <div class="tvtool-flyout-item" data-tool="barpattern"><svg viewBox="0 0 20 20"><path d="M4 6v8M4 9H2.5M4 12h1.5M10 4v10M10 7H8.5M10 11h1.5M16 7v9M16 10h-1.5M16 14h1.5"/></svg>Patrón de barras</div>
                         <div class="tvtool-flyout-item" data-tool="ghostfeed"><svg viewBox="0 0 20 20"><path d="M3 13l3-2 2 3 3-6 2 4 4-6" stroke-dasharray="2 2"/><path d="M4 16h12"/></svg>Ghost Feed</div>
                         <div class="tvtool-flyout-item" data-tool="projection"><svg viewBox="0 0 20 20"><path d="M3 16l5-9M3 16h8l6-9" /><path d="M8 7l9 0" stroke-dasharray="2 2"/></svg>Proyección</div>
+                        <!-- Sección de herramientas de medición de precio y fecha. -->
                         <div class="tvtool-flyout-sec">MEDIDOR</div>
                         <div class="tvtool-flyout-item" data-tool="price_range"><svg viewBox="0 0 20 20"><path d="M10 3v14M7 3h6M7 17h6"/></svg>Rango de precios</div>
                         <div class="tvtool-flyout-item" data-tool="date_range"><svg viewBox="0 0 20 20"><path d="M3 10h14M3 7v6M17 7v6"/></svg>Rango de fechas</div>
@@ -116,6 +144,7 @@
                     </div>
                 </div>
 
+                <!-- Grupo de pinceles, flechas y figuras geométricas (menú #brush-flyout). -->
                 <div class="tvtool-group" id="group-brush">
                     <button class="tvtool" id="tool-brush" data-tool="brush" title="Pinceles, flechas y figuras">
                         <svg viewBox="0 0 20 20"><path d="M16.3 3.7l-7.1 7.1"/><path d="M9.2 10.8l1.9 1.9c0 2.3-1.7 3.8-4.1 3.8H3.6c1 0 1.7-.8 1.7-1.9 0-2.2.8-3.8 3.9-3.8z"/></svg>
@@ -125,6 +154,7 @@
                         <div class="tvtool-flyout-sec">PINCELES</div>
                         <div class="tvtool-flyout-item" data-tool="brush"><svg viewBox="0 0 20 20"><path d="M16.3 3.7l-7.1 7.1"/><path d="M9.2 10.8l1.9 1.9c0 2.3-1.7 3.8-4.1 3.8H3.6c1 0 1.7-.8 1.7-1.9 0-2.2.8-3.8 3.9-3.8z"/></svg>Pincel</div>
                         <div class="tvtool-flyout-item" data-tool="highlighter"><svg viewBox="0 0 20 20"><rect x="3" y="8" width="14" height="7" rx="1.5" fill="currentColor" fill-opacity=".35"/><rect x="3" y="8" width="14" height="7" rx="1.5"/></svg>Resaltador</div>
+                        <!-- Sección de flechas. -->
                         <div class="tvtool-flyout-sec">FLECHAS</div>
                         <div class="tvtool-flyout-item" data-tool="arrow_marker"><svg viewBox="0 0 20 20"><path d="M4 16l9-9M13 7l-5 0M13 7l0 5"/><path d="M4 16l9-9" stroke-width="2.6"/></svg>Marcador de flecha</div>
                         <div class="tvtool-flyout-item" data-tool="arrow"><svg viewBox="0 0 20 20"><path d="M3 16L16 4M16 4h-5M16 4v5"/></svg>Flecha</div>
@@ -132,6 +162,7 @@
                         <div class="tvtool-flyout-item" data-tool="arrow_down"><svg viewBox="0 0 20 20"><polygon points="10,16 4,7 16,7" fill="currentColor"/></svg>Flecha descendente</div>
                         <div class="tvtool-flyout-item" data-tool="arrow_left"><svg viewBox="0 0 20 20"><polygon points="4,10 13,4 13,16" fill="currentColor"/></svg>Flecha hacia la izquierda</div>
                         <div class="tvtool-flyout-item" data-tool="arrow_right"><svg viewBox="0 0 20 20"><polygon points="16,10 7,4 7,16" fill="currentColor"/></svg>Flecha hacia la derecha</div>
+                        <!-- Sección de figuras geométricas. -->
                         <div class="tvtool-flyout-sec">FIGURAS</div>
                         <div class="tvtool-flyout-item" data-tool="rectangle"><svg viewBox="0 0 20 20"><rect x="3" y="4" width="14" height="12" rx="1"/></svg>Rectángulo</div>
                         <div class="tvtool-flyout-item" data-tool="rotrect"><svg viewBox="0 0 20 20"><path d="M4 9l8-5 4 6-8 5z"/></svg>Rectángulo rotado</div>
@@ -145,6 +176,7 @@
                     </div>
                 </div>
 
+                <!-- Grupo de texto y notas (menú #annotations-flyout). -->
                 <div class="tvtool-group" id="group-annotations">
                     <button class="tvtool" id="tool-text" data-tool="text" title="Texto y notas">
                         <svg viewBox="0 0 20 20"><path d="M4.5 4.5h11M10 4.5v11M7.5 15.5h5"/></svg>
@@ -166,6 +198,7 @@
                     </div>
                 </div>
 
+                <!-- Grupo de íconos y emojis: el menú #icons-flyout muestra una rejilla donde cada botón .emoji-item guarda su emoji en data-emoji. -->
                 <div class="tvtool-group" id="group-icons">
                     <button class="tvtool" id="tool-icons" data-tool="emoji" title="Iconos y emojis">
                         <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M7.2 11.8c1.5 2 4.1 2 5.6 0"/><circle cx="7.6" cy="8.2" r=".6" fill="currentColor"/><circle cx="12.4" cy="8.2" r=".6" fill="currentColor"/></svg>
@@ -178,21 +211,41 @@
                 </div>
 
                 <div class="tvsep"></div>
+                <!-- Botón directo de regla de medición. -->
                 <button class="tvtool" id="tool-measure" data-tool="measure" title="Regla de medición"><svg viewBox="0 0 20 20"><g transform="rotate(-45 10 10)"><rect x="1.5" y="6.5" width="17" height="7" rx="1.2"/><path d="M5.5 6.5v2.6M8.5 6.5v1.6M11.5 6.5v2.6M14.5 6.5v1.6"/></g></svg></button>
+                <!-- Botón directo de zoom por rango de tiempo. -->
                 <button class="tvtool" id="tool-zoom" data-tool="zoom" title="Ampliar (arrastra un rango de tiempo)"><svg viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="5"/><path d="M12.3 12.3L17 17M8.5 6.5v4M6.5 8.5h4"/></svg></button>
                 <div class="tvsep"></div>
 
+                <!-- Interruptor de magnetismo: ajusta los puntos del dibujo a máximos, mínimos, aperturas y cierres cercanos. -->
                 <button class="tvtool" id="tool-magnet" data-tool="magnet" title="Magnetismo: activado">
                     <svg viewBox="0 0 20 20"><path d="M4 4v7a6 6 0 0 0 12 0V4"/><path d="M4 4h4M12 4h4"/></svg>
                 </button>
+                <!-- Interruptor para mantener la herramienta activa después de dibujar. -->
                 <button class="tvtool" id="tool-keep" data-tool="keep" title="Mantener herramienta activa">
                     <svg viewBox="0 0 20 20"><path d="M5 4h10v12H5z"/><path d="M8 4v4h4V4M8 12h4"/></svg>
                 </button>
                 <div class="tvsep"></div>
+                <!-- Interruptor para bloquear los dibujos y que no se puedan mover. -->
                 <button class="tvtool" id="tool-lock" data-tool="lock" title="Bloquear dibujos">
                     <svg viewBox="0 0 20 20"><rect x="4.5" y="9" width="11" height="8" rx="1.6"/><path d="M7 9V6.5a3 3 0 0 1 6 0V9"/></svg>
                 </button>
+                <!-- Botón para limpiar los dibujos del gráfico. -->
                 <button class="tvtool" id="tool-clear" data-tool="clear" title="Limpiar elementos">
                     <svg viewBox="0 0 20 20"><path d="M3.5 5.5h13M8 5.5V3.8h4v1.7M5.2 5.5l.8 11h8l.8-11M8.5 8.5v5M11.5 8.5v5"/></svg>
                 </button>
             </div>
+
+<!-- -------------------------------------------------------------------------------------------------------
+   ----------------------------- FIN Piña y Jara 20_barra_herramientas .HTML -----------------------------
+   ------------------------------------------------------------------------------------------------------- -->
+
+<!--
+Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+Dirección: José Joaquín Prieto #5373 -
+San Miguel - Santiago - Chile
+contacto.pinayjara@gmail.com
+https://www.pinayjara.cl
+Creado, Programado y Diseñado por Piña y Jara
+Transportes y Servicios Ltda.
+-->

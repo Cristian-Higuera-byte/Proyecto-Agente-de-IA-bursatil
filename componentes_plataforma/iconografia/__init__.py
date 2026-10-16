@@ -1,3 +1,16 @@
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ----------------------------------- INICIO Piña y Jara __init__ .PY -----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
 """
 componentes_plataforma/iconografia
 ----------------------
@@ -21,7 +34,31 @@ materias primas son SVG propios. NO se usan archivos de XM (son su propiedad).
 
 El HTML usa solo estilos en línea e <img> (st.html sanea el SVG en línea, por eso
 los SVG propios van como imagen data-URI).
+
+Estructura del paquete (este `__init__` es una fachada que solo reexporta `icono_activo`, para que el
+resto del dashboard importe desde `componentes_plataforma.iconografia`; el módulo
+`componentes_plataforma/iconos.py` lo reexpone a su vez con el nombre histórico):
+  icono.py     lógica de decisión por tipo de activo (`icono_activo`, `nucleo`)
+  piezas.py    fragmentos HTML (cajas, imágenes circulares, pares de banderas, índices, iniciales, logos)
+  datos.py     tablas leídas de `datos/*.json` y generador de SVG data-URI
+  logos.py     conversión RIC -> ticker de logo y comprobación con caché de que la imagen existe
+  info_mt5.py  carpeta y código bursátil de un símbolo según MetaTrader 5
 """
+# Función principal: devuelve el HTML del ícono de un activo.
 from componentes_plataforma.iconografia.icono import icono_activo
 
+# API pública del paquete.
 __all__ = ["icono_activo"]
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------------- FIN Piña y Jara __init__ .PY ------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

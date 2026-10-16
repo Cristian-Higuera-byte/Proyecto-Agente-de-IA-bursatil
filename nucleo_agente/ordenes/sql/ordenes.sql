@@ -1,3 +1,16 @@
+-- Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+-- Dirección: José Joaquín Prieto #5373 -
+-- San Miguel - Santiago - Chile
+-- contacto.pinayjara@gmail.com
+-- https://www.pinayjara.cl
+-- Creado, Programado y Diseñado por Piña y Jara
+-- Transportes y Servicios Ltda.
+
+
+-- -------------------------------------------------------------------------------------------------------
+-- ----------------------------------- INICIO Piña y Jara ordenes .SQL -----------------------------------
+-- -------------------------------------------------------------------------------------------------------
+
 CREATE TABLE IF NOT EXISTS ordenes (
     id TEXT PRIMARY KEY,
     creada TEXT NOT NULL,
@@ -20,3 +33,16 @@ CREATE TABLE IF NOT EXISTS ordenes (
     origen TEXT DEFAULT 'agente',  -- agente (propone y el usuario confirma) | automatica (vigilancia autorizada)
     vigilancia_id TEXT             -- si origen = 'automatica': la vigilancia que la generó
 )
+
+
+-- -------------------------------------------------------------------------------------------------------
+-- ------------------------------------- FIN Piña y Jara ordenes .SQL ------------------------------------
+-- -------------------------------------------------------------------------------------------------------
+
+-- Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+-- Dirección: José Joaquín Prieto #5373 -
+-- San Miguel - Santiago - Chile
+-- contacto.pinayjara@gmail.com
+-- https://www.pinayjara.cl
+-- Creado, Programado y Diseñado por Piña y Jara
+-- Transportes y Servicios Ltda.

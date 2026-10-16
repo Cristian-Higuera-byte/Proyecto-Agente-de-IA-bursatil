@@ -1,12 +1,31 @@
-"""Herramientas registradas para el agente (los esquemas viven en esquemas.json)."""
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# --------------------------------- INICIO Piña y Jara herramientas .PY ---------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+"""Herramientas registradas para el agente (los esquemas viven en esquemas.json).
+
+Herramientas de gestión de riesgo: cálculo del lote según el riesgo deseado, criterio de Kelly y
+desglose de exposición neta por divisa de las posiciones abiertas.
+"""
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from typing import Any
 
 from fuentes import mt5_fuentes as mt5_fuente
 from herramientas_agente.base import cargar_json, herramienta
 
+# Esquemas (descripción y parámetros que ve el modelo) leídos de esquemas.json junto a este archivo.
 _ESQ = cargar_json(Path(__file__).parent / "esquemas.json")
 
 
@@ -17,9 +36,18 @@ def calcular_tamano_posicion(
     porcentaje_riesgo: float = 1.0,
     capital_usd: float | None = None,
 ) -> dict[str, Any]:
+    """Calcula el lotaje que arriesga un % del capital dada una distancia de Stop Loss en pips.
+
+    Recibe `simbolo`, `distancia_sl_pips` (debe ser mayor que 0), `porcentaje_riesgo` (1.0 %) y
+    `capital_usd` (por defecto la equidad de MT5, o 10000). El valor del pip por lote se obtiene de
+    MT5; si no está disponible devuelve {"error": ...} en lugar de estimar. El lote se redondea al
+    paso del símbolo y se limita al mínimo y máximo permitidos; si el mínimo obliga a arriesgar más
+    de lo pedido se añade un aviso. Efecto secundario: consultas a MT5.
+    """
     if distancia_sl_pips <= 0:
         return {"error": "La distancia del Stop Loss debe ser mayor a 0."}
 
+    # Capital base y monto en dinero que se está dispuesto a perder.
     cuenta = mt5_fuente.cuenta()
     capital = capital_usd or cuenta.get("equidad") or 10000.0
     monto_riesgo_usd = capital * (porcentaje_riesgo / 100.0)
@@ -40,14 +68,17 @@ def calcular_tamano_posicion(
             ),
         }
 
+    # Lote teórico = riesgo en dinero / (pips de SL x valor del pip por lote).
     lote_calculado = monto_riesgo_usd / (distancia_sl_pips * valor_pip_lote)
+    # Ajuste a los límites del símbolo (paso, mínimo y máximo de lote).
     paso = esp.get("paso_lote") or 0.01
     minimo = esp.get("lote_minimo") or paso
     maximo = esp.get("lote_maximo")
-    lote_sugerido = max(minimo, int(round(lote_calculado / paso, 6)) * paso)   # se redondea hacia abajo: nunca más riesgo
+    lote_sugerido = max(minimo, math.floor(round(lote_calculado / paso, 6)) * paso)   # se redondea hacia abajo: nunca más riesgo
     if maximo:
         lote_sugerido = min(lote_sugerido, maximo)
     lote_sugerido = round(lote_sugerido, 8)
+    # Riesgo efectivo con el lote ya redondeado.
     riesgo_real = round(lote_sugerido * distancia_sl_pips * valor_pip_lote, 2)
 
     resultado = {
@@ -75,6 +106,13 @@ def calcular_criterio_kelly(
     win_rate_pct: float,
     ratio_rr: float,
 ) -> dict[str, Any]:
+    """Calcula la fracción óptima de capital según el criterio de Kelly.
+
+    Recibe `win_rate_pct` (0 a 100) y `ratio_rr` (beneficio/riesgo, mayor que 0). Devuelve Kelly
+    completo, medio y un cuarto (en %, nunca negativos), la expectativa matemática por unidad
+    arriesgada y un diagnóstico textual. Devuelve {"error": ...} si los parámetros son inválidos.
+    Es un cálculo puro, sin acceso a MT5 ni a la red.
+    """
     if ratio_rr <= 0 or win_rate_pct < 0 or win_rate_pct > 100:
         return {"error": "Parámetros inválidos. Win rate debe estar entre 0 y 100, y RR debe ser mayor a 0."}
 
@@ -113,6 +151,13 @@ def calcular_criterio_kelly(
 
 @herramienta(**_ESQ["analizar_exposicion_divisas"])
 def analizar_exposicion_divisas() -> dict[str, Any]:
+    """Desglosa el volumen comprado, vendido y neto por divisa a partir de las posiciones abiertas de MT5.
+
+    No recibe parámetros. Para cada posición separa base y cotizada (pares de 6 letras; otros símbolos
+    con USD o, por defecto, cotizados en USD); una compra suma a la base y resta a la cotizada, y una
+    venta al revés. Devuelve el diccionario por divisa con volúmenes en lotes o un mensaje si no hay
+    posiciones. Efecto secundario: consulta a MT5.
+    """
     posiciones = mt5_fuente.posiciones().get("posiciones", [])
     if not posiciones:
         return {
@@ -122,11 +167,12 @@ def analizar_exposicion_divisas() -> dict[str, Any]:
             "mensaje": "No hay posiciones abiertas activas en la cuenta.",
         }
 
+    # Acumulador por divisa: lotes comprados, vendidos y neto.
     exposicion: dict[str, dict[str, float]] = {}
 
     for pos in posiciones:
         sym = pos.get("simbolo", "").upper()
-        volumen = pos.get("volumen", 0.0)
+        volumen = pos.get("lotes", pos.get("volumen", 0.0))
         tipo = pos.get("tipo", "BUY").upper()
 
         if len(sym) == 6 and sym.isalpha():
@@ -151,6 +197,7 @@ def analizar_exposicion_divisas() -> dict[str, Any]:
             exposicion[base]["volumen_vendido"] += volumen
             exposicion[quote]["volumen_comprado"] += volumen
 
+    # Redondeo final y cálculo de la exposición neta.
     for div, datos in exposicion.items():
         datos["volumen_comprado"] = round(datos["volumen_comprado"], 2)
         datos["volumen_vendido"] = round(datos["volumen_vendido"], 2)
@@ -161,3 +208,16 @@ def analizar_exposicion_divisas() -> dict[str, Any]:
         "total_posiciones_analizadas": len(posiciones),
         "exposicion_por_divisa": exposicion,
     }
+
+
+# -------------------------------------------------------------------------------------------------------
+# ----------------------------------- FIN Piña y Jara herramientas .PY ----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

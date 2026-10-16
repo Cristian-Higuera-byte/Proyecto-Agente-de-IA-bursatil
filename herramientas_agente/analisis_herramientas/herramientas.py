@@ -1,4 +1,22 @@
-"""Herramientas registradas para el agente (los esquemas viven en esquemas.json)."""
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# --------------------------------- INICIO Piña y Jara herramientas .PY ---------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+"""Herramientas registradas para el agente (los esquemas viven en esquemas.json).
+
+Contiene `calcular_indicadores_tecnicos` (RSI, ATR, MACD, medias móviles y Bollinger sobre velas de
+MT5) y `analizar_riesgo_posicion` (riesgo en dinero, distancias a SL/TP y ratio R:B de las
+posiciones abiertas). Los cálculos numéricos finos están en `auxiliares.py` y en `fuentes.mt5_fuentes`.
+"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -15,6 +33,7 @@ from herramientas_agente.analisis_herramientas.auxiliares import (
 )
 from herramientas_agente.base import cargar_json, herramienta
 
+# Esquemas (descripción y parámetros que ve el modelo) leídos de esquemas.json junto a este archivo.
 _ESQ = cargar_json(Path(__file__).parent / "esquemas.json")
 
 
@@ -46,8 +65,18 @@ def calcular_indicadores_tecnicos(
     timeframe: str = "H1",
     cantidad: int = 300,
 ) -> dict[str, Any]:
+    """Calcula indicadores técnicos de un símbolo con velas en vivo de MetaTrader 5.
+
+    Recibe `simbolo`, `timeframe` (por defecto H1) y `cantidad` de velas (por defecto 300; se
+    recomiendan 250 o más para que exista la SMA 200). Devuelve un dict con precio actual, RSI(14)
+    con diagnóstico, ATR(14) absoluto y en %, MACD(12,26,9) con sesgo, EMA20/SMA50/SMA200 y Bandas
+    de Bollinger(20,2); los indicadores sin datos suficientes quedan en None. Si MT5 no entrega
+    velas devuelve {"error": ...}. Efecto secundario: consultas a MT5 (red/terminal).
+    """
+    # Primera consulta con una sola vela: sirve para obtener el nombre normalizado del símbolo.
     datos_velas = fuente.velas(simbolo=simbolo, timeframe=timeframe, cantidad=cantidad, ultimas_velas=1)
     
+    # Segunda consulta con todo el historial pedido para alimentar los indicadores.
     # Extraer arrays de precios históricos
     velas_historicas = fuente.velas(simbolo=simbolo, timeframe=timeframe, cantidad=cantidad, ultimas_velas=cantidad)["ultimas_velas"]
     if not velas_historicas:
@@ -57,10 +86,12 @@ def calcular_indicadores_tecnicos(
     maximos = [v["high"] for v in velas_historicas if v["high"] is not None]
     minimos = [v["low"] for v in velas_historicas if v["low"] is not None]
 
+    # El último cierre se toma como precio actual de referencia.
     precio_actual = cierres[-1]
 
     # 1. RSI
     rsi_val = _rsi(cierres, 14)
+    # Umbrales clásicos: 70 o más sobrecompra, 30 o menos sobreventa.
     estado_rsi = "NEUTRAL"
     if rsi_val is not None:
         if rsi_val >= 70:
@@ -73,6 +104,7 @@ def calcular_indicadores_tecnicos(
 
     # 3. MACD
     macd_val, signal_val, hist_val = _macd(cierres)
+    # El signo del histograma define el sesgo (positivo alcista, negativo bajista).
     sesgo_macd = "NEUTRAL"
     if hist_val is not None:
         sesgo_macd = "ALCISTA" if hist_val > 0 else "BAJISTA"
@@ -89,6 +121,7 @@ def calcular_indicadores_tecnicos(
     # 5. Bandas de Bollinger
     b_sup, b_med, b_inf = _bollinger(cierres)
 
+    # Respuesta final: valores redondeados a 5 decimales y diagnósticos en texto para el modelo.
     return {
         "fuente": "MetaTrader 5",
         "simbolo": datos_velas["simbolo"],
@@ -100,13 +133,13 @@ def calcular_indicadores_tecnicos(
                 "diagnostico": estado_rsi,
             },
             "atr_14": {
-                "valor_absoluto": round(atr_val, 5) if atr_val else None,
+                "valor_absoluto": round(atr_val, 5) if atr_val is not None else None,
                 "volatilidad_pct": round((atr_val / precio_actual) * 100, 2) if atr_val else None,
             },
             "macd_12_26_9": {
-                "linea_macd": round(macd_val, 5) if macd_val else None,
-                "linea_senal": round(signal_val, 5) if signal_val else None,
-                "histograma": round(hist_val, 5) if hist_val else None,
+                "linea_macd": round(macd_val, 5) if macd_val is not None else None,
+                "linea_senal": round(signal_val, 5) if signal_val is not None else None,
+                "histograma": round(hist_val, 5) if hist_val is not None else None,
                 "sesgo": sesgo_macd,
             },
             "medias_moviles": {
@@ -126,12 +159,23 @@ def calcular_indicadores_tecnicos(
 
 @herramienta(**_ESQ["analizar_riesgo_posicion"])
 def analizar_riesgo_posicion(simbolo: str | None = None, ticket: int | None = None) -> dict[str, Any]:
+    """Analiza el riesgo de las posiciones abiertas en MT5, opcionalmente filtradas por símbolo o ticket.
+
+    Por cada posición calcula distancias a SL/TP (pips y %), riesgo y beneficio estimados en dinero
+    (con el cálculo de beneficios del propio MT5), riesgo como % de la equidad, ratio riesgo/beneficio
+    y estado del Stop Loss (ausente, activo o protegiendo ganancia). Devuelve además el riesgo total
+    acumulado y avisos cuando hay posiciones sin SL (riesgo ilimitado, excluido del total) o sin cálculo.
+    Efecto secundario: consultas a MT5.
+    """
+    # Datos base: equidad de la cuenta y posiciones abiertas.
     cuenta_info = fuente.cuenta()
     posiciones_info = fuente.posiciones(simbolo=simbolo)
 
+    # Se evita división por cero usando 1.0 si la equidad no viene informada.
     equidad = cuenta_info.get("equidad") or 1.0
     posiciones_lista = posiciones_info.get("posiciones", [])
 
+    # Filtro opcional por ticket concreto.
     if ticket:
         posiciones_lista = [p for p in posiciones_lista if p.get("ticket") == ticket]
 
@@ -140,6 +184,7 @@ def analizar_riesgo_posicion(simbolo: str | None = None, ticket: int | None = No
     sin_stop = 0
     sin_calculo = 0
 
+    # Diagnóstico posición por posición.
     for pos in posiciones_lista:
         sl = pos["sl"]
         tp = pos["tp"]
@@ -149,10 +194,12 @@ def analizar_riesgo_posicion(simbolo: str | None = None, ticket: int | None = No
             )
         except fuente.ErrorMT5:
             d = {}
+        # Riesgo, beneficio objetivo y ratio R:B (solo si ambos importes existen).
         riesgo_usd = d.get("riesgo_usd")
         beneficio_usd = d.get("beneficio_objetivo_usd")
         ratio_rr = round(beneficio_usd / riesgo_usd, 2) if riesgo_usd and beneficio_usd else None
 
+        # Estado del Stop Loss: sin SL el riesgo es ilimitado; con SL en o sobre la apertura la posición está protegida.
         if not sl:
             estado_sl = "SIN STOP LOSS (ALTO RIESGO)"
             sin_stop += 1
@@ -188,6 +235,7 @@ def analizar_riesgo_posicion(simbolo: str | None = None, ticket: int | None = No
             "estado_stop_loss": estado_sl,
         })
 
+    # Resumen agregado sobre todas las posiciones analizadas.
     resultado = {
         "fuente": "MetaTrader 5 (riesgo calculado con el cálculo de beneficios del propio MT5)",
         "equidad_cuenta_usd": equidad,
@@ -198,6 +246,7 @@ def analizar_riesgo_posicion(simbolo: str | None = None, ticket: int | None = No
         "nota_pips": "1 pip = 10 puntos en símbolos de 3 o 5 decimales; en el resto, 1 punto.",
         "posiciones": diagnosticos,
     }
+    # Avisos para que el modelo advierta al usuario de lo que el total no incluye.
     if sin_stop:
         resultado["aviso"] = (
             f"{sin_stop} posición(es) sin Stop Loss: su riesgo es ilimitado y NO está incluido en el total."
@@ -207,3 +256,16 @@ def analizar_riesgo_posicion(simbolo: str | None = None, ticket: int | None = No
             f"En {sin_calculo} posición(es) MT5 no pudo calcular el riesgo en dinero; no está incluido en el total."
         )
     return resultado
+
+
+# -------------------------------------------------------------------------------------------------------
+# ----------------------------------- FIN Piña y Jara herramientas .PY ----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

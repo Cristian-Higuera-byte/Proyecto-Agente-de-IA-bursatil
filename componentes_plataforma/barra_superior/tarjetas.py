@@ -1,9 +1,31 @@
-"""Tarjetas (chips) de la barra superior: Capital, Riesgo, Drawdown y Mercado."""
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ----------------------------------- INICIO Piña y Jara tarjetas .PY -----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+"""Tarjetas (chips) de la barra superior: Capital, Riesgo, Drawdown y Mercado.
+
+Funciones puras que devuelven fragmentos HTML en línea (sin CSS externo) para que barra.py
+los ensamble en la fila de saldo y métricas.
+"""
 
 
 def chip(label: str, valor_html: str, *, label_color: str = "#8b949e",
           borde: str = "#30363d") -> str:
-    """Chip compacto de la barra superior: etiqueta arriba (gris), valor abajo."""
+    """Construye un chip compacto: etiqueta en mayúsculas arriba (gris) y valor abajo.
+
+    Recibe `label` (texto de la etiqueta), `valor_html` (HTML ya preparado del valor, se
+    inserta tal cual), `label_color` (color de la etiqueta) y `borde` (color del borde).
+    Devuelve el HTML de la tarjeta con estilos en línea.
+    """
     return (
         "<div style='display:flex; flex-direction:column; align-items:flex-end; "
         f"line-height:1.1; padding:4px 11px; background:#161b22; border:1px solid {borde}; "
@@ -16,10 +38,15 @@ def chip(label: str, valor_html: str, *, label_color: str = "#8b949e",
 
 
 def chips_metricas(metricas: dict | None) -> str:
-    """Chips de Riesgo · Drawdown · Mercado a partir de estadisticas_portafolio.metricas_barra().
-    Si no hay datos (sin conexión), devuelve cadena vacía y la barra queda como antes."""
+    """Construye los chips de Riesgo, Drawdown y Mercado a partir de las métricas de la barra.
+
+    Recibe `metricas`, el diccionario de estadisticas_portafolio.metricas_barra() con las
+    claves `riesgo`, `drawdown` y `mercado`. Devuelve el HTML de los tres chips concatenados,
+    o cadena vacía si no hay datos (sin conexión), de modo que la barra queda como antes.
+    """
     if not metricas:
         return ""
+    # Estilo común de los valores numéricos (fuente monoespaciada)
     mono = "font-size:14px; font-weight:700; font-family:monospace;"
 
     # --- Riesgo: % del capital en riesgo si saltan los SL ---
@@ -67,3 +94,16 @@ def chips_metricas(metricas: dict | None) -> str:
     chip_mercado = chip("Mercado", mercado_html)
 
     return chip_riesgo + chip_dd + chip_mercado
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------------- FIN Piña y Jara tarjetas .PY ------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

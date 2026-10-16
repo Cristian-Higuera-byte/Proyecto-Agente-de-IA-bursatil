@@ -1,3 +1,16 @@
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ---------------------------- INICIO Piña y Jara estadisticas_portafolio .PY ---------------------------
+# -------------------------------------------------------------------------------------------------------
+
 """
 estadisticas_portafolio.py
 -------------------
@@ -36,6 +49,8 @@ from herramientas.puente_mt5 import (MT5_LOCK, inicializar_mt5, obtener_info_cue
 from herramientas import gestor_lista_activos as wl
 from herramientas import almacen_capital
 
+# MetaTrader5 es opcional: si no se puede importar, `mt5` queda en None y las
+# funciones devuelven valores neutros (cero/vacío) en lugar de fallar.
 try:
     from proveedores.selector_mt5 import mt5
 except Exception:                      # pragma: no cover - MT5 solo en Windows con terminal
@@ -43,12 +58,13 @@ except Exception:                      # pragma: no cover - MT5 solo en Windows 
 
 
 def _inicio_dia() -> float:
-    """Epoch del inicio del día de hoy (hora local)."""
+    """Devuelve el epoch (hora local) de las 00:00 de hoy."""
     hoy = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     return hoy.timestamp()
 
 
 def _inicio_mes() -> float:
+    """Devuelve el epoch (hora local) de las 00:00 del primer día del mes actual."""
     hoy = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     return hoy.timestamp()
 
@@ -61,8 +77,8 @@ def _neto_deal(d) -> float:
             + float(getattr(d, "fee", 0.0) or 0.0))
 
 
-def _contract_size(symbol: str) -> float:
-    """Tamaño de contrato del símbolo (para el notional de la exposición)."""
+def _tamano_contrato(symbol: str) -> float:
+    """Devuelve el tamaño de contrato del símbolo (para el notional de la exposición); 0.0 si MT5 no responde."""
     if mt5 is None:
         return 0.0
     try:
@@ -74,8 +90,11 @@ def _contract_size(symbol: str) -> float:
 
 
 def _valor_punto(symbol: str) -> tuple[float, float]:
-    """(k, point): k = valor de 1 unidad de precio por lote en moneda de cuenta
-    (tick_value/tick_size); point = tamaño del punto. Para el riesgo definido."""
+    """Devuelve (k, point): k = valor de 1 unidad de precio por lote en moneda de cuenta
+    (tick_value/tick_size); point = tamaño del punto. Sirve para el riesgo definido.
+
+    Consulta `symbol_info` bajo el candado de MT5; devuelve (0.0, 0.0) ante cualquier fallo.
+    """
     if mt5 is None:
         return 0.0, 0.0
     try:
@@ -92,8 +111,11 @@ def _valor_punto(symbol: str) -> tuple[float, float]:
 
 
 def _leer_deals(dias: int = 400):
-    """Todos los deals del período (cierres + operaciones de balance). Se usa un
-    rango amplio para reconstruir la curva de balance y el depósito inicial."""
+    """Devuelve todos los deals de los últimos `dias` días (cierres + operaciones de balance).
+
+    Usa un rango amplio para reconstruir la curva de balance y el depósito inicial.
+    Consulta MT5 bajo su candado; devuelve lista vacía si no hay conexión o hay error.
+    """
     if mt5 is None:
         return []
     try:
@@ -108,7 +130,15 @@ def _leer_deals(dias: int = 400):
 
 
 def calcular(dias_curva: int = 3650) -> dict:
-    """Devuelve el diccionario completo de estadísticas del portafolio."""
+    """Devuelve el diccionario completo de estadísticas del portafolio para la vista Resumen.
+
+    Recibe `dias_curva`, los días de historial de deals usados para reconstruir la
+    curva de balance y el depósito inicial. Lee la cuenta, las posiciones abiertas y
+    los deals de MT5 (con su candado) y los snapshots de `almacen_capital`; no escribe.
+    Devuelve {"error": ...} si no hay cuenta; si no, un dict con las claves moneda,
+    capital, pnl, comisiones, exposicion, riesgo, drawdown, dividendos, rentabilidad y curva.
+    """
+    # Paso 1: datos base de la cuenta (si MT5 falla, se devuelve el error tal cual).
     cuenta = obtener_info_cuenta()
     if "error" in cuenta:
         return {"error": cuenta["error"]}
@@ -120,6 +150,7 @@ def calcular(dias_curva: int = 3650) -> dict:
     margen_libre = float(cuenta.get("margin_free", 0.0) or 0.0)
     margin_level = float(cuenta.get("margin_level", 0.0) or 0.0)
 
+    # Paso 2: posiciones abiertas, historial de deals y fronteras de día/mes.
     posiciones = obtener_posiciones() or []
     deals = _leer_deals(dias_curva)
 
@@ -134,6 +165,7 @@ def calcular(dias_curva: int = 3650) -> dict:
     n_dividendos = 0
     n_cierres_hoy = n_cierres_mes = 0
 
+    # Constantes de MT5 con valores por defecto por si el módulo no está disponible.
     DEAL_OUT = getattr(mt5, "DEAL_ENTRY_OUT", 1) if mt5 else 1
     TYPE_BALANCE = getattr(mt5, "DEAL_TYPE_BALANCE", 2) if mt5 else 2
     # MT5 tiene tipos de deal DEDICADOS para dividendos de CFDs de acciones; XM los
@@ -145,6 +177,8 @@ def calcular(dias_curva: int = 3650) -> dict:
     curva = []   # (epoch, balance_acumulado) para la curva y el drawdown
     bal_acum = 0.0
 
+    # Paso 3: recorrer los deals en orden cronológico clasificándolos (dividendo,
+    # balance o cierre) para acumular P/G, costos y la curva de balance.
     for d in sorted(deals, key=lambda x: getattr(x, "time", 0)):
         t = float(getattr(d, "time", 0) or 0)
         tipo = getattr(d, "type", None)
@@ -189,7 +223,8 @@ def calcular(dias_curva: int = 3650) -> dict:
         if t >= ini_dia:
             real_hoy += neto; com_hoy += com; swap_hoy += sw; n_cierres_hoy += 1
 
-    # Depósito inicial = primera operación de balance (o el balance actual si no hay historial).
+    # Depósito inicial = monto de la primera operación de balance del historial
+    # (0.0 si no hay ninguna en la ventana consultada).
     deposito_inicial = next((float(getattr(d, "profit", 0.0) or 0.0)
                              for d in sorted(deals, key=lambda x: getattr(x, "time", 0))
                              if getattr(d, "type", None) == TYPE_BALANCE), 0.0)
@@ -199,13 +234,14 @@ def calcular(dias_curva: int = 3650) -> dict:
                    for p in posiciones)
 
     # ----- Exposición por activo + largos/cortos -----
+    # Por cada posición: notional = volumen x tamaño de contrato x precio, agrupado por activo.
     exposicion = {}
     exp_largos = exp_cortos = 0.0
     for p in posiciones:
         sym = p["symbol"]
         vol = float(p.get("volumen", 0.0) or 0.0)
         precio = float(p.get("precio_actual", 0.0) or 0.0) or float(p.get("precio_apertura", 0.0) or 0.0)
-        cs = _contract_size(resolver_simbolo(sym))
+        cs = _tamano_contrato(resolver_simbolo(sym))
         notional = vol * cs * precio
         es_compra = p.get("tipo") == "Compra"
         if es_compra:
@@ -221,6 +257,7 @@ def calcular(dias_curva: int = 3650) -> dict:
     exp_total = exp_largos + exp_cortos
 
     # ----- Riesgo: pérdida DEFINIDA (posiciones con SL) + sin SL -----
+    # Para cada posición con SL: pérdida = distancia al stop x valor por unidad x lotes.
     riesgo_definido = 0.0
     sin_sl = 0
     for p in posiciones:
@@ -280,6 +317,7 @@ def calcular(dias_curva: int = 3650) -> dict:
     rent_abs = equity - deposito_inicial if deposito_inicial else 0.0
     rent_pct = (rent_abs / deposito_inicial * 100.0) if deposito_inicial else 0.0
 
+    # Estructura final que la UI solo pinta (sin más cálculos).
     return {
         "moneda": moneda,
         "capital": {"equity": equity, "balance": balance,
@@ -325,7 +363,11 @@ def _mercado_abierto(simbolo: str) -> bool | None:
     """True/False si el mercado del símbolo está abierto, o None si aún no hay certeza.
     Se basa en si llegan ticks nuevos: si el tick avanzó desde la última lectura →
     abierto; si no avanza por más de 3 min → cerrado. La primera lectura devuelve
-    None (hace falta una segunda para comparar)."""
+    None (hace falta una segunda para comparar).
+
+    Efecto: actualiza la caché `_mercado_cache`, suscribe el símbolo en MT5
+    (`symbol_select`) y lee su último tick bajo el candado de MT5.
+    """
     if mt5 is None or not simbolo:
         return None
     try:
@@ -341,6 +383,7 @@ def _mercado_abierto(simbolo: str) -> bool | None:
     except Exception:
         return None
 
+    # Compara contra la lectura anterior guardada en la caché del módulo.
     import time as _t
     ahora = _t.time()
     prev = _mercado_cache.get(sym)
@@ -360,7 +403,10 @@ def _mercado_abierto(simbolo: str) -> bool | None:
 
 
 def metricas_barra(simbolo_activo: str | None = None) -> dict:
-    """Riesgo, Drawdown y Mercado para la barra superior, sin tocar el historial.
+    """Calcula Riesgo, Drawdown y Mercado para la barra superior, sin tocar el historial.
+
+    Recibe el símbolo activo (opcional) para estimar si su mercado está abierto.
+    Devuelve {"moneda", "riesgo", "drawdown", "mercado"}. Lee MT5 y `almacen_capital`; no escribe.
 
     - riesgo:   pérdida DEFINIDA si las posiciones con SL saltan su stop, en moneda
                 de cuenta (`abs`) y como % del equity (`pct`); `sin_sl` = nº de
@@ -411,3 +457,16 @@ def metricas_barra(simbolo_activo: str | None = None) -> dict:
         "drawdown": {"pct": dd_pct, "disponible": dd_disponible},
         "mercado": {"abierto": _mercado_abierto(simbolo_activo), "simbolo": simbolo_activo},
     }
+
+
+# -------------------------------------------------------------------------------------------------------
+# ----------------------------- FIN Piña y Jara estadisticas_portafolio .PY -----------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

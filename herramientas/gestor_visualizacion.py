@@ -1,7 +1,25 @@
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ----------------------------- INICIO Piña y Jara gestor_visualizacion .PY -----------------------------
+# -------------------------------------------------------------------------------------------------------
+
 """
 gestor_visualizacion.py
 --------------
 Módulo ampliado para generar gráficos financieros (líneas y barras) y exportarlos localmente.
+
+Usa yfinance para los datos y matplotlib para dibujar; cada función guarda un
+PNG (300 dpi) en la carpeta `outputs/` y devuelve un mensaje de texto con la
+ruta o el error. Ofrece tres gráficos: evolución de precio, barras comparativas
+de rendimiento y proyección lineal de tendencia.
 """
 import os
 import numpy as np
@@ -9,20 +27,32 @@ from datetime import timedelta
 import matplotlib.pyplot as plt
 import yfinance as yf  # type: ignore[import-untyped]
 
+# Carpeta (relativa a la ejecución) donde se guardan los PNG generados
 OUTPUT_DIR = "outputs"
 
 
 def generar_grafico_rendimiento(ticker: str, periodo: str = "6mo") -> str:
     """
     Genera y guarda un gráfico de líneas con la evolución del precio de cierre de un activo.
+
+    Parámetros:
+        ticker (str): Símbolo bursátil (se normaliza a mayúsculas).
+        periodo (str): Período de yfinance (ej. "1mo", "6mo", "1y").
+
+    Devuelve un mensaje con la ruta del PNG guardado o con el error/ausencia de
+    datos. Efectos secundarios: consulta de red, crea `outputs/` y escribe el
+    archivo `grafico_<ticker>_<periodo>.png`.
     """
+    # Asegura que exista la carpeta de salida y normaliza el ticker.
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     t = ticker.upper().strip()
     try:
+        # Descarga el histórico de precios.
         tk = yf.Ticker(t)
         hist = tk.history(period=periodo)
         if hist.empty:
             return f"❌ No hay datos históricos suficientes para graficar {t} en el período {periodo}."
+        # Dibuja la línea de cierre con título, ejes y cuadrícula.
         plt.figure(figsize=(10, 5))
         plt.plot(hist.index, hist["Close"], label=f"Precio Cierre ({t})", color="#1f77b4", linewidth=2)
         plt.title(f"Evolución de Precio: {t} (Período: {periodo})", fontsize=14, fontweight="bold")
@@ -30,6 +60,7 @@ def generar_grafico_rendimiento(ticker: str, periodo: str = "6mo") -> str:
         plt.ylabel("Precio (USD)", fontsize=10)
         plt.grid(True, linestyle="--", alpha=0.6)
         plt.legend()
+        # Guarda la imagen y libera la figura para no acumular memoria.
         plt.tight_layout()
         ruta_archivo = os.path.join(OUTPUT_DIR, f"grafico_{t}_{periodo}.png")
         plt.savefig(ruta_archivo, dpi=300)
@@ -47,9 +78,16 @@ def generar_grafico_barras_comparativo(tickers: list, periodo: str = "1mo") -> s
     Parámetros:
         tickers (list): Lista de símbolos bursátiles (ej. ["TSLA", "AAPL", "MSFT", "NVDA"]).
         periodo (str): Período de análisis (ej. "1mo", "6mo", "1y").
+
+    El rendimiento es (último cierre - primer cierre) / primer cierre * 100. Los
+    tickers sin datos o que fallan se omiten en silencio. Devuelve un mensaje con
+    la ruta del PNG o un error si ningún ticker tuvo datos. Efectos secundarios:
+    consultas de red y escritura de `outputs/grafico_barras_comparativo_<periodo>.png`.
     """
+    # Asegura la carpeta de salida y prepara el diccionario ticker -> rendimiento.
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     rendimientos = {}
+    # Calcula el rendimiento porcentual de cada activo.
     for ticker in tickers:
         t = ticker.upper().strip()
         try:
@@ -86,6 +124,7 @@ def generar_grafico_barras_comparativo(tickers: list, periodo: str = "1mo") -> s
             ha='center', va='bottom' if altura >= 0 else 'top',
             fontsize=9, fontweight='bold'
         )
+    # Guarda la imagen y cierra la figura.
     plt.tight_layout()
     ruta_archivo = os.path.join(OUTPUT_DIR, f"grafico_barras_comparativo_{periodo}.png")
     plt.savefig(ruta_archivo, dpi=300)
@@ -102,7 +141,16 @@ def generar_grafico_predictivo(ticker: str, periodo: str = "6mo", dias_futuros: 
         ticker (str): Símbolo bursátil (ej. TSLA, AAPL).
         periodo (str): Período histórico de base (ej. "6mo", "1y").
         dias_futuros (int): Cantidad de días a proyectar hacia adelante.
+
+    Ajusta una regresión lineal (np.polyfit grado 1) sobre los cierres y la
+    extiende `dias_futuros` días calendario; la banda sombreada es +/-1.96
+    desviaciones estándar de los residuos (aproximación visual, no un intervalo
+    de predicción estadístico riguroso). Requiere al menos 30 datos. Devuelve la
+    ruta del PNG y un resumen (precio actual, proyectado y variación %), o un
+    mensaje de error. Efectos secundarios: red y escritura de
+    `outputs/grafico_predictivo_<ticker>.png`.
     """
+    # Prepara carpeta de salida y ticker normalizado.
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     t = ticker.upper().strip()
     try:
@@ -141,10 +189,12 @@ def generar_grafico_predictivo(ticker: str, periodo: str = "6mo", dias_futuros: 
         plt.ylabel("Precio Estimado (USD)", fontsize=10)
         plt.grid(True, linestyle="--", alpha=0.6)
         plt.legend(loc="upper left")
+        # Guarda la imagen y cierra la figura.
         plt.tight_layout()
         ruta_archivo = os.path.join(OUTPUT_DIR, f"grafico_predictivo_{t}.png")
         plt.savefig(ruta_archivo, dpi=300)
         plt.close()
+        # Calcula el resumen numérico de la proyección.
         precio_final_estimado = y_futuro[-1]
         variacion_estimada = ((precio_final_estimado - y_hist[-1]) / y_hist[-1]) * 100
         return (
@@ -156,3 +206,16 @@ def generar_grafico_predictivo(ticker: str, periodo: str = "6mo", dias_futuros: 
         )
     except Exception as e:
         return f"❌ Error generando la proyección predictiva para {t}: {str(e)}"
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------- FIN Piña y Jara gestor_visualizacion .PY ------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

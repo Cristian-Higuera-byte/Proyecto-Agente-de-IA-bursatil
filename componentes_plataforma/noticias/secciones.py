@@ -1,4 +1,21 @@
-"""Secciones de la página de noticias: noticia principal, carrusel paginado y "Más noticias"."""
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ----------------------------------- INICIO Piña y Jara secciones .PY ----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+"""Secciones de la página de noticias: noticia principal, carrusel paginado y "Más noticias".
+
+Cada noticia lleva un botón "abrir" invisible superpuesto (estilos.css) que guarda la noticia en
+`st.session_state.noticia_abierta` para que `panel.py` abra su modal.
+"""
 import math
 
 import streamlit as st
@@ -9,7 +26,13 @@ from componentes_plataforma.noticias.rss import cargar_mas_noticias, cargar_noti
 from componentes_plataforma.noticias.tarjetas import tarjeta_html
 
 
-def render_contenido():
+def renderizar_contenido():
+    """Dibuja el contenido completo de la página de noticias.
+
+    Carga las noticias (con caché); si no hay ninguna, muestra un aviso. Si hay, inyecta el CSS, pinta el
+    título, la noticia principal, el carrusel paginado (4 por página, con flechas y vuelta al inicio) y
+    llama a `renderizar_mas_noticias`. Usa `news_pag` de la sesión para recordar la página del carrusel.
+    No devuelve nada; se ejecuta dentro de un fragmento con auto-refresco."""
     noticias = cargar_noticias()
     if not noticias:
         st.info("No se pudieron cargar las noticias en este momento. Reintenta en unos minutos.")
@@ -27,6 +50,7 @@ def render_contenido():
     )
 
     # --- Noticia PRINCIPAL (clic -> modal) ---
+    # La más reciente; se centra con columnas laterales vacías y se envuelve en un contenedor con key para el CSS
     hero = noticias[0]
     _, c_hero, _ = st.columns([0.6, 11, 0.6])
     with c_hero:
@@ -49,6 +73,7 @@ def render_contenido():
                 st.rerun()
 
     # --- CARRUSEL paginado (4 por página, hasta 20, loop) ---
+    # `pool` son las noticias del carrusel (sin la principal); `pag` la página actual con vuelta al inicio
     pool = noticias[1:1 + MAX_CARRUSEL]
     if not pool:
         return
@@ -58,6 +83,7 @@ def render_contenido():
     pag = st.session_state.news_pag % num_pag
     ventana = pool[pag * POR_PAGINA: pag * POR_PAGINA + POR_PAGINA]
 
+    # Flecha izquierda, tarjetas y flecha derecha en una sola fila
     c_prev, c_cards, c_next = st.columns([0.6, 11, 0.6], vertical_alignment="center")
 
     with c_prev:
@@ -80,11 +106,16 @@ def render_contenido():
             st.session_state.news_pag = (pag + 1) % num_pag
             st.rerun(scope="fragment")
 
-    # --- Apartado "Más noticias" (Yahoo Finance) ---
-    render_mas_noticias()
+    # --- Apartado "Más noticias" (RSS de Investing) ---
+    renderizar_mas_noticias()
 
 
-def render_mas_noticias():
+def renderizar_mas_noticias():
+    """Dibuja el apartado "Más noticias" (Cripto, Forex y Economía) en una cuadrícula de 4 columnas.
+
+    Muestra al inicio 8 noticias y un botón "Ver más noticias" que revela 8 más (estado `mas_mostrar` en la
+    sesión); cuando ya se mostró todo aparece "Ver menos". No dibuja nada si no hay noticias. No devuelve
+    nada."""
     todas = cargar_mas_noticias()
     if not todas:
         return
@@ -102,6 +133,7 @@ def render_mas_noticias():
 
     _, c_grid, _ = st.columns([0.6, 11, 0.6])
     with c_grid:
+        # Filas de 4 tarjetas; cada una en un contenedor con key único (ync_N) para su botón invisible
         for fila in range(0, len(ns), 4):
             cols = st.columns(4)
             for k, (col, n) in enumerate(zip(cols, ns[fila:fila + 4])):
@@ -124,3 +156,16 @@ def render_mas_noticias():
                 if st.button("Ver menos", key="mas_menos", width="stretch"):
                     st.session_state.mas_mostrar = 8
                     st.rerun(scope="fragment")
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------------ FIN Piña y Jara secciones .PY ------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

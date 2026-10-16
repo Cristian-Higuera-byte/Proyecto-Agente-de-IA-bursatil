@@ -1,3 +1,16 @@
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ----------------------------------- INICIO Piña y Jara __init__ .PY -----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
 """Paneles del agente en los costados del dashboard (Fase 1).
 
 NOMBRE DEL PAQUETE: componentes_plataforma/agente_paneles
@@ -16,12 +29,16 @@ autorizar (con su botón Autorizar) y las activas (con su estado y un botón Det
 ejecuta solo queda en el historial marcado como AUTO.
 
 No usan run_every: un temporizador reinicia la ejecución en curso y cortaría la respuesta
-del agente mientras escribe. En su lugar, central_panel.py hace un st.rerun() al terminar un
+del agente mientras escribe. En su lugar, chat/turno_vivo.py hace un st.rerun() al terminar un
 turno en el que el agente propuso algo, y Confirmar / Rechazar refrescan toda la app.
 
 Solo este módulo (vía nucleo_agente.ordenes.confirmar_orden) puede hacer que una orden llegue a MT5.
 
 Archivos: historial.py, propuestas.py, vigilancias.py, formato.py, datos.py + estados.json y estilos.css.
+
+Este __init__ es además una fachada: reexporta `renderizar_historial_agente`,
+`renderizar_ordenes_propuestas` y `cabecera_agente` desde sus módulos, y define
+`inyectar_estilos_agente`, para que aplicacion.py importe todo desde un único punto.
 """
 import streamlit as st
 
@@ -32,8 +49,26 @@ from componentes_plataforma.agente_paneles.propuestas import renderizar_ordenes_
 
 
 def inyectar_estilos_agente() -> None:
-    """Carga el CSS de los dos paneles del agente. Llamar UNA vez por ejecución (lo hace aplicacion.py)."""
+    """Inyecta en la página el CSS de los dos paneles del agente (historial y propuestas).
+
+    Efecto secundario: escribe un bloque `<style>` en la app mediante `st.html`. Debe
+    llamarse UNA sola vez por ejecución (lo hace aplicacion.py); no recibe ni devuelve nada.
+    """
     st.html(CSS)
 
 
+# API pública del paquete (lo que aplicacion.py puede importar directamente)
 __all__ = ["inyectar_estilos_agente", "renderizar_historial_agente", "renderizar_ordenes_propuestas", "cabecera_agente"]
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------------- FIN Piña y Jara __init__ .PY ------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

@@ -1,3 +1,16 @@
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# -------------------------------- INICIO Piña y Jara almacen_diario .PY --------------------------------
+# -------------------------------------------------------------------------------------------------------
+
 """
 almacen_diario.py
 ----------------
@@ -31,12 +44,16 @@ import tempfile
 import threading
 import time
 
+# Carpeta `data/` en la raíz del proyecto.
 _DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+# Archivo JSON del Trading Journal (notas y planes por position_id).
 _RUTA = os.path.join(_DIR, "journal.json")
+# Candado que serializa lecturas/escrituras dentro del proceso.
 _LOCK = threading.Lock()
 
 
 def leer() -> dict:
+    """Devuelve todo el journal como {position_id(str): {...}}; vacío si el archivo falta o está corrupto."""
     try:
         with _LOCK, open(_RUTA, "r", encoding="utf-8") as f:
             return json.load(f)
@@ -45,10 +62,19 @@ def leer() -> dict:
 
 
 def obtener(pos_id) -> dict:
+    """Devuelve la fila del journal (notas, plan, ts) de una posición, o {} si no existe.
+
+    `pos_id` es el position_id de MT5; se convierte a texto porque JSON solo admite claves str.
+    """
     return leer().get(str(pos_id), {})
 
 
 def _escribir(datos: dict) -> bool:
+    """Escribe el diccionario completo en `journal.json` de forma atómica (temporal + os.replace).
+
+    Devuelve True si tuvo éxito y False si hubo un error de disco. No toma el candado:
+    lo hace quien la llama (`_merge`).
+    """
     try:
         os.makedirs(_DIR, exist_ok=True)
         fd, tmp = tempfile.mkstemp(dir=_DIR, suffix=".tmp")
@@ -61,13 +87,20 @@ def _escribir(datos: dict) -> bool:
 
 
 def _merge(pos_id, campos: dict) -> bool:
+    """Fusiona `campos` en la fila de una posición y guarda, sin borrar los demás campos.
+
+    Relee el archivo dentro del candado, actualiza la fila (notas y plan conviven),
+    sella `ts` con la hora actual y escribe. Devuelve True si se guardó.
+    """
     with _LOCK:
+        # Relectura bajo candado para no pisar cambios recientes.
         datos = {}
         try:
             with open(_RUTA, "r", encoding="utf-8") as f:
                 datos = json.load(f)
         except (FileNotFoundError, json.JSONDecodeError, OSError):
             datos = {}
+        # Actualiza solo los campos recibidos y sella la hora de modificación.
         fila = datos.get(str(pos_id), {})
         fila.update(campos)
         fila["ts"] = time.time()
@@ -93,7 +126,21 @@ def guardar_plan(pos_id, entrada: float, sl: float, tp: float,
 
 
 def mtime() -> float:
+    """Devuelve la fecha de modificación (epoch) de `journal.json`, o -1.0 si no existe."""
     try:
         return os.path.getmtime(_RUTA)
     except OSError:
         return -1.0
+
+
+# -------------------------------------------------------------------------------------------------------
+# ---------------------------------- FIN Piña y Jara almacen_diario .PY ---------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

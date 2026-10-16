@@ -1,5 +1,28 @@
+/*
+Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+Dirección: José Joaquín Prieto #5373 -
+San Miguel - Santiago - Chile
+contacto.pinayjara@gmail.com
+https://www.pinayjara.cl
+Creado, Programado y Diseñado por Piña y Jara
+Transportes y Servicios Ltda.
+*/
+
+
+/* -------------------------------------------------------------------------------------------------------
+   ----------------------------------- INICIO Piña y Jara 40_cuenta .JS ----------------------------------
+   ------------------------------------------------------------------------------------------------------- */
+
+  /**
+   * Pinta todos los elementos que dependen de los datos de la cuenta (último mensaje `cuenta`).
+   * Cubre: data-pj-acc (equity, profit y formatos genéricos usd/pct/signed), barras data-pj-bar,
+   * precio actual por ticket (data-pj-posc), P/G por ticket (data-pj-pos) y los textos de los botones de
+   * cierre de posiciones. Modifica texto, color y ancho en el DOM; no devuelve nada.
+   */
   function pintarCuenta(){
+    // Sin datos de cuenta todavía no hay nada que pintar.
     if (!cuenta) return;
+    // Valores de cuenta (equity, profit, balance, margen, etc.).
     D.querySelectorAll('[data-pj-acc]').forEach(function(el){
       var f = el.getAttribute('data-pj-acc');
       var formato = el.getAttribute('data-pj-fmt');
@@ -14,6 +37,7 @@
         if (el.getAttribute('data-pj-color') === '1') color(el, val >= 0 ? '#3fb950' : '#f85149');
         return;
       }
+      // Formatos específicos antiguos: equity con divisa y profit con signo.
       if (f === 'equity'){
         poner(el, '$' + fmt(cuenta.equity, 2) + ' ' + (cuenta.currency || ''));
       } else if (f === 'profit'){
@@ -24,12 +48,14 @@
                          : (el.getAttribute('data-pj-dn') || '#f85149'));
       }
     });
+    // Barras de porcentaje (0-100) cuyo ancho sigue un campo de la cuenta.
     D.querySelectorAll('[data-pj-bar]').forEach(function(el){
       var v = cuenta[el.getAttribute('data-pj-bar')];
       if (v === undefined || v === null) return;
       var w = Math.max(0, Math.min(100, v)).toFixed(1) + '%';
       if (el.style.width !== w) el.style.width = w;
     });
+    // Precio actual por ticket de posición.
     var pc = cuenta.pc || {};
     D.querySelectorAll('[data-pj-posc]').forEach(function(el){
       var v = pc[el.getAttribute('data-pj-posc')];
@@ -37,6 +63,7 @@
       var d = el.getAttribute('data-pj-d');
       poner(el, fmt(v, (d !== null && d !== '') ? +d : 5));
     });
+    // P/G neto (profit + swap) por ticket de posición.
     var pos = cuenta.pos || {};
     D.querySelectorAll('[data-pj-pos]').forEach(function(el){
       var v = pos[el.getAttribute('data-pj-pos')];
@@ -67,3 +94,17 @@
     });
   }
 
+
+/* -------------------------------------------------------------------------------------------------------
+   ------------------------------------ FIN Piña y Jara 40_cuenta .JS ------------------------------------
+   ------------------------------------------------------------------------------------------------------- */
+
+/*
+Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+Dirección: José Joaquín Prieto #5373 -
+San Miguel - Santiago - Chile
+contacto.pinayjara@gmail.com
+https://www.pinayjara.cl
+Creado, Programado y Diseñado por Piña y Jara
+Transportes y Servicios Ltda.
+*/

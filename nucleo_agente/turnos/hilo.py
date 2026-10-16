@@ -1,3 +1,16 @@
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------------- INICIO Piña y Jara hilo .PY -------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
 """Hilo que corre al agente: traduce sus eventos al estado del turno (fase, texto, herramientas, imágenes…)."""
 from __future__ import annotations
 
@@ -11,13 +24,24 @@ from nucleo_agente.turnos.turno import Turno
 
 
 def _correr(turno: Turno, agente: Any) -> None:
+    """Cuerpo del hilo de un turno: ejecuta al agente y vuelca sus eventos en el objeto `turno`.
+
+    Recibe el Turno (estado compartido con la interfaz) y el Agente. Fija el usuario en contexto, recorre
+    responder_stream() actualizando fase, texto, herramientas, imágenes, banderas de orden/vigilancia y
+    tokens; atiende la solicitud de cancelación entre eventos; registra cualquier error en `turno.error`.
+    Al final cierra el generador, anota la hora de fin, deja el aviso en la campana (salvo si el usuario
+    canceló) y por último marca `terminado` para que la interfaz ya encuentre el aviso.
+    """
+    # Las herramientas que lo necesiten sabrán a qué usuario pertenece esta consulta.
     contexto.fijar_usuario(turno.usuario_id)   # las herramientas que lo necesiten saben quién pregunta
     gen = agente.responder_stream(turno.prompt)
     try:
         for ev in gen:
+            # Cancelación cooperativa: se atiende al llegar el siguiente evento.
             if turno.cancelar_solicitado:
                 turno.cancelado = True
                 break
+            # Cada tipo de evento actualiza la fase visible y el estado del turno.
             if ev.tipo == "razonamiento":
                 turno.fase = "Analizando…"
             elif ev.tipo == "texto":
@@ -31,14 +55,17 @@ def _correr(turno: Turno, agente: Any) -> None:
                 turno.herramientas.append(str(ev.texto))
             elif ev.tipo == "resultado":
                 turno.fase = "Procesando los datos…"
+                # Se detecta si el agente propuso una orden o una vigilancia para avisar al usuario.
                 if ev.texto in ("proponer_orden", "proponer_cierre_posicion"):
                     turno.hubo_orden = True
                 elif ev.texto == "proponer_vigilancia" and "VIGILANCIA_PENDIENTE" in str((ev.datos or {}).get("resultado", "")):
                     turno.hubo_vigilancia = True
+                # Las imágenes guardadas en disco por la herramienta se acumulan sin repetir.
                 for ruta in imagenes_de_resultado((ev.datos or {}).get("resultado")):
                     if ruta not in turno.imagenes:
                         turno.imagenes.append(ruta)
             elif ev.tipo == "fin":
+                # Al terminar se guardan los tokens consumidos y el perfil usado (para el pie del turno).
                 d = ev.datos or {}
                 turno.tokens_entrada = d.get("tokens_entrada", "?")
                 turno.tokens_salida = d.get("tokens_salida", "?")
@@ -58,3 +85,16 @@ def _correr(turno: Turno, agente: Any) -> None:
                 _avisar(turno)
         finally:
             turno.terminado = True   # al final: así la interfaz ya encuentra el aviso creado
+
+
+# -------------------------------------------------------------------------------------------------------
+# --------------------------------------- FIN Piña y Jara hilo .PY --------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

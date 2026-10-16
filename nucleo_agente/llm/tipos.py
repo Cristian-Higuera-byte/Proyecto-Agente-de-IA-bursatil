@@ -1,3 +1,16 @@
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------------- INICIO Piña y Jara tipos .PY ------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
 """Tipos de la capa LLM: error legible, llamada a herramienta, respuesta completa y evento de streaming."""
 from __future__ import annotations
 
@@ -11,6 +24,8 @@ class ErrorLLM(Exception):
 
 @dataclass
 class LlamadaHerramienta:
+    """Una herramienta que el modelo pidió ejecutar: id de la llamada, nombre y argumentos (parseados y en crudo)."""
+
     id: str
     nombre: str
     argumentos: dict[str, Any]
@@ -20,6 +35,8 @@ class LlamadaHerramienta:
 
 @dataclass
 class RespuestaLLM:
+    """Respuesta completa del modelo: texto, razonamiento, llamadas a herramientas y tokens consumidos."""
+
     contenido: str = ""
     razonamiento: str | None = None            # None = el perfil no usa thinking
     llamadas: list[LlamadaHerramienta] = field(default_factory=list)
@@ -29,7 +46,12 @@ class RespuestaLLM:
 
     @property
     def mensaje(self) -> dict[str, Any]:
-        """Mensaje del asistente listo para añadir al historial."""
+        """Mensaje del asistente listo para añadir al historial.
+
+        Incluye reasoning_content cuando el perfil usa thinking (DeepSeek lo exige en el historial) y
+        tool_calls cuando el modelo pidió herramientas.
+        """
+        # Mensaje base del asistente; los campos opcionales se agregan solo si existen.
         msg: dict[str, Any] = {"role": "assistant", "content": self.contenido}
         if self.razonamiento is not None:
             msg["reasoning_content"] = self.razonamiento
@@ -52,3 +74,16 @@ class EventoStream:
     tipo: str
     texto: str = ""
     respuesta: RespuestaLLM | None = None
+
+
+# -------------------------------------------------------------------------------------------------------
+# -------------------------------------- FIN Piña y Jara tipos .PY --------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

@@ -1,28 +1,53 @@
-"""Panel DERECHO: propuestas pendientes con Confirmar / Rechazar, interruptor de emergencia y vigilancias."""
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ---------------------------------- INICIO Piña y Jara propuestas .PY ----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+"""Panel DERECHO: propuestas pendientes con Confirmar / Rechazar, interruptor de emergencia y vigilancias.
+
+Es el único panel desde el que una orden propuesta por el agente puede llegar a MT5
+(a través de nucleo_agente.ordenes.confirmar_orden, tras la acción explícita del usuario).
+"""
 from typing import Any
 
 import streamlit as st
 
 from componentes_plataforma.agente_paneles.datos import CLAVE_AVISO
-from componentes_plataforma.agente_paneles.formato import cabecera_agente, clase_lado, esc, hora, kv, num, titulo, vacio
+from componentes_plataforma.agente_paneles.formato import cabecera_agente, clase_lado, escapar_html, hora, par_clave_valor, numero, titulo, vacio
 from componentes_plataforma.agente_paneles.vigilancias import seccion_vigilancias, usuario_id
 from nucleo_agente import ordenes, vigilancia
 
 
 def tarjeta_pendiente(o: dict[str, Any]) -> str:
+    """Construye el HTML de la tarjeta de una orden pendiente `o`.
+
+    Para aperturas muestra precio de referencia, stop loss, take profit y el riesgo estimado
+    (dinero y % del equity); para cierres, el precio actual y el resultado flotante. Incluye
+    hora de vencimiento, insignia "Pendiente" y la justificación del agente (escapada).
+    """
+    # Apertura: niveles y riesgo; cierre: precio actual y resultado
     if o.get("accion") == "abrir":
         datos = (
-            kv("Precio ref.", num(o.get("precio_ref")))
-            + kv("Stop loss", num(o.get("sl")), "neg")
-            + kv("Take profit", num(o.get("tp")), "pos")
+            par_clave_valor("Precio ref.", numero(o.get("precio_ref")))
+            + par_clave_valor("Stop loss", numero(o.get("sl")), "neg")
+            + par_clave_valor("Take profit", numero(o.get("tp")), "pos")
         )
         extra = (
             f"<div class='ag-risk'>Riesgo ≈ <b>{(o.get('riesgo_dinero') or 0):.2f}</b> "
             f"· {(o.get('riesgo_pct') or 0):.2f}% del equity</div>"
         )
     else:
-        datos = kv("Precio actual", num(o.get("precio_ref"))) + kv("Resultado", f"{(o.get('riesgo_dinero') or 0):+.2f}")
+        datos = par_clave_valor("Precio actual", numero(o.get("precio_ref"))) + par_clave_valor("Resultado", f"{(o.get('riesgo_dinero') or 0):+.2f}")
         extra = ""
+    # Justificación del agente, con texto por defecto si falta
     just = (o.get("justificacion") or "Sin justificación").strip()
     return (
         "<div class='ag-row'>"
@@ -31,17 +56,30 @@ def tarjeta_pendiente(o: dict[str, Any]) -> str:
         "Pendiente</span></div>"
         f"<div class='ag-main'>{titulo(o)}</div>"
         f"<div class='ag-grid'>{datos}</div>{extra}"
-        f"<div class='ag-quote'>{esc(just)}</div></div>"
+        f"<div class='ag-quote'>{escapar_html(just)}</div></div>"
     )
 
 
 def alternar_bloqueo() -> None:
-    ordenes.set_kill_switch(bool(st.session_state.get("kill_switch_ui")))
+    """Callback del interruptor: guarda en el núcleo el valor de `kill_switch_ui`.
+
+    Activa o desactiva el bloqueo de aperturas (efecto persistente en nucleo_agente.ordenes).
+    """
+    ordenes.fijar_kill_switch(bool(st.session_state.get("kill_switch_ui")))
 
 
 def renderizar_ordenes_propuestas(altura: int = 300) -> None:
+    """Dibuja el panel derecho: interruptor de emergencia, vigilancias y órdenes pendientes.
+
+    `altura` (px) fija el alto del área con scroll cuando hay más de un elemento. Consume el
+    aviso de `st.session_state[CLAVE_AVISO]` y lo muestra. Los botones Confirmar / Rechazar
+    llaman a nucleo_agente.ordenes (confirmar puede enviar la orden a MT5) y reejecutan la
+    app completa. Si falla la lectura muestra una advertencia y no dibuja el panel.
+    """
+    # Recupera (y borra) el aviso dejado por la acción anterior
     aviso = st.session_state.pop(CLAVE_AVISO, None)
 
+    # Lee el estado actual: pendientes, interruptor y vigilancias del usuario
     try:
         pendientes = ordenes.listar_pendientes()
         bloqueado = ordenes.kill_switch_activo()
@@ -51,14 +89,17 @@ def renderizar_ordenes_propuestas(altura: int = 300) -> None:
         st.warning(f"No se pudieron leer las órdenes del agente: {e}")
         return
 
+    # Panel con clave fija: estilos.css lo apunta con el prefijo agp_
     with st.container(key="agp_panel"):
         st.html(cabecera_agente(
             "pending_actions", "Órdenes propuestas",
             "El agente propone y tú confirmas. Solo opera solo si autorizas una vigilancia. Solo cuenta demo.",
         ))
+        # Resultado de la última acción (verde si ok, rojo si error)
         if aviso:
             (st.success if aviso[0] == "ok" else st.error)(aviso[1])
 
+        # Interruptor de emergencia: bloquea proponer y confirmar aperturas
         st.session_state["kill_switch_ui"] = bloqueado  # el interruptor refleja siempre lo guardado
         with st.container(key="agp_kill"):
             st.toggle(
@@ -66,6 +107,7 @@ def renderizar_ordenes_propuestas(altura: int = 300) -> None:
                 help="Interruptor de emergencia: no se podrán proponer ni confirmar aperturas.",
             )
 
+        # Sin nada que mostrar: mensaje vacío y fin
         if not pendientes and not vigs:
             st.html(vacio(
                 "inbox", "No hay órdenes pendientes ni vigilancias. Cuando el agente proponga una orden o "
@@ -73,11 +115,13 @@ def renderizar_ordenes_propuestas(altura: int = 300) -> None:
             ))
             return
 
+        # Solo se usa scroll de altura fija si hay más de un elemento
         contenedor = (
             st.container(height=altura, border=False, key="agp_scroll")
             if len(pendientes) + len(vigs) > 1 else st.container(border=False, key="agp_scroll")
         )
         with contenedor:
+            # Sección de vigilancias automáticas
             if vigs:
                 st.html("<div class='ag-sec'>Vigilancia automática</div>")
                 if any(v["estado"] == vigilancia.ACTIVA for v in vigs):
@@ -85,8 +129,10 @@ def renderizar_ordenes_propuestas(altura: int = 300) -> None:
                     st.fragment(run_every="8s")(seccion_vigilancias)(uid)
                 else:
                     seccion_vigilancias(uid)
+            # Subtítulo de órdenes solo si hay ambos grupos
             if vigs and pendientes:
                 st.html("<div class='ag-sec'>Órdenes pendientes</div>")
+            # Una tarjeta por orden pendiente, con botones Confirmar y Rechazar
             for o in pendientes:
                 with st.container(key=f"agp_card_{clase_lado(o)}_{o['id']}"):
                     st.html(tarjeta_pendiente(o))
@@ -98,3 +144,16 @@ def renderizar_ordenes_propuestas(altura: int = 300) -> None:
                     if st.button("Rechazar", key=f"agp_no_{o['id']}", width="stretch"):
                         ordenes.rechazar_orden(o["id"])
                         st.rerun(scope="app")
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------------ FIN Piña y Jara propuestas .PY -----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

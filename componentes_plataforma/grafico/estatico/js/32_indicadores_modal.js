@@ -1,13 +1,35 @@
+/*
+Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+Dirección: José Joaquín Prieto #5373 -
+San Miguel - Santiago - Chile
+contacto.pinayjara@gmail.com
+https://www.pinayjara.cl
+Creado, Programado y Diseñado por Piña y Jara
+Transportes y Servicios Ltda.
+*/
+
+
+/* -------------------------------------------------------------------------------------------------------
+   ----------------------------- INICIO Piña y Jara 32_indicadores_modal .JS -----------------------------
+   ------------------------------------------------------------------------------------------------------- */
+
 // [grafico] Indicadores: ventana de selección y ventana de ajustes
+    // Elementos de la ventana de selección de indicadores (fondo, botones, buscador y pestañas)
     var modalOverlay = document.getElementById('ind-modal-overlay');
     var btnIndSelect = document.getElementById('btn-ind-select');
     var modalClose = document.getElementById('ind-modal-close');
     var searchInput = document.getElementById('ind-search-input');
     var tabsInd = document.getElementById('ind-tabs');
+    // tabActiva: pestaña seleccionada de la ventana (Todos, un grupo o Activos)
     var tabActiva = 'Todos';
 
+    /** Cuenta cuántas instancias activas hay del indicador con identificador id. */
     function cantidadDe(id){ return indActivos.filter(function(i){ return i.id === id; }).length; }
 
+    /**
+     * Dibuja las pestañas de la ventana de selección (Todos, un grupo por categoría y Activos con su contador) y
+     * marca la pestaña activa.
+     */
     function renderizarTabs(){
       var nombres = ['Todos'].concat(GRUPOS_IND).concat(['Activos']);
       tabsInd.innerHTML = '';
@@ -19,6 +41,10 @@
       });
     }
 
+    /**
+     * Crea la fila del catálogo para la definición df (nombre, descripción, estado y aviso de modo comparar); al
+     * pulsarla añade el indicador y refresca la lista. Devuelve el elemento.
+     */
     function filaIndicador(df){
       var n = cantidadDe(df.id);
       var fila = document.createElement('div'); fila.className = 'ind-fila'; fila.title = df.desc;
@@ -35,6 +61,10 @@
       return fila;
     }
 
+    /**
+     * Crea la fila de un indicador activo inst con botones para mostrar/ocultar, abrir ajustes y quitar. Devuelve el
+     * elemento.
+     */
     function filaInstancia(inst){
       var df = DEFS[inst.id];
       var fila = document.createElement('div'); fila.className = 'ind-fila';
@@ -44,6 +74,10 @@
       if (modoComparar && df.destino === 'precio') { sub.textContent += '  ·  ⚠ Oculto mientras compares'; sub.style.color = '#d29922'; }
       txt.appendChild(nom); txt.appendChild(sub);
       var acc = document.createElement('div'); acc.className = 'ind-acciones';
+      /**
+       * Auxiliar de filaInstancia: crea un botón pequeño con texto t, título titulo y clase opcional cls que ejecuta
+       * fn sin propagar el clic.
+       */
       function mini(t, titulo, fn, cls){
         var b = document.createElement('button'); b.className = 'ind-mini' + (cls ? ' ' + cls : ''); b.textContent = t; b.title = titulo;
         b.addEventListener('click', function(ev){ ev.stopPropagation(); fn(); });
@@ -56,6 +90,10 @@
       return fila;
     }
 
+    /**
+     * Rellena la lista de la ventana según la pestaña activa y el texto de búsqueda filtro (en nombre, abreviatura,
+     * descripción y grupo); muestra un mensaje si no hay resultados.
+     */
     function renderizarListaIndicadores(filtro){
       var cont = document.getElementById('ind-list-container');
       cont.innerHTML = '';
@@ -81,56 +119,90 @@
       if (!hay) { var nv = document.createElement('div'); nv.className = 'ind-vacio'; nv.textContent = 'Ningún indicador coincide con la búsqueda.'; cont.appendChild(nv); }
     }
 
+    /** Muestra la ventana de selección de indicadores, dibuja pestañas y lista y da foco al buscador. */
     function abrirModalIndicadores(){
       modalOverlay.style.display = 'flex';
       renderizarTabs();
       renderizarListaIndicadores(searchInput.value);
       setTimeout(function(){ searchInput.focus(); }, 50);
     }
+    // Eventos de la ventana de selección: abrir, cerrar con la X o con clic fuera, y filtrar al escribir
     btnIndSelect.addEventListener('click', function(e){ e.stopPropagation(); abrirModalIndicadores(); });
     modalClose.addEventListener('click', function(){ modalOverlay.style.display = 'none'; });
     modalOverlay.addEventListener('click', function(e){ if (e.target === modalOverlay) modalOverlay.style.display = 'none'; });
     searchInput.addEventListener('input', function(e){ renderizarListaIndicadores(e.target.value); });
 
     // ---------- Ajustes de un indicador (Entradas de datos / Estilo / Visibilidad) ----------
+    // Elementos de la ventana de ajustes de un indicador
     var cfgOverlay = document.getElementById('indcfg-overlay');
     var cfgCuerpo = document.getElementById('indcfg-cuerpo');
     var cfgTabs = document.getElementById('indcfg-tabs');
+    // cfgUid: instancia en edición; cfgSnap: copia para Cancelar; cfgTab: pestaña visible
     var cfgUid = null, cfgSnap = null, cfgTab = 'entradas';
 
+    /** Oculta la ventana de ajustes de un indicador y olvida la instancia y la copia de seguridad. */
     function cerrarAjustes(){ cfgOverlay.style.display = 'none'; cfgUid = null; cfgSnap = null; }
+    /** Cierra la ventana de ajustes solo si está mostrando la instancia uid (se usa al quitar un indicador). */
     function cerrarAjustesSiEs(uid){ if (cfgUid === uid) cerrarAjustes(); }
+    /** Devuelve la instancia cuyos ajustes están abiertos (cfgUid) o undefined si no hay ninguna. */
     function instAjustes(){ return indActivos.filter(function(i){ return i.uid === cfgUid; })[0]; }
+    /**
+     * Descarta los cambios hechos desde que se abrió la ventana restaurando la copia (cfgSnap), redibuja y cierra.
+     */
     function cancelarAjustes(){   // descarta lo cambiado desde que se abrió la ventana
       var inst = instAjustes();
       if (inst && cfgSnap) { restaurarInstancia(inst, cfgSnap); reconstruirIndicador(inst); }
       cerrarAjustes();
     }
+    /**
+     * Aplica un cambio hecho en la ventana de ajustes: reconstruye el indicador y actualiza el título de la ventana.
+     */
     function aplicarCambio(inst){
       reconstruirIndicador(inst);
       document.getElementById('indcfg-titulo').textContent = tituloInstancia(inst) + '  ·  ' + DEFS[inst.id].nombre;
     }
 
+    /**
+     * Crea un elemento HTML de etiqueta tag con clase opcional cls y texto opcional txt. Es el ayudante de creación
+     * de DOM que reutiliza también el backtest.
+     */
     function el(tag, cls, txt){ var e = document.createElement(tag); if (cls) e.className = cls; if (txt !== undefined) e.textContent = txt; return e; }
+    /** Añade al cuerpo de la ventana de ajustes una fila con la etiqueta y el control indicados. */
     function fila(etiqueta, control){
       var f = el('div', 'cfg-fila'); f.appendChild(el('span', '', etiqueta)); f.appendChild(control); cfgCuerpo.appendChild(f);
     }
+    /** Añade al cuerpo de la ventana de ajustes un título de sección con el texto t. */
     function seccion(t){ cfgCuerpo.appendChild(el('div', 'cfg-sec', t)); }
+    /**
+     * Crea un desplegable con las opciones [valor, texto], seleccionando la actual; al cambiar llama a alCambiar con
+     * el valor elegido. Devuelve el select.
+     */
     function selector(opciones, actual, alCambiar){
       var s = document.createElement('select');
       opciones.forEach(function(o){ var op = el('option', '', o[1]); op.value = o[0]; if (String(o[0]) === String(actual)) op.selected = true; s.appendChild(op); });
       s.addEventListener('change', function(){ alCambiar(s.value); });
       return s;
     }
+    /**
+     * Crea una casilla de verificación con texto y estado inicial marcada; al cambiar llama a alCambiar con el
+     * booleano. Devuelve la etiqueta.
+     */
     function casilla(texto, marcada, alCambiar){
       var l = el('label', 'cfg-check'); var c = document.createElement('input'); c.type = 'checkbox'; c.checked = marcada;
       c.addEventListener('change', function(){ alCambiar(c.checked); });
       l.appendChild(c); l.appendChild(el('span', '', texto)); return l;
     }
+    /**
+     * Garantiza que inst[campo] sea un array de n posiciones (relleno con null) para poder guardar valores por capa.
+     */
     function asegurarLista(inst, campo, n){
       if (!inst[campo]) inst[campo] = new Array(n).fill(null);
     }
 
+    /**
+     * Pinta la pestaña Entradas de datos: un selector o campo numérico por cada parámetro del indicador, que valida y
+     * aplica el cambio.
+     */
     function pestanaEntradas(inst, df){
       if (!df.params.length) { cfgCuerpo.appendChild(el('div', 'cfg-vacio', 'Este indicador no tiene parámetros.')); return; }
       df.params.forEach(function(pd){
@@ -145,7 +217,12 @@
       });
     }
 
+    // ESTILOS_LINEA: opciones de tipo de trazo [valor de LightweightCharts, texto]
     var ESTILOS_LINEA = [[0, 'Sólida'], [2, 'Discontinua'], [1, 'Punteada']];
+    /**
+     * Pinta la pestaña Estilo: por cada capa su visibilidad, color, tipo de trazo y grosor, más las opciones de
+     * precisión, etiquetas en la escala y valores en la línea de estado.
+     */
     function pestanaEstilo(inst, df){
       df.capas.forEach(function(cp, i){
         var tipo = cp[2] || 'linea';
@@ -171,6 +248,10 @@
       cfgCuerpo.appendChild(casilla('Valores en la línea de estado', inst.sl, function(v){ inst.sl = v; aplicarCambio(inst); }));
     }
 
+    /**
+     * Pinta la pestaña Visibilidad: para cada grupo de temporalidad una casilla y un rango mínimo-máximo (campos
+     * numéricos y deslizadores) que limitan dónde se muestra el indicador.
+     */
     function pestanaVisibilidad(inst){
       GRUPOS_TF.forEach(function(g){
         var r = inst.vis[g[0]], f = el('div', 'cfg-vis');
@@ -180,10 +261,18 @@
         var dual = el('div', 'cfg-dual'), rmn = document.createElement('input'), rmx = document.createElement('input');
         rmn.type = rmx.type = 'range'; rmn.min = rmx.min = g[2]; rmn.max = rmx.max = g[3]; rmn.value = r[1]; rmx.value = r[2];
         dual.appendChild(rmn); dual.appendChild(rmx);
+        /**
+         * Auxiliar de pestanaVisibilidad: colorea la pista del doble deslizador resaltando el tramo entre el mínimo y
+         * el máximo.
+         */
         function pintaPista(){
           var span = g[3] - g[2] || 1, a = (r[1] - g[2]) / span * 100, b = (r[2] - g[2]) / span * 100;
           dual.style.background = 'linear-gradient(to right,#3a3f47 ' + a + '%,#d1d4dc ' + a + '%,#d1d4dc ' + b + '%,#3a3f47 ' + b + '%)';
         }
+        /**
+         * Auxiliar de pestanaVisibilidad: valida, ordena y fija el rango [a, b] (quien indica qué extremo movió el
+         * usuario), sincroniza campos y deslizadores y aplica el cambio.
+         */
         function fija(a, b, quien){
           a = Math.round(Number(a)); b = Math.round(Number(b));
           if (!isFinite(a)) a = r[1]; if (!isFinite(b)) b = r[2];
@@ -202,6 +291,10 @@
       cfgCuerpo.appendChild(el('div', 'cfg-nota', 'El indicador solo se muestra en las temporalidades marcadas y dentro del rango indicado (p. ej. Minutos 1–15: M1, M5 y M15).'));
     }
 
+    /**
+     * Dibuja la ventana de ajustes de la instancia abierta: título, pestañas (Entradas, Estilo, Visibilidad) y el
+     * contenido de la pestaña activa.
+     */
     function pintarAjustes(){
       var inst = instAjustes();
       if (!inst) return;
@@ -219,6 +312,10 @@
       else pestanaVisibilidad(inst);
     }
 
+    /**
+     * Abre la ventana de ajustes del indicador uid guardando una copia para poder cancelar y mostrando la pestaña de
+     * entradas.
+     */
     function abrirAjustesInd(uid){
       var inst = indActivos.filter(function(i){ return i.uid === uid; })[0];
       if (!inst) return;
@@ -229,6 +326,7 @@
       cfgOverlay.style.display = 'flex';
     }
 
+    // Botones de la ventana de ajustes: cerrar y cancelar descartan, Aceptar guarda y Restablecer vuelve a los valores por defecto
     document.getElementById('indcfg-close').addEventListener('click', cancelarAjustes);
     document.getElementById('indcfg-cancel').addEventListener('click', cancelarAjustes);
     document.getElementById('indcfg-ok').addEventListener('click', function(){ cambioIndicadores(); cerrarAjustes(); });
@@ -240,8 +338,23 @@
       pintarAjustes();
     });
     cfgOverlay.addEventListener('click', function(e){ if (e.target === cfgOverlay) cancelarAjustes(); });
+    // Escape cierra primero la ventana de ajustes y, si no está abierta, la de selección
     document.addEventListener('keydown', function(e){
       if (e.key !== 'Escape') return;
       if (cfgOverlay.style.display !== 'none') cancelarAjustes();
       else if (modalOverlay.style.display !== 'none') modalOverlay.style.display = 'none';
     });
+
+/* -------------------------------------------------------------------------------------------------------
+   ------------------------------- FIN Piña y Jara 32_indicadores_modal .JS ------------------------------
+   ------------------------------------------------------------------------------------------------------- */
+
+/*
+Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+Dirección: José Joaquín Prieto #5373 -
+San Miguel - Santiago - Chile
+contacto.pinayjara@gmail.com
+https://www.pinayjara.cl
+Creado, Programado y Diseñado por Piña y Jara
+Transportes y Servicios Ltda.
+*/

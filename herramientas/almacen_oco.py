@@ -1,3 +1,16 @@
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ---------------------------------- INICIO Piña y Jara almacen_oco .PY ---------------------------------
+# -------------------------------------------------------------------------------------------------------
+
 """
 almacen_oco.py
 ------------
@@ -31,17 +44,22 @@ import tempfile
 import threading
 import time
 
+# Carpeta `data/` en la raíz del proyecto.
 _DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+# Archivo JSON compartido entre Streamlit y el motor con los pares OCO.
 _RUTA = os.path.join(_DIR, "oco.json")
+# Candado que serializa las modificaciones dentro del proceso.
 _LOCK = threading.Lock()
 
 
 def _par_id(a: int, b: int) -> str:
+    """Construye el id del par "<menor>-<mayor>" a partir de dos tickets, sin importar el orden."""
     x, y = sorted((int(a), int(b)))
     return f"{x}-{y}"
 
 
 def _leer_crudo() -> dict:
+    """Lee `oco.json` tal cual (sin validar); devuelve {} si falta o está corrupto."""
     try:
         with open(_RUTA, "r", encoding="utf-8") as f:
             return json.load(f)
@@ -52,6 +70,7 @@ def _leer_crudo() -> dict:
 def leer() -> dict:
     """Devuelve {par_id(str): {"a": int, "b": int, "symbol": str, "ts": float}}."""
     out = {}
+    # Normaliza tipos y descarta entradas dañadas sin interrumpir la lectura.
     for k, v in _leer_crudo().items():
         try:
             out[str(k)] = {"a": int(v["a"]), "b": int(v["b"]),
@@ -71,6 +90,7 @@ def tickets_en_oco() -> set:
 
 
 def _guardar(d: dict) -> None:
+    """Escribe el diccionario de pares en `oco.json` de forma atómica (temporal + fsync + os.replace)."""
     os.makedirs(_DIR, exist_ok=True)
     tmp = tempfile.NamedTemporaryFile("w", delete=False, dir=_DIR, encoding="utf-8")
     try:
@@ -83,7 +103,11 @@ def _guardar(d: dict) -> None:
 
 
 def fijar(a: int, b: int, symbol: str = "") -> str:
-    """Vincula dos órdenes pendientes como un par OCO. Devuelve el par_id."""
+    """Vincula dos órdenes pendientes como un par OCO y lo guarda. Devuelve el par_id.
+
+    Recibe los tickets `a` y `b` y el nombre real del símbolo (informativo).
+    Si el par ya existía, lo reemplaza con una marca de tiempo nueva.
+    """
     with _LOCK:
         d = leer()
         pid = _par_id(a, b)
@@ -107,6 +131,7 @@ def quitar_ticket(ticket: int) -> None:
         d = leer()
         tk = int(ticket)
         cambio = False
+        # Busca todos los pares donde el ticket sea pata A o B.
         for pid in [p for p, v in d.items() if v["a"] == tk or v["b"] == tk]:
             d.pop(pid, None)
             cambio = True
@@ -120,3 +145,16 @@ def mtime() -> float:
         return os.path.getmtime(_RUTA)
     except OSError:
         return 0.0
+
+
+# -------------------------------------------------------------------------------------------------------
+# ----------------------------------- FIN Piña y Jara almacen_oco .PY -----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

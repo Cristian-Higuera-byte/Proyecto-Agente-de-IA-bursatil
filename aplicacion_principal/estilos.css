@@ -1,3 +1,18 @@
+/*
+Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+Dirección: José Joaquín Prieto #5373 -
+San Miguel - Santiago - Chile
+contacto.pinayjara@gmail.com
+https://www.pinayjara.cl
+Creado, Programado y Diseñado por Piña y Jara
+Transportes y Servicios Ltda.
+*/
+
+
+/* -------------------------------------------------------------------------------------------------------
+   ----------------------------------- INICIO Piña y Jara estilos .CSS -----------------------------------
+   ------------------------------------------------------------------------------------------------------- */
+
 /* Ocultar la barra propia de Streamlit */
 [data-testid="stHeader"] { display: none; }
 [data-testid="stToolbar"] { display: none; }
@@ -7,7 +22,7 @@
    Súbelo/bájalo para más/menos espacio; debe ir acoplado con el
    margin-top negativo de la barra lateral (más abajo, mismo número). */
 .block-container {
-    padding: 1.5rem 1.5rem 2rem 1.2rem !important;
+    padding: 0.6rem 1.5rem 2rem 1.2rem !important;
     max-width: 100%;
 }
 
@@ -88,10 +103,13 @@ div[data-testid="column"]:has(.pj-nav) {
     background: #0d1117 !important;
     border-right: 1px solid #30363d;
     min-height: 100vh;
-    margin-top: -3.9rem !important;  /* = padding-top de .block-container */
+    margin-top: -3rem !important;  /* acoplado al padding-top de .block-container: la barra lateral queda en el mismo sitio */
     padding-top: 0 !important;
     z-index: 100001;
 }
+
+/* Separador fino entre la fila del gráfico y la del chat del agente (vista_operativa.py). */
+.pj-sep { border-top: 1px solid #30363d; height: 0; margin: 0; }
 
 /* Alinea el logo P&J con el buscador de la barra superior.
    Ajusta este valor (negativo = sube) si necesitas moverlo un poco más. */
@@ -99,3 +117,17 @@ div[data-testid="column"]:has(.pj-nav) {
     margin-top: -0.5rem !important;
 }
 
+
+/* -------------------------------------------------------------------------------------------------------
+   ------------------------------------- FIN Piña y Jara estilos .CSS ------------------------------------
+   ------------------------------------------------------------------------------------------------------- */
+
+/*
+Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+Dirección: José Joaquín Prieto #5373 -
+San Miguel - Santiago - Chile
+contacto.pinayjara@gmail.com
+https://www.pinayjara.cl
+Creado, Programado y Diseñado por Piña y Jara
+Transportes y Servicios Ltda.
+*/

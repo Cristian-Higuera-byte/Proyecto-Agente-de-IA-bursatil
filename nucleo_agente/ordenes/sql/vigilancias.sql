@@ -1,3 +1,16 @@
+-- Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+-- Dirección: José Joaquín Prieto #5373 -
+-- San Miguel - Santiago - Chile
+-- contacto.pinayjara@gmail.com
+-- https://www.pinayjara.cl
+-- Creado, Programado y Diseñado por Piña y Jara
+-- Transportes y Servicios Ltda.
+
+
+-- -------------------------------------------------------------------------------------------------------
+-- --------------------------------- INICIO Piña y Jara vigilancias .SQL ---------------------------------
+-- -------------------------------------------------------------------------------------------------------
+
 CREATE TABLE IF NOT EXISTS vigilancias (
     id TEXT PRIMARY KEY,
     usuario_id TEXT NOT NULL,
@@ -22,3 +35,16 @@ CREATE TABLE IF NOT EXISTS vigilancias (
     errores INTEGER DEFAULT 0,   -- fallos seguidos del análisis
     detalle TEXT
 )
+
+
+-- -------------------------------------------------------------------------------------------------------
+-- ----------------------------------- FIN Piña y Jara vigilancias .SQL ----------------------------------
+-- -------------------------------------------------------------------------------------------------------
+
+-- Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+-- Dirección: José Joaquín Prieto #5373 -
+-- San Miguel - Santiago - Chile
+-- contacto.pinayjara@gmail.com
+-- https://www.pinayjara.cl
+-- Creado, Programado y Diseñado por Piña y Jara
+-- Transportes y Servicios Ltda.

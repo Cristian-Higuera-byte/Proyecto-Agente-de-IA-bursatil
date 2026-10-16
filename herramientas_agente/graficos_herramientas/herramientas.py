@@ -1,4 +1,22 @@
-"""Herramientas registradas para el agente (los esquemas viven en esquemas.json)."""
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# --------------------------------- INICIO Piña y Jara herramientas .PY ---------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+"""Herramientas registradas para el agente de gráficos (los esquemas viven en esquemas.json).
+
+Registra ``generar_grafico_financiero``, que dibuja con matplotlib gráficos
+de velas, líneas, barras OHLC o comparativos de rendimiento, y guarda la
+imagen PNG en disco para que el chat la muestre.
+"""
 from __future__ import annotations
 
 import os
@@ -63,9 +81,25 @@ def generar_grafico_financiero(
     cantidad_velas: int = 80,
     comparar_con: str | None = None,
 ) -> dict[str, Any]:
+    """Genera un gráfico bursátil PNG y devuelve los metadatos del archivo.
+
+    Recibe el símbolo principal, el tipo de gráfico (velas, lineas,
+    barras_ohlc o comparativo), la temporalidad, la cantidad de velas (se
+    limita entre 20 y 300) y, solo para el comparativo, los símbolos extra
+    separados por coma. Obtiene las velas de MetaTrader 5 y, si no hay datos,
+    recurre a velas diarias de Yahoo Finance. Dibuja medias móviles EMA20/SMA50
+    y un panel RSI(14) (salvo en el comparativo, que muestra rendimiento % relativo).
+
+    Efectos secundarios: consulta MT5 y/o yfinance y escribe un PNG en
+    ``OUTPUT_DIR``. Devuelve un diccionario con la fuente, el símbolo, el
+    tipo, la temporalidad real, las velas graficadas, el último cierre, la
+    ruta del archivo y un mensaje; o ``{"error": ...}`` si algo falla.
+    """
+    # Normaliza el símbolo y acota la cantidad de velas a un rango razonable.
     simbolo_clean = simbolo.strip().upper()
     n_velas = max(20, min(int(cantidad_velas), 300))
 
+    # Valida el tipo de gráfico y los requisitos del comparativo.
     tipo_grafico = (tipo_grafico or "velas").strip().lower()
     if tipo_grafico not in TIPOS_VALIDOS:
         return {"error": f"tipo_grafico '{tipo_grafico}' no válido. Opciones: {', '.join(TIPOS_VALIDOS)}."}
@@ -73,6 +107,7 @@ def generar_grafico_financiero(
         return {"error": "El gráfico 'comparativo' requiere 'comparar_con' (ej. 'GBPUSD,USDCLP')."}
 
     # Obtener velas desde MT5 o YFinance
+    # velas_data: lista de velas OHLC; tf_real: temporalidad realmente usada.
     velas_data: list[dict[str, Any]] = []
     tf_real = timeframe
     fuente_datos = "MetaTrader 5"
@@ -82,6 +117,7 @@ def generar_grafico_financiero(
     except Exception:
         pass
 
+    # Respaldo: si MT5 no entregó velas, usa Yahoo Finance.
     if not velas_data:
         try:
             yf_sym = _mapear_simbolo_yf(simbolo_clean)
@@ -105,6 +141,7 @@ def generar_grafico_financiero(
         return {"error": f"Sin datos disponibles para graficar {simbolo_clean}."}
 
     # Configuración de Estilo Oscuro Institucional
+    # Crea la figura y define el nombre único del archivo (símbolo, tipo y marca de tiempo).
     plt.style.use("dark_background")
     fig = plt.figure(figsize=(12, 7), dpi=120)
     fig.patch.set_facecolor("#12141D")
@@ -120,6 +157,7 @@ def generar_grafico_financiero(
         ax = fig.add_subplot(111)
         ax.set_facecolor("#1A1D29")
 
+        # Pide a MT5 las velas de cada activo y normaliza cada serie a base 0 %.
         activos = [simbolo_clean] + [s.strip().upper() for s in (comparar_con or "").split(",") if s.strip()]
         graficados: list[str] = []
         for act in activos:
@@ -134,6 +172,7 @@ def generar_grafico_financiero(
             except Exception:
                 continue
 
+        # Un comparativo necesita al menos dos activos con datos.
         if len(graficados) < 2:
             plt.close(fig)
             return {
@@ -154,6 +193,7 @@ def generar_grafico_financiero(
     # 2. Gráfico de Velas / Barras OHLC / Líneas con Indicadores
     # ──────────────────────────────────────────────────────────
     else:
+        # Dos paneles: precio (3/4 de la altura) y RSI (1/4), con el eje X compartido.
         gs = fig.add_gridspec(2, 1, height_ratios=[3, 1], hspace=0.15)
         ax_main = fig.add_subplot(gs[0])
         ax_sub = fig.add_subplot(gs[1], sharex=ax_main)
@@ -161,16 +201,19 @@ def generar_grafico_financiero(
         ax_main.set_facecolor("#1A1D29")
         ax_sub.set_facecolor("#1A1D29")
 
+        # Series auxiliares: cierres, etiquetas de fecha e índices del eje X.
         cierres = [v["close"] for v in velas_data]
         fechas_str = [_etiqueta_fecha(v.get("time", i), tf_real) for i, v in enumerate(velas_data)]
         indices = list(range(len(velas_data)))
 
+        # Dibuja la serie principal según el tipo elegido.
         if tipo_grafico == "velas":
             _dibujar_velas(ax_main, velas_data)
         elif tipo_grafico == "lineas":
             ax_main.plot(indices, cierres, color="#00B0FF", linewidth=2.0, label="Precio Cierre")
             ax_main.fill_between(indices, cierres, min(cierres), color="#00B0FF", alpha=0.15)
         elif tipo_grafico == "barras_ohlc":
+            # Barra OHLC: línea vertical, marca de apertura a la izquierda y de cierre a la derecha.
             for i, v in enumerate(velas_data):
                 color = "#00B0FF" if v["close"] >= v["open"] else "#FF5252"
                 ax_main.plot([i, i], [v["low"], v["high"]], color=color, linewidth=1.2)
@@ -213,6 +256,7 @@ def generar_grafico_financiero(
         ax_sub.set_xticklabels(fechas_str[::paso], rotation=30, ha="right", color="#AAAAAA")
         plt.setp(ax_main.get_xticklabels(), visible=False)
 
+    # Ajusta márgenes para que no se corten títulos ni etiquetas.
     plt.tight_layout()
 
     # Guardar a archivo físico. La imagen NO se devuelve en Base64: ese texto iría al
@@ -220,6 +264,7 @@ def generar_grafico_financiero(
     fig.savefig(filepath, format="png", bbox_inches="tight", facecolor=fig.get_facecolor())
     plt.close(fig)
 
+    # Devuelve solo metadatos y la ruta del PNG, nunca la imagen.
     return {
         "fuente": "Generador Visual Bursátil (Matplotlib)",
         "fuente_datos": fuente_datos,
@@ -234,3 +279,16 @@ def generar_grafico_financiero(
             "No incluyas rutas ni enlaces a la imagen en tu respuesta."
         ),
     }
+
+
+# -------------------------------------------------------------------------------------------------------
+# ----------------------------------- FIN Piña y Jara herramientas .PY ----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

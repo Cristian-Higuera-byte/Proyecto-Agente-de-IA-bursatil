@@ -8,5 +8,10 @@
     ":material/reorder:",
     "dom",
     "Profundidad de mercado (DOM)"
+  ],
+  [
+    ":material/star:",
+    "fav",
+    "Favoritos"
   ]
 ]

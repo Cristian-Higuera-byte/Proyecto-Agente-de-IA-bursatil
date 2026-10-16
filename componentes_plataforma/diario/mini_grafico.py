@@ -1,52 +1,87 @@
-"""Mini-gráfico SVG de velas de una operación, con marcas de entrada/salida y SL/TP."""
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# --------------------------------- INICIO Piña y Jara mini_grafico .PY ---------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+"""Mini-gráfico SVG de velas de una operación, con marcas de entrada/salida y SL/TP.
+
+Lo usa ficha.py: recibe las velas del rango de la operación y devuelve HTML con un SVG
+(se incrusta con st.markdown). Los estilos jr-chart y jr-empty están en estilos.css.
+"""
 from componentes_plataforma.diario.datos import AZ, DN, TX, UP
 
 
 def mini_grafico_svg(velas, o):
     """Mini-gráfico de velas de la operación con marcas de entrada/salida y SL/TP,
-    etiquetas tipo pill (sin pisarse) y la paleta P&J. Velas: [{t,o,h,l,c}]."""
+    etiquetas tipo pill (sin pisarse) y la paleta P&J. Velas: [{t,o,h,l,c}].
+
+    Parámetros: velas (lista de diccionarios con tiempo t, apertura o, máximo h, mínimo l y
+    cierre c) y o (operación: entrada, salida, sl, tp, hora_in y hora_out). Devuelve una
+    cadena HTML: el SVG, o un aviso si hay menos de 2 velas.
+    """
+    # Sin datos suficientes se devuelve un aviso en lugar del gráfico.
     if len(velas) < 2:
         return ("<div class='jr-empty'>No hay velas para esta operación "
                 "(histórico fuera de rango).</div>")
+    # Niveles de precio que deben caber en el eje vertical (entrada, salida y, si existen, SL y TP).
     niveles = [o["entrada"], o["salida"]]
     if o.get("sl"):
         niveles.append(o["sl"])
     if o.get("tp"):
         niveles.append(o["tp"])
+    # Rango de precios visible: abarca las velas y los niveles.
     lo = min(min(v["l"] for v in velas), *niveles)
     hi = max(max(v["h"] for v in velas), *niveles)
     rng = (hi - lo) or 1.0
+    # Dimensiones del lienzo SVG (unidades del viewBox) y margen interno.
     W, H, pad = 1000, 270, 16
     padR = 120          # espacio a la derecha para las etiquetas pill
+    # Número de velas y ancho disponible por vela.
     n = len(velas)
     cw = (W - pad - padR) / n
-    def Y(p): return H - pad - (H - 2 * pad) * (p - lo) / rng
-    def X(i): return pad + cw * (i + 0.5)
+    # coord_y convierte un precio en coordenada Y del SVG (los precios altos quedan arriba);
+    # coord_x da la coordenada X del centro de la vela de índice i.
+    def coord_y(p):
+        """Convierte un precio `p` en la coordenada Y del SVG (los precios altos quedan arriba)."""
+        return H - pad - (H - 2 * pad) * (p - lo) / rng
 
+    def coord_x(i):
+        """Devuelve la coordenada X del centro de la vela de índice `i`."""
+        return pad + cw * (i + 0.5)
+
+    # Mecha y cuerpo de cada vela: verde si cierra al alza, roja si no.
     cuerpo = []
     for i, v in enumerate(velas):
         col = UP if v["c"] >= v["o"] else DN
-        x = X(i)
-        cuerpo.append(f"<line x1='{x:.1f}' y1='{Y(v['h']):.1f}' x2='{x:.1f}' "
-                      f"y2='{Y(v['l']):.1f}' stroke='{col}' stroke-width='1'/>")
-        y1, y2 = Y(v["o"]), Y(v["c"])
+        x = coord_x(i)
+        cuerpo.append(f"<line x1='{x:.1f}' y1='{coord_y(v['h']):.1f}' x2='{x:.1f}' "
+                      f"y2='{coord_y(v['l']):.1f}' stroke='{col}' stroke-width='1'/>")
+        y1, y2 = coord_y(v["o"]), coord_y(v["c"])
         yt, hgt = min(y1, y2), max(1.0, abs(y1 - y2))
         bw = max(1.8, cw * 0.62)
         cuerpo.append(f"<rect x='{x-bw/2:.1f}' y='{yt:.1f}' width='{bw:.1f}' "
                       f"height='{hgt:.1f}' rx='1' fill='{col}'/>")
 
-    def idx(ts):
+    def indice_vela(ts):
+        """Devuelve el índice de la vela cuyo tiempo está más cerca de `ts` (marca de tiempo)."""
         return min(range(n), key=lambda i: abs(velas[i]["t"] - ts))
 
     # Niveles con etiqueta pill a la derecha; se reparten en Y para no pisarse.
     lines = []
-    etiquetas = []   # (y_real, color, texto)
-    lines.append((Y(o["entrada"]), AZ, f"Entrada {o['entrada']:,.5f}", False))
-    lines.append((Y(o["salida"]), TX, f"Salida {o['salida']:,.5f}", False))
+    lines.append((coord_y(o["entrada"]), AZ, f"Entrada {o['entrada']:,.5f}", False))
+    lines.append((coord_y(o["salida"]), TX, f"Salida {o['salida']:,.5f}", False))
     if o.get("sl"):
-        lines.append((Y(o["sl"]), DN, f"SL {o['sl']:,.5f}", True))
+        lines.append((coord_y(o["sl"]), DN, f"SL {o['sl']:,.5f}", True))
     if o.get("tp"):
-        lines.append((Y(o["tp"]), UP, f"TP {o['tp']:,.5f}", True))
+        lines.append((coord_y(o["tp"]), UP, f"TP {o['tp']:,.5f}", True))
 
     svg = list(cuerpo)
     # Dibujar las líneas horizontales (hasta donde empiezan las pills).
@@ -72,11 +107,24 @@ def mini_grafico_svg(velas, o):
             f"font-family='ui-monospace,Consolas,monospace' text-anchor='middle'>{txt}</text>")
 
     # Puntos de entrada/salida sobre las velas.
-    ie, isx = idx(o["hora_in"]), idx(o["hora_out"])
-    svg.append(f"<circle cx='{X(ie):.1f}' cy='{Y(o['entrada']):.1f}' r='5' fill='{AZ}' "
+    ie, isx = indice_vela(o["hora_in"]), indice_vela(o["hora_out"])
+    svg.append(f"<circle cx='{coord_x(ie):.1f}' cy='{coord_y(o['entrada']):.1f}' r='5' fill='{AZ}' "
                f"stroke='#0b1017' stroke-width='1.5'/>")
-    svg.append(f"<circle cx='{X(isx):.1f}' cy='{Y(o['salida']):.1f}' r='5' fill='{TX}' "
+    svg.append(f"<circle cx='{coord_x(isx):.1f}' cy='{coord_y(o['salida']):.1f}' r='5' fill='{TX}' "
                f"stroke='#0b1017' stroke-width='1.5'/>")
     return (f"<div class='jr-chart'><svg viewBox='0 0 {W} {H}' width='100%' height='270' "
             f"style='width:100%;height:270px;display:block'>"
             + "".join(svg) + "</svg></div>")
+
+
+# -------------------------------------------------------------------------------------------------------
+# ----------------------------------- FIN Piña y Jara mini_grafico .PY ----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

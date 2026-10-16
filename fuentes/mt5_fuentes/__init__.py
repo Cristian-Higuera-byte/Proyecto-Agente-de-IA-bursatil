@@ -1,3 +1,16 @@
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ----------------------------------- INICIO Piña y Jara __init__ .PY -----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
 """Conexión con MetaTrader 5, candado, símbolos y utilidades — SOLO LECTURA.
 
 NOMBRE DEL PAQUETE: fuentes/mt5_fuentes (se importa como `from fuentes import mt5_fuentes`).
@@ -22,18 +35,21 @@ otra función (order_send, order_check, login, initialize, shutdown...) queda bl
 Nunca se llama a shutdown().
 
 DATOS POR USUARIO: MT5 trabaja con UNA cuenta por terminal. Para no entregar los datos de una
-persona a otra:
-  * exigir_cuenta_de(mt5, login_esperado) compara la cuenta abierta con la del usuario.
-  * Opcional, para instalaciones de un solo usuario: MT5_LOGIN_ESPERADO (y MT5_SERVER_ESPERADO)
-    en el .env; _exigir_cuenta() lo verifica.
-  * datos_cuenta_seguros() entrega el resumen de cuenta con el login enmascarado y sin nombre.
-  * El usuario debe venir de la sesión del dashboard, NUNCA de un argumento que decida el LLM.
+persona a otra, las consultas leen siempre la cuenta abierta en el terminal. El usuario debe venir de
+la sesión del dashboard, NUNCA de un argumento que decida el LLM.
 
-Las horas de MT5 son del SERVIDOR del broker, no tu hora local (ver offset_servidor_horas).
+Las horas de MT5 son del SERVIDOR del broker, no tu hora local.
 
 Archivos: entorno.py (.env), constantes.py + datos.json, errores.py, solo_lectura.py, candado.py, rutas.py, conexion.py,
-utiles.py, cuenta.py (cuenta, posiciones, órdenes, historial) y mercado.py (precio, velas, símbolos, riesgo)."""
+utiles.py, cuenta.py (cuenta, posiciones, órdenes, historial) y mercado.py (precio, velas, símbolos, riesgo).
+
+Este archivo es una fachada: reexporta desde los submódulos las constantes, errores, funciones
+públicas y también los nombres privados (con guion bajo) que usan otras capas del proyecto o las
+pruebas, para que `fuentes.mt5_fuentes.<nombre>` siga funcionando sin importar en qué archivo vive
+cada cosa. Los `# noqa: F401` evitan que el linter marque como "sin usar" lo que solo se reexporta."""
+# Importar entorno.py tiene el efecto de cargar el .env antes que cualquier otro módulo del paquete.
 import fuentes.mt5_fuentes.entorno  # noqa: F401  (carga el .env antes que nada)
+# Tiempos, temporalidades, lista blanca de funciones y alias de símbolos.
 from fuentes.mt5_fuentes.constantes import (
     TIMEFRAMES,
     _ALIAS,
@@ -45,24 +61,29 @@ from fuentes.mt5_fuentes.constantes import (
     _TTL_RUTAS_S,
     _TTL_SIMBOLOS_S,
 )  # noqa: F401
+# Excepciones del paquete.
 from fuentes.mt5_fuentes.errores import (
     ErrorMT5,
     OperacionNoPermitida,
 )  # noqa: F401
+# Envoltorio de solo lectura sobre el módulo MetaTrader5.
 from fuentes.mt5_fuentes.solo_lectura import (
     _SoloLectura,
 )  # noqa: F401
+# Candado de acceso a MT5 (compartido con el dashboard o propio).
 from fuentes.mt5_fuentes.candado import (
     _LOCK_COMPARTIDO,
     _LOCK_PROPIO,
-    _lock,
+    _candado,
     _resolver_lock_compartido,
 )  # noqa: F401
+# Descubrimiento de las rutas del terminal64.exe.
 from fuentes.mt5_fuentes.rutas import (
     rutas_candidatas,
     _rutas_cache,
     _terminal_en_ejecucion,
 )  # noqa: F401
+# Conexión, reintentos y sesión con candado (incluye el estado global de la conexión).
 from fuentes.mt5_fuentes.conexion import (
     asegurar_conexion,
     _conectar,
@@ -76,6 +97,7 @@ from fuentes.mt5_fuentes.conexion import (
     _ultimo_error,
     _ultimo_fallo,
 )  # noqa: F401
+# Utilidades de números, fechas, símbolos y tipos de orden.
 from fuentes.mt5_fuentes.utiles import (
     _como_tupla,
     _fecha_utc,
@@ -87,12 +109,14 @@ from fuentes.mt5_fuentes.utiles import (
     _tamano_pip,
     _tipo_orden,
 )  # noqa: F401
+# Consultas de la cuenta: resumen, posiciones, órdenes pendientes e historial.
 from fuentes.mt5_fuentes.cuenta import (
     cuenta,
     historial_operaciones,
     ordenes_pendientes,
     posiciones,
 )  # noqa: F401
+# Consultas de mercado: precio, velas, símbolos, especificación y riesgo.
 from fuentes.mt5_fuentes.mercado import (
     buscar_simbolos,
     distancias_y_riesgo,
@@ -101,3 +125,16 @@ from fuentes.mt5_fuentes.mercado import (
     resultado_si_precio,
     velas,
 )  # noqa: F401
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------------- FIN Piña y Jara __init__ .PY ------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

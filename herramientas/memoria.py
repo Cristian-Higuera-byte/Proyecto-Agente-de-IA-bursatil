@@ -1,3 +1,16 @@
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------------ INICIO Piña y Jara memoria .PY -----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
 """
 memoria.py
 -----------
@@ -10,6 +23,7 @@ import json
 import os
 from datetime import datetime
 
+# Ruta (relativa al directorio de ejecución) del JSON con el historial de consultas.
 ARCHIVO_MEMORIA = "data/consultas_guardadas.json"
 
 def guardar_consulta(pregunta: str, resultado: dict) -> dict:
@@ -24,6 +38,7 @@ def guardar_consulta(pregunta: str, resultado: dict) -> dict:
     Retorna:
         dict: Confirmación de la acción realizada y total de consultas.
     """
+    # Carga el historial existente; si no hay archivo o está corrupto, parte de cero.
     consultas = []
     if os.path.exists(ARCHIVO_MEMORIA):
         with open(ARCHIVO_MEMORIA, "r", encoding="utf-8") as f:
@@ -54,6 +69,7 @@ def guardar_consulta(pregunta: str, resultado: dict) -> dict:
     with open(ARCHIVO_MEMORIA, "w", encoding="utf-8") as f:
         json.dump(consultas, f, ensure_ascii=False, indent=2)
 
+    # Informa si se actualizó una pregunta repetida o se creó una nueva.
     accion = "actualizado" if encontrada else "guardado"
     return {"estado": accion, "total_consultas": len(consultas)}
 
@@ -70,3 +86,16 @@ def limpiar_memoria() -> dict:
         os.remove(ARCHIVO_MEMORIA)
 
     return {"estado": "limpiado", "mensaje": "El historial de consultas guardadas ha sido borrado exitosamente."}
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------------- FIN Piña y Jara memoria .PY -------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
