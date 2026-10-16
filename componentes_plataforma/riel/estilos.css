@@ -68,19 +68,23 @@ __TIPS__
     /* Icono del panel abierto en verde (como el nav izquierdo activo).
        Operar está activo salvo que haya DOM o todo oculto. */
     /* ÍCONO DEL PANEL ABIERTO */
-    /* Operar activo (verde) cuando el elemento html no tiene ni pj-panel-dom ni pj-panel-none. */
-    html:not(.pj-panel-dom):not(.pj-panel-none) .st-key-rail_order button {
+    /* Operar activo (verde) cuando el elemento html no tiene ni pj-panel-dom, ni pj-panel-fav, ni pj-panel-none. */
+    html:not(.pj-panel-dom):not(.pj-panel-fav):not(.pj-panel-none) .st-key-rail_order button {
         background: rgba(34,197,94,0.12) !important; color: #22c55e !important;
     }
     /* DOM activo (verde) cuando html tiene la clase pj-panel-dom. */
     html.pj-panel-dom .st-key-rail_dom button {
         background: rgba(34,197,94,0.12) !important; color: #22c55e !important;
     }
+    /* Favoritos activo (verde) cuando html tiene la clase pj-panel-fav. */
+    html.pj-panel-fav .st-key-rail_fav button {
+        background: rgba(34,197,94,0.12) !important; color: #22c55e !important;
+    }
 
     /* ===== Paneles FIJOS (se deslizan fuera de pantalla al ocultarse) ===== */
     /* PANELES DESPLEGABLES */
-    /* Paneles Operar y DOM (contenedores con key en panel.py): fijos a la izquierda del rail, con scroll vertical propio. */
-    .st-key-pj_panel_order, .st-key-pj_panel_dom {
+    /* Paneles Operar, DOM y Favoritos (contenedores con key en panel.py): fijos a la izquierda del rail, con scroll vertical propio. */
+    .st-key-pj_panel_order, .st-key-pj_panel_dom, .st-key-pj_panel_fav {
         position: fixed !important; right: __RAIL__px !important; top: __TOP__px !important;
         height: calc(100vh - __TOP__px) !important; width: __PANEL__px !important;
         background: #0b0f19; border-left: 1px solid #30363d; z-index: 99999;
@@ -90,17 +94,34 @@ __TIPS__
     /* Operar: visible por defecto; oculto con DOM o con "none" */
     /* Operar visible por defecto (sin desplazamiento). */
     .st-key-pj_panel_order { transform: translateX(0); }
-    /* Operar se desliza fuera de pantalla (110 % de su ancho) cuando está abierto DOM o todo oculto. */
+    /* Operar se desliza fuera de pantalla (110 % de su ancho) cuando está abierto DOM o Favoritos, o todo oculto. */
     html.pj-panel-dom .st-key-pj_panel_order,
+    html.pj-panel-fav .st-key-pj_panel_order,
     html.pj-panel-none .st-key-pj_panel_order { transform: translateX(110%); }
     /* DOM: oculto por defecto; visible solo con pj-panel-dom */
     /* DOM oculto por defecto (fuera de pantalla). */
     .st-key-pj_panel_dom { transform: translateX(110%); }
     /* DOM entra en pantalla solo con la clase pj-panel-dom. */
     html.pj-panel-dom .st-key-pj_panel_dom { transform: translateX(0); }
+    /* Favoritos: oculto por defecto; entra en pantalla solo con la clase pj-panel-fav. */
+    .st-key-pj_panel_fav { transform: translateX(110%); }
+    html.pj-panel-fav .st-key-pj_panel_fav { transform: translateX(0); }
     /* Fondo transparente del envoltorio interno de Streamlit para que se vea el fondo del panel. */
     .st-key-pj_panel_order [data-testid="stVerticalBlockBorderWrapper"],
-    .st-key-pj_panel_dom [data-testid="stVerticalBlockBorderWrapper"] { background: transparent; }
+    .st-key-pj_panel_dom [data-testid="stVerticalBlockBorderWrapper"],
+    .st-key-pj_panel_fav [data-testid="stVerticalBlockBorderWrapper"] { background: transparent; }
+    /* El panel Favoritos ya trae su propio recuadro (fav_panel): se le quita el margen inferior para que no sobre espacio. */
+    .st-key-pj_panel_fav .st-key-fav_panel { margin-bottom: 0 !important; }
+
+    /* Los contenedores del rail y de los paneles Operar y DOM son fijos (no ocupan lugar), pero su envoltorio de Streamlit
+       seguía en el flujo vertical y sumaba 16px de separación por cada uno (unos 64px de hueco entre la primera fila y la
+       fila del chat). Se sacan del flujo con position:absolute; sus hijos siguen fijos respecto a la ventana. */
+    /* ENVOLTORIOS FUERA DEL FLUJO */
+    /* Envoltorios de pj_panel_order, pj_panel_dom, pj_rail y pj_railjs: absolutos y sin tamaño, así no suman separación. */
+    [data-testid="stLayoutWrapper"]:has(> .st-key-pj_panel_order),
+    [data-testid="stLayoutWrapper"]:has(> .st-key-pj_panel_dom),
+    [data-testid="stLayoutWrapper"]:has(> .st-key-pj_rail),
+    [data-testid="stLayoutWrapper"]:has(> .st-key-pj_railjs) { position: absolute !important; width: 0 !important; height: 0 !important; }
 
     /* Script del rail: fuera del flujo */
     /* CONTENEDOR DEL SCRIPT */

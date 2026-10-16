@@ -30,7 +30,7 @@ Transportes y Servicios Ltda.
        */
       bcTicks.onmessage = function(ev){
         var t = ev.data && ev.data.t && ev.data.t[SIMBOLO];
-        if (!t || !t.b || cargando || !datosActuales.length) return;
+        if (!t || !t.b || cargando || rpActivo || !datosActuales.length) return;   // en replay no se mezcla el precio en vivo con el pasado
         ultimoTickBC = Date.now();
         var px = t.b;                       // las velas de MT5 se construyen con el Bid
         var ultima = datosActuales[datosActuales.length - 1];
@@ -62,7 +62,7 @@ Transportes y Servicios Ltda.
 
     // Sondeo cada 1,5 s de la última vela a la API; con el feed activo solo resincroniza cada 5 s
     setInterval(function(){
-      if (cargando || pollEnCurso || !datosActuales.length) return;
+      if (cargando || pollEnCurso || rpActivo || !datosActuales.length) return;   // en replay no se consulta la última vela real
       // Con el feed entregando ticks, el polling solo resincroniza (volumen real,
       // vela cerrada) cada 5 s en vez de cada 1,5 s.
       if (Date.now() - ultimoTickBC < 4000 && Date.now() - ultimoPoll < 5000) return;

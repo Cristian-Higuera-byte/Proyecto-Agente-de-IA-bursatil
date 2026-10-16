@@ -49,7 +49,7 @@ def crear_fragmentos() -> SimpleNamespace:
     def favoritos_en_vivo():
         """Actualiza los precios desde MT5 y vuelve a dibujar la barra de favoritos."""
         actualizar_precios_mt5()
-        renderizar_barra_favoritos()
+        renderizar_barra_favoritos(vertical=True)   # dentro del panel «Favoritos» del rail derecho (apilados)
 
     @st.fragment(run_every=INTERVALO_PRECIOS)
     def watchlist_en_vivo():

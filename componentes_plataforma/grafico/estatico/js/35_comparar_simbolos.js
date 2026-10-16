@@ -151,6 +151,7 @@ Transportes y Servicios Ltda.
      * su serie; ignora respuestas obsoletas mediante c.req y anota errores.
      */
     function cargarComparado(c){
+      if (rpActivo){ rpCargarComparado(c); return; }   // en replay el comparado carga su historial largo y avanza con el principal
       var miId = ++c.req, tf = tfActual, n = nBarrasActual;
       fetch(API + '/velas/' + encodeURIComponent(c.sym) + '?tf=' + tf + '&n=' + n)
         .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
@@ -201,6 +202,7 @@ Transportes y Servicios Ltda.
     function quitarComparado(c){
       var i = comparados.indexOf(c);
       if (i < 0) return;
+      if (typeof rpAlQuitarComparado === 'function') rpAlQuitarComparado(c);   // el replay cierra la posición que tuviera en ese símbolo
       comparados.splice(i, 1); c.req++;
       try { chart.removeSeries(c.serie); } catch (e) {}
       aplicarModoComparar();
@@ -312,7 +314,7 @@ Transportes y Servicios Ltda.
     // Actualización en vivo de los símbolos comparados (el feed de ticks solo cubre los símbolos de la página)
     // Temporizador de 6 s: pide la última vela de cada símbolo comparado y la integra en su serie
     setInterval(function(){
-      if (!comparados.length || document.hidden) return;
+      if (!comparados.length || document.hidden || rpActivo) return;   // en replay no se consulta la última vela real de los comparados
       comparados.forEach(function(c){
         if (!c.datos.length || c.error) return;
         var tf = tfActual, id = c.req;

@@ -80,8 +80,11 @@ def _slot_favorito(tk: str, datos: dict):
         st.rerun(scope="fragment")
 
 
-def renderizar_barra_favoritos():
-    """Dibuja el panel completo de favoritos: encabezado con contador y una fila de 6 slots.
+def renderizar_barra_favoritos(vertical: bool = False):
+    """Dibuja el panel completo de favoritos: encabezado con contador y los 6 slots.
+
+    Con `vertical=False` (por defecto) los slots van en una fila de 6 columnas; con `vertical=True` van apilados
+    uno bajo otro, que es la disposición del panel «Favoritos» del rail derecho (riel/).
 
     Inicializa los favoritos del usuario (carga única desde Supabase), calcula qué activos de la
     watchlist siguen disponibles para agregar y reparte los 6 slots: favoritos existentes, un botón
@@ -114,9 +117,12 @@ def renderizar_barra_favoritos():
 
         # --- 6 slots: favorito (con ✕), '+' en el primer hueco libre, o vacío ---
         # Una columna por slot; cada slot lleva su propia clave para que el CSS lo posicione.
-        cols = st.columns(_VISIBLES, gap="small")
+        # En vertical no hay columnas: los slots se apilan y no se dibujan huecos vacíos.
+        cols = None if vertical else st.columns(_VISIBLES, gap="small")
         for i in range(_VISIBLES):
-            with cols[i]:
+            if vertical and (i > total or (i == total and not puede_agregar)):
+                break   # en vertical se detiene tras el último favorito (o tras el «+»)
+            with (st.container() if vertical else cols[i]):
                 with st.container(key=f"favslot_{i}"):
                     if i < total:
                         _slot_favorito(favs[i], datos)

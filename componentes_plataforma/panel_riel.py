@@ -18,9 +18,10 @@ constantes de geometría `RAIL`, `PANEL` y `TOP`, la lista `BOTONES` del riel, `
 y `renderizar_riel_y_paneles` (dibuja el riel y sus paneles desplegables). Existe para que el import de
 `aplicacion.py` siga funcionando sin cambios. No contiene lógica propia.
 """
-from componentes_plataforma.riel import BOTONES, PANEL, RAIL, TOP, inyectar_css_riel, renderizar_riel_y_paneles
+from componentes_plataforma.riel import (BOTONES, PANEL, RAIL, TOP, inyectar_css_riel, renderizar_panel_favoritos,
+                                         renderizar_riel_y_paneles)
 
-__all__ = ["RAIL", "PANEL", "TOP", "BOTONES", "inyectar_css_riel", "renderizar_riel_y_paneles"]
+__all__ = ["RAIL", "PANEL", "TOP", "BOTONES", "inyectar_css_riel", "renderizar_panel_favoritos", "renderizar_riel_y_paneles"]
 
 
 # -------------------------------------------------------------------------------------------------------

@@ -104,6 +104,7 @@ Transportes y Servicios Ltda.
      * falso. Ignora respuestas obsoletas con cargaId.
      */
     function cargar(tf, n, ajustarFit){
+      if (typeof rpAlCambiarDatos === 'function') rpAlCambiarDatos();   // si hay un replay en curso, se sale de él antes de cargar datos nuevos
       tfActual = tf;
       var elTf = document.getElementById('lg-tf');
       if (elTf) elTf.innerText = (tf === 'MN1' ? 'MN' : tf);
@@ -132,6 +133,7 @@ Transportes y Servicios Ltda.
             actualizarIndicadoresActivos();
             redibujarTodo();
             recargarComparados();   // los símbolos comparados se piden con la misma temporalidad y nº de barras
+            if (typeof rpPrecargar === 'function') rpPrecargar(false);   // el historial del replay se pide por adelantado, ya con el gráfico dibujado
           }
         })
         .catch(function(){

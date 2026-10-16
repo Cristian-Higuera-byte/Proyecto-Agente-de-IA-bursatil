@@ -34,10 +34,11 @@ def renderizar_vista(fragmentos, consola) -> None:
     momento de dibujarlos para que un problema en uno no impida abrir los demás.
     Recibe `fragmentos` (de `crear_fragmentos()`) y `consola` (módulo `consola_agente` o `None`).
     """
-    # Pequeño espacio superior para separar el contenido de la barra fija.
-    st.markdown("<div style='height: 0.2rem'></div>", unsafe_allow_html=True)
-
     vista_activa = st.session_state.get("nav_activo")
+    # Pequeño espacio superior para separar el contenido de la barra fija. Las vistas de operar (Trading y
+    # Cartera) lo omiten: ahí el gráfico y la lista de activos van pegados arriba para verse completos.
+    if vista_activa not in ("trading", "portafolio"):
+        st.markdown("<div style='height: 0.2rem'></div>", unsafe_allow_html=True)
     if vista_activa == "noticias":
         # --- VISTA DE NOTICIAS ---
         renderizar_panel_noticias(consola)

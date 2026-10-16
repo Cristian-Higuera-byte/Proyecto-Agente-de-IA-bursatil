@@ -26,23 +26,25 @@ Transportes y Servicios Ltda.
    */
   function estado(){
     if (H.classList.contains('pj-panel-dom')) return 'dom';
+    if (H.classList.contains('pj-panel-fav')) return 'fav';
     if (H.classList.contains('pj-panel-none')) return 'none';
     return 'order';   // sin clase = Operar abierto (default al entrar / F5)
   }
   /**
    * Fija el estado de los paneles.
-   * Recibe s ('dom', 'none' u 'order') y activa o quita las clases pj-panel-dom y pj-panel-none en html; el CSS
+   * Recibe s ('dom', 'fav', 'none' u 'order') y activa o quita las clases pj-panel-dom, pj-panel-fav y pj-panel-none en html; el CSS
    * desliza los paneles en consecuencia.
    */
   function poner(s){
     H.classList.toggle('pj-panel-dom', s === 'dom');
+    H.classList.toggle('pj-panel-fav', s === 'fav');
     H.classList.toggle('pj-panel-none', s === 'none');
   }
   // Si el script se carga otra vez (rerun de Streamlit), se retira el oyente anterior para no duplicar clics.
   if (P.__pjRailFn) D.removeEventListener('click', P.__pjRailFn, true);
   /**
    * Oyente de clics en fase de captura, guardado en la ventana padre para poder retirarlo después.
-   * Recibe el evento e; si el clic cayó en el botón Operar o DOM del rail, lo intercepta (antes de que llegue a
+   * Recibe el evento e; si el clic cayó en el botón Operar, DOM o Favoritos del rail, lo intercepta (antes de que llegue a
    * Streamlit, así no hay rerun) y alterna el panel: pulsar el botón del panel abierto lo oculta todo.
    */
   P.__pjRailFn = function(e){
@@ -50,12 +52,14 @@ Transportes y Servicios Ltda.
     // Botones del rail identificados por la clave que les da Streamlit (clases st-key-rail_order y st-key-rail_dom).
     var bo = e.target.closest('.st-key-rail_order button');
     var bd = e.target.closest('.st-key-rail_dom button');
+    var bf = e.target.closest('.st-key-rail_fav button');
     // Cualquier otro clic sigue su curso normal.
-    if (!bo && !bd) return;
+    if (!bo && !bd && !bf) return;
     e.stopPropagation(); e.preventDefault();
     var c = estado();
     if (bo) poner(c === 'order' ? 'none' : 'order');
-    else    poner(c === 'dom' ? 'none' : 'dom');
+    else if (bd) poner(c === 'dom' ? 'none' : 'dom');
+    else    poner(c === 'fav' ? 'none' : 'fav');
   };
   // Captura (true) para adelantarse a los manejadores de Streamlit.
   D.addEventListener('click', P.__pjRailFn, true);

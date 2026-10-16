@@ -100,12 +100,20 @@ def _estilos() -> str:
     return f"<style>\n{css}\n</style>"
 
 
+def _ir_a_vista(clave: str) -> None:
+    """Guarda en `st.session_state.nav_activo` la vista que se acaba de elegir.
+
+    Se usa como `on_click` de los botones de la barra: Streamlit lo ejecuta antes de volver a correr el script, de modo
+    que la vista nueva se dibuja en una sola pasada. Recibe la clave de la vista y no devuelve nada."""
+    st.session_state.nav_activo = clave
+
+
 def renderizar_barra_navegacion():
     """Dibuja la barra lateral de navegación dentro de la columna que la contiene.
 
     Inyecta el CSS y el marcador .pj-nav, el logo, el script del toggle (sin altura) y un
     botón de solo icono por cada ítem de ITEMS; el activo se pinta como primary. Al pulsar
-    un botón guarda su clave en `st.session_state.nav_activo` y reejecuta la app. El botón de
+    un botón guarda su clave en `st.session_state.nav_activo` (con `on_click`, sin `st.rerun()`). El botón de
     Soporte solo muestra un aviso (`st.toast`). Si `nav_activo` no existe, inicia en "trading".
     """
     # Vista inicial al entrar
@@ -132,10 +140,9 @@ def renderizar_barra_navegacion():
         # El botón de la vista activa se marca como primary (verde por CSS)
         activo = st.session_state.nav_activo == clave
         tipo = "primary" if activo else "secondary"
-        if st.button(icono, key=f"nav_btn_{clave}", type=tipo):
-            # Cambia de vista y vuelve a ejecutar para que aplicacion.py renderice la nueva
-            st.session_state.nav_activo = clave
-            st.rerun()
+        # El cambio de vista se hace en un on_click: Streamlit lo ejecuta ANTES de correr el script, así la página se
+        # dibuja una sola vez con la vista nueva (con `st.rerun()` el script corría dos veces por cada clic).
+        st.button(icono, key=f"nav_btn_{clave}", type=tipo, on_click=_ir_a_vista, args=(clave,))
 
     # Soporte: se empuja al fondo con margin-top:auto (ver CSS), sin espaciador fijo.
     if st.button(":material/headset_mic:", key="nav_soporte"):

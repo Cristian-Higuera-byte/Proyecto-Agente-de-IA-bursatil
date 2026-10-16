@@ -18,6 +18,8 @@ Transportes y Servicios Ltda.
        * Si la conexión falla resuelve con {error: ...} en vez de rechazar, para que el llamador solo revise res.error.
        */
       function post(ruta, cuerpo){
+        // En modo Replay (práctica sobre el pasado) NUNCA se envía nada al servidor: se rechaza antes de salir.
+        if (rpActivo) return Promise.resolve({error: 'Modo Replay: las órdenes reales están desactivadas'});
         // text/plain = petición "simple" (sin preflight CORS)
         return fetch(API + ruta, {method: 'POST', headers: {'Content-Type': 'text/plain'}, body: JSON.stringify(cuerpo)})
           .then(function(r){ return r.json(); })

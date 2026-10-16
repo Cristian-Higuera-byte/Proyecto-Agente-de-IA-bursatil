@@ -33,6 +33,17 @@ from componentes_plataforma.flujo_precios import intervalo as _intervalo
 from herramientas.puente_mt5 import inicializar_mt5
 
 
+def _ir_o_avisar(destino, titulo: str) -> None:
+    """Acción de un acceso rápido (`on_click`): cambia a la vista `destino` o avisa si todavía no existe.
+
+    Se ejecuta antes de que Streamlit vuelva a correr el script, así la vista nueva se dibuja en una sola pasada (sin
+    `st.rerun()`). Recibe el destino (clave de `nav_activo` o vacío) y el título del acceso; no devuelve nada."""
+    if destino:
+        st.session_state.nav_activo = destino
+    else:
+        st.toast(f"{titulo}: disponible próximamente.")
+
+
 def renderizar_panel_inicio(main=None):
     """Dibuja la vista Inicio completa: cuenta, accesos rápidos, posiciones, historial y promociones.
 
@@ -85,12 +96,7 @@ def renderizar_panel_inicio(main=None):
                         f"{icono_material(ic, color)}</div><div class='acc-tx'><div class='acc-t'>{titulo}</div>"
                         f"<div class='acc-s'>{sub}</div></div>{icono_material('chevron_right')}</div>"
                     )
-                    if st.button(titulo, key=f"accsel_{i}"):
-                        if dest:
-                            st.session_state.nav_activo = dest
-                            st.rerun()
-                        else:
-                            st.toast(f"{titulo}: disponible próximamente.")
+                    st.button(titulo, key=f"accsel_{i}", on_click=_ir_o_avisar, args=(dest, titulo))
 
         _posiciones_vivo()
 

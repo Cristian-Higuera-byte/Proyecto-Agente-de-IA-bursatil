@@ -11,11 +11,11 @@
 # ------------------------------------- INICIO Piña y Jara panel .PY ------------------------------------
 # -------------------------------------------------------------------------------------------------------
 
-"""Rail de iconos FIJO a la derecha: dibuja los paneles (Operar, DOM), el rail y el script que los alterna.
+"""Rail de iconos FIJO a la derecha: dibuja los paneles (Operar, DOM, Favoritos), el rail y el script que los alterna.
 
 El CSS (`estilos.css`) decide qué panel se ve según una clase en el elemento html; `riel.js` cambia esa clase al
 pulsar los botones, sin reejecutar Python. Este módulo crea los contenedores con clave que el CSS y el JS buscan:
-`pj_panel_order`, `pj_panel_dom`, `pj_rail` y `pj_railjs`.
+`pj_panel_order`, `pj_panel_dom`, `pj_panel_fav`, `pj_rail` y `pj_railjs`.
 """
 from pathlib import Path
 
@@ -36,6 +36,17 @@ def inyectar_css_riel():
 
     No recibe parámetros ni devuelve nada; escribe el estilo en la página con `st.markdown`."""
     st.markdown(css(), unsafe_allow_html=True)
+
+
+def renderizar_panel_favoritos(contenido) -> None:
+    """Dibuja el panel «Favoritos» del rail derecho y llama a `contenido()` dentro de él.
+
+    `contenido` es la función que pinta los favoritos (el fragmento en vivo de aplicacion_principal/fragmentos.py).
+    Se separa de `renderizar_riel_y_paneles` porque debe ejecutarse al PRINCIPIO de la vista operativa: el fragmento
+    también refresca los precios de mercado que usa la lista de activos, que se dibuja después. El contenedor
+    `pj_panel_fav` va fijo a la derecha por CSS, así que su posición en el código no importa visualmente."""
+    with st.container(key="pj_panel_fav"):
+        contenido()
 
 
 def renderizar_riel_y_paneles(main=None):

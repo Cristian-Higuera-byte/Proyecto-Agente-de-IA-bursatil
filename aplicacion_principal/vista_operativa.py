@@ -38,7 +38,7 @@ def renderizar_vista_operativa(renderizar_lista_izquierda, fragmentos, consola) 
     """
     Dibuja la vista de operar (Trading y Cartera) en dos filas.
 
-    Fila 1: lista de la izquierda (watchlist o posiciones) | gráfico | ticket de orden.
+    Fila 1: lista de la izquierda (watchlist o posiciones) | gráfico | rail derecho (ticket, profundidad, favoritos).
     Fila 2: historial del agente | chat del agente | órdenes propuestas.
 
     Los paneles del agente van en su propia fila para que queden siempre a la altura del chat y no
@@ -48,14 +48,16 @@ def renderizar_vista_operativa(renderizar_lista_izquierda, fragmentos, consola) 
     en Trading y en Cartera), `fragmentos` (el objeto de `crear_fragmentos()`) y `consola` (el
     módulo `consola_agente`, o `None`), que se pasa a los paneles que lo usan.
     """
-    fragmentos.favoritos()
     inyectar_estilos_agente()
 
-    # El ticket ya no va como columna: vive en el rail de iconos fijo a la derecha
-    # (componentes_plataforma/panel_riel.py). El CSS del rail se inyecta ANTES de las columnas
-    # para que el gráfico se mida con el espacio reservado a la derecha.
-    from componentes_plataforma.panel_riel import inyectar_css_riel, renderizar_riel_y_paneles
+    # El ticket y los favoritos ya no van como columnas ni como barra superior: viven en el rail de iconos fijo
+    # a la derecha (componentes_plataforma/panel_riel.py). El CSS del rail se inyecta PRIMERO, antes de las
+    # columnas, para que el gráfico se mida con el espacio reservado a la derecha y para que el panel de favoritos
+    # nazca ya en su sitio. Los favoritos se dibujan antes que la lista de activos porque su fragmento también
+    # refresca los precios de mercado que esa lista usa.
+    from componentes_plataforma.panel_riel import inyectar_css_riel, renderizar_panel_favoritos, renderizar_riel_y_paneles
     inyectar_css_riel()
+    renderizar_panel_favoritos(fragmentos.favoritos)
 
     # Primera fila: lista a la izquierda y panel central (gráfico) a la derecha.
     col_izquierda, col_centro = st.columns([COLUMNAS_OPERAR[0],
@@ -66,7 +68,8 @@ def renderizar_vista_operativa(renderizar_lista_izquierda, fragmentos, consola) 
         renderizar_panel_central(consola)
     renderizar_riel_y_paneles(consola)
 
-    st.markdown("---")
+    # Separador fino entre las dos filas (con st.markdown("---") quedaba una franja alta de ~50px).
+    st.html("<div class='pj-sep'></div>")
 
     # Segunda fila: paneles del agente, con las mismas proporciones que la primera.
     col_historial, col_chat, col_propuestas = st.columns(COLUMNAS_OPERAR)

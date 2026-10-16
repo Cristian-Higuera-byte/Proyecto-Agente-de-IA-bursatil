@@ -24,6 +24,7 @@ from componentes_plataforma.acceso import requerir_login
 from componentes_plataforma.barra_lateral import renderizar_barra_navegacion as renderizar_nav_lateral
 from componentes_plataforma.datos_mercado import cargar_datos_mercado
 from componentes_plataforma.flujo_vivo import inyectar_flujo
+from componentes_plataforma.transicion import inyectar_transicion
 
 from .cabecera import datos_cuenta, renderizar_barra_superior
 from .dialogos import renderizar_dialogos
@@ -50,6 +51,9 @@ def ejecutar(consola) -> None:
 
     # Estilos CSS globales (tema oscuro tipo terminal de trading).
     st.markdown(css_global(), unsafe_allow_html=True)
+
+    # Cortina de transición entre secciones (oculta la vista mientras carga y la muestra ya armada).
+    inyectar_transicion()
 
     # Login (Supabase): protege el acceso al dashboard y devuelve los datos del usuario.
     usuario_actual = requerir_login()
@@ -83,7 +87,9 @@ def ejecutar(consola) -> None:
 
     # 3. Área de contenido principal: cambia según la vista elegida en la barra lateral.
     with col_principal:
-        renderizar_vista(fragmentos, consola)
+        # El contenedor con clave `pj_vista` es lo que la cortina de transición oculta mientras se carga la sección.
+        with st.container(key="pj_vista"):
+            renderizar_vista(fragmentos, consola)
 
     # Se quita la cubierta de carga una vez dibujado todo.
     cubierta_carga.empty()

@@ -43,6 +43,7 @@ Transportes y Servicios Ltda.
   var cargando = false;
   // Indica que hay una consulta periódica (polling) en curso, para no solaparlas.
   var pollEnCurso = false;
+  var rpActivo = false;   // true mientras el modo Replay está activo: apaga las actualizaciones en vivo y las órdenes reales (62/63_replay_*.js)
 
   // Indicadores activos: cada uno es una instancia { uid, id, p (parámetros), c (colores), w (grosor), oculto }.
   // El catálogo (qué indicadores existen y cómo se calculan) está en 33_indicadores_catalogo.js

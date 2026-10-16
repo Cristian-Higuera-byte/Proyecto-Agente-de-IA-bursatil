@@ -66,6 +66,7 @@ Transportes y Servicios Ltda.
         // nuestras, pegada y llegando al borde; aquí solo queda la línea.
         serie.applyOptions({ priceLineVisible: true, priceLineColor: '#e6edf3',
                              priceLineWidth: 1, priceLineStyle: 2, lastValueVisible: false });
+        if (typeof rpTrasCrearSerie === 'function') rpTrasCrearSerie();   // el replay vuelve a pintar las líneas de su posición
         if (typeof aplicarMarcasBT === 'function') aplicarMarcasBT();   // las operaciones del backtest se mantienen al cambiar de tipo de gráfico
       }
     }
