@@ -206,8 +206,99 @@ Abrí el dashboard yo mismo (browser pane, sesión reusada) y diagnostiqué con 
 IMPORTANTE: el recorte de velas vive en el backend que usa TAMBIÉN el servidor de precios →
 reiniciar el **servidor** y el **dashboard** para que tomen todos los arreglos.
 
+### Integración de los cambios de Cristian (merge) — 16-10
+Se commiteó la migración a Capital (f5edc95) y se mergeó `origin/main` (cambios de Cristian:
+favoritos a barra derecha, watchlist no desplegable, backtest con replay, cortina de transición,
+velocidad, y headers de crédito en todos los archivos). Merge commit f4c845b.
+**9 conflictos resueltos manteniendo AMBOS** (Capital + layout de Cristian):
+- `puente_mt5.py` → se conservó el despachador (bridge MT5 vive en `backends/mt5.py`; Cristian solo
+  tocó docstring/headers).
+- `fuentes/mt5_fuentes/conexion.py` → rename `_lock`→`_candado` de Cristian + lógica Capital.
+- `info_mt5/entrada/oco/stop_dinamico` → versión de Cristian + import vía `proveedores.selector_mt5`.
+- `cabecera_precio/panel_orden` → layout de Cristian + etiqueta `NOMBRE_PROVEEDOR`.
+- `vista_operativa` → layout nuevo de Cristian.
+Verificado: compila todo (exit 0) y los 13 módulos clave (app + favoritos/transición/riel + servidor)
+importan OK bajo Capital. Merge en LOCAL (sin push). `lista_colapsable/` quedó como código huérfano
+(Cristian reemplazó el watchlist desplegable). Conflicto de stash viejo en
+`_contexto_nuevo_chat/_dia17_gen_informe.py` (ajeno al merge, no afecta la app).
+
+### Rendimiento: precios en vivo por WebSocket (16-10)
+La app iba lenta porque con Capital cada tick era una llamada REST remota (vs MT5 local). Solución:
+- **`servidor_precios/streaming_capital.py`** (nuevo): mantiene UNA conexión WebSocket a
+  `wss://api-streaming-capital.backend-capital.com/connect`, se suscribe (`marketData.subscribe`
+  con cst/securityToken del backend), guarda Bid/Ask en caché, hace ping cada 5 min y reconecta solo.
+  Usa `websockets` (asyncio en hilo daemon). Máx 40 epics.
+- **`motor/base.py`**: bajo Capital, `_leer_ticks` lee de la caché del WS (instantáneo) en vez de
+  `mt5.symbol_info_tick` (REST). Con MT5 sin cambios.
+- **`constantes.py`**: `INTERVALO_TICKS` 1.5 → 0.5 s (leer el WS es gratis). La cuenta sigue REST cada 3 s.
+Resultado: se eliminan las decenas de llamadas REST/seg del tiempo real. Probado: el WS recibe precios
+en vivo (GOLD/EURUSD/USDJPY/BTC) que se actualizan cada segundo. Compila y el servidor importa OK.
+Para activarlo: **reiniciar el servidor** (`servidor_datos.py`).
+
+### Rendimiento 2: batch de precios + caché de lecturas (16-10)
+Diagnóstico: cada llamada REST a Capital tarda ~300-500 ms, y el dashboard re-ejecuta TODA la página
+en cada interacción haciendo muchas llamadas REST (cuenta, specs, margen, DOM...) + `carga.py` pedía
+el precio de CADA símbolo uno por uno (~8 s de congelada). Fixes:
+- **`backends/capital.py`**: caché de lecturas (precio 3 s, cuenta 2 s, posiciones 2 s) + nueva
+  `precargar_precios(symbols)` que pide VARIOS precios en 1 llamada (`GET /markets?epics=...`, máx 50).
+- **`puente_mt5.py`**: exporta `precargar_precios` (no-op en MT5).
+- **`carga.py`**: llama `precargar_precios(simbolos)` antes del bucle → 1 llamada en vez de N.
+- **shim `_TTL_MERCADO`** 2 s → 30 s (specs estáticas; el bid/ask de display viene por SSE/WS).
+Medido: cargar 8 precios pasó de **3132 ms → 276 ms**; re-render cacheado **0 ms**.
+NOTA: la caché es por proceso (no por usuario); al ir a multiusuario habrá que hacerla por usuario.
+
+### Rendimiento 3: buscador instantáneo (16-10)
+El buscador tardaba ~15 s porque el catálogo se armaba con ~60 llamadas `/marketnavigation` EN SERIE.
+Fix en `proveedores/capital_mt5_compat.py._catalogo`:
+- Recorrido EN PARALELO (ThreadPoolExecutor, `_nav` sin candado) + reintento paralelo de subnodos vacíos.
+- **Caché en disco** `data/catalogo_capital.json` (TTL 24 h): tras la 1ª carga, abre en ~33 ms.
+Medido: 1ª vez ~5 s (antes 15.8 s); desde disco **33 ms** con 1586 instrumentos.
+
+### Diario (trading journal) con Capital — limitación encontrada (16-10)
+El Diario (`estadisticas_diario.calcular()`) reconstruye operaciones **emparejando deals IN+OUT de MT5
+por position_id** (entrada/salida, duración, R/R). Capital NO da esa estructura: su
+`/history/transactions` solo trae "Trade closed" con instrumentName, size/monto, fecha, dealId (sin
+precios de entrada/salida ni P/L desglosado claro); `/history/activity` vino vacío. Por eso el Diario
+queda vacío bajo Capital. La cuenta demo además solo tiene 1 cierre (GOLD, hoy).
+PENDIENTE: adaptar el Diario a Capital = diario BÁSICO desde `obtener_historial` (símbolo, P/L, fecha);
+los datos ricos de MT5 (entrada/salida exactas, R/R) no estarán o serán aproximados. Nota: el campo
+de P/L en la transacción Capital es ambiguo (`size` podría ser el monto); validar con más cierres.
+
+### Diario adaptado a Capital (16-10) ✅
+`herramientas/estadisticas_diario.py`: `operaciones()` ahora es provider-aware. Bajo Capital usa
+`_operaciones_capital()` que arma el diario desde `obtener_historial` (símbolo, P/L=`neto`, fecha),
+con las mismas claves que espera la UI; `estadisticas()` calcula igual (win rate, profit factor, P&L,
+drawdown). Campos sin dato en Capital (entrada/salida, duración, R/R) quedan neutros (0/None/"—").
+Textos de UI: subtítulo neutral y nota al pie provider-aware (explica la limitación de Capital).
+Probado: muestra la operación GOLD cerrada (+0.13, win rate 100%). Compila e importa OK.
+Confirmado: en Capital el monto del cierre en `/history/transactions` (`size`) ES el P/L (el balance
+subió exactamente ese monto).
+FIX mini-gráfico: con `hora_in=0` el rango de velas daba inicio negativo → `datetime.fromtimestamp`
+reventaba en Windows (OSError 22). Ahora `_operaciones_capital` usa `hora_in=hora_out` (duración 0) y
+`obtener_velas_rango` se blindó contra timestamps <=0 (clamp). El mini-gráfico muestra ~11 velas
+alrededor del cierre.
+
+### Resumen (portafolio) con Capital — correcciones (16-10)
+- **Drawdown -99.2%**: era el equity viejo de XM en `data/equity.json` (4523 muestras, pico $133,164).
+  Reseteado a `{"puntos":[]}` (respaldo `data/equity_xm_viejo.json.bak`). El drawdown se reconstruye
+  desde los ~$1000 de Capital (el motor va registrando). Afectaba también la barra superior.
+- **P&L realizado +0.00 pese a "1 cierre"**: el shim `history_deals_get` no usaba `size` como P/L (el
+  backend `obtener_historial` sí, por eso el Diario sí lo mostraba). FIX: shim usa
+  `profitAndLoss or pnl or size`. Ahora realizado = +0.13.
+- **Depósito inicial 0.00 / Rentabilidad 0.00%**: Capital no genera "deal de balance" y su campo
+  `deposit` refleja el balance actual (no el inicial). FIX en `estadisticas_portafolio`: depósito
+  inicial = balance − P/L realizado acumulado (asume sin depósitos/retiros) = 1000.00; rentabilidad
+  = +0.13 (+0.0130%). (También se añadió `deposito` a `obtener_info_cuenta` como dato de respaldo.)
+Los demás ceros (exposición, riesgo, comisiones, flotante) son correctos: no hay posiciones abiertas.
+PENDIENTE multiusuario: el depósito reconstruido asume sin depósitos/retiros; con cuentas reales habrá
+que usar el historial de movimientos real.
+
 ### Pendiente
-- Reiniciar servidor + dashboard y confirmar gráfico/buscador/acciones/etiquetas.
+- Reiniciar servidor + dashboard y confirmar todo (velocidad, buscador, layout de Cristian).
+- Commitear WebSocket + optimizaciones + buscador (sin commitear aún).
+- DRAWDOWN −99% = equity_store viejo de MT5 → resetear.
+- Decidir si se hace push de la rama EmilioFuentes.
+- Commitear los cambios del WebSocket (sin commitear aún).
 - DRAWDOWN −99% = historial de equity viejo (MT5) → resetear ese registro.
 - Optimizar la carga del catálogo (paralelizar); quedan etiquetas "MT5" menores (diario, chat, backtest).
 - Motor de precios a WebSocket; validar /workingorders y /history/transactions con operaciones reales.

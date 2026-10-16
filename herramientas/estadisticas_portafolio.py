@@ -228,6 +228,14 @@ def calcular(dias_curva: int = 3650) -> dict:
     deposito_inicial = next((float(getattr(d, "profit", 0.0) or 0.0)
                              for d in sorted(deals, key=lambda x: getattr(x, "time", 0))
                              if getattr(d, "type", None) == TYPE_BALANCE), 0.0)
+    # Capital no genera un "deal de balance" para el depósito, y su campo `deposit`
+    # refleja el balance actual (no el inicial). El depósito inicial se reconstruye
+    # como balance actual − P/L realizado acumulado (asume sin depósitos/retiros).
+    if not deposito_inicial:
+        if balance:
+            deposito_inicial = balance - real_total
+        else:
+            deposito_inicial = float(cuenta.get("deposito", 0.0) or 0.0)
 
     # ----- Flotante (posiciones abiertas) -----
     flotante = sum(float(p.get("profit", 0.0) or 0.0) + float(p.get("swap", 0.0) or 0.0)

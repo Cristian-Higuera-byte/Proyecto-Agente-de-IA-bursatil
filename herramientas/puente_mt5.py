@@ -46,6 +46,7 @@ if PROVEEDOR == "capital":
         modificar_orden,
         obtener_dom,
         eliminar_orden,
+        precargar_precios,
     )
     print("[PUENTE] Backend activo: Capital.com (API REST)")
 else:
@@ -69,3 +70,6 @@ else:
         obtener_dom,
         eliminar_orden,
     )
+
+    def precargar_precios(symbols=None):   # MT5 lee local: no necesita precarga batch
+        return None

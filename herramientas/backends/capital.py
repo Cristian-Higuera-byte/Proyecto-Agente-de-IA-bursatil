@@ -55,6 +55,15 @@ _API_PASSWORD = os.getenv("CAPITAL_API_PASSWORD", "").strip()
 MT5_LOCK = threading.RLock()
 _ORDER_LOCK = MT5_LOCK
 
+# Caché de lecturas (cuenta, precio, posiciones): como cada llamada REST a Capital
+# tarda ~300-500 ms y el dashboard re-ejecuta toda la página en cada interacción,
+# se cachean unos segundos. El precio/P-G EN VIVO llega por SSE/WebSocket, así que
+# un desfase de pocos segundos en estas lecturas no se nota.
+_cache_lectura: dict = {}          # clave -> (ts, valor)
+_TTL_CUENTA = 2.0
+_TTL_PRECIO = 3.0
+_TTL_POSICIONES = 2.0
+
 # Estado de sesión (tokens de Capital.com)
 _HTTP = requests.Session()
 _tokens: dict = {"CST": "", "X-SECURITY-TOKEN": ""}
@@ -265,7 +274,11 @@ def _cuenta_preferida() -> dict:
 
 
 def obtener_info_cuenta() -> dict:
-    """Balance, equity y margen de la cuenta activa (equivalente a MT5)."""
+    """Balance, equity y margen de la cuenta activa (equivalente a MT5). Cacheado ~2 s."""
+    _ahora = time.time()
+    _hit = _cache_lectura.get("cuenta")
+    if _hit and (_ahora - _hit[0]) < _TTL_CUENTA:
+        return _hit[1]
     c = _cuenta_preferida()
     if not c:
         return {"error": "Sin conexión con Capital.com"}
@@ -273,7 +286,7 @@ def obtener_info_cuenta() -> dict:
     balance = float(bal.get("balance", 0.0) or 0.0)
     pl = float(bal.get("profitLoss", 0.0) or 0.0)          # P/G de posiciones abiertas
     disponible = float(bal.get("available", 0.0) or 0.0)
-    return {
+    _res = {
         "login": c.get("accountId", ""),
         "nombre": c.get("accountName", ""),
         "servidor": "Capital.com (demo)" if _ES_DEMO else "Capital.com",
@@ -288,14 +301,21 @@ def obtener_info_cuenta() -> dict:
         "credit": 0.0,
         "leverage": 0,
         "currency": c.get("currency", "USD"),
+        "deposito": float(bal.get("deposit", 0.0) or 0.0),   # depósito de la cuenta (Capital /accounts)
     }
+    _cache_lectura["cuenta"] = (_ahora, _res)
+    return _res
 
 
 # ---------------------------------------------------------------------------
 # Posiciones
 # ---------------------------------------------------------------------------
 def obtener_posiciones() -> list:
-    """Posiciones abiertas (para la 'Cartera')."""
+    """Posiciones abiertas (para la 'Cartera'). Cacheado ~2 s."""
+    _ahora = time.time()
+    _hit = _cache_lectura.get("posiciones")
+    if _hit and (_ahora - _hit[0]) < _TTL_POSICIONES:
+        return _hit[1]
     r = _pedir("GET", "/positions")
     if r is None or r.status_code != 200:
         return []
@@ -319,6 +339,7 @@ def obtener_posiciones() -> list:
             "tp": float(p.get("profitLevel", 0.0) or 0.0),
             "tiempo": _epoch_utc(p.get("createdDateUTC", "") or p.get("createdDate", "")),
         })
+    _cache_lectura["posiciones"] = (_ahora, salida)
     return salida
 
 
@@ -419,8 +440,12 @@ def obtener_historial(dias: int = 90, limite: int = 100) -> list:
 # Precios e histórico de velas
 # ---------------------------------------------------------------------------
 def obtener_precio_actual(symbol: str) -> dict:
-    """Bid/Ask del instrumento (snapshot del mercado)."""
+    """Bid/Ask del instrumento (snapshot del mercado). Cacheado ~3 s por epic."""
     epic = resolver_simbolo(symbol)
+    _ahora = time.time()
+    _hit = _cache_lectura.get(f"precio:{epic}")
+    if _hit and (_ahora - _hit[0]) < _TTL_PRECIO:
+        return _hit[1]
     r = _pedir("GET", f"/markets/{epic}")
     if r is None or r.status_code != 200:
         return {"error": f"No se pudo obtener el precio para {epic}"}
@@ -429,13 +454,46 @@ def obtener_precio_actual(symbol: str) -> dict:
     ask = float(snap.get("offer", 0.0) or 0.0)
     if not (bid or ask):
         return {"error": f"No se pudo obtener el precio para {epic}"}
-    return {
+    _res = {
         "symbol": epic,
         "bid": bid,
         "ask": ask,
         "last": bid or ask,
         "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
+    _cache_lectura[f"precio:{epic}"] = (_ahora, _res)
+    return _res
+
+
+def precargar_precios(symbols) -> None:
+    """Pide el Bid/Ask de VARIOS instrumentos en UNA sola llamada (GET /markets?epics=...)
+    y llena la caché de precios, para que el render inicial no haga N llamadas en serie.
+    Capital admite hasta 50 epics por llamada."""
+    epics = []
+    for s in symbols or []:
+        e = resolver_simbolo(s)
+        if e and e not in epics:
+            epics.append(e)
+    _ahora = time.time()
+    for i in range(0, len(epics), 50):
+        lote = epics[i:i + 50]
+        r = _pedir("GET", "/markets", params={"epics": ",".join(lote)})
+        if r is None or r.status_code != 200:
+            continue
+        data = r.json()
+        for m in data.get("marketDetails", data.get("markets", [])):
+            inst = m.get("instrument", {}) or {}
+            snap = m.get("snapshot", {}) or {}
+            epic = inst.get("epic") or m.get("epic")
+            bid = snap.get("bid", m.get("bid"))
+            ask = snap.get("offer", m.get("offer"))
+            if not epic or bid is None:
+                continue
+            bid = float(bid or 0.0)
+            ask = float(ask or 0.0)
+            _cache_lectura[f"precio:{epic}"] = (_ahora, {
+                "symbol": epic, "bid": bid, "ask": ask, "last": bid or ask,
+                "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
 
 
 # Capital.com rechaza max > 1000 (error.invalid.max). El gráfico puede pedir más
@@ -490,9 +548,14 @@ def obtener_datos_historicos(symbol: str, timeframe=TIMEFRAME_H1, n_velas: int =
 def obtener_velas_rango(symbol: str, ts_desde: float, ts_hasta: float) -> list:
     """Velas OHLC que cubren [ts_desde, ts_hasta] (epoch), para el mini-gráfico del
     Trading Journal. Elige la resolución según la duración (~40-120 velas)."""
+    # Blindaje: timestamps inválidos (<=0) darían un inicio negativo y datetime.fromtimestamp
+    # revienta en Windows (OSError 22). Sin rango útil no se dibuja nada.
+    if not ts_hasta or float(ts_hasta) <= 0:
+        return []
     dur = max(60.0, float(ts_hasta) - float(ts_desde))
     pad = dur * 0.35 + 300
     d0, d1 = float(ts_desde) - pad, float(ts_hasta) + pad
+    d0 = max(d0, 86400.0)      # nunca antes de 1970 (evita OSError en Windows)
     objetivo = (d1 - d0) / 60.0
     escala = ["MINUTE", "MINUTE_5", "MINUTE_15", "HOUR", "HOUR_4", "DAY"]
     res = escala[0]

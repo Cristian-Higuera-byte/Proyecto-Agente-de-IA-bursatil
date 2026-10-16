@@ -39,7 +39,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from herramientas.puente_mt5 import MT5_LOCK, inicializar_mt5
+from herramientas.puente_mt5 import MT5_LOCK, PROVEEDOR, inicializar_mt5, obtener_historial
 from herramientas import gestor_lista_activos as wl
 from herramientas import almacen_diario
 
@@ -71,6 +71,36 @@ def _leer_deals(dias: int):
         return []
 
 
+def _operaciones_capital(dias: int, limite: int) -> list:
+    """Diario BÁSICO con Capital.com. Capital no entrega deals de entrada/salida
+    emparejables como MT5 (su `/history/transactions` solo da "Trade closed" con
+    símbolo, monto y fecha), así que se arma cada operación con lo disponible:
+    símbolo, P/L (neto) y fecha de cierre. Los campos ricos de MT5 (entrada/salida
+    exactas, duración, R/R) no están disponibles y quedan neutros.
+    """
+    salida = []
+    for h in obtener_historial(dias=dias, limite=limite):
+        sym = h.get("symbol", "") or ""
+        neto = float(h.get("pg", 0.0) or 0.0)      # en Capital el monto del cierre es el P/L
+        cierre = int(h.get("fecha", 0) or 0)
+        salida.append({
+            "pos_id": h.get("ticket", ""), "symbol": sym,
+            "nombre": wl.nombre_visible(sym) if sym else sym,
+            "tipo": "—",                           # Capital no expone la dirección en el historial
+            "volumen": float(h.get("volumen", 0.0) or 0.0),
+            "entrada": 0.0, "salida": float(h.get("precio_cierre", 0.0) or 0.0),
+            # Capital no da la hora de apertura; se usa la del cierre (duración 0) para
+            # que el mini-gráfico tenga un rango válido (evita timestamps negativos).
+            "hora_in": cierre, "hora_out": cierre,
+            "neto": neto, "profit": neto, "comision": 0.0, "swap": 0.0,
+            "duracion_s": 0,
+            "estrategia": "", "emocion": "", "razon": "", "plan": {},
+            "sl": 0.0, "tp": 0.0, "rr_plan": None, "rr_real": None,
+        })
+    salida.sort(key=lambda x: x["hora_out"], reverse=True)
+    return salida[:limite]
+
+
 def operaciones(dias: int = 365, limite: int = 500) -> list:
     """Reconstruye las operaciones cerradas emparejando los deals IN y OUT por position_id.
 
@@ -80,7 +110,12 @@ def operaciones(dias: int = 365, limite: int = 500) -> list:
     neto, profit, comision, swap, duracion_s, y los datos del diario (estrategia,
     emocion, razon, plan, sl, tp, rr_plan, rr_real). Las posiciones aún abiertas se
     omiten. Lee MT5 (vía `_leer_deals`) y `data/journal.json`; no escribe nada.
+
+    Con PROVEEDOR=capital usa un diario básico (ver `_operaciones_capital`), porque
+    Capital.com no entrega los deals IN/OUT que MT5 sí empareja.
     """
+    if PROVEEDOR == "capital":
+        return _operaciones_capital(dias, limite)
     if mt5 is None:
         return []
     # Constantes de MT5 con valores por defecto por si la versión no las expone.

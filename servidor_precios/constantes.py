@@ -50,8 +50,8 @@ TF_MAP = {
 # RLock reentrante: permite anidar secciones críticas en el mismo hilo
 CANDADO_MT5 = threading.RLock()
 
-INTERVALO_TICKS = 1.5        # s entre lecturas de ticks (suave para el límite REST de Capital; con MT5 puede bajar a 0.25)
-INTERVALO_CUENTA = 3.0       # s entre lecturas de saldo / P-G
+INTERVALO_TICKS = 0.5        # s entre refrescos de ticks (con Capital los ticks llegan por WebSocket: leer es instantáneo)
+INTERVALO_CUENTA = 3.0       # s entre lecturas de saldo / P-G (sigue siendo REST)
 INTERVALO_EQUITY = 60.0      # s entre snapshots de equity (para el drawdown real)
 TTL_REFERENCIA = 300         # s que se reutiliza el cierre del día anterior
 TTL_SUSCRIPCION = 60         # s sin clientes pidiendo un símbolo -> se deja de leer

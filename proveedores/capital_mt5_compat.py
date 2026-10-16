@@ -19,6 +19,9 @@ de Capital. Para demo/validación, el sondeo REST a intervalo normal es suficien
 """
 from __future__ import annotations
 
+import concurrent.futures
+import json
+import os
 import time
 from datetime import datetime, timezone
 from types import SimpleNamespace
@@ -113,7 +116,10 @@ def terminal_info():
 # Especificaciones de instrumento (cacheadas) y utilidades
 # ===========================================================================
 _cache_mercado: dict = {}
-_TTL_MERCADO = 2.0   # s: el snapshot (bid/ask) se refresca seguido; las reglas son estáticas
+# Las specs (dígitos, contrato, margen, límites) son estáticas y el bid/ask para
+# display llega por SSE/WebSocket; por eso se cachea el mercado 30 s y así el render
+# del dashboard no hace una llamada REST por cada symbol_info.
+_TTL_MERCADO = 30.0
 
 
 def _mercado(epic: str) -> dict:
@@ -219,49 +225,96 @@ def _nombre_grupo(node_id: str, node_name: str) -> str:
     return _GRUPO_CAT.get(clave, node_name or "Otros")
 
 
+# Caché en disco del catálogo: tras el primer arranque, el buscador abre al instante.
+_CAT_DISCO = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                          "data", "catalogo_capital.json")
+_TTL_DISCO = 24 * 3600   # 24 h
+
+
+def _nav(node_id: str) -> dict:
+    """GET /marketnavigation/{id} SIN el candado global, para poder paralelizar."""
+    try:
+        r = cap._HTTP.get(f"{cap.BASE}/marketnavigation/{node_id}",
+                          headers=cap._cabeceras(), timeout=cap._TIMEOUT)
+        if r.status_code == 200:
+            return r.json()
+    except Exception:
+        pass
+    return {}
+
+
+def _lista_desde_items(items: dict) -> list:
+    if not items:
+        items = {e: (e, "Populares") for e in _CURADOS}
+    return [SimpleNamespace(name=ep, visible=True, description=nombre, path=f"{cat}\\{ep}")
+            for ep, (nombre, cat) in items.items()]
+
+
 def _catalogo() -> list:
-    """Catálogo real de instrumentos de Capital vía /marketnavigation (cacheado 10 min).
-    Recorre los grupos y un nivel de subnodos, juntando epics con su categoría."""
+    """Catálogo real de instrumentos de Capital (cacheado en memoria 10 min y en disco 24 h).
+    La primera vez recorre /marketnavigation EN PARALELO (grupos + 1 nivel de subnodos)."""
     ahora = time.time()
     if _catalogo_cache["items"] and (ahora - _catalogo_cache["ts"]) < _TTL_CATALOGO:
         return _catalogo_cache["items"]
-    items: dict = {}        # epic -> (name, cat)
-    reqs = 0
+    # 1) caché en disco: instantáneo tras el primer arranque
+    try:
+        if os.path.exists(_CAT_DISCO) and (ahora - os.path.getmtime(_CAT_DISCO)) < _TTL_DISCO:
+            with open(_CAT_DISCO, encoding="utf-8") as f:
+                crudos = json.load(f)
+            lista = [SimpleNamespace(**d) for d in crudos]
+            if lista:
+                _catalogo_cache.update(ts=ahora, items=lista)
+                return lista
+    except Exception:
+        pass
+    # 2) traer de la API en paralelo
+    if not cap.inicializar_mt5():
+        return _lista_desde_items({})
+    items: dict = {}
     try:
         r = cap._pedir("GET", "/marketnavigation")
         grupos = r.json().get("nodes", []) if (r is not None and r.status_code == 200) else []
-        reqs += 1
-        for g in grupos:
-            if reqs >= _MAX_NAV_REQS or len(items) >= _MAX_EPICS:
-                break
-            cat = _nombre_grupo(g.get("id", ""), g.get("name", ""))
-            r2 = cap._pedir("GET", f"/marketnavigation/{g.get('id')}")
-            reqs += 1
-            if r2 is None or r2.status_code != 200:
-                continue
-            d2 = r2.json()
-            for m in d2.get("markets", []):
-                ep = m.get("epic")
-                if ep:
-                    items.setdefault(ep, (m.get("instrumentName", ep), cat))
-            for sn in d2.get("nodes", []):
-                if reqs >= _MAX_NAV_REQS or len(items) >= _MAX_EPICS:
-                    break
-                r3 = cap._pedir("GET", f"/marketnavigation/{sn.get('id')}")
-                reqs += 1
-                if r3 is None or r3.status_code != 200:
-                    continue
-                for m in r3.json().get("markets", []):
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
+            # Nivel 2: los grupos, en paralelo
+            datos_grupos = list(ex.map(lambda g: (g, _nav(g.get("id", ""))), grupos))
+            subnodos = []
+            for g, d in datos_grupos:
+                cat = _nombre_grupo(g.get("id", ""), g.get("name", ""))
+                for m in d.get("markets", []):
                     ep = m.get("epic")
                     if ep:
                         items.setdefault(ep, (m.get("instrumentName", ep), cat))
-    except Exception as e:
+                for sn in d.get("nodes", []):
+                    subnodos.append((sn, cat))
+            subnodos = subnodos[:_MAX_NAV_REQS]
+            # Nivel 3: los subnodos, en paralelo
+            datos_sub = list(ex.map(lambda sc: (sc[1], _nav(sc[0].get("id", ""))), subnodos))
+            vacios = [(sn, cat) for (sn, cat), (_c, d) in zip(subnodos, datos_sub)
+                      if not d.get("markets")]
+            for cat, d in datos_sub:
+                for m in d.get("markets", []):
+                    ep = m.get("epic")
+                    if ep and len(items) < _MAX_EPICS:
+                        items.setdefault(ep, (m.get("instrumentName", ep), cat))
+            # Reintento EN PARALELO de los subnodos vacíos (fallos puntuales de concurrencia)
+            if vacios and len(items) < _MAX_EPICS:
+                datos_r = list(ex.map(lambda sc: (sc[1], _nav(sc[0].get("id", ""))), vacios))
+                for cat, d in datos_r:
+                    for m in d.get("markets", []):
+                        ep = m.get("epic")
+                        if ep and len(items) < _MAX_EPICS:
+                            items.setdefault(ep, (m.get("instrumentName", ep), cat))
+    except Exception as e:  # noqa: BLE001
         print(f"[CAPITAL shim] no se pudo cargar el catálogo: {e}")
-    if not items:                      # respaldo: los curados
-        items = {e: (e, "Populares") for e in _CURADOS}
-    lista = [SimpleNamespace(name=ep, visible=True, description=nombre,
-                             path=f"{cat}\\{ep}") for ep, (nombre, cat) in items.items()]
+    lista = _lista_desde_items(items)
     _catalogo_cache.update(ts=ahora, items=lista)
+    # Guardar a disco para la próxima vez
+    try:
+        os.makedirs(os.path.dirname(_CAT_DISCO), exist_ok=True)
+        with open(_CAT_DISCO, "w", encoding="utf-8") as f:
+            json.dump([vars(x) for x in lista], f, ensure_ascii=False)
+    except Exception:
+        pass
     return lista
 
 
@@ -365,7 +418,10 @@ def history_deals_get(desde: Any = None, hasta: Any = None, **kwargs: Any) -> li
         tipo_tx = str(t.get("transactionType", "")).upper()
         if "TRADE" not in tipo_tx and "DEAL" not in tipo_tx:
             continue
-        pg = (t.get("profitAndLoss") or t.get("pnl") or 0)
+        # En Capital el monto del cierre (el P/L realizado) viene en `size` (el balance
+        # se mueve exactamente ese monto). Se intenta primero profitAndLoss/pnl por si
+        # alguna versión los trae.
+        pg = (t.get("profitAndLoss") or t.get("pnl") or t.get("size") or 0)
         try:
             pg = float(str(pg).replace(t.get("currency", "") or "", "").strip() or 0)
         except ValueError:

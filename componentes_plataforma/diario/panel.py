@@ -22,7 +22,7 @@ from componentes_plataforma.diario.estilos import CSS
 from componentes_plataforma.diario.ficha import ficha
 from componentes_plataforma.diario.tabla import tabla_y_metricas
 from herramientas import estadisticas_diario
-from herramientas.puente_mt5 import inicializar_mt5, obtener_info_cuenta
+from herramientas.puente_mt5 import NOMBRE_PROVEEDOR, inicializar_mt5, obtener_info_cuenta
 
 
 def renderizar_panel_journal(main=None):
@@ -50,12 +50,16 @@ def renderizar_panel_journal(main=None):
         jd = estadisticas_diario.calcular()
         tabla_y_metricas(m, jd["operaciones"], jd["stats"])
         ficha(m, jd["operaciones"])
-        # Nota aclaratoria al pie.
-        st.html(
-            "<div class='jr-note'>Operaciones reconstruidas emparejando los deals de "
-            "entrada y salida de MetaTrader 5. El R/R planificado aparece en operaciones "
-            "abiertas con SL/TP; la captura es un mini-gráfico generado automáticamente.</div>"
-        )
+        # Nota aclaratoria al pie (según el proveedor de datos activo).
+        if NOMBRE_PROVEEDOR == "Capital.com":
+            nota = ("Operaciones cerradas registradas desde Capital.com (símbolo, resultado y "
+                    "fecha). Capital no entrega los precios de entrada/salida ni el R/R que sí "
+                    "da MetaTrader 5, por eso esas columnas quedan vacías.")
+        else:
+            nota = ("Operaciones reconstruidas emparejando los deals de entrada y salida de "
+                    "MetaTrader 5. El R/R planificado aparece en operaciones abiertas con SL/TP; "
+                    "la captura es un mini-gráfico generado automáticamente.")
+        st.html(f"<div class='jr-note'>{nota}</div>")
 
 
 # -------------------------------------------------------------------------------------------------------

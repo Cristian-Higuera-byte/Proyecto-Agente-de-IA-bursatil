@@ -22,12 +22,18 @@ import time
 
 from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 from herramientas import almacen_capital, almacen_oco, almacen_stop_dinamico
-from herramientas.puente_mt5 import resolver_simbolo
+from herramientas.puente_mt5 import PROVEEDOR, resolver_simbolo
 
 from ..constantes import (CANDADO_MT5, INTERVALO_CUENTA, INTERVALO_EQUITY, INTERVALO_TICKS,
                           TTL_REFERENCIA, TTL_SUSCRIPCION)
 from .oco import MixinOco
 from .stop_dinamico import MixinStopDinamico
+
+# Con Capital, los ticks llegan por WebSocket (push) en vez de sondear REST: el
+# motor lee de la caché del stream (instantáneo). Con MT5 no se usa.
+_ES_CAPITAL = PROVEEDOR == "capital"
+if _ES_CAPITAL:
+    from servidor_precios import streaming_capital as _ws
 
 
 class MotorPrecios(MixinStopDinamico, MixinOco):
@@ -112,12 +118,19 @@ class MotorPrecios(MixinStopDinamico, MixinOco):
         sin precio o sin tick nuevo (mismo time_msc) y los que fallen. Solo se llama desde el hilo del motor.
         """
         cambios = {}
+        activos = self._activos()
+        # Con Capital: asegura que los epics activos estén suscritos al WebSocket.
+        if _ES_CAPITAL and activos:
+            _ws.STREAM.suscribir([self._real(p) for p in activos])
         # Recorre los símbolos con suscripción vigente
-        for pedido in self._activos():
+        for pedido in activos:
             try:
                 real = self._real(pedido)
-                with CANDADO_MT5:
-                    tick = mt5.symbol_info_tick(real)
+                if _ES_CAPITAL:
+                    tick = _ws.STREAM.tick(real)      # lectura instantánea de la caché del stream
+                else:
+                    with CANDADO_MT5:
+                        tick = mt5.symbol_info_tick(real)
                 if tick is None or not (tick.bid or tick.ask):
                     continue
                 if self._ultimo_msc.get(real) == tick.time_msc and pedido in self._ticks:

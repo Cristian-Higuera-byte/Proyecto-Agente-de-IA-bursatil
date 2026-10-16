@@ -27,7 +27,7 @@ from componentes_plataforma._estaticos import datos_json
 from componentes_plataforma.mercado_datos.entrada import construir_entrada
 from componentes_plataforma.mercado_datos.sparkline import asegurar_semilla
 from herramientas import gestor_lista_activos as wl
-from herramientas.puente_mt5 import inicializar_mt5
+from herramientas.puente_mt5 import inicializar_mt5, precargar_precios
 
 # Valores de respaldo de la barra de índices y su símbolo en yfinance (indices_globales.json)
 _INDICES = datos_json(Path(__file__).parent / "indices_globales.json")
@@ -89,6 +89,8 @@ def cargar_datos_mercado():
     st.session_state.watchlist_simbolos = simbolos
 
     # 3. Construir los datos de mercado de esos símbolos (nombre EXACTO para MT5)
+    # Precarga batch: con Capital, pide todos los precios en 1 llamada (en vez de N).
+    precargar_precios(simbolos)
     datos = {}
     for sym in simbolos:
         datos[sym] = construir_entrada(sym)

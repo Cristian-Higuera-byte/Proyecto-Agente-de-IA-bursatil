@@ -36,7 +36,7 @@ def tabla_y_metricas(m, ops, stt):
     """
     # Título de la sección.
     st.html("<div class='jr-sec'><h3>Diario de operaciones</h3>"
-            "<span class='s'>registro automático desde MetaTrader 5</span></div>")
+            "<span class='s'>registro automático de operaciones cerradas</span></div>")
     # Tarjeta contenedora (clave jr_card, estilizada en estilos.css).
     with st.container(key="jr_card"):
         if stt["n"] == 0:
