@@ -29,6 +29,8 @@ from nucleo_agente.vigilancia.posiciones import _posiciones_de
 from nucleo_agente.vigilancia.utilidades import _actualizar, _finalizar, _iso, obtener
 
 
+# TITULO CHEQUEAR
+
 def chequear(vid: str) -> dict[str, Any]:
     """Un chequeo: analiza el activo y, si el modelo lo decide, ejecuta. Lo lanza el motor.
 
@@ -62,7 +64,7 @@ def chequear(vid: str) -> dict[str, Any]:
         _finalizar(v, FINALIZADA, f"Vigilancia finalizada · {v['simbolo']}",
                    f"Se realizaron las {v['max_operaciones']} operaciones previstas y no queda ninguna posición abierta.")
         return {"ok": True, "estado": FINALIZADA}
-    if ordenes.kill_switch_activo() and not posiciones:
+    if ordenes.interruptor_emergencia_activo() and not posiciones:
         _actualizar(vid, ultimo_resumen="En pausa: el interruptor de emergencia bloquea las aperturas.")
         return {"ok": True, "estado": "EN_PAUSA"}
 

@@ -31,12 +31,16 @@ from nucleo_agente.memoria import ErrorMemoria, Memoria
 from herramientas_agente.base import REGISTRO, RegistroHerramientas
 
 
+# TITULO AGENTE
+
 class Agente(_CicloMixin):
     """Agente conversacional con herramientas y memoria opcional por usuario.
 
     Atributos principales: `llm` (cliente del modelo), `registro` (herramientas disponibles), `memoria`
     (None si no hay usuario o falló Supabase) e `historial` (lista de mensajes; el primero es el prompt de sistema).
     """
+
+    # TITULO INIT
 
     def __init__(
         self,
@@ -77,6 +81,8 @@ class Agente(_CicloMixin):
 
     # ── API pública ───────────────────────────────────────────
 
+    # TITULO REINICIAR
+
     def reiniciar(self) -> None:
         """Empieza una conversación nueva. La anterior queda guardada en la memoria."""
         # Con memoria: se crea un chat nuevo y se refresca el contexto; si falla solo se avisa.
@@ -89,9 +95,13 @@ class Agente(_CicloMixin):
         # El historial vuelve a contener solo el prompt de sistema.
         self.historial = [{"role": "system", "content": self._prompt()}]
 
+    # TITULO PROMPT
+
     def _prompt(self) -> str:
         """Devuelve el prompt de sistema vigente (fecha de hoy + contexto de memoria del usuario)."""
         return _prompt_sistema(self._contexto)
+
+    # TITULO GUARDAR TURNO
 
     def _guardar_turno(self, desde: int) -> None:
         """Guarda el turno recién terminado. Si falla, el agente sigue sin memoria."""
@@ -102,16 +112,20 @@ class Agente(_CicloMixin):
         except ErrorMemoria as e:
             print(f"[Memoria] No se pudo guardar el turno: {e}")
 
+    # TITULO RESPONDER
+
     def responder(self, texto: str) -> str:
         """Versión simple: devuelve solo la respuesta final.
 
         Consume responder_stream() completo y retorna el texto del evento "fin" (cadena vacía si no llegó).
         """
         final = ""
-        for ev in self.responder_stream(texto):
-            if ev.tipo == "fin":
-                final = ev.texto
+        for evento in self.responder_stream(texto):
+            if evento.tipo == "fin":
+                final = evento.texto
         return final
+
+    # TITULO RESPONDER STREAM
 
     def responder_stream(self, texto: str) -> Iterator[EventoAgente]:
         """Procesa un mensaje del usuario y emite EventoAgente a medida que el modelo responde.
@@ -128,11 +142,11 @@ class Agente(_CicloMixin):
         # completo = True cuando el ciclo terminó con un evento "fin"; si no, el turno se descarta.
         completo = False
         try:
-            for ev in self._ciclo():
-                if ev.tipo == "fin":
+            for evento in self._ciclo():
+                if evento.tipo == "fin":
                     completo = True
                     self._guardar_turno(punto_inicio)
-                yield ev
+                yield evento
         except BaseException:
             # Un turno a medias (error o cancelación) dejaría llamadas a herramientas
             # sin resultado en el historial y la API rechazaría el siguiente mensaje.

@@ -25,10 +25,12 @@ from typing import Any
 import requests
 
 from fuentes.investing_fuente.cache import _cacheado
-from fuentes.investing_fuente.constantes import AVISO_FUENTE, FEEDS, HEADERS
+from fuentes.investing_fuente.constantes import AVISO_FUENTE, FEEDS, CABECERAS
 from fuentes.investing_fuente.errores import ErrorInvesting
 from fuentes.investing_fuente.utiles import _limpiar_html, _sin_nulos
 
+
+# TITULO NOTICIAS
 
 # ──────────────────────────────────────────────────────────────
 # Extracción de Noticias
@@ -64,7 +66,7 @@ def noticias(categoria: str = "general", cantidad: int = 10) -> dict[str, Any]:
         Lanza ErrorInvesting ante errores de red o de formato."""
         # Paso 1: petición HTTP al feed; cualquier error de red se traduce a ErrorInvesting.
         try:
-            resp = requests.get(url, headers=HEADERS, timeout=10)
+            resp = requests.get(url, headers=CABECERAS, timeout=10)
             resp.raise_for_status()
         except requests.RequestException as e:
             raise ErrorInvesting(
@@ -73,8 +75,8 @@ def noticias(categoria: str = "general", cantidad: int = 10) -> dict[str, Any]:
 
         # Paso 2: interpreta el XML y localiza el nodo <channel> que contiene los ítems.
         try:
-            root = ET.fromstring(resp.content)
-            channel = root.find("channel")
+            raiz = ET.fromstring(resp.content)
+            channel = raiz.find("channel")
             if channel is None:
                 raise ErrorInvesting("El feed RSS de Investing.com no devolvió un canal válido.")
         except ET.ParseError as e:
@@ -82,15 +84,15 @@ def noticias(categoria: str = "general", cantidad: int = 10) -> dict[str, Any]:
                 f"Error al procesar la respuesta XML de Investing.com: {e}"
             ) from e
 
-        items = channel.findall("item")
+        elementos = channel.findall("item")
         resultado = []
 
         # Paso 3: normaliza solo los primeros n ítems del feed.
-        for item in items[:n]:
-            titulo = item.findtext("title", default="").strip()
-            enlace = item.findtext("link", default="").strip()
-            fecha_raw = item.findtext("pubDate", default="").strip()
-            descripcion_raw = item.findtext("description", default="")
+        for elemento in elementos[:n]:
+            titulo = elemento.findtext("title", default="").strip()
+            enlace = elemento.findtext("link", default="").strip()
+            fecha_raw = elemento.findtext("pubDate", default="").strip()
+            descripcion_raw = elemento.findtext("description", default="")
 
             # El resumen llega con HTML; se limpia y se recorta para ahorrar tokens.
             resumen = _limpiar_html(descripcion_raw)
@@ -124,6 +126,8 @@ def noticias(categoria: str = "general", cantidad: int = 10) -> dict[str, Any]:
     return _cacheado(f"investing:{cat}:{n}", 300, _fn)
 
 
+# TITULO BUSCAR NOTICIAS
+
 def buscar_noticias(
     busqueda: str, categoria: str = "general", cantidad: int = 10
 ) -> dict[str, Any]:
@@ -142,10 +146,10 @@ def buscar_noticias(
         raise ErrorInvesting("Falta el término de búsqueda.")
 
     # Se piden siempre 30 para tener el mayor universo posible donde buscar.
-    datos_cat = noticias(categoria=categoria, cantidad=30)
+    datos_categoria = noticias(categoria=categoria, cantidad=30)
     # Coincidencia por subcadena en título o resumen (el resumen puede no existir).
     filtradas = [
-        n for n in datos_cat["noticias"]
+        n for n in datos_categoria["noticias"]
         if palabra in n["titulo"].lower() or palabra in (n.get("resumen") or "").lower()
     ]
 
@@ -155,7 +159,7 @@ def buscar_noticias(
         "categoria": categoria,
         "coincidencias": len(filtradas),
         "noticias": filtradas[:cantidad],
-        "consultado_utc": datos_cat["consultado_utc"],
+        "consultado_utc": datos_categoria["consultado_utc"],
         "aviso": AVISO_FUENTE,
     }
 

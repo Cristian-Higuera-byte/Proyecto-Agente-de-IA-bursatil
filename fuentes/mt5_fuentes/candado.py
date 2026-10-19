@@ -27,10 +27,12 @@ from typing import Any
 import threading
 
 # Candado propio de respaldo; es reentrante (RLock) para que una misma consulta pueda anidar sesiones.
-_LOCK_PROPIO = threading.RLock()
+_CANDADO_PROPIO = threading.RLock()
 
 
-def _resolver_lock_compartido() -> Any:
+# TITULO RESOLVER LOCK COMPARTIDO
+
+def _resolver_candado_compartido() -> Any:
     """Intenta obtener el `MT5_LOCK` del puente MT5 del dashboard.
 
     Lee el nombre del módulo de la variable de entorno MT5_BRIDGE_MODULO (por
@@ -46,15 +48,17 @@ def _resolver_lock_compartido() -> Any:
 
 # Candado del puente del dashboard (o None). Se resuelve UNA sola vez al importar
 # para que el candado en uso nunca cambie a mitad de camino.
-_LOCK_COMPARTIDO: Any = _resolver_lock_compartido()
+_CANDADO_COMPARTIDO: Any = _resolver_candado_compartido()
 
+
+# TITULO CANDADO
 
 def _candado() -> Any:
     """Devuelve el candado que debe usarse para hablar con MT5.
 
     Prefiere el candado compartido con el dashboard y, si no existe, el propio.
     El resultado es siempre el mismo durante la vida del proceso."""
-    return _LOCK_COMPARTIDO if _LOCK_COMPARTIDO is not None else _LOCK_PROPIO
+    return _CANDADO_COMPARTIDO if _CANDADO_COMPARTIDO is not None else _CANDADO_PROPIO
 
 
 # -------------------------------------------------------------------------------------------------------

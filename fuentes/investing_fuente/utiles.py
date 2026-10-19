@@ -21,6 +21,8 @@ import re
 from typing import Any
 
 
+# TITULO LIMPIAR HTML
+
 def _limpiar_html(texto: str) -> str:
     """Elimina etiquetas HTML e inconsistencias de formato en los resúmenes.
 
@@ -34,6 +36,8 @@ def _limpiar_html(texto: str) -> str:
     # split() sin argumentos descarta saltos y espacios múltiples; join los une con un espacio.
     return " ".join(sin_html.split()).strip()
 
+
+# TITULO SIN NULOS
 
 def _sin_nulos(d: dict[str, Any]) -> dict[str, Any]:
     """Devuelve una copia del diccionario sin las claves cuyo valor es None.

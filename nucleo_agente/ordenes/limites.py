@@ -19,6 +19,8 @@ instrucción ni modificarlos; para cambiarlos hay que editar este archivo."""
 from dataclasses import dataclass
 
 
+# TITULO LIMITES RIESGO
+
 @dataclass(frozen=True)
 class LimitesRiesgo:
     """Conjunto inmutable (frozen) de límites de riesgo que aplican las validaciones de órdenes.

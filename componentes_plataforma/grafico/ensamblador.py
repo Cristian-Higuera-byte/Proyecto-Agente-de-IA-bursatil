@@ -36,10 +36,14 @@ _INCLUIR = re.compile(r"^@@(\S+)\n", re.MULTILINE)
 _cache: dict = {"firma": None, "plantilla": ""}
 
 
+# TITULO FIRMA
+
 def _firma() -> tuple:
     """Devuelve una tupla (ruta, mtime) de todos los archivos de estatico/, usada para detectar cambios en disco."""
     return tuple((str(p), p.stat().st_mtime_ns) for p in sorted(_DIR.rglob("*")) if p.is_file())
 
+
+# TITULO PLANTILLA
 
 def plantilla() -> str:
     """HTML completo del gráfico, con los marcadores __X__ todavía sin sustituir.
@@ -56,6 +60,8 @@ def plantilla() -> str:
         _cache["firma"] = firma
     return _cache["plantilla"]
 
+
+# TITULO HTML GRAFICO
 
 def html_grafico(simbolo: str, api_url: str, digits: int, pip: float, posiciones_js: str, activos_json: str = "[]") -> str:
     """HTML listo para `components.html` con los datos del símbolo.

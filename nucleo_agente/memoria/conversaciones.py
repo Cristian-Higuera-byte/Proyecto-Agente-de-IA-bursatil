@@ -22,8 +22,12 @@ from nucleo_agente.memoria.errores import ErrorMemoria
 from nucleo_agente.memoria.validacion import _sanear, _turno_valido
 
 
+# TITULO CONVERSACIONES MIXIN
+
 class _ConversacionesMixin:
     """Mixin de Memoria para las conversaciones; usa `_ejecutar`, `_db`, `chat_id` y `usuario_id` de la base."""
+
+    # TITULO INICIAR CHAT
 
     def iniciar_chat(self) -> str:
         """Crea una conversación nueva y la deja como activa."""
@@ -39,6 +43,8 @@ class _ConversacionesMixin:
         if self.chat_id is None:
             raise ErrorMemoria("La conversación creada no tiene id válido.")
         return self.chat_id
+
+    # TITULO RETOMAR ULTIMO CHAT
 
     def retomar_ultimo_chat(self) -> bool:
         """Activa la conversación más reciente del usuario. False si no tiene ninguna."""
@@ -56,6 +62,8 @@ class _ConversacionesMixin:
         self._tiene_titulo = bool(filas[0].get("titulo"))
         return True
 
+    # TITULO LISTAR CHATS
+
     def listar_chats(self, limite: int = 20) -> list[dict[str, Any]]:
         """Conversaciones del usuario, la más reciente primero (id, titulo, resumen, fechas)."""
         return self._ejecutar(
@@ -66,6 +74,8 @@ class _ConversacionesMixin:
             .limit(limite),
             "listar las conversaciones",
         )
+
+    # TITULO CARGAR HISTORIAL
 
     def cargar_historial(self, max_turnos: int = MAX_TURNOS_CARGADOS) -> list[dict[str, Any]]:
         """Últimos turnos COMPLETOS del chat activo, listos para enviar al modelo."""
@@ -85,6 +95,8 @@ class _ConversacionesMixin:
             "cargar el historial",
         )
         return _sanear([f["mensaje"] for f in filas])
+
+    # TITULO GUARDAR TURNO
 
     def guardar_turno(self, mensajes: list[dict[str, Any]]) -> None:
         """Guarda un turno completo (user, assistant, tool..., assistant final) en una sola inserción."""
@@ -119,6 +131,8 @@ class _ConversacionesMixin:
         if titulo:
             self._tiene_titulo = True
 
+    # TITULO GUARDAR RESUMEN
+
     def guardar_resumen(self, resumen: str, chat_id: str | None = None) -> None:
         """Guarda el resumen de una conversación (por defecto la activa)."""
         objetivo = chat_id or self.chat_id
@@ -131,6 +145,8 @@ class _ConversacionesMixin:
             .eq("usuario_id", self.usuario_id),
             "guardar el resumen",
         )
+
+    # TITULO ELIMINAR CHAT
 
     def eliminar_chat(self, chat_id: str) -> None:
         """Borra una conversación y todos sus mensajes."""

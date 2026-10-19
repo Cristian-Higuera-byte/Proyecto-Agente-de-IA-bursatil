@@ -22,6 +22,8 @@ from nucleo_agente import ordenes
 from nucleo_agente.vigilancia.utilidades import _consultar
 
 
+# TITULO POSICIONES DE
+
 def _posiciones_de(v: dict[str, Any]) -> list[Any]:
     """Devuelve las posiciones abiertas en MT5 que pertenecen a la vigilancia `v`.
 

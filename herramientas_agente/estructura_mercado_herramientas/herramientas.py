@@ -28,6 +28,8 @@ from herramientas_agente.estructura_mercado_herramientas.auxiliares import _obte
 _ESQ = cargar_json(Path(__file__).parent / "esquemas.json")
 
 
+# TITULO DETECTAR NIVELES CLAVE
+
 @herramienta(**_ESQ["detectar_niveles_clave"])
 def detectar_niveles_clave(
     simbolo: str,
@@ -46,8 +48,8 @@ def detectar_niveles_clave(
         return {"error": f"Sin datos suficientes para detectar niveles clave en {simbolo}."}
 
     # Vela de referencia para los pivotes: la última ya cerrada.
-    v_ref = velas[-2] if len(velas) > 1 else velas[-1]
-    h, l, c = v_ref.get("high", 0.0), v_ref.get("low", 0.0), v_ref.get("close", 0.0)
+    v_referencia = velas[-2] if len(velas) > 1 else velas[-1]
+    h, l, c = v_referencia.get("high", 0.0), v_referencia.get("low", 0.0), v_referencia.get("close", 0.0)
 
     # Fórmulas clásicas de puntos pivote.
     pivot = (h + l + c) / 3.0
@@ -97,6 +99,8 @@ def detectar_niveles_clave(
     }
 
 
+# TITULO IDENTIFICAR ORDER BLOCKS FVG
+
 @herramienta(**_ESQ["identificar_order_blocks_fvg"])
 def identificar_order_blocks_fvg(
     simbolo: str,
@@ -115,7 +119,7 @@ def identificar_order_blocks_fvg(
         return {"error": f"Datos insuficientes para escanear FVG u Order Blocks en {simbolo}."}
 
     fvgs: list[dict[str, Any]] = []
-    order_blocks: list[dict[str, Any]] = []
+    orden_bloques: list[dict[str, Any]] = []
 
     # FVG: recorrido de la más reciente a la más antigua con ventanas de 3 velas consecutivas.
     for i in range(len(velas) - 3, 0, -1):
@@ -145,14 +149,14 @@ def identificar_order_blocks_fvg(
         cuerpo_siguiente = abs(velas[i + 1]["close"] - velas[i + 1]["open"])
 
         if velas[i]["close"] < velas[i]["open"] and velas[i + 1]["close"] > velas[i + 1]["open"] and cuerpo_siguiente > cuerpo * 1.8:
-            order_blocks.append({
+            orden_bloques.append({
                 "tipo": "ORDER_BLOCK_ALCISTA",
                 "zona_high": round(velas[i]["high"], 5),
                 "zona_low": round(velas[i]["low"], 5),
                 "timestamp": velas[i].get("time"),
             })
         elif velas[i]["close"] > velas[i]["open"] and velas[i + 1]["close"] < velas[i + 1]["open"] and cuerpo_siguiente > cuerpo * 1.8:
-            order_blocks.append({
+            orden_bloques.append({
                 "tipo": "ORDER_BLOCK_BAJISTA",
                 "zona_high": round(velas[i]["high"], 5),
                 "zona_low": round(velas[i]["low"], 5),
@@ -167,9 +171,11 @@ def identificar_order_blocks_fvg(
         "timeframe": timeframe.upper(),
         "precio_actual": precio_actual,
         "fvg_detectados": fvgs[:5],
-        "order_blocks_detectados": order_blocks[-5:],
+        "order_blocks_detectados": orden_bloques[-5:],
     }
 
+
+# TITULO CALCULAR PERFIL VOLUMEN
 
 @herramienta(**_ESQ["calcular_perfil_volumen"])
 def calcular_perfil_volumen(
@@ -202,34 +208,34 @@ def calcular_perfil_volumen(
 
     for v in velas:
         p_medio = (v["high"] + v["low"]) / 2.0
-        vol = v.get("tick_volume", 100.0)
-        idx = min(int((p_medio - min_p) / paso), niveles_precio - 1)
-        bins[idx] += vol
+        volumen = v.get("tick_volume", 100.0)
+        indice = min(int((p_medio - min_p) / paso), niveles_precio - 1)
+        bins[indice] += volumen
 
     # Punto de control (POC): franja con mayor volumen.
-    max_vol_idx = max(range(niveles_precio), key=lambda i: bins[i])
-    poc_precio = min_p + (max_vol_idx + 0.5) * paso
+    max_volumen_indice = max(range(niveles_precio), key=lambda i: bins[i])
+    poc_precio = min_p + (max_volumen_indice + 0.5) * paso
 
     # Área de valor: se amplía hacia la franja vecina con más volumen hasta alcanzar el 70% del total.
-    vol_total = sum(bins)
-    vol_objetivo = vol_total * 0.70
+    volumen_total = sum(bins)
+    volumen_objetivo = volumen_total * 0.70
 
-    vol_acum = bins[max_vol_idx]
-    idx_low, idx_high = max_vol_idx, max_vol_idx
+    volumen_acum = bins[max_volumen_indice]
+    indice_bajo, indice_alto = max_volumen_indice, max_volumen_indice
 
-    while vol_acum < vol_objetivo and (idx_low > 0 or idx_high < niveles_precio - 1):
-        v_below = bins[idx_low - 1] if idx_low > 0 else -1
-        v_above = bins[idx_high + 1] if idx_high < niveles_precio - 1 else -1
+    while volumen_acum < volumen_objetivo and (indice_bajo > 0 or indice_alto < niveles_precio - 1):
+        v_debajo = bins[indice_bajo - 1] if indice_bajo > 0 else -1
+        v_encima = bins[indice_alto + 1] if indice_alto < niveles_precio - 1 else -1
 
-        if v_above >= v_below:
-            idx_high += 1
-            vol_acum += bins[idx_high]
+        if v_encima >= v_debajo:
+            indice_alto += 1
+            volumen_acum += bins[indice_alto]
         else:
-            idx_low -= 1
-            vol_acum += bins[idx_low]
+            indice_bajo -= 1
+            volumen_acum += bins[indice_bajo]
 
-    val_precio = min_p + idx_low * paso
-    vah_precio = min_p + (idx_high + 1) * paso
+    valor_precio = min_p + indice_bajo * paso
+    vah_precio = min_p + (indice_alto + 1) * paso
 
     return {
         "fuente": "Perfil de Volumen Institucional (Volume Profile)",
@@ -243,9 +249,9 @@ def calcular_perfil_volumen(
         "volume_profile_key_levels": {
             "poc_point_of_control": round(poc_precio, 5),
             "vah_value_area_high": round(vah_precio, 5),
-            "val_value_area_low": round(val_precio, 5),
+            "val_value_area_low": round(valor_precio, 5),
         },
-        "distribucion_volumen_pct_value_area": round((vol_acum / vol_total) * 100, 2),
+        "distribucion_volumen_pct_value_area": round((volumen_acum / volumen_total) * 100, 2),
     }
 
 

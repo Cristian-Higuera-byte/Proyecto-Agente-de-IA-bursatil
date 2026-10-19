@@ -19,6 +19,8 @@ reejecuciones automáticas.
 """
 
 
+# TITULO RENDERIZAR DIALOGOS
+
 def renderizar_dialogos() -> None:
     """
     Dibuja, uno tras otro, los tres diálogos que pueden abrirse sobre la página.
@@ -38,7 +40,7 @@ def renderizar_dialogos() -> None:
     renderizar_modal_cerrar()
 
     # Términos y condiciones de One-Click Trading (la primera vez que se activa).
-    from componentes_plataforma.un_clic import renderizar_modal_terminos
+    from componentes_plataforma.operacion_un_clic import renderizar_modal_terminos
     renderizar_modal_terminos()
 
 

@@ -26,11 +26,11 @@ _TIMEOUT_MS = 10_000
 # Segundos de espera tras un fallo de conexión antes de volver a intentarlo.
 _REINTENTO_S = 15
 # Segundos de vida de la caché de símbolos (600 s = 10 min).
-_TTL_SIMBOLOS_S = 600
+_TIEMPO_VIDA_SIMBOLOS_S = 600
 # Segundos de vida de la caché de rutas candidatas del terminal (300 s = 5 min).
 _TTL_RUTAS_S = 300
 # Segundos de vida de la caché del desfase horario del servidor del broker (300 s = 5 min).
-_TTL_OFFSET_S = 300
+_TIEMPO_VIDA_OFFSET_S = 300
 # Máximo de rutas de terminal que se prueban por intento de conexión.
 _MAX_RUTAS = 3
 

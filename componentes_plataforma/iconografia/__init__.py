@@ -37,7 +37,7 @@ los SVG propios van como imagen data-URI).
 
 Estructura del paquete (este `__init__` es una fachada que solo reexporta `icono_activo`, para que el
 resto del dashboard importe desde `componentes_plataforma.iconografia`; el módulo
-`componentes_plataforma/iconos.py` lo reexpone a su vez con el nombre histórico):
+`componentes_plataforma/iconografia/` lo reexpone a su vez con el nombre histórico):
   icono.py     lógica de decisión por tipo de activo (`icono_activo`, `nucleo`)
   piezas.py    fragmentos HTML (cajas, imágenes circulares, pares de banderas, índices, iniciales, logos)
   datos.py     tablas leídas de `datos/*.json` y generador de SVG data-URI

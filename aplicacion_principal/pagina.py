@@ -22,8 +22,8 @@ import streamlit as st
 
 from componentes_plataforma.acceso import requerir_login
 from componentes_plataforma.barra_lateral import renderizar_barra_navegacion as renderizar_nav_lateral
-from componentes_plataforma.datos_mercado import cargar_datos_mercado
-from componentes_plataforma.flujo_vivo import inyectar_flujo
+from componentes_plataforma.mercado_datos import cargar_datos_mercado
+from componentes_plataforma.flujo_precios import inyectar_flujo
 from componentes_plataforma.transicion import inyectar_transicion
 
 from .cabecera import datos_cuenta, renderizar_barra_superior
@@ -32,6 +32,8 @@ from .estilos import css_global, html_pantalla_carga
 from .fragmentos import crear_fragmentos
 from .vistas import renderizar_vista
 
+
+# TITULO EJECUTAR
 
 def ejecutar(consola) -> None:
     """
@@ -57,6 +59,9 @@ def ejecutar(consola) -> None:
 
     # Login (Supabase): protege el acceso al dashboard y devuelve los datos del usuario.
     usuario_actual = requerir_login()
+    # Mercados precargado en segundo plano desde el arranque (una vez por proceso): sin esperas al abrir pestañas.
+    from componentes_plataforma.mercados.secciones import precargar_todas_las_categorias
+    precargar_todas_las_categorias()
 
     # Cubierta de carga a pantalla completa, solo en la primera entrada a la página.
     primera_carga = not st.session_state.get("datos_cargados", False)
@@ -65,8 +70,8 @@ def ejecutar(consola) -> None:
         cubierta_carga.markdown(html_pantalla_carga(), unsafe_allow_html=True)
 
     # 1. Barra superior fija (saldo de MT5 y métricas de riesgo).
-    saldo, moneda, pl, metricas = datos_cuenta()
-    renderizar_barra_superior(usuario_actual, saldo, moneda, pl, metricas)
+    saldo, moneda, ganancia_perdida, metricas = datos_cuenta()
+    renderizar_barra_superior(usuario_actual, saldo, moneda, ganancia_perdida, metricas)
 
     # Feed de precios en vivo (SSE desde servidor_datos.py): pinta los números directo en el
     # navegador unas 4 veces por segundo, sin reejecutar Streamlit.
@@ -79,14 +84,14 @@ def ejecutar(consola) -> None:
     fragmentos = crear_fragmentos()
 
     # Disposición principal: columna angosta para la barra lateral y columna ancha para el contenido.
-    col_nav, col_principal = st.columns([0.5, 11.5], gap="small")
+    columna_navegacion, columna_principal = st.columns([0.5, 11.5], gap="small")
 
     # 2. Barra lateral izquierda extendida.
-    with col_nav:
+    with columna_navegacion:
         renderizar_nav_lateral()
 
     # 3. Área de contenido principal: cambia según la vista elegida en la barra lateral.
-    with col_principal:
+    with columna_principal:
         # El contenedor con clave `pj_vista` es lo que la cortina de transición oculta mientras se carga la sección.
         with st.container(key="pj_vista"):
             renderizar_vista(fragmentos, consola)

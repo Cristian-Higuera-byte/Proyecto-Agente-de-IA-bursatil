@@ -27,10 +27,14 @@ from componentes_plataforma._estaticos import datos_json
 _DIR = Path(__file__).parent / "datos"
 
 
+# TITULO JSON
+
 def _json(nombre: str):
     """Lee y devuelve el contenido del archivo JSON `nombre` ubicado en la carpeta `datos/` del paquete."""
     return datos_json(_DIR / nombre)
 
+
+# TITULO SVG CIRCULO
 
 def svg_circulo(fondo: str, figura: str) -> str:
     """Círculo de color con una figura blanca, como imagen data-URI.

@@ -22,15 +22,19 @@ from typing import Any
 
 from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
-from nucleo_agente.ordenes.base_datos import _ahora, _consultar, kill_switch_activo
+from nucleo_agente.ordenes.base_datos import _ahora, _consultar, interruptor_emergencia_activo
 from nucleo_agente.ordenes.limites import LIMITES
 from herramientas.puente_mt5 import MT5_LOCK, inicializar_mt5, resolver_simbolo
 
+
+# TITULO NORMALIZAR
 
 def _normalizar(simbolo: str) -> str:
     """Limpia un símbolo escrito por el usuario o el modelo: quita puntos suspensivos, espacios y pasa a mayúsculas."""
     return (simbolo or "").replace("...", "").replace("…", "").strip().upper()
 
+
+# TITULO RESOLVER SIMBOLO
 
 def _resolver_simbolo(simbolo: str) -> str:
     """Nombre del símbolo tal como lo llama el bróker (exacto -> núcleo -> alias). Si no se puede
@@ -43,6 +47,8 @@ def _resolver_simbolo(simbolo: str) -> str:
     return real or limpio
 
 
+# TITULO SIMBOLOS PARA RELOJ
+
 def _simbolos_para_reloj() -> list[str]:
     """Símbolos de los que leer un tick para conocer la hora del servidor: los de la Observación de
     mercado (visibles), o unos comunes si no hay ninguno."""
@@ -53,13 +59,17 @@ def _simbolos_para_reloj() -> list[str]:
     return visibles[:30] or ["EURUSD", "GOLD", "XAUUSD", "BTCUSD"]
 
 
+# TITULO DESVIACION
+
 def _desviacion(info: Any) -> int:
     """Deslizamiento máximo en PUNTOS: el mínimo configurado, o el doble del spread si es mayor.
     Un valor fijo no sirve para todos los activos (en cripto, índices o acciones 20 puntos son centavos)."""
     return max(LIMITES.desviacion_puntos, int(getattr(info, "spread", 0) or 0) * 2)
 
 
-def _con_lock(funcion):
+# TITULO CON LOCK
+
+def _con_candado(funcion):
     """Decorador que serializa el acceso a MT5 con el MISMO candado del resto de la app (MT5_LOCK).
 
     La API de MetaTrader 5 no es segura entre hilos y servidor_datos.py / los fragmentos en
@@ -73,6 +83,8 @@ def _con_lock(funcion):
     return envuelta
 
 
+# TITULO PREPARAR MT5
+
 def _preparar_mt5() -> str | None:
     """None si MT5 está listo; si no, el mensaje de error."""
     with MT5_LOCK:
@@ -81,6 +93,8 @@ def _preparar_mt5() -> str | None:
             return f"No se pudo conectar con MetaTrader 5: {mt5.last_error()}"
     return None
 
+
+# TITULO INICIO DIA SERVIDOR
 
 def _inicio_dia_servidor() -> int | None:
     """Epoch (en hora del SERVIDOR del broker) de las 00:00 de hoy, o None si no se puede saber.
@@ -95,6 +109,8 @@ def _inicio_dia_servidor() -> int | None:
             return int(tick.time - tick.time % 86400)
     return None
 
+
+# TITULO PERDIDA DEL DIA
 
 def _perdida_del_dia(cuenta: Any) -> float:
     """Pérdida del día (número positivo): operaciones cerradas hoy + resultado flotante."""
@@ -118,6 +134,8 @@ def _perdida_del_dia(cuenta: Any) -> float:
     return max(0.0, -(realizado + cuenta.profit))
 
 
+# TITULO RIESGO EXPUESTO
+
 def _riesgo_expuesto(cuenta: Any, incluir_pendientes: bool) -> float:
     """Dinero que se perdería si saltaran TODOS los stop loss: posiciones abiertas (+ propuestas pendientes)."""
     total = 0.0
@@ -139,6 +157,8 @@ def _riesgo_expuesto(cuenta: Any, incluir_pendientes: bool) -> float:
     return total
 
 
+# TITULO MODO LLENADO
+
 def _modo_llenado(info: Any) -> int:
     """Elige el modo de llenado de órdenes que admite el símbolo.
 
@@ -152,6 +172,8 @@ def _modo_llenado(info: Any) -> int:
         return mt5.ORDER_FILLING_FOK
     return mt5.ORDER_FILLING_RETURN
 
+
+# TITULO CHEQUEOS GLOBALES
 
 def _chequeos_globales(para_abrir: bool) -> tuple[Any, str | None]:
     """(cuenta, motivo_de_rechazo). Cerrar posiciones solo exige MT5 listo y cuenta demo."""
@@ -167,7 +189,7 @@ def _chequeos_globales(para_abrir: bool) -> tuple[Any, str | None]:
         return cuenta, "BLOQUEADO: la cuenta conectada NO es demo y la Fase 1 solo opera en cuenta demo."
     # Paso 3: restricciones que solo aplican a abrir posiciones.
     if para_abrir:
-        if kill_switch_activo():
+        if interruptor_emergencia_activo():
             return cuenta, "Las nuevas aperturas están bloqueadas (interruptor de emergencia activado por el usuario)."
         # Pérdida diaria acumulada frente al tope (% del balance).
         perdida = _perdida_del_dia(cuenta)

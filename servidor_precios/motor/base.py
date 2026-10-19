@@ -37,6 +37,8 @@ if _ES_CAPITAL:
     from servidor_precios import streaming_capital as _ws
 
 
+# TITULO MOTOR PRECIOS
+
 class MotorPrecios(MixinStopDinamico, MixinOco):
     """Lee ticks de MT5 en un solo hilo y guarda la última foto de cada símbolo.
     Los clientes SSE esperan en una Condition y reciben SOLO lo que cambió.
@@ -44,6 +46,8 @@ class MotorPrecios(MixinStopDinamico, MixinOco):
     Hereda _paso_trailing/_paso_oco de los mixins. Los diccionarios de estado se describen
     en __init__; las escrituras se hacen bajo self._cond.
     """
+
+    # TITULO INIT
 
     def __init__(self):
         """Crea el estado vacío del motor: condición de sincronización, cachés y configuración de trailing/OCO."""
@@ -62,6 +66,8 @@ class MotorPrecios(MixinStopDinamico, MixinOco):
         self._oco_mtime = -1.0        # mtime de data/oco.json ya cargado
         self._oco_armados: set = set()  # par_id cuyas DOS patas ya se vieron vivas (anti-carrera)
 
+    # TITULO SUSCRIBIR
+
     # --- suscripciones -----------------------------------------------------
     def suscribir(self, simbolos):
         """Registra (o renueva) el interés de un cliente en los símbolos indicados, marcando la hora actual."""
@@ -70,6 +76,8 @@ class MotorPrecios(MixinStopDinamico, MixinOco):
             for s in simbolos:
                 self._subs[s] = ahora
 
+    # TITULO ACTIVOS
+
     def _activos(self):
         """Devuelve los símbolos con suscripción vigente y elimina los que superaron TTL_SUSCRIPCION sin renovarse."""
         limite = time.time() - TTL_SUSCRIPCION
@@ -77,6 +85,8 @@ class MotorPrecios(MixinStopDinamico, MixinOco):
             for s in [s for s, t in self._subs.items() if t < limite]:
                 self._subs.pop(s, None)
             return list(self._subs.keys())
+
+    # TITULO REAL
 
     # --- lecturas de MT5 (solo desde el hilo del motor) -------------------
     def _real(self, pedido):
@@ -92,15 +102,17 @@ class MotorPrecios(MixinStopDinamico, MixinOco):
             self._reales[pedido] = real
         return real
 
+    # TITULO CIERRE PREVIO
+
     def _cierre_previo(self, real):
         """Cierre de la vela diaria ANTERIOR: base de la variación del día.
 
         Usa caché por símbolo real durante TTL_REFERENCIA segundos. Si solo hay una vela
         diaria, usa su apertura. Devuelve None si MT5 no entrega datos.
         """
-        ref = self._ref.get(real)
-        if ref and time.time() - ref[1] < TTL_REFERENCIA:
-            return ref[0]
+        referencia = self._ref.get(real)
+        if referencia and time.time() - referencia[1] < TTL_REFERENCIA:
+            return referencia[0]
         valor = None
         with CANDADO_MT5:
             rates = mt5.copy_rates_from_pos(real, mt5.TIMEFRAME_D1, 0, 2)
@@ -110,6 +122,8 @@ class MotorPrecios(MixinStopDinamico, MixinOco):
             valor = float(rates[0]["open"])
         self._ref[real] = (valor, time.time())
         return valor
+
+    # TITULO LEER TICKS
 
     def _leer_ticks(self):
         """Lee el último tick de cada símbolo activo y devuelve solo los que cambiaron.
@@ -140,14 +154,16 @@ class MotorPrecios(MixinStopDinamico, MixinOco):
                 precio = tick.last if tick.last > 0 else tick.bid
                 previo = self._cierre_previo(real)
                 ch = (precio - previo) if previo else 0.0
-                pct = (ch / previo * 100) if previo else 0.0
+                porcentaje = (ch / previo * 100) if previo else 0.0
                 cambios[pedido] = {
                     "b": tick.bid, "a": tick.ask, "l": precio,
-                    "t": int(tick.time), "ch": ch, "pct": pct,
+                    "t": int(tick.time), "ch": ch, "pct": porcentaje,
                 }
             except Exception:
                 continue
         return cambios
+
+    # TITULO LEER CUENTA
 
     def _leer_cuenta(self):
         """Arma la foto de la cuenta: saldo, equity, margen, P/G, posiciones y órdenes pendientes.
@@ -166,7 +182,7 @@ class MotorPrecios(MixinStopDinamico, MixinOco):
             return None
         # Resumen de posiciones abiertas
         # P/G neto por posición (profit + swap) → la suma coincide con info.profit
-        pos = {str(p.ticket): round(p.profit + p.swap, 2) for p in posiciones}
+        posicion = {str(p.ticket): round(p.profit + p.swap, 2) for p in posiciones}
         pc = {str(p.ticket): p.price_current for p in posiciones}   # precio actual (Inicio)
         # detalle por posición para las líneas del gráfico: símbolo, tipo, lotes, apertura,
         # SL/TP, k = valor de 1 unidad de precio por lote (P/G proyectado) y sm = distancia
@@ -179,9 +195,9 @@ class MotorPrecios(MixinStopDinamico, MixinOco):
             if simbolo not in specs:
                 with CANDADO_MT5:
                     si = mt5.symbol_info(simbolo)
-                ts = float(getattr(si, "trade_tick_size", 0) or 0)
+                marca_tiempo = float(getattr(si, "trade_tick_size", 0) or 0)
                 specs[simbolo] = (
-                    (float(si.trade_tick_value) / ts) if si and ts else 0.0,
+                    (float(si.trade_tick_value) / marca_tiempo) if si and marca_tiempo else 0.0,
                     float(getattr(si, "trade_stops_level", 0) or 0) * float(getattr(si, "point", 0) or 0),
                 )
             return specs[simbolo]
@@ -211,8 +227,10 @@ class MotorPrecios(MixinStopDinamico, MixinOco):
                 "margin_level": info.margin_level, "credit": info.credit,
                 # % del equity usado como margen (barra "margen usado" de Inicio)
                 "uso_margen": round(info.margin / info.equity * 100, 2) if info.equity else 0.0,
-                "pos": pos, "pc": pc, "pi": pi, "ord": orden}
+                "pos": posicion, "pc": pc, "pi": pi, "ord": orden}
 
+
+    # TITULO PASO EQUITY LOG
 
     def _paso_equity_log(self):
         """Guarda un snapshot del equity/balance cada INTERVALO_EQUITY segundos.
@@ -221,13 +239,15 @@ class MotorPrecios(MixinStopDinamico, MixinOco):
         incluye el flotante de posiciones abiertas), que MT5 no guarda por sí solo.
         Ver herramientas/almacen_capital.py para la nota de escalado a multiusuario/Supabase."""
         c = self._cuenta
-        eq = c.get("equity")
-        if eq is None:
+        equity = c.get("equity")
+        if equity is None:
             return
         try:
-            almacen_capital.registrar(eq, c.get("balance", eq), min_intervalo=INTERVALO_EQUITY)
+            almacen_capital.registrar(equity, c.get("balance", equity), min_intervalo=INTERVALO_EQUITY)
         except Exception as e:
             print(f"[motor] no se pudo registrar equity: {e}")
+
+    # TITULO CORRER
 
     # --- bucle principal ---------------------------------------------------
     def correr(self):
@@ -273,6 +293,8 @@ class MotorPrecios(MixinStopDinamico, MixinOco):
             # Duerme lo que falte para completar el intervalo
             time.sleep(max(0.0, INTERVALO_TICKS - (time.time() - inicio)))
 
+    # TITULO FOTO
+
     # --- lectura para los clientes ----------------------------------------
     def foto(self, simbolos, desde_seq=0):
         """Ticks (de esos símbolos) y cuenta que cambiaron después de `desde_seq`.
@@ -288,10 +310,12 @@ class MotorPrecios(MixinStopDinamico, MixinOco):
                 cuenta = {k: v for k, v in self._cuenta.items() if k != "seq"}
             return self._seq, ticks, cuenta
 
-    def esperar(self, seq, timeout):
+    # TITULO ESPERAR
+
+    def esperar(self, seq, tiempo_espera):
         """Bloquea hasta que la secuencia global supere `seq` o pase `timeout` segundos; devuelve la secuencia actual."""
         with self._cond:
-            self._cond.wait_for(lambda: self._seq > seq, timeout=timeout)
+            self._cond.wait_for(lambda: self._seq > seq, timeout=tiempo_espera)
             return self._seq
 
 

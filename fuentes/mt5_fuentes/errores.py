@@ -17,12 +17,16 @@ Define `ErrorMT5` (fallo genérico con mensaje legible) y `OperacionNoPermitida`
 (intento de usar una función de MT5 fuera de la lista de solo lectura)."""
 
 
+# TITULO ERROR MT5
+
 class ErrorMT5(Exception):
     """Fallo de la fuente MT5.
 
     Se lanza ante conexión imposible, símbolo inexistente, datos vacíos o
     parámetros inválidos; el mensaje se puede mostrar al usuario o al modelo."""
 
+
+# TITULO OPERACION NO PERMITIDA
 
 class OperacionNoPermitida(ErrorMT5, AttributeError):
     """Se intentó usar una función de MT5 vetada (solo lectura).

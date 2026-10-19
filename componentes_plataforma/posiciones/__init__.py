@@ -27,7 +27,7 @@ Trading desde el gráfico (como MT5 / XM). Términos de trading en INGLÉS.
 - MENÚ DEL CLIC DERECHO: en el precio del cursor ofrece Buy Limit / Sell Stop
   (bajo el mercado) o Sell Limit / Buy Stop (sobre el mercado) con el volumen del
   ticket, y el interruptor One-Click Trading.
-- ONE-CLICK TRADING (interruptor del ticket, `ord_oc`; componentes_plataforma/un_clic.py):
+- ONE-CLICK TRADING (interruptor del ticket, `orden_un_clic`; componentes_plataforma/operacion_un_clic/):
   activo → todo se envía al instante; apagado → cada acción pide confirmar en el
   propio gráfico.
 
@@ -36,15 +36,15 @@ Los envíos van a servidor_datos.py (POST /sltp, /orden, /orden/modificar,
 /orden/eliminar; solo desde páginas de localhost), sin rerun de Streamlit.
 
 Piezas:
-- `js_posiciones(simbolo)`: JS que central_panel.py inserta DENTRO de `iniciar()`
+- `js_posiciones(simbolo)`: JS que grafico/panel.py inserta DENTRO de `iniciar()`
   del gráfico (usa `chart`, `serie`, `containerEl`, `API`, `DIGITS`, `SIMBOLO`).
   Datos iniciales desde Python; luego en vivo con el mensaje de cuenta del feed
   (`acc.pi` posiciones, `acc.ord` órdenes, `acc.pos` P/G, `acc.pc` precio actual)
   y los ticks (Bid/Ask) que llegan por BroadcastChannel('pj-ticks').
-- `gatillos_cierre()`: botones invisibles `chcls_<ticket>` que pulsa la ✕ de una
+- `gatillos_cierre()`: botones invisibles `grafico_cerrar_<ticket>` que pulsa la ✕ de una
   posición → abre el modal de cierre en Python.
 
-Este paquete es el que expone la fachada `componentes_plataforma/posiciones_grafico.py`; sus dos nombres públicos
+Este paquete es el que expone la fachada `componentes_plataforma/posiciones/`; sus dos nombres públicos
 (`js_posiciones` y `gatillos_cierre`) los consume `grafico/panel.py`.
 
 Archivos: js_grafico.py (ensambla js/*.js), datos_iniciales.py (estado inicial desde MT5), gatillos.py y js/

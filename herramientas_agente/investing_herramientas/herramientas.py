@@ -24,11 +24,15 @@ from herramientas_agente.base import cargar_json, herramienta
 _ESQ = cargar_json(Path(__file__).parent / "esquemas.json")
 
 
+# TITULO INV NOTICIAS
+
 @herramienta(**_ESQ["inv_noticias"])
 def inv_noticias(categoria: str = "general", cantidad: int = 10) -> dict:
     """Devuelve las últimas noticias de Investing.com de una categoría (general por defecto) y la cantidad indicada, desde la fuente (red)."""
     return fuente.noticias(categoria=categoria, cantidad=cantidad)
 
+
+# TITULO INV BUSCAR NOTICIAS
 
 @herramienta(**_ESQ["inv_buscar_noticias"])
 def inv_buscar_noticias(

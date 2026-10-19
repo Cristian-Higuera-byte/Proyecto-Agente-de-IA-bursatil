@@ -15,6 +15,8 @@
 import streamlit as st
 
 
+# TITULO CONTENIDO MODAL
+
 def _contenido_modal(n: dict):
     """Dibuja el interior del modal de una noticia.
 
@@ -36,6 +38,8 @@ def _contenido_modal(n: dict):
     # Investing permiten framing (sin X-Frame-Options), pero el contenido va paywalleado.
     st.iframe(n["link"], height=620)
 
+
+# TITULO ABRIR MODAL
 
 def abrir_modal(n: dict):
     """Abre el diálogo "Noticia" con la noticia indicada.

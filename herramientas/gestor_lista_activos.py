@@ -48,6 +48,8 @@ if _URL and _KEY:
 DEFAULTS = ["EURUSD...", "GBPUSD...", "USDJPY...", "XAUUSD...", "BTCUSD", "ETHUSD", "US30"]
 
 
+# TITULO NOMBRE VISIBLE
+
 def nombre_visible(simbolo: str) -> str:
     """
     Devuelve el nombre limpio de un símbolo MT5 para mostrarlo en pantalla.
@@ -60,11 +62,13 @@ def nombre_visible(simbolo: str) -> str:
     s = (simbolo or "").replace("...", "")
     # Si queda un sufijo corto alfabético tras el último punto, se descarta.
     if "." in s:
-        base, suf = s.rsplit(".", 1)
-        if suf.isalpha() and 1 <= len(suf) <= 3:
+        base, sufijo = s.rsplit(".", 1)
+        if sufijo.isalpha() and 1 <= len(sufijo) <= 3:
             s = base
     return s
 
+
+# TITULO CATEGORIA SIMBOLO
 
 def categoria_simbolo(path: str, name: str) -> str:
     """
@@ -95,6 +99,8 @@ def categoria_simbolo(path: str, name: str) -> str:
     return "OTROS"
 
 
+# TITULO OBTENER WATCHLIST
+
 def obtener_watchlist(usuario_id) -> list[str]:
     """
     Devuelve los símbolos de la watchlist del usuario, en orden de agregado.
@@ -110,10 +116,12 @@ def obtener_watchlist(usuario_id) -> list[str]:
              .eq("usuario_id", usuario_id)
              .order("creado_en")
              .execute())
-        return [row["simbolo"] for row in (r.data or [])]
+        return [fila["simbolo"] for fila in (r.data or [])]
     except Exception:
         return []
 
+
+# TITULO AGREGAR SIMBOLO
 
 def agregar_simbolo(usuario_id, simbolo: str) -> bool:
     """
@@ -133,6 +141,8 @@ def agregar_simbolo(usuario_id, simbolo: str) -> bool:
         return False  # normalmente: ya existe (restricción unique)
 
 
+# TITULO QUITAR SIMBOLO
+
 def quitar_simbolo(usuario_id, simbolo: str) -> bool:
     """
     Elimina un símbolo de la watchlist del usuario.
@@ -151,7 +161,9 @@ def quitar_simbolo(usuario_id, simbolo: str) -> bool:
         return False
 
 
-def sembrar_defaults(usuario_id) -> list[str]:
+# TITULO SEMBRAR DEFAULTS
+
+def sembrar_por_defecto(usuario_id) -> list[str]:
     """
     Inserta la watchlist por defecto (`DEFAULTS`) para un usuario nuevo.
 
@@ -164,8 +176,8 @@ def sembrar_defaults(usuario_id) -> list[str]:
         return list(DEFAULTS)
     try:
         # Conjunto de favoritos por defecto para marcar cada fila.
-        favs_def = set(FAVORITOS_DEFAULT)
-        filas = [{"usuario_id": usuario_id, "simbolo": s, "favorito": s in favs_def}
+        favoritos_def = set(FAVORITOS_DEFAULT)
+        filas = [{"usuario_id": usuario_id, "simbolo": s, "favorito": s in favoritos_def}
                  for s in DEFAULTS]
         # Inserta todas las filas en una sola llamada.
         _supabase.table("watchlist_usuario").insert(filas).execute()
@@ -176,9 +188,11 @@ def sembrar_defaults(usuario_id) -> list[str]:
 
 # --- Favoritos (barra superior): subconjunto de la watchlist marcado con `favorito` ---
 # Símbolos marcados como favoritos al sembrar la watchlist de un usuario nuevo
-# (se define después de `sembrar_defaults`, pero se resuelve en tiempo de ejecución).
+# (se define después de `sembrar_por_defecto`, pero se resuelve en tiempo de ejecución).
 FAVORITOS_DEFAULT = ["BTCUSD", "ETHUSD", "XAUUSD...", "EURUSD...", "US30"]
 
+
+# TITULO OBTENER FAVORITOS
 
 def obtener_favoritos(usuario_id) -> list[str]:
     """
@@ -195,10 +209,12 @@ def obtener_favoritos(usuario_id) -> list[str]:
              .eq("favorito", True)
              .order("creado_en")
              .execute())
-        return [row["simbolo"] for row in (r.data or [])]
+        return [fila["simbolo"] for fila in (r.data or [])]
     except Exception:
         return []
 
+
+# TITULO MARCAR FAVORITO
 
 def marcar_favorito(usuario_id, simbolo: str, valor: bool) -> bool:
     """

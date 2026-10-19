@@ -17,8 +17,12 @@ from __future__ import annotations
 from nucleo_agente.memoria.constantes import MAX_RESUMENES_EN_CONTEXTO
 
 
+# TITULO CONTEXTO MIXIN
+
 class _ContextoMixin:
     """Mixin de Memoria que construye el texto de contexto previo para el prompt de sistema."""
+
+    # TITULO CONTEXTO PREVIO
 
     def contexto_previo(self, max_resumenes: int = MAX_RESUMENES_EN_CONTEXTO) -> str:
         """Texto para añadir al prompt de sistema: datos del usuario + resúmenes de chats anteriores.

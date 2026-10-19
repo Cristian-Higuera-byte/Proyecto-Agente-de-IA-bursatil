@@ -21,11 +21,13 @@ from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
 from herramientas.tickets import ticket as _tk
 from nucleo_agente.ordenes.limites import MAGIC, TOLERANCIA_VS_PROPUESTA
-from nucleo_agente.ordenes.mt5_utiles import _chequeos_globales, _con_lock, _desviacion, _modo_llenado
+from nucleo_agente.ordenes.mt5_utiles import _chequeos_globales, _con_candado, _desviacion, _modo_llenado
 from nucleo_agente.ordenes.validacion import _evaluar_apertura
 
 
-@_con_lock
+# TITULO ENVIAR APERTURA
+
+@_con_candado
 def _enviar_apertura(o: dict[str, Any]) -> dict[str, Any]:
     """Revalida y envía a MT5 una orden de apertura a mercado.
 
@@ -38,12 +40,12 @@ def _enviar_apertura(o: dict[str, Any]) -> dict[str, Any]:
     if motivo:
         return {"ok": False, "estado": "RECHAZADA_RIESGO", "mensaje": motivo}
     # Se revalida con el precio actual y el MISMO volumen propuesto.
-    ev = _evaluar_apertura(cuenta, o["simbolo"], o["lado"], o["sl"], o["tp"], None, volumen_fijo=o["volumen"],
+    evento = _evaluar_apertura(cuenta, o["simbolo"], o["lado"], o["sl"], o["tp"], None, volumen_fijo=o["volumen"],
                            incluir_pendientes=False)
-    if not ev["ok"]:
-        return {"ok": False, "estado": "RECHAZADA_RIESGO", "mensaje": ev["motivo"]}
+    if not evento["ok"]:
+        return {"ok": False, "estado": "RECHAZADA_RIESGO", "mensaje": evento["motivo"]}
 
-    d = ev["datos"]
+    d = evento["datos"]
     # Riesgo que el usuario vio al aprobar; si el precio lo disparó más de lo tolerado, no se envía.
     aprobado = o["riesgo_dinero"] or 0
     if aprobado and d["riesgo_dinero"] > aprobado * TOLERANCIA_VS_PROPUESTA:
@@ -67,7 +69,9 @@ def _enviar_apertura(o: dict[str, Any]) -> dict[str, Any]:
     return _interpretar(mt5.order_send(solicitud), f"{d['lado']} {d['volumen']} {d['simbolo']}")
 
 
-@_con_lock
+# TITULO ENVIAR CIERRE
+
+@_con_candado
 def _enviar_cierre(o: dict[str, Any]) -> dict[str, Any]:
     """Envía a MT5 el cierre total de la posición indicada en `ticket_objetivo` de la orden.
 
@@ -97,6 +101,8 @@ def _enviar_cierre(o: dict[str, Any]) -> dict[str, Any]:
     }
     return _interpretar(mt5.order_send(solicitud), f"cierre de la posición #{p.ticket} ({p.symbol})")
 
+
+# TITULO INTERPRETAR
 
 def _interpretar(resultado: Any, descripcion: str) -> dict[str, Any]:
     """Traduce la respuesta de order_send a un diccionario {ok, mensaje, ticket | estado}.

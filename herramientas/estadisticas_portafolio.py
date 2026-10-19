@@ -57,17 +57,23 @@ except Exception:                      # pragma: no cover - MT5 solo en Windows 
     mt5 = None
 
 
+# TITULO INICIO DIA
+
 def _inicio_dia() -> float:
     """Devuelve el epoch (hora local) de las 00:00 de hoy."""
     hoy = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     return hoy.timestamp()
 
 
+# TITULO INICIO MES
+
 def _inicio_mes() -> float:
     """Devuelve el epoch (hora local) de las 00:00 del primer día del mes actual."""
     hoy = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     return hoy.timestamp()
 
+
+# TITULO NETO DEAL
 
 def _neto_deal(d) -> float:
     """P/G neto de un deal: profit + swap + comisión + fee (igual que la Cartera)."""
@@ -76,6 +82,8 @@ def _neto_deal(d) -> float:
             + float(getattr(d, "commission", 0.0) or 0.0)
             + float(getattr(d, "fee", 0.0) or 0.0))
 
+
+# TITULO TAMANO CONTRATO
 
 def _tamano_contrato(symbol: str) -> float:
     """Devuelve el tamaño de contrato del símbolo (para el notional de la exposición); 0.0 si MT5 no responde."""
@@ -88,6 +96,8 @@ def _tamano_contrato(symbol: str) -> float:
     except Exception:
         return 0.0
 
+
+# TITULO VALOR PUNTO
 
 def _valor_punto(symbol: str) -> tuple[float, float]:
     """Devuelve (k, point): k = valor de 1 unidad de precio por lote en moneda de cuenta
@@ -102,13 +112,15 @@ def _valor_punto(symbol: str) -> tuple[float, float]:
             info = mt5.symbol_info(symbol)
         if not info:
             return 0.0, 0.0
-        tv = float(getattr(info, "trade_tick_value", 0.0) or 0.0)
-        ts = float(getattr(info, "trade_tick_size", 0.0) or 0.0)
-        k = (tv / ts) if ts else 0.0
+        tradingview = float(getattr(info, "trade_tick_value", 0.0) or 0.0)
+        marca_tiempo = float(getattr(info, "trade_tick_size", 0.0) or 0.0)
+        k = (tradingview / marca_tiempo) if marca_tiempo else 0.0
         return k, float(getattr(info, "point", 0.0) or 0.0)
     except Exception:
         return 0.0, 0.0
 
+
+# TITULO LEER DEALS
 
 def _leer_deals(dias: int = 400):
     """Devuelve todos los deals de los últimos `dias` días (cierres + operaciones de balance).
@@ -128,6 +140,8 @@ def _leer_deals(dias: int = 400):
     except Exception:
         return []
 
+
+# TITULO CALCULAR
 
 def calcular(dias_curva: int = 3650) -> dict:
     """Devuelve el diccionario completo de estadísticas del portafolio para la vista Resumen.
@@ -154,11 +168,11 @@ def calcular(dias_curva: int = 3650) -> dict:
     posiciones = obtener_posiciones() or []
     deals = _leer_deals(dias_curva)
 
-    ini_dia, ini_mes = _inicio_dia(), _inicio_mes()
+    inicio_dia, inicio_mes = _inicio_dia(), _inicio_mes()
 
     # ----- Realizado (cierres) por período + comisiones/swaps -----
     real_hoy = real_mes = real_total = 0.0
-    com_hoy = com_mes = com_total = 0.0
+    comision_hoy = comision_mes = comision_total = 0.0
     swap_hoy = swap_mes = swap_total = 0.0
     dividendos_total = 0.0
     dividendos_mes = 0.0
@@ -191,7 +205,7 @@ def calcular(dias_curva: int = 3650) -> dict:
         if tipo in TIPOS_DIVIDENDO:
             dividendos_total += monto
             n_dividendos += 1
-            if t >= ini_mes:
+            if t >= inicio_mes:
                 dividendos_mes += monto
             bal_acum += monto
             curva.append((t, bal_acum))
@@ -202,7 +216,7 @@ def calcular(dias_curva: int = 3650) -> dict:
             if "div" in comentario:          # fallback: dividendo marcado en el comentario
                 dividendos_total += monto
                 n_dividendos += 1
-                if t >= ini_mes:
+                if t >= inicio_mes:
                     dividendos_mes += monto
             bal_acum += monto
             curva.append((t, bal_acum))
@@ -212,16 +226,16 @@ def calcular(dias_curva: int = 3650) -> dict:
         if entry != DEAL_OUT:
             continue
         neto = _neto_deal(d)
-        com = float(getattr(d, "commission", 0.0) or 0.0) + float(getattr(d, "fee", 0.0) or 0.0)
+        comision = float(getattr(d, "commission", 0.0) or 0.0) + float(getattr(d, "fee", 0.0) or 0.0)
         sw = float(getattr(d, "swap", 0.0) or 0.0)
         bal_acum += neto
         curva.append((t, bal_acum))
 
-        real_total += neto; com_total += com; swap_total += sw
-        if t >= ini_mes:
-            real_mes += neto; com_mes += com; swap_mes += sw; n_cierres_mes += 1
-        if t >= ini_dia:
-            real_hoy += neto; com_hoy += com; swap_hoy += sw; n_cierres_hoy += 1
+        real_total += neto; comision_total += comision; swap_total += sw
+        if t >= inicio_mes:
+            real_mes += neto; comision_mes += comision; swap_mes += sw; n_cierres_mes += 1
+        if t >= inicio_dia:
+            real_hoy += neto; comision_hoy += comision; swap_hoy += sw; n_cierres_hoy += 1
 
     # Depósito inicial = monto de la primera operación de balance del historial
     # (0.0 si no hay ninguna en la ventana consultada).
@@ -244,44 +258,44 @@ def calcular(dias_curva: int = 3650) -> dict:
     # ----- Exposición por activo + largos/cortos -----
     # Por cada posición: notional = volumen x tamaño de contrato x precio, agrupado por activo.
     exposicion = {}
-    exp_largos = exp_cortos = 0.0
+    exposicion_largos = exposicion_cortos = 0.0
     for p in posiciones:
-        sym = p["symbol"]
-        vol = float(p.get("volumen", 0.0) or 0.0)
+        simbolo = p["symbol"]
+        volumen = float(p.get("volumen", 0.0) or 0.0)
         precio = float(p.get("precio_actual", 0.0) or 0.0) or float(p.get("precio_apertura", 0.0) or 0.0)
-        cs = _tamano_contrato(resolver_simbolo(sym))
-        notional = vol * cs * precio
+        cs = _tamano_contrato(resolver_simbolo(simbolo))
+        notional = volumen * cs * precio
         es_compra = p.get("tipo") == "Compra"
         if es_compra:
-            exp_largos += notional
+            exposicion_largos += notional
         else:
-            exp_cortos += notional
-        row = exposicion.setdefault(sym, {"nombre": wl.nombre_visible(sym), "notional": 0.0,
+            exposicion_cortos += notional
+        fila = exposicion.setdefault(simbolo, {"nombre": wl.nombre_visible(simbolo), "notional": 0.0,
                                           "volumen": 0.0, "n": 0})
-        row["notional"] += notional
-        row["volumen"] += vol
-        row["n"] += 1
+        fila["notional"] += notional
+        fila["volumen"] += volumen
+        fila["n"] += 1
     exposicion_lista = sorted(exposicion.values(), key=lambda r: r["notional"], reverse=True)
-    exp_total = exp_largos + exp_cortos
+    exposicion_total = exposicion_largos + exposicion_cortos
 
     # ----- Riesgo: pérdida DEFINIDA (posiciones con SL) + sin SL -----
     # Para cada posición con SL: pérdida = distancia al stop x valor por unidad x lotes.
     riesgo_definido = 0.0
-    sin_sl = 0
+    sin_stop_loss = 0
     for p in posiciones:
-        sl = float(p.get("sl", 0.0) or 0.0)
-        if sl <= 0:
-            sin_sl += 1
+        stop_loss = float(p.get("sl", 0.0) or 0.0)
+        if stop_loss <= 0:
+            sin_stop_loss += 1
             continue
-        sym = resolver_simbolo(p["symbol"])
-        k, _pt = _valor_punto(sym)
-        ac = float(p.get("precio_actual", 0.0) or 0.0) or float(p.get("precio_apertura", 0.0) or 0.0)
-        vol = float(p.get("volumen", 0.0) or 0.0)
+        simbolo = resolver_simbolo(p["symbol"])
+        k, _pt = _valor_punto(simbolo)
+        actual = float(p.get("precio_actual", 0.0) or 0.0) or float(p.get("precio_apertura", 0.0) or 0.0)
+        volumen = float(p.get("volumen", 0.0) or 0.0)
         compra = p.get("tipo") == "Compra"
         # Pérdida si salta el SL desde el precio actual (solo si el SL está en contra).
-        perdida = (ac - sl) if compra else (sl - ac)
+        perdida = (actual - stop_loss) if compra else (stop_loss - actual)
         if k > 0 and perdida > 0:
-            riesgo_definido += perdida * k * vol
+            riesgo_definido += perdida * k * volumen
 
     # Anclar la curva al balance ACTUAL: la reconstrucción acumula deltas desde 0,
     # pero si el depósito inicial quedó fuera de la ventana el origen estaría
@@ -293,37 +307,37 @@ def calcular(dias_curva: int = 3650) -> dict:
 
     # ----- Drawdown de balance (sobre la curva reconstruida) -----
     pico = -1e18
-    dd_abs = 0.0
-    dd_pct = 0.0
+    drawdown_abs = 0.0
+    drawdown_porcentaje = 0.0
     for _t, b in curva:
         pico = max(pico, b)
         if pico > 0:
             caida = pico - b
-            if caida > dd_abs:
-                dd_abs = caida
-                dd_pct = caida / pico * 100.0
+            if caida > drawdown_abs:
+                drawdown_abs = caida
+                drawdown_porcentaje = caida / pico * 100.0
 
     # ----- Drawdown de EQUITY real (snapshots de almacen_capital, Tanda 2) -----
     # Incluye el flotante de posiciones abiertas; MT5 no guarda esta serie, la va
     # registrando servidor_datos.py. Si aún no hay suficientes snapshots, la UI usa
     # el de balance y lo indica. Ver herramientas/almacen_capital.py (nota de escalado).
-    eq_serie = almacen_capital.serie()
-    dd_eq_abs = dd_eq_pct = 0.0
-    eq_disponible = len(eq_serie) >= 3
-    if eq_disponible:
+    equity_serie = almacen_capital.serie()
+    drawdown_equity_abs = drawdown_equity_porcentaje = 0.0
+    equity_disponible = len(equity_serie) >= 3
+    if equity_disponible:
         pico_e = -1e18
-        for p in eq_serie:
+        for p in equity_serie:
             e = p[1]
             pico_e = max(pico_e, e)
             if pico_e > 0:
                 caida = pico_e - e
-                if caida > dd_eq_abs:
-                    dd_eq_abs = caida
-                    dd_eq_pct = caida / pico_e * 100.0
+                if caida > drawdown_equity_abs:
+                    drawdown_equity_abs = caida
+                    drawdown_equity_porcentaje = caida / pico_e * 100.0
 
     # ----- Rentabilidad acumulada -----
-    rent_abs = equity - deposito_inicial if deposito_inicial else 0.0
-    rent_pct = (rent_abs / deposito_inicial * 100.0) if deposito_inicial else 0.0
+    rentabilidad_abs = equity - deposito_inicial if deposito_inicial else 0.0
+    rentabilidad_porcentaje = (rentabilidad_abs / deposito_inicial * 100.0) if deposito_inicial else 0.0
 
     # Estructura final que la UI solo pinta (sin más cálculos).
     return {
@@ -339,17 +353,17 @@ def calcular(dias_curva: int = 3650) -> dict:
             "realizado_total": real_total,
             "flotante": flotante,
         },
-        "comisiones": {"hoy": com_hoy, "mes": com_mes, "total": com_total,
+        "comisiones": {"hoy": comision_hoy, "mes": comision_mes, "total": comision_total,
                        "swap_hoy": swap_hoy, "swap_mes": swap_mes, "swap_total": swap_total},
-        "exposicion": {"total": exp_total, "largos": exp_largos, "cortos": exp_cortos,
+        "exposicion": {"total": exposicion_total, "largos": exposicion_largos, "cortos": exposicion_cortos,
                        "por_activo": exposicion_lista, "n_posiciones": len(posiciones)},
-        "riesgo": {"definido": riesgo_definido, "sin_sl": sin_sl,
+        "riesgo": {"definido": riesgo_definido, "sin_sl": sin_stop_loss,
                    "margin_level": margin_level, "margen_usado": margen},
-        "drawdown": {"balance_abs": dd_abs, "balance_pct": dd_pct,
-                     "equity_abs": dd_eq_abs, "equity_pct": dd_eq_pct,
-                     "equity_disponible": eq_disponible, "equity_puntos": len(eq_serie)},
+        "drawdown": {"balance_abs": drawdown_abs, "balance_pct": drawdown_porcentaje,
+                     "equity_abs": drawdown_equity_abs, "equity_pct": drawdown_equity_porcentaje,
+                     "equity_disponible": equity_disponible, "equity_puntos": len(equity_serie)},
         "dividendos": {"total": dividendos_total, "mes": dividendos_mes, "n": n_dividendos},
-        "rentabilidad": {"abs": rent_abs, "pct": rent_pct},
+        "rentabilidad": {"abs": rentabilidad_abs, "pct": rentabilidad_porcentaje},
         "curva": curva,
     }
 
@@ -359,13 +373,15 @@ def calcular(dias_curva: int = 3650) -> dict:
 # ---------------------------------------------------------------------------
 # A diferencia de calcular(), NO lee el historial de deals (400 días): solo mira
 # la cuenta, las posiciones abiertas y los snapshots de almacen_capital. Por eso es
-# barata y puede refrescarse seguido en la barra superior (aplicacion.py → navegacion_superior.py).
+# barata y puede refrescarse seguido en la barra superior (aplicacion.py → barra_superior/).
 
 # Estado del mercado por símbolo, detectado por AVANCE de tick (compara la hora
 # del servidor contra sí misma → sin el desfase horario del bróker, ver puente_mt5).
 # sym -> (ultimo_tick_servidor, hora_local_de_esa_lectura, abierto)
 _mercado_cache: dict[str, tuple[float, float, bool]] = {}
 
+
+# TITULO MERCADO ABIERTO
 
 def _mercado_abierto(simbolo: str) -> bool | None:
     """True/False si el mercado del símbolo está abierto, o None si aún no hay certeza.
@@ -394,21 +410,23 @@ def _mercado_abierto(simbolo: str) -> bool | None:
     # Compara contra la lectura anterior guardada en la caché del módulo.
     import time as _t
     ahora = _t.time()
-    prev = _mercado_cache.get(sym)
-    if prev is None:
+    anterior = _mercado_cache.get(sym)
+    if anterior is None:
         _mercado_cache[sym] = (t_srv, ahora, True)
         return None                      # sin baseline todavía
-    prev_srv, prev_wall, prev_estado = prev
-    if t_srv > prev_srv:                 # llegó un tick nuevo → abierto
+    anterior_srv, anterior_wall, anterior_estado = anterior
+    if t_srv > anterior_srv:                 # llegó un tick nuevo → abierto
         estado = True
-    elif ahora - prev_wall > 180.0:      # 3 min sin ticks nuevos → cerrado
+    elif ahora - anterior_wall > 180.0:      # 3 min sin ticks nuevos → cerrado
         estado = False
     else:
-        estado = prev_estado             # sin novedades recientes: mantener el último
-    if t_srv > prev_srv or ahora - prev_wall > 180.0:
+        estado = anterior_estado             # sin novedades recientes: mantener el último
+    if t_srv > anterior_srv or ahora - anterior_wall > 180.0:
         _mercado_cache[sym] = (t_srv, ahora, estado)
     return estado
 
+
+# TITULO METRICAS BARRA
 
 def metricas_barra(simbolo_activo: str | None = None) -> dict:
     """Calcula Riesgo, Drawdown y Mercado para la barra superior, sin tocar el historial.
@@ -430,39 +448,39 @@ def metricas_barra(simbolo_activo: str | None = None) -> dict:
 
     # ----- Riesgo definido por SL (mismo cálculo que calcular(), sobre posiciones) -----
     riesgo_abs = 0.0
-    sin_sl = 0
+    sin_stop_loss = 0
     for p in obtener_posiciones():
-        sl = float(p.get("sl", 0.0) or 0.0)
-        if sl <= 0:
-            sin_sl += 1
+        stop_loss = float(p.get("sl", 0.0) or 0.0)
+        if stop_loss <= 0:
+            sin_stop_loss += 1
             continue
         k, _pt = _valor_punto(resolver_simbolo(p["symbol"]))
-        ac = float(p.get("precio_actual", 0.0) or 0.0) or float(p.get("precio_apertura", 0.0) or 0.0)
-        vol = float(p.get("volumen", 0.0) or 0.0)
+        actual = float(p.get("precio_actual", 0.0) or 0.0) or float(p.get("precio_apertura", 0.0) or 0.0)
+        volumen = float(p.get("volumen", 0.0) or 0.0)
         compra = p.get("tipo") == "Compra"
-        perdida = (ac - sl) if compra else (sl - ac)   # solo si el SL está en contra
+        perdida = (actual - stop_loss) if compra else (stop_loss - actual)   # solo si el SL está en contra
         if k > 0 and perdida > 0:
-            riesgo_abs += perdida * k * vol
-    riesgo_pct = (riesgo_abs / equity * 100.0) if equity > 0 else 0.0
+            riesgo_abs += perdida * k * volumen
+    riesgo_porcentaje = (riesgo_abs / equity * 100.0) if equity > 0 else 0.0
 
     # ----- Drawdown de equity real (pico → valle sobre los snapshots) -----
-    eq_serie = almacen_capital.serie()
-    dd_pct = 0.0
-    dd_disponible = len(eq_serie) >= 3
-    if dd_disponible:
+    equity_serie = almacen_capital.serie()
+    drawdown_porcentaje = 0.0
+    drawdown_disponible = len(equity_serie) >= 3
+    if drawdown_disponible:
         pico = -1e18
-        for pnt in eq_serie:
-            e = pnt[1]
+        for punto in equity_serie:
+            e = punto[1]
             pico = max(pico, e)
             if pico > 0:
                 caida = (pico - e) / pico * 100.0
-                if caida > dd_pct:
-                    dd_pct = caida
+                if caida > drawdown_porcentaje:
+                    drawdown_porcentaje = caida
 
     return {
         "moneda": moneda,
-        "riesgo": {"abs": riesgo_abs, "pct": riesgo_pct, "sin_sl": sin_sl},
-        "drawdown": {"pct": dd_pct, "disponible": dd_disponible},
+        "riesgo": {"abs": riesgo_abs, "pct": riesgo_porcentaje, "sin_sl": sin_stop_loss},
+        "drawdown": {"pct": drawdown_porcentaje, "disponible": drawdown_disponible},
         "mercado": {"abierto": _mercado_abierto(simbolo_activo), "simbolo": simbolo_activo},
     }
 

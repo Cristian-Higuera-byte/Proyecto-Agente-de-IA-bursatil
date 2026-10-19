@@ -32,6 +32,8 @@ _SINONIMOS = {
 }
 
 
+# TITULO PARSEAR DECISION
+
 def parsear_decision(texto: str) -> dict[str, Any]:
     """Lee el bloque ```decision {...}``` del final de la respuesta del modelo.
 

@@ -18,6 +18,8 @@ La usan guardar_turno (antes de insertar) y cargar_historial (al recuperar mensa
 from typing import Any
 
 
+# TITULO TURNO VALIDO
+
 def _turno_valido(turno: list[dict[str, Any]]) -> bool:
     """Válido si cada 'tool' responde a un tool_call del asistente anterior
     y no queda ninguna llamada sin resultado."""
@@ -37,18 +39,20 @@ def _turno_valido(turno: list[dict[str, Any]]) -> bool:
     return not pendientes
 
 
+# TITULO SANEAR
+
 def _sanear(historial: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Conserva solo turnos completos y consistentes (cada turno empieza en un 'user')."""
     # Se parte el historial en turnos, cada uno iniciado por un mensaje "user".
     turnos: list[list[dict[str, Any]]] = []
     actual: list[dict[str, Any]] = []
-    for msg in historial:
-        if msg.get("role") == "user":
+    for mensaje in historial:
+        if mensaje.get("role") == "user":
             if actual:
                 turnos.append(actual)
-            actual = [msg]
+            actual = [mensaje]
         elif actual:
-            actual.append(msg)  # lo anterior al primer 'user' (turno cortado) se descarta
+            actual.append(mensaje)  # lo anterior al primer 'user' (turno cortado) se descarta
     if actual:
         turnos.append(actual)
     # Solo se conservan los turnos válidos, aplanados de nuevo en una lista de mensajes.

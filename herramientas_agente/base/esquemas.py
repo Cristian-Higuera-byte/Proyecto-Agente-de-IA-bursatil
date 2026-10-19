@@ -22,6 +22,8 @@ from pathlib import Path
 from typing import Any
 
 
+# TITULO CARGAR JSON
+
 def cargar_json(ruta: str | Path) -> Any:
     """Lee un archivo JSON y devuelve su contenido ya convertido a objetos Python.
 

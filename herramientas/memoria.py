@@ -26,6 +26,8 @@ from datetime import datetime
 # Ruta (relativa al directorio de ejecución) del JSON con el historial de consultas.
 ARCHIVO_MEMORIA = "data/consultas_guardadas.json"
 
+# TITULO GUARDAR CONSULTA
+
 def guardar_consulta(pregunta: str, resultado: dict) -> dict:
     """
     Agrega una nueva consulta o actualiza la existente si la pregunta
@@ -49,10 +51,10 @@ def guardar_consulta(pregunta: str, resultado: dict) -> dict:
 
     # Buscamos si ya existe una consulta con exactamente la misma pregunta
     encontrada = False
-    for item in consultas:
-        if item.get("pregunta") == pregunta:
-            item["fecha_hora"] = datetime.now().isoformat(timespec="seconds")
-            item["resultado"] = resultado
+    for elemento in consultas:
+        if elemento.get("pregunta") == pregunta:
+            elemento["fecha_hora"] = datetime.now().isoformat(timespec="seconds")
+            elemento["resultado"] = resultado
             encontrada = True
             break
 
@@ -72,6 +74,8 @@ def guardar_consulta(pregunta: str, resultado: dict) -> dict:
     # Informa si se actualizó una pregunta repetida o se creó una nueva.
     accion = "actualizado" if encontrada else "guardado"
     return {"estado": accion, "total_consultas": len(consultas)}
+
+# TITULO LIMPIAR MEMORIA
 
 def limpiar_memoria() -> dict:
     """

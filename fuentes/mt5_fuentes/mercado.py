@@ -28,6 +28,8 @@ from fuentes.mt5_fuentes.utiles import (_como_tupla, _fecha_utc, _hora_utc, _num
                                         _tamano_pip, _tipo_orden)
 
 
+# TITULO PRECIO
+
 def precio(simbolo: str) -> dict[str, Any]:
     """Devuelve el precio en tiempo real de un símbolo desde MT5.
 
@@ -46,12 +48,12 @@ def precio(simbolo: str) -> dict[str, Any]:
             # Spread como diferencia de precios; 0 si falta alguno de los dos lados.
             spread = (ask - bid) if (ask and bid) else 0.0
             # Se usa el punto del símbolo (con valor por defecto) para expresar el spread en puntos.
-            point = getattr(info, "point", 0.00001) or 0.00001
-            spread_pips = round(spread / point, 1) if point > 0 else 0.0
+            punto = getattr(info, "point", 0.00001) or 0.00001
+            spread_pips = round(spread / punto, 1) if punto > 0 else 0.0
 
             # Variación diaria respecto a la apertura de la sesión (o al bid si MT5 no la informa).
-            open_price = getattr(info, "session_open", 0.0) or bid
-            var_pct = round(((bid - open_price) / open_price * 100), 2) if open_price else 0.0
+            open_precio = getattr(info, "session_open", 0.0) or bid
+            variacion_porcentaje = round(((bid - open_precio) / open_precio * 100), 2) if open_precio else 0.0
 
             return {
                 "fuente": "MetaTrader 5",
@@ -61,10 +63,12 @@ def precio(simbolo: str) -> dict[str, Any]:
                 "spread_pips": spread_pips,
                 "maximo_dia": _num(getattr(info, "high", None)),
                 "minimo_dia": _num(getattr(info, "low", None)),
-                "variacion_pct": var_pct,
+                "variacion_pct": variacion_porcentaje,
                 "fecha_utc": _hora_utc(tick.time, mt5),
             }
 
+
+# TITULO RESULTADO SI PRECIO
 
 def resultado_si_precio(simbolo: str, tipo: str, lotes: float, desde: float, hasta: float) -> float | None:
     """Ganancia (+) o pérdida (-) en la moneda de la cuenta si el precio pasa de `desde` a `hasta`.
@@ -80,6 +84,8 @@ def resultado_si_precio(simbolo: str, tipo: str, lotes: float, desde: float, has
     return _num(valor, 2) if valor is not None else None
 
 
+# TITULO ESPECIFICACION SIMBOLO
+
 def especificacion_simbolo(simbolo: str) -> dict[str, Any]:
     """Tamaño de pip, valor de 1 pip por lote (moneda de la cuenta) y límites de lotaje del símbolo.
 
@@ -92,11 +98,11 @@ def especificacion_simbolo(simbolo: str) -> dict[str, Any]:
         with _simbolo_temporal(mt5, sym) as info:
             tick = mt5.symbol_info_tick(sym)
             # Precio de referencia: bid del tick o, si no hay, el bid de la información del símbolo.
-            ref = float(getattr(tick, "bid", 0) or getattr(info, "bid", 0) or 0)
+            referencia = float(getattr(tick, "bid", 0) or getattr(info, "bid", 0) or 0)
             pip = _tamano_pip(info)
             valor_pip = None
-            if ref > 0 and pip > 0:
-                v = mt5.order_calc_profit(mt5.ORDER_TYPE_BUY, sym, 1.0, ref, ref + pip)
+            if referencia > 0 and pip > 0:
+                v = mt5.order_calc_profit(mt5.ORDER_TYPE_BUY, sym, 1.0, referencia, referencia + pip)
                 valor_pip = _num(v, 4) if v is not None else None
             return {
                 "simbolo": sym,
@@ -109,9 +115,11 @@ def especificacion_simbolo(simbolo: str) -> dict[str, Any]:
             }
 
 
+# TITULO DISTANCIAS Y RIESGO
+
 def distancias_y_riesgo(
     simbolo: str, tipo: str, lotes: float, precio_apertura: float, precio_actual: float,
-    sl: float | None, tp: float | None,
+    stop_loss: float | None, take_profit: float | None,
 ) -> dict[str, Any]:
     """Distancia al stop/objetivo (en pips, desde la apertura y desde el precio actual) y su valor en dinero.
 
@@ -127,24 +135,26 @@ def distancias_y_riesgo(
         return round(abs(a - b) / pip, 1) if pip else None
 
     # Bloque del stop loss: solo si hay SL definido (0 o None significa "sin SL").
-    if sl:
-        out["distancia_sl_desde_apertura_pips"] = pips(precio_apertura, sl)
-        out["distancia_sl_desde_precio_actual_pips"] = pips(precio_actual, sl)
+    if stop_loss:
+        out["distancia_sl_desde_apertura_pips"] = pips(precio_apertura, stop_loss)
+        out["distancia_sl_desde_precio_actual_pips"] = pips(precio_actual, stop_loss)
         out["distancia_sl_desde_precio_actual_pct"] = (
-            round(abs(precio_actual - sl) / precio_actual * 100, 3) if precio_actual else None
+            round(abs(precio_actual - stop_loss) / precio_actual * 100, 3) if precio_actual else None
         )
         # Resultado en dinero de ir de la apertura al SL: negativo = pérdida (riesgo), positivo = ganancia asegurada.
-        r = resultado_si_precio(simbolo, tipo, lotes, precio_apertura, sl)
+        r = resultado_si_precio(simbolo, tipo, lotes, precio_apertura, stop_loss)
         out["riesgo_usd"] = round(max(0.0, -r), 2) if r is not None else None
         out["ganancia_asegurada_usd"] = round(max(0.0, r), 2) if r is not None else None
     # Bloque del take profit: solo si hay TP definido.
-    if tp:
-        out["distancia_tp_desde_apertura_pips"] = pips(precio_apertura, tp)
-        out["distancia_tp_desde_precio_actual_pips"] = pips(precio_actual, tp)
-        b = resultado_si_precio(simbolo, tipo, lotes, precio_apertura, tp)
+    if take_profit:
+        out["distancia_tp_desde_apertura_pips"] = pips(precio_apertura, take_profit)
+        out["distancia_tp_desde_precio_actual_pips"] = pips(precio_actual, take_profit)
+        b = resultado_si_precio(simbolo, tipo, lotes, precio_apertura, take_profit)
         out["beneficio_objetivo_usd"] = round(max(0.0, b), 2) if b is not None else None
     return out
 
+
+# TITULO VELAS
 
 def velas(
     simbolo: str,
@@ -166,7 +176,7 @@ def velas(
     if timeframe not in TIMEFRAMES:
         raise ErrorMT5(f"Timeframe inválido '{timeframe}'. Opciones: {list(TIMEFRAMES.keys())}")
 
-    tf_val = TIMEFRAMES[timeframe]
+    temporalidad_valor = TIMEFRAMES[timeframe]
     with _sesion() as mt5:
         sym = _resolver(mt5, simbolo)
         with _simbolo_temporal(mt5, sym):
@@ -174,9 +184,9 @@ def velas(
             if desde:
                 dt_desde = _fecha_utc(desde, "desde")
                 dt_hasta = _fecha_utc(hasta, "hasta") if hasta else datetime.now(timezone.utc)
-                rates = mt5.copy_rates_range(sym, tf_val, dt_desde, dt_hasta)
+                rates = mt5.copy_rates_range(sym, temporalidad_valor, dt_desde, dt_hasta)
             else:
-                rates = mt5.copy_rates_from_pos(sym, tf_val, 0, max(1, cantidad))
+                rates = mt5.copy_rates_from_pos(sym, temporalidad_valor, 0, max(1, cantidad))
 
             rates = _como_tupla(mt5, rates, "obtener velas")
             if len(rates) == 0:
@@ -190,7 +200,7 @@ def velas(
             # Variación del rango: del primer al último cierre.
             primer_cierre = precios_cierre[0]
             ultimo_cierre = precios_cierre[-1]
-            var_pct = ((ultimo_cierre - primer_cierre) / primer_cierre * 100) if primer_cierre else 0.0
+            variacion_porcentaje = ((ultimo_cierre - primer_cierre) / primer_cierre * 100) if primer_cierre else 0.0
 
             # Solo se detallan las últimas velas para no inundar el contexto del modelo.
             detalle = []
@@ -215,12 +225,14 @@ def velas(
                     "precio_ultimo": ultimo_cierre,
                     "maximo_periodo": max(maximos),
                     "minimo_periodo": min(minimos),
-                    "variacion_total_pct": round(var_pct, 2),
+                    "variacion_total_pct": round(variacion_porcentaje, 2),
                 },
                 "ultimas_velas": detalle,
                 "consultado_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             }
 
+
+# TITULO BUSCAR SIMBOLOS
 
 def buscar_simbolos(texto: str, max_resultados: int = 15) -> dict[str, Any]:
     """Busca símbolos del broker cuyo nombre o descripción contengan el texto dado.
@@ -235,13 +247,13 @@ def buscar_simbolos(texto: str, max_resultados: int = 15) -> dict[str, Any]:
 
         coincidencias = []
         for s in crudos:
-            sym = getattr(s, "name", "")
-            desc = getattr(s, "description", "")
+            simbolo = getattr(s, "name", "")
+            descripcion = getattr(s, "description", "")
             # Coincidencia por subcadena en el nombre o en la descripción.
-            if query in sym.upper() or query in desc.upper():
+            if query in simbolo.upper() or query in descripcion.upper():
                 coincidencias.append({
-                    "simbolo": sym,
-                    "descripcion": desc,
+                    "simbolo": simbolo,
+                    "descripcion": descripcion,
                     "categoria": getattr(s, "path", ""),
                 })
                 if len(coincidencias) >= max_resultados:

@@ -28,13 +28,17 @@ import streamlit as st
 from componentes_plataforma.noticias.datos import FUENTES, FUENTES_MAS, PLACEHOLDER
 
 
+# TITULO LIMPIAR
+
 def _limpiar(texto: str) -> str:
     """Quita las etiquetas HTML de un texto, decodifica las entidades (&amp;, etc.) y recorta los espacios.
     Acepta None o vacío y devuelve cadena vacía."""
     return html.unescape(re.sub(r"<[^>]+>", "", texto or "")).strip()
 
 
-def _fecha_a_ts(pubdate: str) -> float:
+# TITULO FECHA A TS
+
+def _fecha_a_marca_tiempo(pubdate: str) -> float:
     """Convierte la fecha de publicación de un item RSS en una marca de tiempo unix.
 
     Intenta primero el formato RFC 822 de RSS y luego el formato ISO `AAAA-MM-DD HH:MM:SS` (interpretado en
@@ -47,21 +51,25 @@ def _fecha_a_ts(pubdate: str) -> float:
     except Exception:
         pass
     # Segundo intento: formato ISO truncado a 19 caracteres, con la T cambiada por un espacio
-    txt = pubdate[:19].replace("T", " ")
+    texto = pubdate[:19].replace("T", " ")
     try:
-        return datetime.strptime(txt, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc).timestamp()
+        return datetime.strptime(texto, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc).timestamp()
     except Exception:
         return 0.0
 
 
-def _fecha_local(ts: float, raw: str) -> str:
+# TITULO FECHA LOCAL
+
+def _fecha_local(marca_tiempo: float, raw: str) -> str:
     """Formatea la marca de tiempo como `dd-mm-aaaa hh:mm` en hora local; si no hay `ts` o falla, devuelve el
     texto original `raw`."""
     try:
-        return datetime.fromtimestamp(ts).strftime("%d-%m-%Y %H:%M") if ts else raw
+        return datetime.fromtimestamp(marca_tiempo).strftime("%d-%m-%Y %H:%M") if marca_tiempo else raw
     except Exception:
         return raw
 
+
+# TITULO LEER FUENTES
 
 def _leer_fuentes(fuentes: list[str]) -> list[dict]:
     """Noticias de varios RSS, sin enlaces repetidos y de la más nueva a la más vieja.
@@ -77,28 +85,28 @@ def _leer_fuentes(fuentes: list[str]) -> list[dict]:
             # El User-Agent de navegador evita que el sitio rechace la petición; 8 s de tiempo máximo
             req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
             with urllib.request.urlopen(req, timeout=8) as r:
-                root = ET.fromstring(r.read())
-            for it in root.findall(".//item"):
+                raiz = ET.fromstring(r.read())
+            for it in raiz.findall(".//item"):
                 titulo = _limpiar(it.findtext("title") or "")
-                link = (it.findtext("link") or "").strip()
+                enlace = (it.findtext("link") or "").strip()
                 # Se descartan items sin título o enlace y los ya vistos
-                if not titulo or not link or link in vistos:
+                if not titulo or not enlace or enlace in vistos:
                     continue
-                vistos.add(link)
+                vistos.add(enlace)
                 # Imagen: primero `enclosure`, luego `media:content`; si no hay, la imagen de respaldo
                 enc = it.find("enclosure")
                 media = it.find("{http://search.yahoo.com/mrss/}content")
                 img = (enc.get("url") if enc is not None and enc.get("url")
                        else media.get("url") if media is not None and media.get("url")
                        else PLACEHOLDER)
-                ts = _fecha_a_ts((it.findtext("pubDate") or "").strip())
+                marca_tiempo = _fecha_a_marca_tiempo((it.findtext("pubDate") or "").strip())
                 todas.append({
                     "title": titulo,
-                    "link": link,
+                    "link": enlace,
                     "desc": _limpiar(it.findtext("description") or ""),
                     "img": img,
-                    "_ts": ts,
-                    "fecha": _fecha_local(ts, (it.findtext("pubDate") or "")[:16]),
+                    "_ts": marca_tiempo,
+                    "fecha": _fecha_local(marca_tiempo, (it.findtext("pubDate") or "")[:16]),
                 })
         except Exception:
             continue
@@ -107,12 +115,16 @@ def _leer_fuentes(fuentes: list[str]) -> list[dict]:
     return todas
 
 
+# TITULO CARGAR NOTICIAS
+
 @st.cache_data(ttl=30, show_spinner=False)
 def cargar_noticias() -> list[dict]:
     """Noticias de las fuentes principales (`FUENTES`), cacheadas 30 s. Alimentan la noticia principal y el
     carrusel."""
     return _leer_fuentes(FUENTES)
 
+
+# TITULO CARGAR MAS NOTICIAS
 
 @st.cache_data(ttl=60, show_spinner=False)
 def cargar_mas_noticias() -> list[dict]:

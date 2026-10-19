@@ -13,38 +13,54 @@ Transportes y Servicios Ltda.
    --------------------------------- INICIO Piña y Jara 30_utilidades .JS --------------------------------
    ------------------------------------------------------------------------------------------------------- */
 
+      // TITULO FMT
+
       /**
        * Formatea un número con separador de miles y exactamente d decimales (formato en-US).
        * Recibe v (número) y d (decimales); devuelve el texto.
        */
       function fmt(v, d){ return Number(v).toLocaleString('en-US', {minimumFractionDigits: d, maximumFractionDigits: d}); }
+      // TITULO TXT
+
       /**
        * Cambia el texto de un elemento solo si es distinto (evita repintados innecesarios en cada tick).
        * Recibe el elemento el y el texto t.
        */
       function txt(el, t){ if (el.textContent !== t) el.textContent = t; }
+      // TITULO REDONDEAR
+
       /**
        * Redondea un precio a los decimales del símbolo (DIGITS). Recibe px y devuelve el número redondeado.
        */
       function redondear(px){ var f = Math.pow(10, DIGITS); return Math.round(px * f) / f; }
+      // TITULO ES COMPRA
+
       /**
        * Indica si el elemento it es de compra (tipos 0 Buy, 2 Buy Limit y 4 Buy Stop). Devuelve un booleano.
        */
       function esCompra(it){ return it.t === 0 || it.t === 2 || it.t === 4; }
+      // TITULO PRECIO ENTRADA
+
       /**
        * Precio de entrada vigente de it: el que se está arrastrando (pendiente en el nodo n) o el original.
        */
       function precioEntrada(it, n){ return (n && n.pend.po !== undefined) ? n.pend.po : it.po; }
+      // TITULO PG EN
+
       /**
        * Proyecta la ganancia o pérdida si el precio llega a px.
        * Recibe it (elemento), entrada (precio de entrada) y px; devuelve dinero con signo (compra gana al subir, venta al bajar).
        */
       // P/G si el precio llega a `px` (k = valor de 1 unidad de precio por lote)
-      function pgEn(it, entrada, px){ return (esCompra(it) ? 1 : -1) * (px - entrada) * (it.k || K) * it.v; }
+      function gananciaPerdidaEn(it, entrada, px){ return (esCompra(it) ? 1 : -1) * (px - entrada) * (it.k || K) * it.v; }
+      // TITULO ETIQUETA
+
       /**
        * Texto corto del elemento, por ejemplo 'Buy Limit 0.10' (tipo y volumen con 2 decimales).
        */
       function etiqueta(it){ return TIPO[it.t] + ' ' + fmt(it.v, 2); }
+
+      // TITULO VALIDAR
 
       /**
        * Valida un nivel antes de enviarlo al servidor.
@@ -75,13 +91,15 @@ Transportes y Servicios Ltda.
         return '';
       }
 
+      // TITULO AVISAR
+
       /**
        * Muestra un aviso temporal en la capa (verde si fue bien, rojo si es un error) y lo apaga a los 3,8 segundos.
        * Recibe el texto t y malo (true para error).
        */
       function avisar(t, malo){
-        var el = document.getElementById('pj-pos-aviso');
-        if (!el){ el = document.createElement('div'); el.id = 'pj-pos-aviso'; capa.appendChild(el); }
+        var el = document.getElementById('pj-posicion-aviso');
+        if (!el){ el = document.createElement('div'); el.id = 'pj-posicion-aviso'; capa.appendChild(el); }
         el.textContent = t;
         el.style.borderColor = malo ? '#da3633' : '#2ea043';
         el.style.opacity = '1';

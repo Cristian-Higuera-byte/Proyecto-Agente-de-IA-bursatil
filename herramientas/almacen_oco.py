@@ -50,14 +50,18 @@ _DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
 # Archivo JSON compartido entre Streamlit y el motor con los pares OCO.
 _RUTA = os.path.join(_DIR, "oco.json")
 # Candado que serializa las modificaciones dentro del proceso.
-_LOCK = threading.Lock()
+_CANDADO = threading.Lock()
 
+
+# TITULO PAR ID
 
 def _par_id(a: int, b: int) -> str:
     """Construye el id del par "<menor>-<mayor>" a partir de dos tickets, sin importar el orden."""
     x, y = sorted((_tk(a), _tk(b)), key=lambda t: (isinstance(t, str), t if isinstance(t, int) else 0, str(t)))
     return f"{x}-{y}"
 
+
+# TITULO LEER CRUDO
 
 def _leer_crudo() -> dict:
     """Lee `oco.json` tal cual (sin validar); devuelve {} si falta o está corrupto."""
@@ -67,6 +71,8 @@ def _leer_crudo() -> dict:
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         return {}
 
+
+# TITULO LEER
 
 def leer() -> dict:
     """Devuelve {par_id(str): {"a": int, "b": int, "symbol": str, "ts": float}}."""
@@ -81,6 +87,8 @@ def leer() -> dict:
     return out
 
 
+# TITULO TICKETS EN OCO
+
 def tickets_en_oco() -> set:
     """Conjunto de todos los tickets que participan en algún par OCO (para la UI/feed)."""
     s = set()
@@ -89,6 +97,8 @@ def tickets_en_oco() -> set:
         s.add(v["b"])
     return s
 
+
+# TITULO GUARDAR
 
 def _guardar(d: dict) -> None:
     """Escribe el diccionario de pares en `oco.json` de forma atómica (temporal + fsync + os.replace)."""
@@ -103,13 +113,15 @@ def _guardar(d: dict) -> None:
     os.replace(tmp.name, _RUTA)   # atómico: el otro proceso nunca ve un archivo a medias
 
 
+# TITULO FIJAR
+
 def fijar(a: int, b: int, symbol: str = "") -> str:
     """Vincula dos órdenes pendientes como un par OCO y lo guarda. Devuelve el par_id.
 
     Recibe los tickets `a` y `b` y el nombre real del símbolo (informativo).
     Si el par ya existía, lo reemplaza con una marca de tiempo nueva.
     """
-    with _LOCK:
+    with _CANDADO:
         d = leer()
         pid = _par_id(a, b)
         d[pid] = {"a": _tk(a), "b": _tk(b), "symbol": str(symbol or ""), "ts": time.time()}
@@ -117,18 +129,22 @@ def fijar(a: int, b: int, symbol: str = "") -> str:
         return pid
 
 
+# TITULO QUITAR PAR
+
 def quitar_par(par_id: str) -> None:
     """Elimina un par OCO por su id (si existía)."""
-    with _LOCK:
+    with _CANDADO:
         d = leer()
         if str(par_id) in d:
             d.pop(str(par_id))
             _guardar(d)
 
 
+# TITULO QUITAR TICKET
+
 def quitar_ticket(ticket) -> None:
     """Elimina cualquier par que contenga este ticket (si existía)."""
-    with _LOCK:
+    with _CANDADO:
         d = leer()
         tk = _tk(ticket)
         cambio = False
@@ -139,6 +155,8 @@ def quitar_ticket(ticket) -> None:
         if cambio:
             _guardar(d)
 
+
+# TITULO MTIME
 
 def mtime() -> float:
     """Marca de tiempo del archivo (para recargar solo cuando cambió)."""

@@ -21,6 +21,8 @@ from nucleo_agente.llm.argumentos import _parsear_argumentos
 from nucleo_agente.llm.tipos import LlamadaHerramienta, RespuestaLLM
 
 
+# TITULO CONSTRUIR RESPUESTA
+
 def construir_respuesta(
     nombre: str,
     contenido: str,

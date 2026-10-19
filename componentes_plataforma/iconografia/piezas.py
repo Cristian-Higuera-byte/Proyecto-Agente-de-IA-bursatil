@@ -24,6 +24,8 @@ import zlib
 from componentes_plataforma.iconografia.datos import FLAG, PALETA, svg_circulo
 
 
+# TITULO CAJA
+
 def caja(s: int, interior: str, ancho: int | None = None) -> str:
     """Contenedor del ícono: `<span>` relativo de alto `s` px (y ancho `ancho`, por defecto `s`) que aloja `interior`."""
     # Ancho efectivo de la caja.
@@ -35,7 +37,9 @@ def caja(s: int, interior: str, ancho: int | None = None) -> str:
     )
 
 
-def imagen(src: str, d: int, left: float, top: float, z: int = 1, borde: bool = False,
+# TITULO IMAGEN
+
+def imagen(src: str, d: int, izquierda: float, superior: float, z: int = 1, borde: bool = False,
         fondo: str = "transparent") -> str:
     """Imagen circular de diámetro `d` px posicionada de forma absoluta en (`left`, `top`) con capa `z`.
 
@@ -44,11 +48,13 @@ def imagen(src: str, d: int, left: float, top: float, z: int = 1, borde: bool = 
     # Aro del color del fondo de la app para recortar visualmente el círculo que queda delante.
     aro = "box-shadow:0 0 0 1.5px #0d1117;" if borde else ""
     return (
-        f"<img src='{src}' alt='' style='position:absolute; left:{left:.1f}px; top:{top:.1f}px; "
+        f"<img src='{src}' alt='' style='position:absolute; left:{izquierda:.1f}px; top:{superior:.1f}px; "
         f"width:{d}px; height:{d}px; border-radius:50%; z-index:{z}; background:{fondo}; "
         f"object-fit:cover; {aro}'>"
     )
 
+
+# TITULO INICIALES
 
 def iniciales(texto: str, s: int, z: int = 0) -> str:
     """Círculo de color con las dos primeras letras o dígitos de `texto` (tamaño `s`, capa `z`).
@@ -67,13 +73,17 @@ def iniciales(texto: str, s: int, z: int = 0) -> str:
     )
 
 
+# TITULO PAR
+
 def par(src_a: str, src_b: str, s: int) -> str:
     """Dos círculos superpuestos: A adelante-izquierda, B atrás-derecha."""
     # Diámetro de cada círculo (66% del tamaño) y posición vertical centrada.
     d = round(s * 0.66)
-    top = (s - d) / 2
-    return caja(s, imagen(src_b, d, s - d, top, z=1) + imagen(src_a, d, 0, top, z=2, borde=True))
+    superior = (s - d) / 2
+    return caja(s, imagen(src_b, d, s - d, superior, z=1) + imagen(src_a, d, 0, superior, z=2, borde=True))
 
+
+# TITULO INDICE
 
 def indice(pais: str, etiqueta: str, s: int) -> str:
     """Ícono de índice bursátil: bandera redonda del `pais` con una etiqueta (`etiqueta`) en la parte inferior."""
@@ -81,14 +91,16 @@ def indice(pais: str, etiqueta: str, s: int) -> str:
     d = round(s * 0.84)
     fs = max(6, round(s * 0.2))
     # Etiqueta pequeña centrada abajo.
-    badge = (
+    insignia = (
         f"<span style='position:absolute; left:50%; bottom:-1px; transform:translateX(-50%); "
         f"z-index:3; background:#11151c; color:#e6edf3; font-size:{fs}px; font-weight:700; "
         f"line-height:1; padding:1px 3px; border-radius:3px; white-space:nowrap; "
         f"font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;'>{etiqueta}</span>"
     )
-    return caja(s, imagen(FLAG.format(pais), d, (s - d) / 2, 0, z=1) + badge)
+    return caja(s, imagen(FLAG.format(pais), d, (s - d) / 2, 0, z=1) + insignia)
 
+
+# TITULO LOGO
 
 def logo(url: str, s: int) -> str:
     """Logo COMPLETO dentro de un círculo blanco (object-fit: contain + margen).
@@ -103,6 +115,8 @@ def logo(url: str, s: int) -> str:
         f"object-fit:contain;'></span>"
     )
 
+
+# TITULO SVG INICIALES
 
 def svg_iniciales(texto: str) -> str:
     """Círculo con iniciales como imagen (para combinarlo en `par`).

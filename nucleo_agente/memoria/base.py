@@ -24,8 +24,12 @@ from nucleo_agente.memoria.constantes import TABLA_MENSAJES
 from nucleo_agente.memoria.errores import ErrorMemoria
 
 
+# TITULO BASE MEMORIA
+
 class _BaseMemoria:
     """Estado común de la memoria: usuario, chat activo y acceso perezoso al cliente de Supabase."""
+
+    # TITULO INIT
 
     def __init__(self, usuario_id: str, cliente: Any = None) -> None:
         """Guarda el usuario (obligatorio, ErrorMemoria si está vacío) y opcionalmente un cliente ya creado.
@@ -42,12 +46,16 @@ class _BaseMemoria:
 
     # ── Interno ───────────────────────────────────────────────
 
+    # TITULO DB
+
     @property
     def _db(self) -> Any:
         """Cliente de Supabase de esta memoria; se crea al primer acceso."""
         if self._cli is None:
             self._cli = _obtener_cliente()
         return self._cli
+
+    # TITULO EJECUTAR
 
     @staticmethod
     def _ejecutar(consulta: Any, accion: str) -> list[dict[str, Any]]:
@@ -61,6 +69,8 @@ class _BaseMemoria:
         except Exception as e:  # noqa: BLE001
             raise ErrorMemoria(f"Supabase falló al {accion}: {e}") from e
 
+    # TITULO ULTIMO REGISTRO
+
     def _ultimo_registro(self) -> dict[str, Any] | None:
         """Devuelve el turno y orden del último mensaje del chat activo, o None si no tiene mensajes."""
         filas = self._ejecutar(
@@ -72,6 +82,8 @@ class _BaseMemoria:
             "leer el último mensaje",
         )
         return filas[0] if filas else None
+
+    # TITULO TITULO DESDE
 
     @staticmethod
     def _titulo_desde(mensajes: list[dict[str, Any]]) -> str | None:

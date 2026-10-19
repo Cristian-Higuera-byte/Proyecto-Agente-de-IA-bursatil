@@ -29,7 +29,9 @@ from typing import Any, Callable
 _CACHE: dict[str, tuple[float, Any]] = {}
 
 
-def _cacheado(clave: str, ttl: float, fn: Callable[[], Any]) -> Any:
+# TITULO CACHEADO
+
+def _cacheado(clave: str, tiempo_vida: float, funcion: Callable[[], Any]) -> Any:
     """Cache en memoria con vencimiento: evita golpear a Yahoo con consultas repetidas.
 
     Recibe la clave que identifica la consulta, el tiempo de vida en segundos
@@ -41,9 +43,9 @@ def _cacheado(clave: str, ttl: float, fn: Callable[[], Any]) -> Any:
     ahora = time.monotonic()
     guardado = _CACHE.get(clave)
     # Si hay un valor guardado y todavía es reciente, se devuelve sin hacer red.
-    if guardado and ahora - guardado[0] < ttl:
+    if guardado and ahora - guardado[0] < tiempo_vida:
         return guardado[1]
-    valor = fn()  # si lanza excepción, no se cachea
+    valor = funcion()  # si lanza excepción, no se cachea
     _CACHE[clave] = (ahora, valor)
     return valor
 

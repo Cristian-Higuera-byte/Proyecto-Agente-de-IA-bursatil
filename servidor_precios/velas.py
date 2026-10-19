@@ -38,28 +38,32 @@ _REINTENTOS = 3
 _PAUSA = 0.5
 
 
-def _leer(simbolo: str, tf: str, n: int) -> list:
+# TITULO LEER
+
+def _leer(simbolo: str, temporalidad: str, n: int) -> list:
     """Lee `n` velas de MT5 y las convierte a la lista de dicts del gráfico (lista vacía si MT5 no entrega datos).
 
     Convierte por columnas, no fila por fila: con 5000 velas es mucho más rápido. Cada valor se redondea con `round`
     de Python, igual que antes. Inicializa MT5 y consulta el histórico bajo CANDADO_MT5."""
     with CANDADO_MT5:
         inicializar_mt5()
-        df = obtener_datos_historicos(simbolo, timeframe=TF_MAP.get(tf, mt5.TIMEFRAME_H1), n_velas=n)
-    if df.empty:
+        tabla_datos = obtener_datos_historicos(simbolo, timeframe=TF_MAP.get(temporalidad, mt5.TIMEFRAME_H1), n_velas=n)
+    if tabla_datos.empty:
         return []
-    tiempos = [int(t.timestamp()) for t in df.index]
-    abre = [round(x, 5) for x in df["open"].astype(float).tolist()]
-    alto = [round(x, 5) for x in df["high"].astype(float).tolist()]
-    bajo = [round(x, 5) for x in df["low"].astype(float).tolist()]
-    cierra = [round(x, 5) for x in df["close"].astype(float).tolist()]
-    volumen = df["tick_volume"].astype(float).tolist()
-    spread = df["spread"].astype(float).tolist() if "spread" in df.columns else [0.0] * len(tiempos)   # puntos; lo usa el backtest
+    tiempos = [int(t.timestamp()) for t in tabla_datos.index]
+    abre = [round(x, 5) for x in tabla_datos["open"].astype(float).tolist()]
+    alto = [round(x, 5) for x in tabla_datos["high"].astype(float).tolist()]
+    bajo = [round(x, 5) for x in tabla_datos["low"].astype(float).tolist()]
+    cierra = [round(x, 5) for x in tabla_datos["close"].astype(float).tolist()]
+    volumen = tabla_datos["tick_volume"].astype(float).tolist()
+    spread = tabla_datos["spread"].astype(float).tolist() if "spread" in tabla_datos.columns else [0.0] * len(tiempos)   # puntos; lo usa el backtest
     return [{"time": t, "open": o, "high": h, "low": l, "close": c, "volume": v, "spread": sp}
             for t, o, h, l, c, v, sp in zip(tiempos, abre, alto, bajo, cierra, volumen, spread)]
 
 
-def obtener_velas(simbolo: str, tf: str, n: int) -> list:
+# TITULO OBTENER VELAS
+
+def obtener_velas(simbolo: str, temporalidad: str, n: int) -> list:
     """Devuelve una lista de velas OHLC de MT5 en formato JSON para Lightweight Charts.
 
     Recibe el símbolo, la temporalidad como texto (clave de TF_MAP; si no existe se usa H1)
@@ -71,19 +75,19 @@ def obtener_velas(simbolo: str, tf: str, n: int) -> list:
     Efectos: inicializa MT5 y consulta el histórico bajo CANDADO_MT5.
     """
     grande = n >= _N_MIN_CACHE
-    clave = (simbolo, tf, n)
+    clave = (simbolo, temporalidad, n)
     if grande:
         guardada = _CACHE.get(clave)
         if guardada and time.monotonic() - guardada[0] < _TTL_CACHE:
             return guardada[1]
-    velas = _leer(simbolo, tf, n)
+    velas = _leer(simbolo, temporalidad, n)
     intento = 1
     while not velas and intento < _REINTENTOS:
         time.sleep(_PAUSA)
-        velas = _leer(simbolo, tf, n)
+        velas = _leer(simbolo, temporalidad, n)
         intento += 1
     if not velas and n > 500:
-        velas = _leer(simbolo, tf, 500)
+        velas = _leer(simbolo, temporalidad, 500)
     if grande and velas:
         if len(_CACHE) >= _MAX_CACHE:
             _CACHE.pop(min(_CACHE, key=lambda k: _CACHE[k][0]), None)

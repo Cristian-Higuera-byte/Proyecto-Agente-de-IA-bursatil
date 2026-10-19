@@ -37,6 +37,8 @@ _LOGO_HTML = (
 )
 
 
+# TITULO REQUERIR LOGIN
+
 def requerir_login() -> dict:
     """Puerta de entrada de la app: exige que el usuario haya iniciado sesión.
 
@@ -70,38 +72,38 @@ def requerir_login() -> dict:
         )
 
         # Dos pestañas: entrar con cuenta existente o crear una nueva
-        tab_entrar, tab_crear = st.tabs(["Iniciar sesión", "Crear cuenta"])
+        pestana_entrar, pestana_crear = st.tabs(["Iniciar sesión", "Crear cuenta"])
 
         # --- Iniciar sesión ---
-        with tab_entrar:
+        with pestana_entrar:
             with st.form("form_login", border=True):
-                email = st.text_input("Email", key="login_email", placeholder="tucorreo@dominio.com")
-                password = st.text_input("Contraseña", type="password", key="login_pass")
+                correo = st.text_input("Email", key="inicio_sesion_correo", placeholder="tucorreo@dominio.com")
+                contrasena = st.text_input("Contraseña", type="password", key="inicio_sesion_contrasena")
                 enviar = st.form_submit_button("Entrar", width="stretch", type="primary")
             if enviar:
                 # Valida credenciales; si son correctas inicia sesión (rerun), si no muestra el error
-                res = autenticar_usuario(email, password)
-                if res["ok"]:
-                    iniciar_sesion(res["usuario"])
+                resultado = autenticar_usuario(correo, contrasena)
+                if resultado["ok"]:
+                    iniciar_sesion(resultado["usuario"])
                 else:
-                    st.error(res["mensaje"])
+                    st.error(resultado["mensaje"])
 
         # --- Crear cuenta ---
-        with tab_crear:
+        with pestana_crear:
             with st.form("form_registro", border=True):
-                nombre = st.text_input("Nombre", key="reg_nombre", placeholder="Nombre...Ap")
-                email_r = st.text_input("Email", key="reg_email", placeholder="tucorreo@dominio.com")
-                pass_r = st.text_input("Contraseña", type="password", key="reg_pass",
+                nombre = st.text_input("Nombre", key="registro_nombre", placeholder="Nombre...Ap")
+                correo_r = st.text_input("Email", key="registro_correo", placeholder="tucorreo@dominio.com")
+                contrasena_r = st.text_input("Contraseña", type="password", key="registro_contrasena",
                                        help="Mínimo 6 caracteres")
                 crear = st.form_submit_button("Crear cuenta", width="stretch", type="primary")
             if crear:
                 # Registra al usuario nuevo y valida los datos (nombre, email, contraseña)
-                res = registrar_usuario(nombre, email_r, pass_r)
-                if res["ok"]:
+                resultado = registrar_usuario(nombre, correo_r, contrasena_r)
+                if resultado["ok"]:
                     # Inicia sesión automáticamente tras registrarse
-                    iniciar_sesion(res["usuario"])
+                    iniciar_sesion(resultado["usuario"])
                 else:
-                    st.error(res["mensaje"])
+                    st.error(resultado["mensaje"])
 
     # Corta la ejecución para que no se pinte el resto de la app
     st.stop()

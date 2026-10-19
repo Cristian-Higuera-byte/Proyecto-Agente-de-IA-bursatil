@@ -21,12 +21,14 @@ Transportes y Servicios Ltda.
   // Si el navegador bloquea el acceso al documento padre (otro origen), no hay nada que hacer.
   try { D = P.document; H = D.documentElement; } catch(e) { return; }
   // Botones que cambian de sección: barra lateral y accesos rápidos de Inicio (se pulsan en la vista, no en la barra).
-  var BOTONES = '[class*="st-key-nav_btn_"] button, [class*="st-key-accsel_"] button';
+  var BOTONES = '[class*="st-key-navegacion_boton_"] button, [class*="st-key-accsel_"] button';
   // Tiempo máximo con la cortina puesta (ms): si Streamlit no termina, se retira igual para no dejar la pantalla vacía.
   var TOPE = 8000;
   // Pausa (ms) sin ejecución antes de dar la sección por lista; evita descubrirla entre dos pasadas seguidas.
   var REPOSO = 120;
   var reloj = null;
+  // TITULO EJECUTANDO
+
   /**
    * Indica si Streamlit está ejecutando el script (atributo data-test-script-state del contenedor de la aplicación).
    * Devuelve true mientras corre una ejecución (completa o de un fragmento).
@@ -35,6 +37,8 @@ Transportes y Servicios Ltda.
     var a = D.querySelector('[data-testid="stApp"]');
     return !!a && a.getAttribute('data-test-script-state') === 'running';
   }
+  // TITULO DESCUBRIR
+
   /**
    * Retira la cortina: detiene el vigilante y quita la clase pj-navegando tras dos cuadros de animación, para que el
    * navegador ya haya pintado la vista nueva y el fundido empiece sobre contenido completo.
@@ -43,6 +47,8 @@ Transportes y Servicios Ltda.
     clearInterval(reloj); reloj = null;
     P.requestAnimationFrame(function(){ P.requestAnimationFrame(function(){ H.classList.remove('pj-navegando'); }); });
   }
+  // TITULO CUBRIR
+
   /**
    * Pone la cortina y vigila la ejecución: espera a ver que el script corre y luego a que se quede quieto un instante.
    * Si pasado 1,5 s nunca corrió (clic sin efecto), cuenta el reposo igualmente; el tope TOPE la retira en cualquier caso.
@@ -69,7 +75,7 @@ Transportes y Servicios Ltda.
     var b = e.target && e.target.closest && e.target.closest(BOTONES);
     if (!b) return;
     // Pulsar la sección que ya está abierta no cambia nada: no se cubre.
-    if (b.getAttribute('data-testid') === 'stBaseButton-primary' && b.closest('[class*="st-key-nav_btn_"]')) return;
+    if (b.getAttribute('data-testid') === 'stBaseButton-primary' && b.closest('[class*="st-key-navegacion_boton_"]')) return;
     cubrir();
   };
   // Captura (true) para enterarse del clic antes que los manejadores de Streamlit.

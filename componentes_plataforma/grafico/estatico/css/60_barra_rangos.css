@@ -14,9 +14,9 @@ Transportes y Servicios Ltda.
    ------------------------------------------------------------------------------------------------------- */
 
 /* [grafico] Barra inferior: rangos y temporalidades */
-    /* BARRA INFERIOR DE RANGOS Y TEMPORALIDADES */
-    /* Barra inferior #tv-rangebar (html/40_barra_rangos.html). */
-    #tv-rangebar {
+    /* TITULO BARRA INFERIOR DE RANGOS Y TEMPORALIDADES */
+    /* Barra inferior #tradingview-rangebar (html/40_barra_rangos.html). */
+    #tradingview-rangebar {
         display:flex; align-items:center; gap:4px; padding:8px 12px;
         border-top:1px solid #1b2430; background:#0d1117;
         font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
@@ -33,7 +33,7 @@ Transportes y Servicios Ltda.
     /* Rango seleccionado, resaltado en azul. */
     .tvrange.active { background:rgba(88,166,255,0.18); color:#58a6ff; border-color:rgba(88,166,255,0.3); }
     /* Grupo de botones de temporalidad. */
-    #tv-tf { display:flex; align-items:center; gap:2px; font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif; }
+    #tradingview-temporalidad { display:flex; align-items:center; gap:2px; font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif; }
     /* Botón de temporalidad (M1, H1, D1...), más compacto que .tvrange. */
     .tvtf {
         background:transparent; border:1px solid transparent; color:#8b949e; font-size:12px;
@@ -45,7 +45,7 @@ Transportes y Servicios Ltda.
     /* Temporalidad seleccionada, en azul. */
     .tvtf.active { background:rgba(88,166,255,0.18); color:#58a6ff; border-color:rgba(88,166,255,0.3); }
     /* Etiqueta de texto que rotula cada grupo de la barra. */
-    .tv-rangelabel { color:#6e7681; font-size:12px; font-weight:600; padding:0 8px 0 2px; white-space:nowrap; }
+    .tradingview-rangelabel { color:#6e7681; font-size:12px; font-weight:600; padding:0 8px 0 2px; white-space:nowrap; }
 
 /* -------------------------------------------------------------------------------------------------------
    --------------------------------- FIN Piña y Jara 60_barra_rangos .CSS --------------------------------

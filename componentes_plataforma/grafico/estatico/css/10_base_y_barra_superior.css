@@ -14,54 +14,54 @@ Transportes y Servicios Ltda.
    ------------------------------------------------------------------------------------------------------- */
 
 /* [grafico] Base del contenedor, barra superior, leyenda y botones */
-    /* BASE DEL DOCUMENTO Y CONTENEDOR PRINCIPAL */
+    /* TITULO BASE DEL DOCUMENTO Y CONTENEDOR PRINCIPAL */
     /* Cuerpo del iframe del gráfico: fondo oscuro, sin margenes. */
     body { background-color: #0d1117; margin: 0; padding: 0; color: #d1d4dc; }
-    /* Contenedor raiz #tv-wrap (esqueleto.html): columna flex que ocupa todo el alto del iframe. */
-    #tv-wrap { background:#0d1117; border:1px solid #30363d; border-radius:8px; overflow:hidden; display:flex; flex-direction:column; height:100vh; box-sizing:border-box; min-width:0; }
+    /* Contenedor raiz #tradingview-contenedor (esqueleto.html): columna flex que ocupa todo el alto del iframe. */
+    #tradingview-contenedor { background:#0d1117; border:1px solid #30363d; border-radius:8px; overflow:hidden; display:flex; flex-direction:column; height:100vh; box-sizing:border-box; min-width:0; }
     
-    /* Aspecto de #tv-wrap cuando el navegador lo pone en pantalla completa (ver 80_pantalla_completa.css y 55_pantalla_completa.js): sin borde ni esquinas. */
-    #tv-wrap:fullscreen {
+    /* Aspecto de #tradingview-contenedor cuando el navegador lo pone en pantalla completa (ver 80_pantalla_completa.css y 55_pantalla_completa.js): sin borde ni esquinas. */
+    #tradingview-contenedor:fullscreen {
         border: none; border-radius: 0; width: 100vw; height: 100vh; background: #0d1117;
     }
     /* Misma regla con el prefijo antiguo de WebKit para navegadores que no reconocen :fullscreen. */
-    #tv-wrap:-webkit-full-screen {
+    #tradingview-contenedor:-webkit-full-screen {
         border: none; border-radius: 0; width: 100vw; height: 100vh; background: #0d1117;
     }
 
-    /* BARRA SUPERIOR */
-    /* Barra superior #tv-topbar (html/10_barra_superior.html): contiene símbolo, acciones y menús. */
-    #tv-topbar {
+    /* TITULO BARRA SUPERIOR */
+    /* Barra superior #tradingview-barra-superior (html/10_barra_superior.html): contiene símbolo, acciones y menús. */
+    #tradingview-barra-superior {
         display:flex; align-items:center; justify-content:space-between;
         padding:10px 14px; border-bottom:1px solid #1b2430; background:#0d1117;
         font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
         flex-shrink: 0; z-index: 50; /* no se comprime y queda por encima del lienzo */
     }
-    /* Leyenda flotante #tv-legend sobre el gráfico: símbolo, OHLC y volumen; el JS de datos la rellena. */
-    #tv-legend {
+    /* Leyenda flotante #tradingview-leyenda sobre el gráfico: símbolo, OHLC y volumen; el JS de datos la rellena. */
+    #tradingview-leyenda {
         position:absolute; top:8px; left:12px; z-index:15; pointer-events:none; /* superpuesta en la esquina superior izquierda del lienzo */
         display:flex; flex-direction:column; gap:3px;
         font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
         text-shadow:0 0 6px #0d1117, 0 0 3px #0d1117; /* halo oscuro para que el texto se lea sobre las velas */
     }
     /* Línea de la leyenda: símbolo, temporalidad y origen de datos en una fila que puede partirse. */
-    #tv-legend .lg-line { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:12px; }
+    #tradingview-leyenda .leyenda-linea { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:12px; }
     /* Nombre del símbolo en la leyenda (se vuelve clicable en pantalla completa, ver 80_pantalla_completa.css). */
-    #tv-legend .lg-sym { font-size:14px; font-weight:700; color:#ffffff; }
+    #tradingview-leyenda .leyenda-simbolo { font-size:14px; font-weight:700; color:#ffffff; }
     /* Separador de punto entre elementos de la leyenda. */
-    #tv-legend .lg-dot { color:#484f58; }
+    #tradingview-leyenda .leyenda-dot { color:#484f58; }
     /* Temporalidad y fuente de datos en la leyenda, en gris atenuado. */
-    #tv-legend .lg-tf, #tv-legend .lg-feed { color:#8b949e; font-weight:500; }
+    #tradingview-leyenda .leyenda-temporalidad, #tradingview-leyenda .leyenda-flujo { color:#8b949e; font-weight:500; }
     /* Valores apertura/máximo/mínimo/cierre de la vela bajo el cursor, en fuente monoespaciada. */
-    #tv-legend .tv-ohlc { color:#8b949e; font-family:ui-monospace,Consolas,monospace; font-size:12px; }
+    #tradingview-leyenda .tradingview-ohlc { color:#8b949e; font-family:ui-monospace,Consolas,monospace; font-size:12px; }
     /* Etiquetas O, H, L, C en negrita con separación a la derecha. */
-    #tv-legend .tv-ohlc b { font-weight:600; margin-right:8px; }
+    #tradingview-leyenda .tradingview-ohlc b { font-weight:600; margin-right:8px; }
     /* Volumen de la vela bajo el cursor. */
-    #tv-legend .tv-vol { color:#8b949e; font-family:ui-monospace,Consolas,monospace; font-size:12px; }
+    #tradingview-leyenda .tradingview-volumen { color:#8b949e; font-family:ui-monospace,Consolas,monospace; font-size:12px; }
 
     /* Grupo de botones de la derecha de la barra superior. */
-    #tv-actions { display:flex; align-items:center; gap:8px; }
-    /* BOTONES DE LA BARRA SUPERIOR */
+    #tradingview-actions { display:flex; align-items:center; gap:8px; }
+    /* TITULO BOTONES DE LA BARRA SUPERIOR */
     /* Botón estandar .tvbtn (ícono + texto) usado en la barra superior y en el selector de indicadores, comparar y backtest. */
     .tvbtn {
         display:flex; align-items:center; gap:7px;
@@ -83,23 +83,23 @@ Transportes y Servicios Ltda.
     /* Botón en estado activo (la clase la pone el JS): resaltado en violeta. */
     .tvbtn.activo { background:rgba(139,92,246,0.2); color:#a78bfa; border-color:rgba(139,92,246,0.5); }
     /* Etiqueta de un elemento de menú desplegable (ver 20_menus_desplegables.css): ícono y texto alineados. */
-    .tv-drop-item .lbl { display:flex; align-items:center; gap:10px; }
+    .tradingview-soltar-elemento .lbl { display:flex; align-items:center; gap:10px; }
     /* Icono de un elemento de menú desplegable. */
-    .tv-drop-item svg {
+    .tradingview-soltar-elemento svg {
         width:16px; height:16px; fill:none; stroke:currentColor;
         stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; flex-shrink:0;
     }
 
-    /* BARRA SUPERIOR EN ANCHOS ESTRECHOS */
+    /* TITULO BARRA SUPERIOR EN ANCHOS ESTRECHOS */
     /* Con el panel derecho abierto el gráfico mide ~1000px y la barra necesita ~1080px: las acciones se cortaban por la derecha
        (captura de pantalla y pantalla completa). Por debajo de 1100px, los botones Comparar, Indicadores, Backtest y Replay
        muestran solo el ícono (su nombre sigue visible como tooltip por el atributo title). */
     @media (max-width: 1100px) {
-        #btn-cmp-select span, #btn-ind-select span, #btn-bt-open span, #btn-rp-open span { display:none; }
+        #boton-comparar-seleccionar span, #boton-indicador-seleccionar span, #boton-backtest-abrir span, #boton-repeticion-abrir span { display:none; }
     }
     /* Por debajo de 880px el selector de tipo de gráfico también queda solo con el ícono. */
     @media (max-width: 880px) {
-        #btn-type-select span { display:none; }
+        #boton-type-seleccionar span { display:none; }
     }
 
 /* -------------------------------------------------------------------------------------------------------

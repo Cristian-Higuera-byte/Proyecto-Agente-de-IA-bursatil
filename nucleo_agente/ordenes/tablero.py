@@ -13,7 +13,7 @@
 
 """API para el DASHBOARD: listar, rechazar y confirmar (ÚNICO punto que envía órdenes a MT5).
 
-Lo usa el panel de órdenes (componentes_plataforma/panel_ordenes.py) y el motor de vigilancia. Todas las
+Lo usa el panel de órdenes (componentes_plataforma/agente_paneles/) y el motor de vigilancia. Todas las
 transiciones de estado se hacen con UPDATE condicionales para que cada propuesta se procese una sola vez."""
 from datetime import datetime, timedelta
 from typing import Any
@@ -21,6 +21,8 @@ from typing import Any
 from nucleo_agente.ordenes.base_datos import _ahora, _consultar, _ejecutar
 from nucleo_agente.ordenes.envio import _enviar_apertura, _enviar_cierre
 
+
+# TITULO EXPIRAR VENCIDAS
 
 def expirar_vencidas() -> None:
     """Marca como vencidas las propuestas pendientes que ya pasaron su hora y recupera las atascadas.
@@ -40,6 +42,8 @@ def expirar_vencidas() -> None:
     _ejecutar("UPDATE ordenes SET estado = 'EXPIRADA' WHERE estado = 'PENDIENTE' AND expira <= ?", (_ahora(),))
 
 
+# TITULO LISTAR PENDIENTES
+
 def listar_pendientes() -> list[dict[str, Any]]:
     """Devuelve las propuestas PENDIENTE que debe confirmar el usuario, de la más antigua a la más reciente.
 
@@ -51,10 +55,14 @@ def listar_pendientes() -> list[dict[str, Any]]:
     )
 
 
+# TITULO LISTAR HISTORIAL
+
 def listar_historial(limite: int = 15) -> list[dict[str, Any]]:
     """Devuelve las últimas `limite` órdenes de cualquier estado, de la más reciente a la más antigua."""
     return _consultar("SELECT * FROM ordenes ORDER BY creada DESC, rowid DESC LIMIT ?", (int(limite),))
 
+
+# TITULO RECHAZAR ORDEN
 
 def rechazar_orden(id_orden: str) -> bool:
     """Marca como RECHAZADA_USUARIO una propuesta PENDIENTE. Devuelve True si cambió exactamente una fila."""
@@ -62,6 +70,8 @@ def rechazar_orden(id_orden: str) -> bool:
         "UPDATE ordenes SET estado = 'RECHAZADA_USUARIO' WHERE id = ? AND estado = 'PENDIENTE'", (id_orden,)
     ) == 1
 
+
+# TITULO CONFIRMAR ORDEN
 
 def confirmar_orden(id_orden: str) -> dict[str, Any]:
     """ÚNICO punto que envía órdenes a MT5. Solo lo llama el botón Confirmar del dashboard (y el motor de
@@ -89,16 +99,16 @@ def confirmar_orden(id_orden: str) -> dict[str, Any]:
     # Paso 2: se envía a MT5 según la acción guardada (abrir o cerrar).
     o = _consultar("SELECT * FROM ordenes WHERE id = ?", (id_orden,))[0]
     try:
-        res = _enviar_apertura(o) if o["accion"] == "abrir" else _enviar_cierre(o)
+        resultado = _enviar_apertura(o) if o["accion"] == "abrir" else _enviar_cierre(o)
     except Exception as e:  # noqa: BLE001
-        res = {"ok": False, "estado": "ERROR", "mensaje": f"Error inesperado (revisa MT5 por si la orden se envió): {e}"}
+        resultado = {"ok": False, "estado": "ERROR", "mensaje": f"Error inesperado (revisa MT5 por si la orden se envió): {e}"}
 
     # Paso 3: se registra el resultado final (EJECUTADA u otro estado de fallo) y el ticket devuelto.
     _ejecutar(
         "UPDATE ordenes SET estado = ?, detalle = ?, ticket_resultado = ? WHERE id = ?",
-        ("EJECUTADA" if res["ok"] else res.get("estado", "ERROR"), res["mensaje"], res.get("ticket"), id_orden),
+        ("EJECUTADA" if resultado["ok"] else resultado.get("estado", "ERROR"), resultado["mensaje"], resultado.get("ticket"), id_orden),
     )
-    return res
+    return resultado
 
 
 # -------------------------------------------------------------------------------------------------------

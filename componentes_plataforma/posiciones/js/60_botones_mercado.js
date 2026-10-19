@@ -22,10 +22,12 @@ Transportes y Servicios Ltda.
         '<span class="spr" title="Spread">—</span>' +
         '<button class="comp" type="button" title="Comprar a mercado"><b>—</b><span>COMPRAR</span></button>';
       // Se inserta en la leyenda del gráfico, antes de la leyenda de comparación.
-      var legendEl = document.getElementById('tv-legend');
-      if (legendEl) legendEl.insertBefore(mercado, document.getElementById('tv-cmp-legend'));
+      var leyendaEl = document.getElementById('tradingview-leyenda');
+      if (leyendaEl) leyendaEl.insertBefore(mercado, document.getElementById('tradingview-comparar-leyenda'));
       // Referencias a los textos de Bid, Ask y spread para actualizarlos sin recrear el DOM.
       var mBid = mercado.querySelector('.vend b'), mAsk = mercado.querySelector('.comp b'), mSpr = mercado.querySelector('.spr');
+      // TITULO ACTUALIZAR MERCADO
+
       /**
        * Refresca los precios Bid y Ask de los botones y el spread en pips (o en puntos si PIP no está definido).
        * Muestra un guion largo mientras no haya precio.
@@ -36,6 +38,8 @@ Transportes y Servicios Ltda.
         var sp = (BID && ASK) ? (ASK - BID) / (PIP > 0 ? PIP : Math.pow(10, -DIGITS)) : null;
         txt(mSpr, sp === null ? '—' : sp.toFixed(1));
       }
+      // TITULO ORDEN MERCADO
+
       /**
        * Envía una orden a mercado (POST /mercado) tras confirmar, o al instante con One-Click.
        * Recibe lado ('BUY' o 'SELL'); usa el volumen del ticket y avisa el resultado. Sin precio en vivo no opera.

@@ -19,8 +19,12 @@ from nucleo_agente.memoria.constantes import TABLA_CHATS, TABLA_DATOS
 from nucleo_agente.memoria.errores import ErrorMemoria
 
 
+# TITULO DATOS MIXIN
+
 class _DatosMixin:
     """Mixin de Memoria para los datos duraderos del usuario (tabla agente_memoria_usuario)."""
+
+    # TITULO GUARDAR DATO
 
     def guardar_dato(self, clave: str, valor: str) -> None:
         """Crea o actualiza un dato duradero (ej. 'activos_seguidos' -> 'AAPL, EURUSD')."""
@@ -37,6 +41,8 @@ class _DatosMixin:
             "guardar el dato",
         )
 
+    # TITULO DATOS USUARIO
+
     def datos_usuario(self) -> dict[str, str]:
         """Devuelve todos los datos duraderos del usuario como diccionario clave -> valor (ordenado por clave)."""
         filas = self._ejecutar(
@@ -45,12 +51,16 @@ class _DatosMixin:
         )
         return {f["clave"]: f["valor"] for f in filas}
 
+    # TITULO BORRAR DATO
+
     def borrar_dato(self, clave: str) -> None:
         """Borra un dato del usuario por su clave (se normaliza igual que al guardar)."""
         self._ejecutar(
             self._db.table(TABLA_DATOS).delete().eq("usuario_id", self.usuario_id).eq("clave", clave.strip().lower()),
             "borrar el dato",
         )
+
+    # TITULO OLVIDAR TODO
 
     def olvidar_todo(self) -> None:
         """Borra TODA la memoria del usuario (conversaciones, mensajes y datos)."""

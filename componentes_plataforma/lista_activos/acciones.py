@@ -23,6 +23,8 @@ import streamlit as st
 from componentes_plataforma.favoritos import agregar_favorito, quitar_favorito  # noqa: F401
 
 
+# TITULO QUITAR DE LISTA
+
 def quitar_de_lista(ticker: str):
     """Quita un símbolo de la watchlist del usuario (Supabase + sesión).
 
@@ -32,7 +34,7 @@ def quitar_de_lista(ticker: str):
     # Importación diferida para no cargar el gestor de base de datos hasta que se necesite.
     from herramientas import gestor_lista_activos as wl
     # Id del usuario actual (None si no hay sesión).
-    uid = (st.session_state.get("usuario_info") or {}).get("id")
+    uid = (st.session_state.get("usuario_informacion") or {}).get("id")
     # Borra el símbolo de la watchlist persistida.
     wl.quitar_simbolo(uid, ticker)
     st.session_state.get("datos_mercado_real", {}).pop(ticker, None)
@@ -41,9 +43,9 @@ def quitar_de_lista(ticker: str):
     if ticker in lst:
         lst.remove(ticker)
     # También lo quita de favoritos si estaba.
-    favs = st.session_state.get("favoritos", [])
-    if ticker in favs:
-        favs.remove(ticker)
+    favoritos = st.session_state.get("favoritos", [])
+    if ticker in favoritos:
+        favoritos.remove(ticker)
     # Si el activo eliminado estaba abierto en el gráfico, se cambia a otro disponible.
     if st.session_state.get("activo_seleccionado") == ticker:
         restantes = list(st.session_state.get("datos_mercado_real", {}).keys())

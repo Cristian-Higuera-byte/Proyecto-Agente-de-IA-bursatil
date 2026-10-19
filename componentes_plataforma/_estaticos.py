@@ -1,3 +1,16 @@
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ---------------------------------- INICIO Piña y Jara _estaticos .PY ----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
 """Lectura de los archivos estáticos (CSS, JS, HTML, JSON) que viven junto a cada componente.
 
 Cada componente separado (profundidad_mercado/, favoritos/, copytrading/…) guarda su CSS en `estilos.css` y sus datos
@@ -21,6 +34,8 @@ from herramientas.recursos import sin_creditos  # se reexporta: los recursos est
 _cache: dict[str, tuple[int, Any]] = {}
 
 
+# TITULO LEER
+
 def _leer(ruta: Path, convertir) -> Any:
     """Lee un archivo con caché y lo convierte con la función dada.
 
@@ -40,16 +55,35 @@ def _leer(ruta: Path, convertir) -> Any:
     return valor
 
 
+# TITULO TEXTO
+
 def texto(ruta: str | Path) -> str:
     """Contenido de un archivo de texto (sin el encabezado y pie de créditos, si los tiene)."""
     return _leer(Path(ruta), sin_creditos)
 
+
+# TITULO DATOS JSON
 
 def datos_json(ruta: str | Path) -> Any:
     """Contenido de un archivo JSON ya convertido (listas, diccionarios…)."""
     return _leer(Path(ruta), json.loads)
 
 
+# TITULO ESTILOS
+
 def estilos(ruta: str | Path) -> str:
     """CSS de un archivo `.css` envuelto en <style>, listo para `st.html(...)` o `st.markdown(..., unsafe_allow_html=True)`."""
     return "\n<style>\n" + texto(ruta) + "</style>\n"
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------------ FIN Piña y Jara _estaticos .PY -----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

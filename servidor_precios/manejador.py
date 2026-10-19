@@ -32,6 +32,8 @@ from .simbolos import listar_simbolos
 from .velas import obtener_velas
 
 
+# TITULO LISTA SIMBOLOS
+
 def _lista_simbolos(qs) -> list:
     """Extrae del query string el parámetro `s` (símbolos separados por comas).
 
@@ -42,6 +44,8 @@ def _lista_simbolos(qs) -> list:
     return [s for s in (x.strip() for x in crudo.split(",")) if s][:80]
 
 
+# TITULO MANEJADOR
+
 class Manejador(BaseHTTPRequestHandler):
     """Atiende las peticiones HTTP del dashboard: JSON, SSE, CORS restringido a localhost y POST de trading.
 
@@ -51,11 +55,15 @@ class Manejador(BaseHTTPRequestHandler):
     # HTTP/1.1 es necesario para mantener abierta la conexión del flujo SSE
     protocol_version = "HTTP/1.1"
 
+    # TITULO ORIGEN PERMITIDO
+
     def _origen_permitido(self):
         """El Origin de la petición si es una página de este equipo (el dashboard en localhost); si no, None."""
         origen = self.headers.get("Origin", "") or ""
         host = urlparse(origen).hostname
         return origen if host in ("localhost", "127.0.0.1") else None
+
+    # TITULO CABECERA CORS
 
     def _cabecera_cors(self):
         """CORS solo para el dashboard local: otra web abierta en el navegador no puede leer
@@ -64,6 +72,8 @@ class Manejador(BaseHTTPRequestHandler):
         if origen:
             self.send_header("Access-Control-Allow-Origin", origen)
             self.send_header("Vary", "Origin")
+
+    # TITULO RESPONDER
 
     def _responder(self, obj):
         """Envía `obj` serializado como JSON con estado 200 y cabecera CORS (si el origen es local)."""
@@ -75,6 +85,8 @@ class Manejador(BaseHTTPRequestHandler):
         self._cabecera_cors()   # permite el fetch desde el iframe del gráfico (solo localhost)
         self.end_headers()
         self.wfile.write(cuerpo)
+
+    # TITULO STREAM
 
     def _stream(self, simbolos):
         """SSE: envía la foto completa y luego solo los cambios, hasta que el
@@ -106,10 +118,10 @@ class Manejador(BaseHTTPRequestHandler):
                 seq = nuevo
                 # Hay novedades: las envía; si no, emite ping si pasó mucho tiempo
                 if ticks or cuenta:
-                    msg = {"t": ticks}
+                    mensaje = {"t": ticks}
                     if cuenta:
-                        msg["acc"] = cuenta
-                    self.wfile.write(b"data: " + json.dumps(msg).encode("utf-8") + b"\n\n")
+                        mensaje["acc"] = cuenta
+                    self.wfile.write(b"data: " + json.dumps(mensaje).encode("utf-8") + b"\n\n")
                     self.wfile.flush()
                     ultimo_envio = time.time()
                 elif time.time() - ultimo_envio >= PING_SSE:
@@ -117,9 +129,11 @@ class Manejador(BaseHTTPRequestHandler):
                     self.wfile.flush()
                     ultimo_envio = time.time()
                 MOTOR.suscribir(simbolos)          # mantiene viva la suscripción
-                MOTOR.esperar(seq, timeout=PING_SSE)
+                MOTOR.esperar(seq, tiempo_espera=PING_SSE)
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
             pass   # el navegador cerró la pestaña o cambió de vista
+
+    # TITULO DO GET
 
     def do_GET(self):
         """Enruta las peticiones GET: /stream, /ticks, /simbolos, /salud, /velas/<s> y /ultima/<s>.
@@ -130,7 +144,7 @@ class Manejador(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         partes = [unquote(p) for p in parsed.path.strip("/").split("/")]
         qs = parse_qs(parsed.query)
-        tf = qs.get("tf", ["H1"])[0]
+        temporalidad = qs.get("tf", ["H1"])[0]
         try:
             if partes and partes[0] == "stream":
                 self._stream(_lista_simbolos(qs))
@@ -143,11 +157,19 @@ class Manejador(BaseHTTPRequestHandler):
                 self._responder(listar_simbolos())
             elif partes and partes[0] == "salud":
                 self._responder({"ok": True, "v": VERSION_API})
+            elif len(partes) >= 2 and partes[0] == "dom":
+                # Nivel 1 del libro (solo Capital.com; MT5 usa su propio libro desde Streamlit)
+                from herramientas.puente_mt5 import PROVEEDOR, resolver_simbolo
+                if PROVEEDOR == "capital":
+                    from .streaming_capital import STREAM
+                    self._responder(STREAM.dom(resolver_simbolo(partes[1])))
+                else:
+                    self._responder({"disponible": False, "motivo": "Solo disponible con Capital.com."})
             elif len(partes) >= 2 and partes[0] == "velas":
                 n = int(qs.get("n", ["150"])[0])
-                self._responder(obtener_velas(partes[1], tf, n))
+                self._responder(obtener_velas(partes[1], temporalidad, n))
             elif len(partes) >= 2 and partes[0] == "ultima":
-                velas = obtener_velas(partes[1], tf, 2)
+                velas = obtener_velas(partes[1], temporalidad, 2)
                 self._responder(velas[-1] if velas else {})
             else:
                 self._responder({"error": "ruta no reconocida"})
@@ -156,6 +178,8 @@ class Manejador(BaseHTTPRequestHandler):
                 self._responder({"error": str(e)})
             except Exception:
                 pass
+
+    # TITULO ORIGEN LOCAL
 
     # --- Modificaciones (POST) ----------------------------------------------
     def _origen_local(self) -> bool:
@@ -166,6 +190,8 @@ class Manejador(BaseHTTPRequestHandler):
         host = urlparse(self.headers.get("Origin", "") or "").hostname
         return host in ("localhost", "127.0.0.1")
 
+    # TITULO DO OPTIONS
+
     def do_OPTIONS(self):
         """Responde la verificación previa (preflight) de CORS con 204 y los métodos/cabeceras permitidos."""
         self.send_response(204)
@@ -174,6 +200,8 @@ class Manejador(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.send_header("Content-Length", "0")
         self.end_headers()
+
+    # TITULO DO POST
 
     def do_POST(self):
         """Enruta las órdenes de trading: /sltp, /orden, /orden/modificar, /orden/eliminar y /mercado.
@@ -198,27 +226,27 @@ class Manejador(BaseHTTPRequestHandler):
             ruta = urlparse(self.path).path.strip("/")
             with CANDADO_MT5:   # mismo candado que el motor: la API de MT5 no es thread-safe
                 if ruta == "sltp":
-                    res = modificar_sltp(_tk(datos["ticket"]), datos.get("sl"), datos.get("tp"))
+                    resultado = modificar_sltp(_tk(datos["ticket"]), datos.get("sl"), datos.get("tp"))
                 elif ruta == "orden":
-                    res = colocar_orden_pendiente(datos["symbol"], datos["lado"],
+                    resultado = colocar_orden_pendiente(datos["symbol"], datos["lado"],
                                                   float(datos["volumen"]), float(datos["precio"]))
                 elif ruta == "orden/modificar":
-                    res = modificar_orden(_tk(datos["ticket"]), datos.get("precio"),
+                    resultado = modificar_orden(_tk(datos["ticket"]), datos.get("precio"),
                                           datos.get("sl"), datos.get("tp"),
                                           datos.get("caducidad"), datos.get("expiracion"))
                 elif ruta == "orden/eliminar":
-                    res = eliminar_orden(_tk(datos["ticket"]))
+                    resultado = eliminar_orden(_tk(datos["ticket"]))
                 elif ruta == "mercado":
                     lado = str(datos.get("lado", "")).upper()
-                    vol = float(datos["volumen"])
-                    if lado not in ("BUY", "SELL") or not vol > 0:
-                        res = {"error": "Orden a mercado no válida (lado o volumen)"}
+                    volumen = float(datos["volumen"])
+                    if lado not in ("BUY", "SELL") or not volumen > 0:
+                        resultado = {"error": "Orden a mercado no válida (lado o volumen)"}
                     else:
-                        res = ejecutar_orden_mercado(str(datos["symbol"]), lado, vol)
+                        resultado = ejecutar_orden_mercado(str(datos["symbol"]), lado, volumen)
                 else:
-                    res = None
-            if res is not None:
-                self._responder(res)
+                    resultado = None
+            if resultado is not None:
+                self._responder(resultado)
             else:
                 self._responder({"error": "ruta no reconocida"})
         except Exception as e:
@@ -226,6 +254,8 @@ class Manejador(BaseHTTPRequestHandler):
                 self._responder({"error": str(e)})
             except Exception:
                 pass
+
+    # TITULO LOG MESSAGE
 
     def log_message(self, *args):
         """Anula el registro de accesos del servidor base para no saturar la consola."""

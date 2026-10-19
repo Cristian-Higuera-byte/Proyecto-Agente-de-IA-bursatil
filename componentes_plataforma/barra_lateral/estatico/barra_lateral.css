@@ -22,14 +22,14 @@ Transportes y Servicios Ltda.
 
 /* ====== Animación (desactivada un instante al cargar) ====== */
 /* Regla de transicion: anima el relleno del contenido, la posicion y el ancho de la barra superior fija y de la columna de la barra lateral al expandir o colapsar. */
-.block-container, .st-key-barra_nav_fija, __COL__ {
+.block-container, .st-key-barra_navegacion_fija, __COL__ {
     transition: padding __ANIM__, left __ANIM__, width __ANIM__,
                 max-width __ANIM__, flex-basis __ANIM__ !important;
 }
-/* Mientras html tiene la clase pj-sb-sinanim (solo al cargar, la pone barra_lateral.js) se anula la transicion para que el estado inicial no se vea animado. */
-html.pj-sb-sinanim .block-container,
-html.pj-sb-sinanim .st-key-barra_nav_fija,
-html.pj-sb-sinanim __COL__ { transition: none !important; }
+/* Mientras html tiene la clase pj-barra-lateral-sinanim (solo al cargar, la pone barra_lateral.js) se anula la transicion para que el estado inicial no se vea animado. */
+html.pj-barra-lateral-sinanim .block-container,
+html.pj-barra-lateral-sinanim .st-key-barra_navegacion_fija,
+html.pj-barra-lateral-sinanim __COL__ { transition: none !important; }
 
 /* El contenido se desplaza el ancho de la barra lateral (que va FIJA)
    + un espacio de separación, para que no quede pegado a ella. */
@@ -39,23 +39,23 @@ html.pj-sb-sinanim __COL__ { transition: none !important; }
 __EXP__ .block-container { padding-left: __PAD_EXP__px !important; }
 
 /* Barra superior fija: empieza donde termina la barra lateral */
-/* Barra superior fija (contenedor barra_nav_fija de aplicacion.py): arranca justo donde termina la barra lateral colapsada. */
-.st-key-barra_nav_fija {
+/* Barra superior fija (contenedor barra_navegacion_fija de aplicacion.py): arranca justo donde termina la barra lateral colapsada. */
+.st-key-barra_navegacion_fija {
     left: __ANCHO_COL__px !important; width: calc(100% - __ANCHO_COL__px) !important;
 }
 /* Estado expandido: la barra superior se desplaza al ancho expandido. */
-__EXP__ .st-key-barra_nav_fija {
+__EXP__ .st-key-barra_navegacion_fija {
     left: __ANCHO_EXP__px !important; width: calc(100% - __ANCHO_EXP__px) !important;
 }
 
 /* Evita que la columna principal se envuelva debajo de la barra lateral */
 /* Fila que contiene la barra lateral: impide que sus columnas salten de linea. */
-div[data-testid="stHorizontalBlock"]:has(.pj-nav) { flex-wrap: nowrap !important; }
+div[data-testid="stHorizontalBlock"]:has(.pj-navegacion) { flex-wrap: nowrap !important; }
 
 /* ====== Barra lateral FIJA (colapsada = diseño original) ====== */
 /* Columna de la barra lateral: fija a la izquierda, a toda la altura, oscura y con borde derecho. */
 __COL__,
-div[data-testid="column"]:has(.pj-nav) {
+div[data-testid="column"]:has(.pj-navegacion) {
     background: #0d1117;
     border-right: 1px solid #30363d;
     /* Anclado a la IZQUIERDA (no centrado): mismo resultado visual que el
@@ -76,13 +76,13 @@ div[data-testid="column"]:has(.pj-nav) {
 }
 /* Bloque vertical interno de la columna: apila los botones con 4px de separacion a toda la altura. */
 __COL__ > div,
-div[data-testid="column"]:has(.pj-nav) > div {
+div[data-testid="column"]:has(.pj-navegacion) > div {
     align-items: flex-start;
     gap: 4px;
     height: 100%;
 }
 /* Soporte pegado al fondo */
-[class*="st-key-nav_soporte"] { margin-top: auto !important; } /* el margen automatico lo empuja al fondo de la columna */
+[class*="st-key-navegacion_soporte"] { margin-top: auto !important; } /* el margen automatico lo empuja al fondo de la columna */
 
 /* Script del toggle: fuera del flujo, no ocupa espacio */
 /* Contenedor del iframe con el script del toggle (barra.py): se saca del flujo y no ocupa espacio. */
@@ -104,12 +104,12 @@ div[data-testid="column"]:has(.pj-nav) > div {
 }
 /* Nombre completo: oculto al colapsar y visible al expandir (ver regla del estado expandido). */
 
-.pj-logo-txt { display: none; color: #8b949e; font-size: 15px; font-weight: 700; }
+.pj-logo-texto { display: none; color: #8b949e; font-size: 15px; font-weight: 700; }
 
 /* Botones: iconos sin caja (igual que el original) */
 /* Botones de navegacion: solo icono, sin caja, de 44px, con recorte del texto sobrante. */
 __COL__ button,
-div[data-testid="column"]:has(.pj-nav) button {
+div[data-testid="column"]:has(.pj-navegacion) button {
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
@@ -139,13 +139,13 @@ __EXP__ __COL__ [data-testid="stElementContainer"]:has(button),
 __EXP__ __COL__ .stButton { width: 100% !important; }
 /* Tamano del icono Material dentro del boton. */
 __COL__ button p,
-div[data-testid="column"]:has(.pj-nav) button p {
+div[data-testid="column"]:has(.pj-navegacion) button p {
     font-size: 24px !important;
     line-height: 1 !important;
 }
 /* Realce suave y texto blanco al pasar el cursor. */
 __COL__ button:hover,
-div[data-testid="column"]:has(.pj-nav) button:hover {
+div[data-testid="column"]:has(.pj-navegacion) button:hover {
     background: rgba(255,255,255,0.08) !important;
     color: #fff !important;
 }
@@ -153,13 +153,13 @@ div[data-testid="column"]:has(.pj-nav) button:hover {
 /* Botón activo (type primary): verde como en XM */
 /* Boton activo (type primary en barra.py): fondo y texto verdes. */
 __COL__ button[kind="primary"],
-div[data-testid="column"]:has(.pj-nav) button[kind="primary"],
+div[data-testid="column"]:has(.pj-navegacion) button[kind="primary"],
 __COL__ [data-testid="stBaseButton-primary"] {
     background: rgba(34,197,94,0.12) !important;
     color: #22c55e !important;
 }
 
-/* ====== ESTADO EXPANDIDO (clase pj-sb-exp en el elemento html) ====== */
+/* ====== ESTADO EXPANDIDO (clase pj-barra-lateral-expandido en el elemento html) ====== */
 /* Columna en estado expandido: toma el ancho expandido y estira a sus hijos. */
 __EXP__ __COL__ {
     flex: 0 0 __ANCHO_EXP__px !important;
@@ -170,7 +170,7 @@ __EXP__ __COL__ {
 /* Bloque interno de la columna expandida: hijos estirados a todo el ancho. */
 __EXP__ __COL__ > div { align-items: stretch !important; }
 /* Muestra el nombre del logo con un fundido de entrada. */
-__EXP__ .pj-logo-txt { display: inline; animation: pjFade .2s ease .1s both; }
+__EXP__ .pj-logo-texto { display: inline; animation: pjFade .2s ease .1s both; }
 /* Botones a todo el ancho; el ícono queda en la misma x que colapsada
    (13 px de la columna + 10 px de relleno = 23 px) */
 /* Botones expandidos: ancho completo, icono a la izquierda y espacio para el texto. */

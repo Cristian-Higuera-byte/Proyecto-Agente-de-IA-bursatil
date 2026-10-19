@@ -22,6 +22,8 @@ from datetime import datetime, timezone
 from typing import Any
 
 
+# TITULO SIMBOLO
+
 def _simbolo(texto: str) -> str:
     """Normaliza un símbolo de Yahoo (quita espacios y pasa a mayúsculas).
 
@@ -31,6 +33,8 @@ def _simbolo(texto: str) -> str:
         raise ValueError("Falta el símbolo.")
     return s
 
+
+# TITULO NUM
 
 def _num(valor: Any, decimales: int = 4) -> float | None:
     """Convierte a float JSON-seguro (NaN/inf/None -> None).
@@ -46,11 +50,15 @@ def _num(valor: Any, decimales: int = 4) -> float | None:
     return round(f, decimales)
 
 
+# TITULO ENTERO
+
 def _entero(valor: Any) -> int | None:
     """Convierte un valor a entero (redondeando) o devuelve None si no es un número válido."""
     n = _num(valor, 0)
     return int(n) if n is not None else None
 
+
+# TITULO LEER
 
 def _leer(obj: Any, nombre: str, texto: bool = False) -> Any:
     """Lee de forma segura el atributo `nombre` de un objeto de yfinance (p. ej. `fast_info`).
@@ -65,6 +73,8 @@ def _leer(obj: Any, nombre: str, texto: bool = False) -> Any:
     return v if texto else _num(v)
 
 
+# TITULO SIN NULOS
+
 def _sin_nulos(d: dict[str, Any]) -> dict[str, Any]:
     """Devuelve una copia del diccionario sin las claves cuyo valor es None.
 
@@ -72,6 +82,8 @@ def _sin_nulos(d: dict[str, Any]) -> dict[str, Any]:
     valores falsos distintos de None (0, '', listas vacías) se conservan."""
     return {k: v for k, v in d.items() if v is not None}
 
+
+# TITULO VALIDAR FECHA
 
 def _validar_fecha(texto: str, campo: str) -> str:
     """Comprueba que `texto` tenga formato 'AAAA-MM-DD' y lo devuelve sin cambios.
@@ -85,9 +97,11 @@ def _validar_fecha(texto: str, campo: str) -> str:
     return texto
 
 
-def _formatear_fecha(ts: Any, intradia: bool) -> str:
+# TITULO FORMATEAR FECHA
+
+def _formatear_fecha(marca_tiempo: Any, intradia: bool) -> str:
     """Formatea un timestamp de pandas como 'AAAA-MM-DD HH:MM' (intradía) o 'AAAA-MM-DD' (diario o mayor)."""
-    return ts.strftime("%Y-%m-%d %H:%M" if intradia else "%Y-%m-%d")
+    return marca_tiempo.strftime("%Y-%m-%d %H:%M" if intradia else "%Y-%m-%d")
 
 
 # -------------------------------------------------------------------------------------------------------

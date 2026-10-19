@@ -1,3 +1,16 @@
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# -------------------------------------- INICIO Piña y Jara mt5 .PY -------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
 """
 puente_mt5.py  (versión corregida para Cristian — 05-10-2026)
 ---------------------------------------------------------------
@@ -53,7 +66,7 @@ load_dotenv()
 # ---------------------------------------------------------------------------
 # La API de Python de MT5 NO es segura entre hilos: serializa el acceso.
 MT5_LOCK = threading.RLock()
-_ORDER_LOCK = MT5_LOCK
+_ORDEN_CANDADO = MT5_LOCK
 
 # Ruta al ejecutable del terminal MetaTrader 5 (configurable por .env)
 RUTA_TERMINAL_MT5 = os.getenv("MT5_PATH", "").strip().strip('"')
@@ -63,6 +76,8 @@ _REINTENTO_S = 15             # espera entre reintentos si no conecta
 _ultimo_fallo = 0.0
 _ruta_conectada: Optional[str] = None
 
+
+# TITULO TERMINAL EN EJECUCION
 
 def _terminal_en_ejecucion() -> list:
     """Rutas de terminal64.exe que estén ABIERTOS ahora (Windows)."""
@@ -78,6 +93,8 @@ def _terminal_en_ejecucion() -> list:
     except Exception:
         return []
 
+
+# TITULO RUTAS CANDIDATAS
 
 def _rutas_candidatas() -> list:
     """Orden: .env (MT5_PATH) -> terminal abierto -> instalaciones típicas."""
@@ -98,10 +115,12 @@ def _rutas_candidatas() -> list:
     return unicas
 
 
+# TITULO INICIALIZAR MT5
+
 def inicializar_mt5(
-    login: Optional[int] = None,
-    password: Optional[str] = None,
-    server: Optional[str] = None,
+    inicio_sesion: Optional[int] = None,
+    contrasena: Optional[str] = None,
+    servidor: Optional[str] = None,
 ) -> bool:
     """
     Inicializa y conecta con el terminal de MetaTrader 5 de forma segura.
@@ -137,9 +156,9 @@ def inicializar_mt5(
             return False
 
         # Credenciales explícitas (opcional)
-        if login and password and server:
-            if not mt5.login(int(login), password=password, server=server):
-                print(f"[MT5] Falló el login de la cuenta {login}: {mt5.last_error()}")
+        if inicio_sesion and contrasena and servidor:
+            if not mt5.login(int(inicio_sesion), password=contrasena, server=servidor):
+                print(f"[MT5] Falló el login de la cuenta {inicio_sesion}: {mt5.last_error()}")
                 _ultimo_fallo = time.time()
                 return False
 
@@ -151,6 +170,8 @@ def inicializar_mt5(
             print(f"[MT5] Conectado: {cuenta.login} @ {cuenta.server} ({_ruta_conectada})")
         return True
 
+
+# TITULO CERRAR MT5
 
 def cerrar_mt5():
     """Cierra la conexión con MetaTrader 5."""
@@ -180,17 +201,21 @@ _ALIAS_GRUPOS = [
 _ALIAS = {n: grupo for grupo in _ALIAS_GRUPOS for n in grupo}
 
 
+# TITULO CORE SIMBOLO
+
 def _core_simbolo(name: str) -> str:
     """Núcleo comparable de un símbolo: sin '...' ni sufijos de bróker/bolsa."""
     s = (name or "").upper().strip().replace("...", "").strip("#")
     if s.endswith("MICRO"):          # XM cuentas Micro: EURUSDmicro
         s = s[:-5]
     if "." in s:                     # AAPL.OQ, EURUSD.m, BTCUSD.pro
-        base, suf = s.rsplit(".", 1)
-        if suf.isalnum() and 1 <= len(suf) <= 4:
+        base, sufijo = s.rsplit(".", 1)
+        if sufijo.isalnum() and 1 <= len(sufijo) <= 4:
             s = base
     return s
 
+
+# TITULO INDICE LOCAL
 
 def _indice_local(refrescar: bool = False) -> dict:
     """Índice del terminal actual (no cachea un índice vacío: permite reintentar)."""
@@ -215,21 +240,25 @@ def _indice_local(refrescar: bool = False) -> dict:
     return _INDICE_SIMBOLOS
 
 
+# TITULO RESOLVER SIMBOLO
+
 def resolver_simbolo(symbol: str) -> str:
     """Nombre real del símbolo en el terminal actual: exacto -> núcleo -> alias."""
     if not symbol:
         return symbol
-    idx = _indice_local()
-    if symbol in idx["exact"]:
+    indice = _indice_local()
+    if symbol in indice["exact"]:
         return symbol
     core = _core_simbolo(symbol)
-    if core in idx["core"]:
-        return idx["core"][core]
+    if core in indice["core"]:
+        return indice["core"][core]
     for alias in _ALIAS.get(core, []):
-        if alias in idx["core"]:
-            return idx["core"][alias]
+        if alias in indice["core"]:
+            return indice["core"][alias]
     return symbol
 
+
+# TITULO OBTENER INFO CUENTA
 
 def obtener_info_cuenta() -> dict:
     """Retorna el balance, equity y margen de la cuenta activa."""
@@ -259,6 +288,8 @@ def obtener_info_cuenta() -> dict:
     }
 
 
+# TITULO OBTENER POSICIONES
+
 def obtener_posiciones() -> list:
     """Posiciones abiertas de la cuenta (para la 'Cartera')."""
     try:
@@ -285,6 +316,8 @@ def obtener_posiciones() -> list:
         })
     return salida
 
+
+# TITULO OBTENER HISTORIAL
 
 def obtener_historial(dias: int = 90, limite: int = 100) -> list:
     """Operaciones CERRADAS de la cuenta (para el historial de Inicio).
@@ -324,6 +357,8 @@ def obtener_historial(dias: int = 90, limite: int = 100) -> list:
     return salida[:limite]
 
 
+# TITULO ESPECS POSICION
+
 def especs_posicion(ticket: int) -> dict:
     """Datos del contrato de una posición para el panel de TP/SL de la Cartera:
     k (valor de 1 unidad de precio por lote, en la moneda de la cuenta), dígitos,
@@ -333,10 +368,10 @@ def especs_posicion(ticket: int) -> dict:
     with MT5_LOCK:
         if not inicializar_mt5():
             return {}
-        pos = mt5.positions_get(ticket=int(ticket))
-        if not pos:
+        posicion = mt5.positions_get(ticket=int(ticket))
+        if not posicion:
             return {}
-        p = pos[0]
+        p = posicion[0]
         info = mt5.symbol_info(p.symbol)
         tick = mt5.symbol_info_tick(p.symbol)
     if not info:
@@ -356,6 +391,8 @@ def especs_posicion(ticket: int) -> dict:
         "volumen": float(p.volume),
     }
 
+
+# TITULO OBTENER PRECIO ACTUAL
 
 def obtener_precio_actual(symbol: str) -> dict:
     """Obtiene el precio Bid, Ask y último tick de un símbolo."""
@@ -380,19 +417,21 @@ def obtener_precio_actual(symbol: str) -> dict:
         info = mt5.symbol_info(symbol)
     if info is not None:
         try:
-            bid, ask, last = float(info.bid), float(info.ask), float(info.last)
+            bid, ask, ultimo = float(info.bid), float(info.ask), float(info.last)
         except (AttributeError, TypeError, ValueError):
-            bid = ask = last = 0.0
+            bid = ask = ultimo = 0.0
         if bid or ask:
             return {
                 "symbol": symbol,
                 "bid": bid,
                 "ask": ask,
-                "last": last,
+                "last": ultimo,
                 "time": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             }
     return {"error": f"No se pudo obtener el precio para {symbol}"}
 
+
+# TITULO OBTENER DATOS HISTORICOS
 
 def obtener_datos_historicos(symbol: str, timeframe=mt5.TIMEFRAME_H1, n_velas: int = 100) -> pd.DataFrame:
     """Descarga datos históricos OHLCV de MT5."""
@@ -406,44 +445,48 @@ def obtener_datos_historicos(symbol: str, timeframe=mt5.TIMEFRAME_H1, n_velas: i
     if rates is None or len(rates) == 0:
         return pd.DataFrame()
 
-    df = pd.DataFrame(rates)
-    df['time'] = pd.to_datetime(df['time'], unit='s')
-    df.set_index('time', inplace=True)
-    return df
+    tabla_datos = pd.DataFrame(rates)
+    tabla_datos['time'] = pd.to_datetime(tabla_datos['time'], unit='s')
+    tabla_datos.set_index('time', inplace=True)
+    return tabla_datos
 
 
-def obtener_velas_rango(symbol: str, ts_desde: float, ts_hasta: float) -> list:
+# TITULO OBTENER VELAS RANGO
+
+def obtener_velas_rango(symbol: str, marca_tiempo_desde: float, marca_tiempo_hasta: float) -> list:
     """Velas OHLC que cubren [ts_desde, ts_hasta] (epoch), para el mini-gráfico del
     Trading Journal. Elige el timeframe según la duración para que haya ~40-120 velas
     y añade un margen a cada lado. Devuelve [{t,o,h,l,c}, ...] (vieja → nueva)."""
     from datetime import datetime as _dt
-    dur = max(60.0, float(ts_hasta) - float(ts_desde))
-    pad = dur * 0.35 + 300
-    d0, d1 = float(ts_desde) - pad, float(ts_hasta) + pad
+    duracion = max(60.0, float(marca_tiempo_hasta) - float(marca_tiempo_desde))
+    pad = duracion * 0.35 + 300
+    d0, d1 = float(marca_tiempo_desde) - pad, float(marca_tiempo_hasta) + pad
     # timeframe objetivo ≈ ventana/60 velas
     objetivo = (d1 - d0) / 60.0
     escala = [(60, mt5.TIMEFRAME_M1), (300, mt5.TIMEFRAME_M5), (900, mt5.TIMEFRAME_M15),
               (3600, mt5.TIMEFRAME_H1), (14400, mt5.TIMEFRAME_H4), (86400, mt5.TIMEFRAME_D1)]
-    tf = escala[0][1]
-    for seg, cod in escala:
-        tf = cod
-        if seg >= objetivo:
+    temporalidad = escala[0][1]
+    for segundos, cod in escala:
+        temporalidad = cod
+        if segundos >= objetivo:
             break
     symbol = resolver_simbolo(symbol)
     with MT5_LOCK:
         if not inicializar_mt5():
             return []
         mt5.symbol_select(symbol, True)
-        rates = mt5.copy_rates_range(symbol, tf, _dt.fromtimestamp(d0), _dt.fromtimestamp(d1))
+        rates = mt5.copy_rates_range(symbol, temporalidad, _dt.fromtimestamp(d0), _dt.fromtimestamp(d1))
     if rates is None or len(rates) == 0:
         return []
     return [{"t": int(r["time"]), "o": float(r["open"]), "h": float(r["high"]),
              "l": float(r["low"]), "c": float(r["close"])} for r in rates]
 
 
-def _modo_llenado(sim_info):
+# TITULO MODO LLENADO
+
+def _modo_llenado(simulado_info):
     """Modo de llenado soportado por el símbolo (evita 'Unsupported filling mode')."""
-    fm = getattr(sim_info, "filling_mode", 0)
+    fm = getattr(simulado_info, "filling_mode", 0)
     if fm & 1:
         return mt5.ORDER_FILLING_FOK
     if fm & 2:
@@ -451,23 +494,25 @@ def _modo_llenado(sim_info):
     return mt5.ORDER_FILLING_RETURN
 
 
-def ejecutar_orden_mercado(symbol: str, tipo: str, volumen: float, sl: float = 0.0, tp: float = 0.0) -> dict:
+# TITULO EJECUTAR ORDEN MERCADO
+
+def ejecutar_orden_mercado(symbol: str, tipo: str, volumen: float, stop_loss: float = 0.0, take_profit: float = 0.0) -> dict:
     """Ejecuta una orden de compra o venta a mercado en MT5. tipo: 'BUY' o 'SELL'."""
     symbol = resolver_simbolo(symbol)
-    with _ORDER_LOCK:
+    with _ORDEN_CANDADO:
         if not inicializar_mt5():
             return {"error": "Sin conexión con MT5"}
         mt5.symbol_select(symbol, True)
-        sim_info = mt5.symbol_info(symbol)
-        if sim_info is None:
+        simulado_info = mt5.symbol_info(symbol)
+        if simulado_info is None:
             return {"error": f"Símbolo {symbol} no encontrado en MT5"}
 
         tipo_orden = mt5.ORDER_TYPE_BUY if tipo.upper() == 'BUY' else mt5.ORDER_TYPE_SELL
         tick = mt5.symbol_info_tick(symbol)
         precio = (tick.ask if tipo.upper() == 'BUY' else tick.bid) if tick else \
-                 (sim_info.ask if tipo.upper() == 'BUY' else sim_info.bid)
+                 (simulado_info.ask if tipo.upper() == 'BUY' else simulado_info.bid)
 
-        request = {
+        peticion = {
             "action": mt5.TRADE_ACTION_DEAL,
             "symbol": symbol,
             "volume": float(volumen),
@@ -477,14 +522,14 @@ def ejecutar_orden_mercado(symbol: str, tipo: str, volumen: float, sl: float = 0
             "magic": 234000,
             "comment": "Piña & Jara Terminal",
             "type_time": mt5.ORDER_TIME_GTC,
-            "type_filling": _modo_llenado(sim_info),
+            "type_filling": _modo_llenado(simulado_info),
         }
-        if sl and sl > 0:
-            request["sl"] = float(sl)
-        if tp and tp > 0:
-            request["tp"] = float(tp)
+        if stop_loss and stop_loss > 0:
+            peticion["sl"] = float(stop_loss)
+        if take_profit and take_profit > 0:
+            peticion["tp"] = float(take_profit)
 
-        resultado = mt5.order_send(request)
+        resultado = mt5.order_send(peticion)
 
     if resultado is None:
         return {"error": f"order_send devolvió None: {mt5.last_error()}"}
@@ -496,10 +541,10 @@ def ejecutar_orden_mercado(symbol: str, tipo: str, volumen: float, sl: float = 0
     # Trading Journal (Tanda C): si la orden llevaba SL/TP, se guarda el "plan"
     # (entrada real + SL + TP) ligado a la posición para calcular el R/R planificado.
     # position_id de la posición abierta == ticket de la orden de apertura (resultado.order).
-    if (sl and sl > 0) or (tp and tp > 0):
+    if (stop_loss and stop_loss > 0) or (take_profit and take_profit > 0):
         try:
             from herramientas import almacen_diario
-            almacen_diario.guardar_plan(resultado.order, resultado.price, sl, tp,
+            almacen_diario.guardar_plan(resultado.order, resultado.price, stop_loss, take_profit,
                                        tipo.upper(), symbol, resultado.volume)
         except Exception:
             pass   # el journal nunca debe hacer fallar una orden
@@ -513,8 +558,10 @@ def ejecutar_orden_mercado(symbol: str, tipo: str, volumen: float, sl: float = 0
     }
 
 
+# TITULO COLOCAR ORDEN PENDIENTE
+
 def colocar_orden_pendiente(symbol: str, tipo: str, volumen: float, precio: float,
-                            sl: float = 0.0, tp: float = 0.0,
+                            stop_loss: float = 0.0, take_profit: float = 0.0,
                             hasta_cancelar: bool = True) -> dict:
     """Orden pendiente "comprar/vender al llegar a este precio" (como XM).
     El tipo se deduce del precio pedido respecto del mercado:
@@ -522,39 +569,39 @@ def colocar_orden_pendiente(symbol: str, tipo: str, volumen: float, precio: floa
       VENTA sobre el bid -> SELL_LIMIT · bajo el bid -> SELL_STOP
     hasta_cancelar=True -> vigente hasta cancelarla (GTC); False -> solo hoy (DAY)."""
     symbol = resolver_simbolo(symbol)
-    with _ORDER_LOCK:
+    with _ORDEN_CANDADO:
         if not inicializar_mt5():
             return {"error": "Sin conexión con MT5"}
         mt5.symbol_select(symbol, True)
-        sim_info = mt5.symbol_info(symbol)
+        simulado_info = mt5.symbol_info(symbol)
         tick = mt5.symbol_info_tick(symbol)
-        if sim_info is None or tick is None:
+        if simulado_info is None or tick is None:
             return {"error": f"Símbolo {symbol} no disponible en MT5"}
 
         compra = tipo.upper() == "BUY"
-        ref = tick.ask if compra else tick.bid
+        referencia = tick.ask if compra else tick.bid
         if compra:
-            tipo_orden = mt5.ORDER_TYPE_BUY_LIMIT if precio < ref else mt5.ORDER_TYPE_BUY_STOP
+            tipo_orden = mt5.ORDER_TYPE_BUY_LIMIT if precio < referencia else mt5.ORDER_TYPE_BUY_STOP
         else:
-            tipo_orden = mt5.ORDER_TYPE_SELL_LIMIT if precio > ref else mt5.ORDER_TYPE_SELL_STOP
+            tipo_orden = mt5.ORDER_TYPE_SELL_LIMIT if precio > referencia else mt5.ORDER_TYPE_SELL_STOP
 
-        request = {
+        peticion = {
             "action": mt5.TRADE_ACTION_PENDING,
             "symbol": symbol,
             "volume": float(volumen),
             "type": tipo_orden,
-            "price": round(float(precio), int(sim_info.digits)),
+            "price": round(float(precio), int(simulado_info.digits)),
             "deviation": 20,
             "magic": 234000,
             "comment": "Piña & Jara Terminal",
             "type_time": mt5.ORDER_TIME_GTC if hasta_cancelar else mt5.ORDER_TIME_DAY,
             "type_filling": mt5.ORDER_FILLING_RETURN,
         }
-        if sl and sl > 0:
-            request["sl"] = float(sl)
-        if tp and tp > 0:
-            request["tp"] = float(tp)
-        resultado = mt5.order_send(request)
+        if stop_loss and stop_loss > 0:
+            peticion["sl"] = float(stop_loss)
+        if take_profit and take_profit > 0:
+            peticion["tp"] = float(take_profit)
+        resultado = mt5.order_send(peticion)
 
     if resultado is None:
         return {"error": f"order_send devolvió None: {mt5.last_error()}"}
@@ -564,33 +611,35 @@ def colocar_orden_pendiente(symbol: str, tipo: str, volumen: float, precio: floa
                          f"{getattr(resultado, 'comment', '')}{extra}"}
     nombres = {mt5.ORDER_TYPE_BUY_LIMIT: "Buy Limit", mt5.ORDER_TYPE_BUY_STOP: "Buy Stop",
                mt5.ORDER_TYPE_SELL_LIMIT: "Sell Limit", mt5.ORDER_TYPE_SELL_STOP: "Sell Stop"}
-    return {"status": "success", "order": resultado.order, "price": request["price"],
+    return {"status": "success", "order": resultado.order, "price": peticion["price"],
             "volume": float(volumen), "symbol": symbol, "tipo": nombres.get(tipo_orden, "")}
 
+
+# TITULO CERRAR POSICION
 
 def cerrar_posicion(ticket: int) -> dict:
     """Cierra una posición abierta por su ticket (envía la orden contraria)."""
     with MT5_LOCK:
         if not inicializar_mt5():
             return {"error": "Sin conexión con MT5"}
-        pos = mt5.positions_get(ticket=int(ticket))
-        if not pos:
+        posicion = mt5.positions_get(ticket=int(ticket))
+        if not posicion:
             return {"error": f"No se encontró la posición {ticket} (¿ya está cerrada?)"}
-        p = pos[0]
+        p = posicion[0]
         symbol = p.symbol
         mt5.symbol_select(symbol, True)
-        sim_info = mt5.symbol_info(symbol)
+        simulado_info = mt5.symbol_info(symbol)
         tick = mt5.symbol_info_tick(symbol)
 
         # Compra (type 0) se cierra VENDIENDO al bid; venta (type 1) COMPRANDO al ask
         if p.type == mt5.ORDER_TYPE_BUY:
             tipo_cierre = mt5.ORDER_TYPE_SELL
-            precio = tick.bid if tick else sim_info.bid
+            precio = tick.bid if tick else simulado_info.bid
         else:
             tipo_cierre = mt5.ORDER_TYPE_BUY
-            precio = tick.ask if tick else sim_info.ask
+            precio = tick.ask if tick else simulado_info.ask
 
-        request = {
+        peticion = {
             "action": mt5.TRADE_ACTION_DEAL,
             "symbol": symbol,
             "volume": float(p.volume),
@@ -601,10 +650,10 @@ def cerrar_posicion(ticket: int) -> dict:
             "magic": 234000,
             "comment": "Cierre Piña & Jara",
             "type_time": mt5.ORDER_TIME_GTC,
-            "type_filling": _modo_llenado(sim_info),
+            "type_filling": _modo_llenado(simulado_info),
         }
         profit = p.profit + getattr(p, "swap", 0.0)
-        resultado = mt5.order_send(request)
+        resultado = mt5.order_send(peticion)
 
     if resultado is None:
         return {"error": f"order_send devolvió None: {mt5.last_error()}"}
@@ -615,29 +664,31 @@ def cerrar_posicion(ticket: int) -> dict:
     return {"status": "success", "profit": profit, "symbol": symbol}
 
 
-def modificar_sltp(ticket: int, sl=None, tp=None) -> dict:
+# TITULO MODIFICAR SLTP
+
+def modificar_sltp(ticket: int, stop_loss=None, take_profit=None) -> dict:
     """Cambia el Stop Loss / Take Profit de una posición abierta.
     None = deja el valor actual; 0 = lo quita. (Líneas arrastrables del gráfico.)"""
     with MT5_LOCK:
         if not inicializar_mt5():
             return {"error": "Sin conexión con MT5"}
-        pos = mt5.positions_get(ticket=int(ticket))
-        if not pos:
+        posicion = mt5.positions_get(ticket=int(ticket))
+        if not posicion:
             return {"error": f"No se encontró la posición {ticket} (¿ya está cerrada?)"}
-        p = pos[0]
+        p = posicion[0]
         info = mt5.symbol_info(p.symbol)
-        dig = int(getattr(info, "digits", 5) or 5)
-        nuevo_sl = float(p.sl) if sl is None else round(float(sl), dig)
-        nuevo_tp = float(p.tp) if tp is None else round(float(tp), dig)
-        request = {
+        digitos = int(getattr(info, "digits", 5) or 5)
+        nuevo_stop_loss = float(p.sl) if stop_loss is None else round(float(stop_loss), digitos)
+        nuevo_take_profit = float(p.tp) if take_profit is None else round(float(take_profit), digitos)
+        peticion = {
             "action": mt5.TRADE_ACTION_SLTP,
             "symbol": p.symbol,
             "position": int(ticket),
-            "sl": nuevo_sl,
-            "tp": nuevo_tp,
+            "sl": nuevo_stop_loss,
+            "tp": nuevo_take_profit,
             "magic": 234000,
         }
-        resultado = mt5.order_send(request)
+        resultado = mt5.order_send(peticion)
 
     if resultado is None:
         return {"error": f"order_send devolvió None: {mt5.last_error()}"}
@@ -646,13 +697,15 @@ def modificar_sltp(ticket: int, sl=None, tp=None) -> dict:
                   10027: "activa 'Algo Trading' en MT5",
                   10025: "sin cambios"}.get(resultado.retcode, getattr(resultado, "comment", ""))
         return {"error": f"No se pudo modificar (retcode {resultado.retcode}): {motivo}"}
-    return {"status": "success", "ticket": int(ticket), "sl": nuevo_sl, "tp": nuevo_tp}
+    return {"status": "success", "ticket": int(ticket), "sl": nuevo_stop_loss, "tp": nuevo_take_profit}
 
 
 _NOMBRE_PENDIENTE = {2: "Buy Limit", 3: "Sell Limit", 4: "Buy Stop", 5: "Sell Stop"}
 
 
-def modificar_orden(ticket: int, precio=None, sl=None, tp=None,
+# TITULO MODIFICAR ORDEN
+
+def modificar_orden(ticket: int, precio=None, stop_loss=None, take_profit=None,
                     caducidad=None, expiracion=None) -> dict:
     """Modifica una orden PENDIENTE (precio de entrada, SL, TP y/o caducidad).
     None = conserva el valor actual; 0 en sl/tp = lo quita.
@@ -667,22 +720,22 @@ def modificar_orden(ticket: int, precio=None, sl=None, tp=None,
             return {"error": f"No se encontró la orden {ticket} (¿ya se ejecutó o se canceló?)"}
         o = ords[0]
         info = mt5.symbol_info(o.symbol)
-        dig = int(getattr(info, "digits", 5) or 5)
-        request = {
+        digitos = int(getattr(info, "digits", 5) or 5)
+        peticion = {
             "action": mt5.TRADE_ACTION_MODIFY,
             "order": int(ticket),
             "symbol": o.symbol,
-            "price": float(o.price_open) if precio is None else round(float(precio), dig),
-            "sl": float(o.sl) if sl is None else round(float(sl), dig),
-            "tp": float(o.tp) if tp is None else round(float(tp), dig),
+            "price": float(o.price_open) if precio is None else round(float(precio), digitos),
+            "sl": float(o.sl) if stop_loss is None else round(float(stop_loss), digitos),
+            "tp": float(o.tp) if take_profit is None else round(float(take_profit), digitos),
             "type_time": o.type_time,
             "expiration": o.time_expiration,
         }
         if caducidad:
-            request["type_time"] = {"gtc": mt5.ORDER_TIME_GTC, "day": mt5.ORDER_TIME_DAY,
+            peticion["type_time"] = {"gtc": mt5.ORDER_TIME_GTC, "day": mt5.ORDER_TIME_DAY,
                                     "specified": mt5.ORDER_TIME_SPECIFIED}.get(caducidad, o.type_time)
-            request["expiration"] = int(expiracion or 0) if caducidad == "specified" else 0
-        resultado = mt5.order_send(request)
+            peticion["expiration"] = int(expiracion or 0) if caducidad == "specified" else 0
+        resultado = mt5.order_send(peticion)
 
     if resultado is None:
         return {"error": f"order_send devolvió None: {mt5.last_error()}"}
@@ -693,13 +746,15 @@ def modificar_orden(ticket: int, precio=None, sl=None, tp=None,
                   10027: "activa 'Algo Trading' en MT5",
                   10025: "sin cambios"}.get(resultado.retcode, getattr(resultado, "comment", ""))
         return {"error": f"No se pudo modificar la orden (retcode {resultado.retcode}): {motivo}"}
-    return {"status": "success", "ticket": int(ticket), "price": request["price"],
-            "sl": request["sl"], "tp": request["tp"],
-            "tt": int(request["type_time"]), "ex": int(request["expiration"] or 0)}
+    return {"status": "success", "ticket": int(ticket), "price": peticion["price"],
+            "sl": peticion["sl"], "tp": peticion["tp"],
+            "tt": int(peticion["type_time"]), "ex": int(peticion["expiration"] or 0)}
 
 
 _DOM_SUSCRITOS = set()   # símbolos con market_book_add ya hecho (se suscribe una vez)
 
+
+# TITULO OBTENER DOM
 
 def obtener_dom(symbol: str, niveles: int = 8) -> dict:
     """Profundidad de mercado (DOM) del símbolo: niveles de venta (ask) y compra (bid)
@@ -736,6 +791,8 @@ def obtener_dom(symbol: str, niveles: int = 8) -> dict:
             "disponible": bool(asks or bids)}
 
 
+# TITULO ELIMINAR ORDEN
+
 def eliminar_orden(ticket: int) -> dict:
     """Cancela una orden PENDIENTE."""
     with MT5_LOCK:
@@ -755,3 +812,16 @@ def eliminar_orden(ticket: int) -> dict:
                          f"{getattr(resultado, 'comment', '')}{extra}"}
     return {"status": "success", "ticket": int(ticket),
             "tipo": _NOMBRE_PENDIENTE.get(o.type, ""), "symbol": o.symbol}
+
+
+# -------------------------------------------------------------------------------------------------------
+# --------------------------------------- FIN Piña y Jara mt5 .PY ---------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

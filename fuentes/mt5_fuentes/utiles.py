@@ -25,6 +25,8 @@ from fuentes.mt5_fuentes.constantes import _ALIAS
 from fuentes.mt5_fuentes.errores import ErrorMT5
 
 
+# TITULO NUM
+
 def _num(v: Any, dec: int = 5) -> float | None:
     """Convierte un valor a float redondeado y seguro para JSON.
 
@@ -40,6 +42,8 @@ def _num(v: Any, dec: int = 5) -> float | None:
     return round(f, dec)
 
 
+# TITULO NIVEL
+
 def _nivel(v: Any) -> float | None:
     """Convierte un nivel de precio (SL/TP) a float, tratando 0 o vacío como "sin nivel" (None).
 
@@ -47,14 +51,18 @@ def _nivel(v: Any) -> float | None:
     return _num(v) if v else None
 
 
-def _hora_utc(ts: Any, mt5: Any) -> str:
+# TITULO HORA UTC
+
+def _hora_utc(marca_tiempo: Any, mt5: Any) -> str:
     """Convierte un timestamp en segundos a texto 'AAAA-MM-DD HH:MM:SS UTC'.
 
     El parámetro `mt5` no se usa; se conserva para mantener la firma de quienes
     la llaman. Nota: MT5 entrega horas del servidor del broker, que aquí se
     interpretan como UTC sin aplicar desfase."""
-    return datetime.fromtimestamp(int(ts), tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S") + " UTC"
+    return datetime.fromtimestamp(int(marca_tiempo), tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S") + " UTC"
 
+
+# TITULO FECHA UTC
 
 def _fecha_utc(texto: str, campo: str) -> datetime:
     """Convierte un texto 'AAAA-MM-DD' a datetime a medianoche UTC.
@@ -67,6 +75,8 @@ def _fecha_utc(texto: str, campo: str) -> datetime:
         raise ErrorMT5(f"'{campo}' debe tener formato AAAA-MM-DD.") from None
 
 
+# TITULO COMO TUPLA
+
 def _como_tupla(mt5: Any, resultado: Any, accion: str) -> Any:
     """Normaliza el resultado de una consulta de MT5 que devuelve None cuando no hay datos.
 
@@ -74,13 +84,15 @@ def _como_tupla(mt5: Any, resultado: Any, accion: str) -> Any:
     ErrorMT5 ("MT5 falló al <accion>"); si no, devuelve una tupla vacía (simple
     ausencia de datos). Si hay resultado, lo devuelve sin cambios."""
     if resultado is None:
-        err = mt5.last_error()
+        error = mt5.last_error()
         # RES_S_OK (código 1) significa "sin error"; cualquier otro código es un fallo real.
-        if err and err[0] != getattr(mt5, "RES_S_OK", 1):
-            raise ErrorMT5(f"MT5 falló al {accion}: {err}")
+        if error and error[0] != getattr(mt5, "RES_S_OK", 1):
+            raise ErrorMT5(f"MT5 falló al {accion}: {error}")
         return ()
     return resultado
 
+
+# TITULO RESOLVER
 
 def _resolver(mt5: Any, texto: str) -> str:
     """Resuelve el nombre de un símbolo tal como lo llama el broker.
@@ -101,6 +113,8 @@ def _resolver(mt5: Any, texto: str) -> str:
             return alias
     return bruto
 
+
+# TITULO SIMBOLO TEMPORAL
 
 @contextmanager
 def _simbolo_temporal(mt5: Any, simbolo: str) -> Iterator[Any]:
@@ -128,11 +142,15 @@ def _simbolo_temporal(mt5: Any, simbolo: str) -> Iterator[Any]:
                 pass
 
 
+# TITULO TAMANO PIP
+
 def _tamano_pip(info: Any) -> float:
     """Tamaño de un 'pip' en precio: 10 puntos en símbolos de 3 o 5 decimales; el punto en el resto."""
     punto = float(getattr(info, "point", 0) or 0)
     return punto * 10 if getattr(info, "digits", 0) in (3, 5) else punto
 
+
+# TITULO TIPO ORDEN
 
 def _tipo_orden(mt5: Any, tipo: str) -> int:
     """Traduce el tipo de operación en texto ('COMPRA'/'BUY' u otro) a la constante ORDER_TYPE de MT5.

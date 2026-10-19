@@ -27,6 +27,8 @@ from componentes_plataforma.flujo_precios import atributos as _en_vivo, interval
 from herramientas.puente_mt5 import NOMBRE_PROVEEDOR, obtener_precio_actual
 
 
+# TITULO RENDERIZAR CABECERA PRECIO
+
 def renderizar_cabecera_precio(activo_visible: str, digits: int) -> None:
     """Pinta la barra de precio (símbolo, último precio, Bid/Ask y estado de conexión) y la mantiene refrescada.
 
@@ -35,7 +37,7 @@ def renderizar_cabecera_precio(activo_visible: str, digits: int) -> None:
     el último color por símbolo, para saber si el precio subió o bajó respecto al refresco anterior.
     No devuelve nada; el HTML se emite directamente con `st.markdown`.
     """
-    @st.fragment(run_every=_intervalo("2s"))   # con feed: lo pinta flujo_vivo.py
+    @st.fragment(run_every=_intervalo("2s"))   # con feed: lo pinta flujo_precios/
     def _cabecera_precio():
         """Fragmento autorrefrescable: lee el tick, decide el color de variación y emite la barra HTML."""
         # Tick actual del símbolo; si MT5 devuelve la clave "error" se considera desconectado.
@@ -57,15 +59,15 @@ def renderizar_cabecera_precio(activo_visible: str, digits: int) -> None:
         if conectado:
             anterior = st.session_state.get(clave, precio_actual)
             if precio_actual > anterior:
-                color_var_activo = "#3fb950"
+                color_variacion_activo = "#3fb950"
             elif precio_actual < anterior:
-                color_var_activo = "#f85149"
+                color_variacion_activo = "#f85149"
             else:
-                color_var_activo = st.session_state.get(clave_color, "#3fb950")
+                color_variacion_activo = st.session_state.get(clave_color, "#3fb950")
             st.session_state[clave] = precio_actual
-            st.session_state[clave_color] = color_var_activo
+            st.session_state[clave_color] = color_variacion_activo
         else:
-            color_var_activo = "#8b949e"
+            color_variacion_activo = "#8b949e"
 
         # Indicador de estado (punto de color + texto) de la derecha de la barra.
         color_estado = "#3fb950" if conectado else "#f85149"
@@ -77,8 +79,8 @@ def renderizar_cabecera_precio(activo_visible: str, digits: int) -> None:
                 <div style='display: flex; align-items: center; gap: 14px;'>
                     <span style='font-size: 20px; font-weight: bold; color: #ffffff;'>{escape(activo_visible)}</span>
                     <span style='background: #30363d; color: #8b949e; padding: 2px 8px; border-radius: 4px; font-size: 11px;'>{NOMBRE_PROVEEDOR}</span>
-                    <span {_en_vivo(activo_visible, 'px', d=digits, flash=1)} style='font-size: 22px; font-weight: bold; font-family: monospace; color: {color_var_activo};'>{precio_actual:,.{digits}f}</span>
-                    <span style='font-size: 14px; font-weight: 600; color: {color_var_activo};'>Bid: <span {_en_vivo(activo_visible, 'bid', d=digits)}>{bid:,.{digits}f}</span> | Ask: <span {_en_vivo(activo_visible, 'ask', d=digits)}>{ask:,.{digits}f}</span></span>
+                    <span {_en_vivo(activo_visible, 'px', d=digits, flash=1)} style='font-size: 22px; font-weight: bold; font-family: monospace; color: {color_variacion_activo};'>{precio_actual:,.{digits}f}</span>
+                    <span style='font-size: 14px; font-weight: 600; color: {color_variacion_activo};'>Bid: <span {_en_vivo(activo_visible, 'bid', d=digits)}>{bid:,.{digits}f}</span> | Ask: <span {_en_vivo(activo_visible, 'ask', d=digits)}>{ask:,.{digits}f}</span></span>
                 </div>
                 <div style='font-size: 13px; color: #8b949e; font-weight: 600; display: flex; align-items: center; gap: 6px;'>
                     {texto_estado} <span style='color: {color_estado}; font-size: 16px;'>●</span>

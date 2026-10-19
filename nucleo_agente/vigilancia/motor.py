@@ -28,11 +28,15 @@ from nucleo_agente.vigilancia.configuracion import ESPERA_MOTOR_S, NOMBRE_HILO_M
 from nucleo_agente.vigilancia.utilidades import _consultar
 
 
+# TITULO CHEQUEO EN CURSO
+
 def _chequeo_en_curso(vid: str) -> bool:
     """Indica si ya hay un hilo de chequeo vivo para esa vigilancia (evita lanzar dos a la vez)."""
     nombre = f"{PREFIJO_HILO_CHEQUEO}{vid}"
     return any(t.name == nombre and t.is_alive() for t in threading.enumerate())
 
+
+# TITULO CHEQUEAR SEGURO
 
 def _chequear_seguro(vid: str) -> None:
     """Ejecuta chequear(vid) capturando cualquier excepción (se imprime) para que nunca tumbe el hilo."""
@@ -41,6 +45,8 @@ def _chequear_seguro(vid: str) -> None:
     except Exception:  # noqa: BLE001
         traceback.print_exc()
 
+
+# TITULO TICK
 
 def tick(sincrono: bool = False) -> int:
     """Una pasada del motor: caduca lo vencido y lanza los chequeos que ya tocan. Devuelve cuántos lanzó."""
@@ -66,6 +72,8 @@ def tick(sincrono: bool = False) -> int:
     return lanzados
 
 
+# TITULO BUCLE
+
 def _bucle() -> None:
     """Bucle infinito del hilo del motor: ejecuta tick() y duerme ESPERA_MOTOR_S segundos; los errores se imprimen."""
     while True:
@@ -77,13 +85,15 @@ def _bucle() -> None:
 
 
 # Evita que dos llamadas simultáneas a iniciar_motor creen dos motores.
-_LOCK_MOTOR = threading.Lock()
+_CANDADO_MOTOR = threading.Lock()
 
+
+# TITULO INICIAR MOTOR
 
 def iniciar_motor() -> bool:
     """Arranca el motor si no está ya en marcha (idempotente, también si Streamlit recarga el módulo).
     Devuelve True si lo arrancó ahora."""
-    with _LOCK_MOTOR:
+    with _CANDADO_MOTOR:
         if any(t.name == NOMBRE_HILO_MOTOR and t.is_alive() for t in threading.enumerate()):
             return False
         threading.Thread(target=_bucle, name=NOMBRE_HILO_MOTOR, daemon=True).start()

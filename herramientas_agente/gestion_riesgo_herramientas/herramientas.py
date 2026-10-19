@@ -29,6 +29,8 @@ from herramientas_agente.base import cargar_json, herramienta
 _ESQ = cargar_json(Path(__file__).parent / "esquemas.json")
 
 
+# TITULO CALCULAR TAMANO POSICION
+
 @herramienta(**_ESQ["calcular_tamano_posicion"])
 def calcular_tamano_posicion(
     simbolo: str,
@@ -52,18 +54,18 @@ def calcular_tamano_posicion(
     capital = capital_usd or cuenta.get("equidad") or 10000.0
     monto_riesgo_usd = capital * (porcentaje_riesgo / 100.0)
 
-    sym_upper = simbolo.strip().upper()
+    simbolo_upper = simbolo.strip().upper()
 
     # Valor real del pip por lote según MT5 (respeta contrato y conversión a la moneda de la cuenta)
     try:
-        esp = mt5_fuente.especificacion_simbolo(sym_upper)
+        esp = mt5_fuente.especificacion_simbolo(simbolo_upper)
     except mt5_fuente.ErrorMT5:
         esp = {}
     valor_pip_lote = esp.get("valor_pip_por_lote")
     if not valor_pip_lote or valor_pip_lote <= 0:
         return {
             "error": (
-                f"No se pudo obtener de MT5 el valor del pip de '{sym_upper}', así que no se calcula el lotaje "
+                f"No se pudo obtener de MT5 el valor del pip de '{simbolo_upper}', así que no se calcula el lotaje "
                 "(una estimación podría ser muy errónea). Verifica el símbolo con mt5_buscar_simbolos."
             ),
         }
@@ -83,7 +85,7 @@ def calcular_tamano_posicion(
 
     resultado = {
         "fuente": "Calculadora de Gestión de Riesgo y Lote (valor del pip calculado por MT5)",
-        "simbolo": esp.get("simbolo", sym_upper),
+        "simbolo": esp.get("simbolo", simbolo_upper),
         "capital_evaluado_usd": capital,
         "porcentaje_riesgo_pct": porcentaje_riesgo,
         "monto_arriesgado_usd": round(monto_riesgo_usd, 2),
@@ -100,6 +102,8 @@ def calcular_tamano_posicion(
         )
     return resultado
 
+
+# TITULO CALCULAR CRITERIO KELLY
 
 @herramienta(**_ESQ["calcular_criterio_kelly"])
 def calcular_criterio_kelly(
@@ -122,10 +126,10 @@ def calcular_criterio_kelly(
 
     # Fórmula de Kelly: K% = (b * p - q) / b
     kelly_fraction = (b * p - q) / b if b > 0 else 0.0
-    kelly_pct = max(0.0, kelly_fraction * 100.0)
+    kelly_porcentaje = max(0.0, kelly_fraction * 100.0)
 
-    half_kelly_pct = kelly_pct / 2.0
-    quarter_kelly_pct = kelly_pct / 4.0
+    mitad_kelly_porcentaje = kelly_porcentaje / 2.0
+    quarter_kelly_porcentaje = kelly_porcentaje / 4.0
 
     expectativa_matematica = (p * b) - q
 
@@ -137,9 +141,9 @@ def calcular_criterio_kelly(
         },
         "expectativa_matematica_esperada_por_unidad": round(expectativa_matematica, 4),
         "resultados_kelly": {
-            "full_kelly_pct": round(kelly_pct, 2),
-            "half_kelly_sugerido_pct": round(half_kelly_pct, 2),
-            "quarter_kelly_conservador_pct": round(quarter_kelly_pct, 2),
+            "full_kelly_pct": round(kelly_porcentaje, 2),
+            "half_kelly_sugerido_pct": round(mitad_kelly_porcentaje, 2),
+            "quarter_kelly_conservador_pct": round(quarter_kelly_porcentaje, 2),
         },
         "diagnostico": (
             "Expectativa matemática positiva. Se recomienda aplicar Half-Kelly para mitigar volatilidad."
@@ -148,6 +152,8 @@ def calcular_criterio_kelly(
         ),
     }
 
+
+# TITULO ANALIZAR EXPOSICION DIVISAS
 
 @herramienta(**_ESQ["analizar_exposicion_divisas"])
 def analizar_exposicion_divisas() -> dict[str, Any]:
@@ -170,19 +176,19 @@ def analizar_exposicion_divisas() -> dict[str, Any]:
     # Acumulador por divisa: lotes comprados, vendidos y neto.
     exposicion: dict[str, dict[str, float]] = {}
 
-    for pos in posiciones:
-        sym = pos.get("simbolo", "").upper()
-        volumen = pos.get("lotes", pos.get("volumen", 0.0))
-        tipo = pos.get("tipo", "BUY").upper()
+    for posicion in posiciones:
+        simbolo = posicion.get("simbolo", "").upper()
+        volumen = posicion.get("lotes", posicion.get("volumen", 0.0))
+        tipo = posicion.get("tipo", "BUY").upper()
 
-        if len(sym) == 6 and sym.isalpha():
-            base = sym[:3]
-            quote = sym[3:]
-        elif "USD" in sym and sym != "USD":
-            base = sym.replace("USD", "")
+        if len(simbolo) == 6 and simbolo.isalpha():
+            base = simbolo[:3]
+            quote = simbolo[3:]
+        elif "USD" in simbolo and simbolo != "USD":
+            base = simbolo.replace("USD", "")
             quote = "USD"
         else:
-            base = sym
+            base = simbolo
             quote = "USD"
 
         if base not in exposicion:

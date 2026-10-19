@@ -27,6 +27,8 @@ from .constantes import CANDADO_MT5, TTL_SIMBOLOS
 _SIMBOLOS = {"t": 0.0, "datos": []}
 
 
+# TITULO LISTAR SIMBOLOS
+
 def listar_simbolos() -> list:
     """Catálogo de símbolos del terminal para la ventana "Comparar" del gráfico:
     n = nombre, d = descripción, c = categoría (primer tramo de la ruta del símbolo en MT5).

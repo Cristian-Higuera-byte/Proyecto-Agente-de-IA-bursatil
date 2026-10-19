@@ -26,6 +26,8 @@ escriben en disco ni modifican estado de sesión.
 import pandas as pd  # type: ignore[import-untyped]
 import yfinance as yf  # type: ignore[import-untyped]
 
+# TITULO OBTENER DATOS HISTORICOS
+
 def obtener_datos_historicos(ticker: str, periodo: str = "6mo", intervalo: str = "1d") -> pd.DataFrame:
     """
     Descarga el historial de precios de un activo desde Yahoo Finance.
@@ -51,6 +53,8 @@ def obtener_datos_historicos(ticker: str, periodo: str = "6mo", intervalo: str =
         raise ValueError(f"No se encontraron datos para el ticker '{ticker}'.")
 
     return historico
+
+# TITULO OBTENER INFO GENERAL
 
 def obtener_info_general(ticker: str) -> dict:
     """
@@ -79,6 +83,8 @@ def obtener_info_general(ticker: str) -> dict:
     }
     return campos_relevantes
 
+# TITULO OBTENER PRECIO EN FECHA
+
 def obtener_precio_en_fecha(ticker: str, fecha: str) -> float:
     """
     Obtiene el precio de cierre de un activo en una fecha específica
@@ -104,8 +110,10 @@ def obtener_precio_en_fecha(ticker: str, fecha: str) -> float:
 
     # Toma el dato más cercano a la fecha solicitada
     historico.index = historico.index.tz_localize(None)
-    idx_cercano = historico.index.get_indexer([fecha_dt], method="nearest")[0]
-    return round(historico.iloc[idx_cercano]["Close"], 2)
+    indice_cercano = historico.index.get_indexer([fecha_dt], method="nearest")[0]
+    return round(historico.iloc[indice_cercano]["Close"], 2)
+
+# TITULO OBTENER NOTICIAS ACTIVO
 
 def obtener_noticias_activo(ticker: str, limite: int = 5) -> list:
     """
@@ -120,34 +128,36 @@ def obtener_noticias_activo(ticker: str, limite: int = 5) -> list:
     """
     # Cualquier error de red/estructura se devuelve como un elemento con la clave "error".
     try:
-        tk = yf.Ticker(ticker)
-        noticias = tk.news
+        ticket = yf.Ticker(ticker)
+        noticias = ticket.news
 
         if not noticias:
             return [{"titulo": "No hay noticias recientes disponibles para este ticker."}]
 
         # Se recorren solo las primeras `limite` noticias.
         resultados = []
-        for item in noticias[:limite]:
+        for elemento in noticias[:limite]:
             # yfinance maneja la estructura de diccionarios (puede variar según la versión)
-            contenido_noticia = item.get("content", item)
+            contenido_noticia = elemento.get("content", elemento)
 
             titulo = contenido_noticia.get("title", "Sin título")
             publisher = contenido_noticia.get("publisher", "Desconocido")
 
             # Extraer enlace si está disponible
-            link_obj = contenido_noticia.get("clickThroughUrl", {})
-            link = link_obj.get("url", "#") if isinstance(link_obj, dict) else "#"
+            enlace_obj = contenido_noticia.get("clickThroughUrl", {})
+            enlace = enlace_obj.get("url", "#") if isinstance(enlace_obj, dict) else "#"
 
             resultados.append({
                 "titulo": titulo,
                 "fuente": publisher,
-                "enlace": link
+                "enlace": enlace
             })
 
         return resultados
     except Exception as e:
         return [{"error": f"No se pudieron obtener noticias para {ticker}: {str(e)}"}]
+
+# TITULO OBTENER INDICADORES MACRO
 
 def obtener_indicadores_macro() -> dict:
     """
@@ -168,17 +178,17 @@ def obtener_indicadores_macro() -> dict:
     try:
         # Para cada proxy: último cierre y variación frente al cierre previo.
         for ticker, descripcion in indicadores.items():
-            tk = yf.Ticker(ticker)
-            hist = tk.history(period="5d")
-            if not hist.empty:
-                precio_actual = float(hist["Close"].iloc[-1])
-                precio_anterior = float(hist["Close"].iloc[-2]) if len(hist) > 1 else precio_actual
-                variacion_pct = ((precio_actual - precio_anterior) / precio_anterior) * 100
+            ticket = yf.Ticker(ticker)
+            historial = ticket.history(period="5d")
+            if not historial.empty:
+                precio_actual = float(historial["Close"].iloc[-1])
+                precio_anterior = float(historial["Close"].iloc[-2]) if len(historial) > 1 else precio_actual
+                variacion_porcentaje = ((precio_actual - precio_anterior) / precio_anterior) * 100
 
                 resultados_macro[ticker] = {
                     "nombre": descripcion,
                     "valor_actual": round(precio_actual, 2),
-                    "variacion_diaria_pct": round(variacion_pct, 2)
+                    "variacion_diaria_pct": round(variacion_porcentaje, 2)
                 }
             else:
                 resultados_macro[ticker] = {"nombre": descripcion, "error": "Sin datos recientes"}

@@ -22,6 +22,8 @@ from fuentes import mt5_fuentes as mt5_fuente
 from fuentes import yfinance_fuente as yf_fuente
 
 
+# TITULO MAPEAR SIMBOLO YF
+
 def _mapear_simbolo_yf(simbolo: str) -> str:
     """Convierte un símbolo estilo MT5 al ticker equivalente de Yahoo Finance.
 
@@ -40,6 +42,8 @@ def _mapear_simbolo_yf(simbolo: str) -> str:
     return s
 
 
+# TITULO OBTENER RETORNOS HISTORICOS
+
 def _obtener_retornos_historicos(simbolo: str, cantidad: int = 100) -> list[float]:
     """Obtiene la serie de retornos diarios (variación relativa, no en %) de un activo.
 
@@ -52,17 +56,17 @@ def _obtener_retornos_historicos(simbolo: str, cantidad: int = 100) -> list[floa
     
     # Fuente primaria: velas diarias de MT5.
     try:
-        res = mt5_fuente.velas(simbolo=s_clean, timeframe="D1", cantidad=cantidad, ultimas_velas=cantidad)
-        cierres = [v["close"] for v in res.get("ultimas_velas", []) if v.get("close")]
+        resultado = mt5_fuente.velas(simbolo=s_clean, timeframe="D1", cantidad=cantidad, ultimas_velas=cantidad)
+        cierres = [v["close"] for v in resultado.get("ultimas_velas", []) if v.get("close")]
     except Exception:
         pass
 
     # Respaldo: Yahoo Finance si MT5 no entregó datos suficientes.
     if not cierres or len(cierres) < 10:
         try:
-            yf_sym = _mapear_simbolo_yf(s_clean)
-            res_yf = yf_fuente.historico(simbolo=yf_sym, periodo="6mo", intervalo="1d", ultimas_velas=cantidad)
-            cierres = [v["cierre"] for v in res_yf.get("ultimas_velas", []) if v.get("cierre")]
+            yahoo_simbolo = _mapear_simbolo_yf(s_clean)
+            resultado_yahoo = yf_fuente.historico(simbolo=yahoo_simbolo, periodo="6mo", intervalo="1d", ultimas_velas=cantidad)
+            cierres = [v["cierre"] for v in resultado_yahoo.get("ultimas_velas", []) if v.get("cierre")]
         except Exception:
             pass
 

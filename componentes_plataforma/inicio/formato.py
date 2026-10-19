@@ -17,6 +17,8 @@ Son funciones puras (sin efectos secundarios) usadas por cuenta.py, posiciones.p
 """
 
 
+# TITULO FORMATEAR DINERO
+
 def formatear_dinero(v, dec=2):
     """Formatea `v` como dinero en dólares con separador de miles y `dec` decimales (por defecto 2).
 
@@ -29,15 +31,19 @@ def formatear_dinero(v, dec=2):
         return "—"
 
 
-def icono_material(nombre: str, color: str = "", size: int = 0) -> str:
+# TITULO ICONO MATERIAL
+
+def icono_material(nombre: str, color: str = "", tamano: int = 0) -> str:
     """HTML de un ícono de la fuente Material Symbols (clase `mi`) con nombre de glifo `nombre`.
 
     `color` (CSS) y `size` (px) son opcionales y se aplican como estilo en línea cuando se indican.
     """
     # Estilo en línea solo con las propiedades pedidas.
-    estilo = (f"color:{color};" if color else "") + (f"font-size:{size}px;" if size else "")
+    estilo = (f"color:{color};" if color else "") + (f"font-size:{tamano}px;" if tamano else "")
     return f"<span class='mi' style='{estilo}'>{nombre}</span>"
 
+
+# TITULO ESTADO MARGEN
 
 def estado_margen(ml: float) -> tuple:
     """(texto, color) del semáforo del nivel de margen.

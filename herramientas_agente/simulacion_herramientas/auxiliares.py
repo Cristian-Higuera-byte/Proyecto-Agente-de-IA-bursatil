@@ -44,6 +44,8 @@ ELASTICIDAD_CRUZADA: dict[str, dict[str, float]] = {
 }
 
 
+# TITULO NORMALIZAR SIMBOLO
+
 def _normalizar_simbolo(simbolo: str) -> str:
     """Devuelve el símbolo en mayúsculas sin "/" ni "-", unificando alias (GOLD a XAUUSD; OIL/WTI/CL a CL=F)."""
     s = (simbolo or "").strip().upper().replace("/", "").replace("-", "")
@@ -53,6 +55,8 @@ def _normalizar_simbolo(simbolo: str) -> str:
         return "CL=F"
     return s
 
+
+# TITULO ESTIMAR TAMANO CONTRATO
 
 def _estimar_tamano_contrato(simbolo: str) -> float:
     """Estima las unidades por lote del símbolo según su tipo: oro 100, petróleo 1000, índices 10 y forex 100.000.

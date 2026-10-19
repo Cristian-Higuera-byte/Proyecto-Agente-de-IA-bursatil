@@ -23,63 +23,81 @@ Transportes y Servicios Ltda.
     var DEFS = {};
     var LISTA_DEFS = [];
     // GRUPOS_IND: categorías que muestra la ventana de selección
-    var GRUPOS_IND = ['Tendencia', 'Osciladores', 'Volatilidad', 'Volumen', 'Bill Williams', 'Niveles'];
+    var GRUPOS_INDICADOR = ['Tendencia', 'Osciladores', 'Volatilidad', 'Volumen', 'Bill Williams', 'Niveles'];
     // PALETA_IND: colores que se asignan a las segundas y siguientes instancias de un mismo indicador
-    var PALETA_IND = ['#f5c518', '#3399ff', '#a78bfa', '#ff6600', '#e056fd', '#26a69a', '#ef5350', '#00bcd4'];
+    var PALETA_INDICADOR = ['#f5c518', '#3399ff', '#a78bfa', '#ff6600', '#e056fd', '#26a69a', '#ef5350', '#00bcd4'];
+
+    // TITULO DEF
 
     /** Registra la definición d de un indicador en el catálogo (DEFS por id y LISTA_DEFS en orden) y la devuelve. */
     function def(d){ DEFS[d.id] = d; LISTA_DEFS.push(d); return d; }
+    // TITULO P NUM
+
     /**
      * Crea la descripción de un parámetro numérico: clave k, nombre n, valor por defecto d, límites min y max y paso
      * (1 por defecto).
      */
-    function pNum(k, n, d, min, max, paso){ return { k: k, n: n, t: 'num', d: d, min: min, max: max, paso: paso || 1 }; }
+    function pNumero(k, n, d, min, max, paso){ return { k: k, n: n, t: 'num', d: d, min: min, max: max, paso: paso || 1 }; }
+    // TITULO P SEL
+
     /**
      * Crea la descripción de un parámetro de lista desplegable: clave k, nombre n, valor por defecto d y opciones o
      * [[valor, texto]].
      */
-    function pSel(k, n, d, o){ return { k: k, n: n, t: 'sel', d: d, o: o }; }
+    function pSeleccion(k, n, d, o){ return { k: k, n: n, t: 'sel', d: d, o: o }; }
 
     // OPC_PRECIO: opciones del parámetro «Aplicar a» [valor, texto]
-    var OPC_PRECIO = [['close', 'Cierre'], ['open', 'Apertura'], ['high', 'Máximo'], ['low', 'Mínimo'], ['hl2', 'Mediana (H+L)/2'],
+    var OPCION_PRECIO = [['close', 'Cierre'], ['open', 'Apertura'], ['high', 'Máximo'], ['low', 'Mínimo'], ['hl2', 'Mediana (H+L)/2'],
                       ['hlc3', 'Típico (H+L+C)/3'], ['ohlc4', 'Promedio (O+H+L+C)/4'], ['hlcc4', 'Ponderado (H+L+2C)/4']];
     // OPC_MA: métodos de media móvil disponibles [valor, texto]
-    var OPC_MA = [['sma', 'Simple'], ['ema', 'Exponencial'], ['smma', 'Suavizada'], ['lwma', 'Ponderada lineal']];
+    var OPCION_MA = [['sma', 'Simple'], ['ema', 'Exponencial'], ['smma', 'Suavizada'], ['lwma', 'Ponderada lineal']];
+    // TITULO P PRECIO
+
     /**
      * Parámetro estándar «Aplicar a» (tipo de precio de entrada) con d como valor por defecto (cierre si no se
      * indica).
      */
-    function pPrecio(d){ return pSel('precio', 'Aplicar a', d || 'close', OPC_PRECIO); }
+    function pPrecio(d){ return pSeleccion('precio', 'Aplicar a', d || 'close', OPCION_PRECIO); }
+    // TITULO P PERIODO
+
     /** Parámetro estándar «Periodo» con valor por defecto d y máximo max (500 si no se indica). */
-    function pPeriodo(d, max){ return pNum('periodo', 'Periodo', d, 1, max || 500, 1); }
+    function pPeriodo(d, max){ return pNumero('periodo', 'Periodo', d, 1, max || 500, 1); }
+    // TITULO P DESP
+
     /** Parámetro estándar «Desplazamiento (velas)» entre -100 y 100, por defecto 0. */
-    function pDesp(){ return pNum('desp', 'Desplazamiento (velas)', 0, -100, 100, 1); }
+    function pDesp(){ return pNumero('desp', 'Desplazamiento (velas)', 0, -100, 100, 1); }
+
+    // TITULO COL HIST SIGNO
 
     // Colores de histograma: más intenso cuando la barra crece en su sentido
     /**
      * Calcula los colores de un histograma con signo: verde o rojo según el signo y más intenso cuando la barra crece
      * en su sentido. Devuelve un array de colores alineado.
      */
-    function colHistSigno(vals){
+    function columnaHistorialSigno(vals){
       return vals.map(function(h, i){
-        if (!esNum(h)) return null;
-        var prev = (i > 0 && esNum(vals[i-1])) ? vals[i-1] : 0;
+        if (!esNumero(h)) return null;
+        var prev = (i > 0 && esNumero(vals[i-1])) ? vals[i-1] : 0;
         return h >= 0 ? (h >= prev ? 'rgba(63,185,80,0.9)' : 'rgba(63,185,80,0.45)')
                       : (h <= prev ? 'rgba(248,81,73,0.9)' : 'rgba(248,81,73,0.45)');
       });
     }
+    // TITULO COL HIST SUBE
+
     // Verde si sube respecto a la barra anterior, rojo si baja (Awesome, Accelerator…)
     /**
      * Calcula los colores de un histograma por dirección: verde si sube respecto a la barra anterior y rojo si baja
      * (Awesome, Accelerator). Devuelve un array de colores alineado.
      */
-    function colHistSube(vals){
+    function columnaHistorialSube(vals){
       return vals.map(function(h, i){
-        if (!esNum(h)) return null;
-        var prev = (i > 0 && esNum(vals[i-1])) ? vals[i-1] : h;
+        if (!esNumero(h)) return null;
+        var prev = (i > 0 && esNumero(vals[i-1])) ? vals[i-1] : h;
         return h >= prev ? '#3fb950' : '#f85149';
       });
     }
+
+    // TITULO DEF MEDIA
 
     // ================= TENDENCIA (sobre el precio) =================
     /**
@@ -109,10 +127,10 @@ Transportes y Servicios Ltda.
     defMedia('hma', 'HMA — Media de Hull', 'HMA', function(a, p){ return mHMA(a, p.periodo); }, '#ff7043', 'Media muy suave y rápida.', null, SUG_MA);
     // Indicador «AMA — Media adaptativa (Kaufman)» (id ama)
     defMedia('ama', 'AMA — Media adaptativa (Kaufman)', 'AMA', function(a, p){ return mAMA(a, p.periodo, p.rapida, p.lenta); }, '#26c6da',
-      'Se acelera con tendencia y se frena en rango.', [pPeriodo(10), pNum('rapida', 'Periodo rápido', 2, 1, 100, 1), pNum('lenta', 'Periodo lento', 30, 2, 300, 1), pPrecio(), pDesp()]);
+      'Se acelera con tendencia y se frena en rango.', [pPeriodo(10), pNumero('rapida', 'Periodo rápido', 2, 1, 100, 1), pNumero('lenta', 'Periodo lento', 30, 2, 300, 1), pPrecio(), pDesp()]);
     // Indicador «VIDYA — Media dinámica de índice variable» (id vidya)
     defMedia('vidya', 'VIDYA — Media dinámica de índice variable', 'VIDYA', function(a, p){ return mVIDYA(a, p.cmo, p.periodo); }, '#9ccc65',
-      'Media que ajusta su velocidad según la volatilidad (CMO).', [pNum('cmo', 'Periodo CMO', 9, 2, 200, 1), pPeriodo(12), pPrecio(), pDesp()]);
+      'Media que ajusta su velocidad según la volatilidad (CMO).', [pNumero('cmo', 'Periodo CMO', 9, 2, 200, 1), pPeriodo(12), pPrecio(), pDesp()]);
     // Indicador «FRAMA — Media adaptativa fractal» (id frama)
     defMedia('frama', 'FRAMA — Media adaptativa fractal', 'FRAMA', function(a, p, d){ return mFRAMA(d, p.periodo); }, '#ffa726',
       'Media que usa la dimensión fractal del precio.', [pPeriodo(14, 200), pDesp()]);
@@ -120,15 +138,15 @@ Transportes y Servicios Ltda.
     // Indicador «Ichimoku Kinko Hyo» (id ichimoku)
     def({ id: 'ichimoku', nombre: 'Ichimoku Kinko Hyo', corto: 'Ichimoku', grupo: 'Tendencia', destino: 'precio', etiq: false,
       desc: 'Tenkan, Kijun, nube (Senkou A/B) y Chikou.',
-      params: [pNum('tenkan', 'Tenkan-sen', 9, 1, 200, 1), pNum('kijun', 'Kijun-sen', 26, 1, 300, 1), pNum('senkou', 'Senkou Span B', 52, 1, 500, 1)],
+      params: [pNumero('tenkan', 'Tenkan-sen', 9, 1, 200, 1), pNumero('kijun', 'Kijun-sen', 26, 1, 300, 1), pNumero('senkou', 'Senkou Span B', 52, 1, 500, 1)],
       capas: [['Tenkan-sen', '#2962ff'], ['Kijun-sen', '#b71c1c'], ['Senkou A', '#3fb950'], ['Senkou B', '#f85149'], ['Chikou', '#a78bfa']],
       calc: function(d, p){
         var h = columna(d, 'high'), l = columna(d, 'low'), c = precioDe(d, 'close');
         /** Auxiliar de Ichimoku: punto medio entre el máximo y el mínimo de las últimas n velas. */
-        function medio(n){ return mOp(mMax(h, n), mMin(l, n), function(x, y){ return (x + y) / 2; }); }
+        function medio(n){ return mOperacion(mMaximo(h, n), mMinimo(l, n), function(x, y){ return (x + y) / 2; }); }
         var ten = medio(p.tenkan), kij = medio(p.kijun);
         return [{ vals: ten }, { vals: kij },
-                { vals: mOp(ten, kij, function(x, y){ return (x + y) / 2; }), desp: p.kijun },
+                { vals: mOperacion(ten, kij, function(x, y){ return (x + y) / 2; }), desp: p.kijun },
                 { vals: medio(p.senkou), desp: p.kijun },
                 { vals: c, desp: -p.kijun }];
       } });
@@ -136,14 +154,14 @@ Transportes y Servicios Ltda.
     // Indicador «Parabolic SAR» (id sar)
     def({ id: 'sar', nombre: 'Parabolic SAR', corto: 'SAR', grupo: 'Tendencia', destino: 'precio',
       desc: 'Puntos de parada y reversa; verde = alcista, rojo = bajista.',
-      params: [pNum('paso', 'Paso', 0.02, 0.001, 1, 0.001), pNum('maximo', 'Máximo', 0.2, 0.01, 2, 0.01)],
+      params: [pNumero('paso', 'Paso', 0.02, 0.001, 1, 0.001), pNumero('maximo', 'Máximo', 0.2, 0.01, 2, 0.01)],
       capas: [['SAR', '#f85149', 'puntos']],
       calc: function(d, p){ var r = mSAR(d, p.paso, p.maximo); return [{ vals: r.vals, cols: r.cols }]; } });
 
     // Indicador «Supertrend» (id supertrend)
     def({ id: 'supertrend', nombre: 'Supertrend', corto: 'Supertrend', grupo: 'Tendencia', destino: 'precio',
       desc: 'Línea de tendencia basada en ATR; cambia de color al girar.',
-      params: [pPeriodo(10, 200), pNum('mult', 'Multiplicador ATR', 3, 0.1, 20, 0.1)],
+      params: [pPeriodo(10, 200), pNumero('mult', 'Multiplicador ATR', 3, 0.1, 20, 0.1)],
       capas: [['Supertrend', '#3fb950']],
       calc: function(d, p){ var r = mSupertrend(d, p.periodo, p.mult); return [{ vals: r.vals, cols: r.cols }]; } });
 
@@ -155,7 +173,7 @@ Transportes y Servicios Ltda.
     // Indicador «Canal de regresión lineal» (id regresion)
     def({ id: 'regresion', nombre: 'Canal de regresión lineal', corto: 'Regresión', grupo: 'Tendencia', destino: 'precio', etiq: false,
       desc: 'Recta de regresión de las últimas N velas con canal de desviación.',
-      params: [pNum('periodo', 'Velas', 100, 5, 2000, 1), pNum('desv', 'Desviaciones', 2, 0.1, 10, 0.1)],
+      params: [pNumero('periodo', 'Velas', 100, 5, 2000, 1), pNumero('desv', 'Desviaciones', 2, 0.1, 10, 0.1)],
       capas: [['Regresión', '#ff9800'], ['Superior', '#2962ff'], ['Inferior', '#2962ff']],
       calc: function(d, p){ var r = mRegresion(d, p.periodo, p.desv); return [{ vals: r.med }, { vals: r.sup }, { vals: r.inf }]; } });
 
@@ -163,14 +181,14 @@ Transportes y Servicios Ltda.
     // Indicador «Bandas de Bollinger» (id bollinger)
     def({ id: 'bollinger', nombre: 'Bandas de Bollinger', corto: 'BB', grupo: 'Volatilidad', destino: 'precio', etiq: false,
       desc: 'Media móvil con bandas a N desviaciones típicas.',
-      params: [pPeriodo(20), pNum('desv', 'Desviaciones', 2, 0.1, 10, 0.1), pPrecio(), pDesp()],
+      params: [pPeriodo(20), pNumero('desv', 'Desviaciones', 2, 0.1, 10, 0.1), pPrecio(), pDesp()],
       capas: [['Superior', '#2962ff'], ['Media', '#ff9800'], ['Inferior', '#2962ff']],
       calc: function(d, p){ var b = mBollinger(precioDe(d, p.precio), p.periodo, p.desv); return [{ vals: b.sup, desp: p.desp }, { vals: b.media, desp: p.desp }, { vals: b.inf, desp: p.desp }]; } });
 
     // Indicador «Envelopes (sobres)» (id envelopes)
     def({ id: 'envelopes', nombre: 'Envelopes (sobres)', corto: 'Env', grupo: 'Volatilidad', destino: 'precio', etiq: false,
       desc: 'Media móvil con bandas a un porcentaje fijo.',
-      params: [pPeriodo(14), pNum('pct', 'Desviación %', 0.1, 0.001, 50, 0.01), pSel('metodo', 'Método', 'sma', OPC_MA), pPrecio(), pDesp()],
+      params: [pPeriodo(14), pNumero('pct', 'Desviación %', 0.1, 0.001, 50, 0.01), pSeleccion('metodo', 'Método', 'sma', OPCION_MA), pPrecio(), pDesp()],
       capas: [['Superior', '#3399ff'], ['Inferior', '#3399ff']],
       calc: function(d, p){
         var m = mMA(precioDe(d, p.precio), p.periodo, p.metodo);
@@ -180,11 +198,11 @@ Transportes y Servicios Ltda.
     // Indicador «Canal de Keltner» (id keltner)
     def({ id: 'keltner', nombre: 'Canal de Keltner', corto: 'Keltner', grupo: 'Volatilidad', destino: 'precio', etiq: false,
       desc: 'EMA con bandas a N veces el ATR.',
-      params: [pPeriodo(20), pNum('atr', 'Periodo ATR', 10, 1, 200, 1), pNum('mult', 'Multiplicador', 2, 0.1, 20, 0.1)],
+      params: [pPeriodo(20), pNumero('atr', 'Periodo ATR', 10, 1, 200, 1), pNumero('mult', 'Multiplicador', 2, 0.1, 20, 0.1)],
       capas: [['Superior', '#e056fd'], ['Media', '#ff9800'], ['Inferior', '#e056fd']],
       calc: function(d, p){
         var m = mEMA(precioDe(d, 'close'), p.periodo), a = mATR(d, p.atr, 'wilder');
-        return [{ vals: mOp(m, a, function(x, y){ return x + p.mult * y; }) }, { vals: m }, { vals: mOp(m, a, function(x, y){ return x - p.mult * y; }) }];
+        return [{ vals: mOperacion(m, a, function(x, y){ return x + p.mult * y; }) }, { vals: m }, { vals: mOperacion(m, a, function(x, y){ return x - p.mult * y; }) }];
       } });
 
     // Indicador «Canal de Donchian» (id donchian)
@@ -196,7 +214,7 @@ Transportes y Servicios Ltda.
     // Indicador «ATR — Rango verdadero medio» (id atr)
     def({ id: 'atr', nombre: 'ATR — Rango verdadero medio', corto: 'ATR', grupo: 'Volatilidad', destino: 'panel',
       desc: 'Mide la volatilidad como el rango medio de las velas.',
-      params: [pPeriodo(14, 200), pSel('metodo', 'Suavizado', 'sma', [['sma', 'Simple (MT5)'], ['wilder', 'Wilder']])],
+      params: [pPeriodo(14, 200), pSeleccion('metodo', 'Suavizado', 'sma', [['sma', 'Simple (MT5)'], ['wilder', 'Wilder']])],
       capas: [['ATR', '#ff9800']], dec: 'auto',
       calc: function(d, p){ return [{ vals: mATR(d, p.periodo, p.metodo) }]; } });
 
@@ -209,22 +227,22 @@ Transportes y Servicios Ltda.
     // Indicador «%B de Bollinger» (id pctb)
     def({ id: 'pctb', nombre: '%B de Bollinger', corto: '%B', grupo: 'Volatilidad', destino: 'panel',
       desc: 'Posición del precio dentro de las bandas (0 = banda inferior, 100 = superior).',
-      params: [pPeriodo(20), pNum('desv', 'Desviaciones', 2, 0.1, 10, 0.1), pPrecio()],
+      params: [pPeriodo(20), pNumero('desv', 'Desviaciones', 2, 0.1, 10, 0.1), pPrecio()],
       capas: [['%B', '#2962ff']], niveles: [100, 50, 0], dec: 2,
       calc: function(d, p){
         var a = precioDe(d, p.precio), b = mBollinger(a, p.periodo, p.desv), out = nulos(a.length);
-        for (var i = 0; i < a.length; i++) if (esNum(b.sup[i]) && b.sup[i] !== b.inf[i]) out[i] = (a[i] - b.inf[i]) / (b.sup[i] - b.inf[i]) * 100;
+        for (var i = 0; i < a.length; i++) if (esNumero(b.sup[i]) && b.sup[i] !== b.inf[i]) out[i] = (a[i] - b.inf[i]) / (b.sup[i] - b.inf[i]) * 100;
         return [{ vals: out }];
       } });
 
     // Indicador «Ancho de bandas de Bollinger» (id bbw)
     def({ id: 'bbw', nombre: 'Ancho de bandas de Bollinger', corto: 'BBW', grupo: 'Volatilidad', destino: 'panel',
       desc: 'Distancia entre bandas en % de la media: mide compresión y expansión.',
-      params: [pPeriodo(20), pNum('desv', 'Desviaciones', 2, 0.1, 10, 0.1), pPrecio()],
+      params: [pPeriodo(20), pNumero('desv', 'Desviaciones', 2, 0.1, 10, 0.1), pPrecio()],
       capas: [['BBW', '#ff9800']], dec: 3,
       calc: function(d, p){
         var b = mBollinger(precioDe(d, p.precio), p.periodo, p.desv), out = nulos(d.length);
-        for (var i = 0; i < d.length; i++) if (esNum(b.media[i]) && b.media[i] !== 0) out[i] = (b.sup[i] - b.inf[i]) / b.media[i] * 100;
+        for (var i = 0; i < d.length; i++) if (esNumero(b.media[i]) && b.media[i] !== 0) out[i] = (b.sup[i] - b.inf[i]) / b.media[i] * 100;
         return [{ vals: out }];
       } });
 
@@ -238,39 +256,39 @@ Transportes y Servicios Ltda.
     // Indicador «MACD — Convergencia/divergencia de medias» (id macd)
     def({ id: 'macd', nombre: 'MACD — Convergencia/divergencia de medias', corto: 'MACD', grupo: 'Osciladores', destino: 'panel',
       desc: 'Diferencia entre dos EMA, su señal e histograma.',
-      params: [pNum('rapida', 'EMA rápida', 12, 1, 200, 1), pNum('lenta', 'EMA lenta', 26, 2, 400, 1), pNum('senal', 'Señal', 9, 1, 200, 1),
-               pSel('metodo', 'Media de la señal', 'ema', [['ema', 'Exponencial'], ['sma', 'Simple (MT5)']]), pPrecio()],
+      params: [pNumero('rapida', 'EMA rápida', 12, 1, 200, 1), pNumero('lenta', 'EMA lenta', 26, 2, 400, 1), pNumero('senal', 'Señal', 9, 1, 200, 1),
+               pSeleccion('metodo', 'Media de la señal', 'ema', [['ema', 'Exponencial'], ['sma', 'Simple (MT5)']]), pPrecio()],
       capas: [['Histograma', '#3fb950', 'hist'], ['MACD', '#2962ff'], ['Señal', '#ff9800']], niveles: [0], dec: 'auto',
       calc: function(d, p){
         var m = mMACD(precioDe(d, p.precio), p.rapida, p.lenta, p.senal, p.metodo);
-        return [{ vals: m.hist, cols: colHistSigno(m.hist) }, { vals: m.macd }, { vals: m.senal }];
+        return [{ vals: m.hist, cols: columnaHistorialSigno(m.hist) }, { vals: m.macd }, { vals: m.senal }];
       } });
 
     // Indicador «OsMA — Media móvil del oscilador» (id osma)
     def({ id: 'osma', nombre: 'OsMA — Media móvil del oscilador', corto: 'OsMA', grupo: 'Osciladores', destino: 'panel',
       desc: 'Histograma del MACD (MACD menos su señal).',
-      params: [pNum('rapida', 'EMA rápida', 12, 1, 200, 1), pNum('lenta', 'EMA lenta', 26, 2, 400, 1), pNum('senal', 'Señal', 9, 1, 200, 1), pPrecio()],
+      params: [pNumero('rapida', 'EMA rápida', 12, 1, 200, 1), pNumero('lenta', 'EMA lenta', 26, 2, 400, 1), pNumero('senal', 'Señal', 9, 1, 200, 1), pPrecio()],
       capas: [['OsMA', '#3fb950', 'hist']], niveles: [0], dec: 'auto',
-      calc: function(d, p){ var m = mMACD(precioDe(d, p.precio), p.rapida, p.lenta, p.senal, 'sma'); return [{ vals: m.hist, cols: colHistSigno(m.hist) }]; } });
+      calc: function(d, p){ var m = mMACD(precioDe(d, p.precio), p.rapida, p.lenta, p.senal, 'sma'); return [{ vals: m.hist, cols: columnaHistorialSigno(m.hist) }]; } });
 
     // Indicador «Estocástico» (id stoch)
     def({ id: 'stoch', nombre: 'Estocástico', corto: 'Estoc', grupo: 'Osciladores', destino: 'panel',
       desc: 'Posición del cierre dentro del rango reciente (0–100).',
-      params: [pNum('k', '%K', 14, 1, 200, 1), pNum('suav', 'Suavizado', 3, 1, 50, 1), pNum('d', '%D', 3, 1, 50, 1)],
+      params: [pNumero('k', '%K', 14, 1, 200, 1), pNumero('suav', 'Suavizado', 3, 1, 50, 1), pNumero('d', '%D', 3, 1, 50, 1)],
       capas: [['%K', '#2962ff'], ['%D', '#ff9800']], niveles: [80, 20], rango: [0, 100], dec: 2,
       calc: function(d, p){ var e = mEstocastico(d, p.k, p.suav, p.d); return [{ vals: e.k }, { vals: e.d }]; } });
 
     // Indicador «Estocástico del RSI» (id stochrsi)
     def({ id: 'stochrsi', nombre: 'Estocástico del RSI', corto: 'StochRSI', grupo: 'Osciladores', destino: 'panel',
       desc: 'Estocástico aplicado al RSI: más sensible que el RSI.',
-      params: [pNum('rsi', 'Periodo RSI', 14, 2, 200, 1), pNum('est', 'Periodo estocástico', 14, 2, 200, 1), pNum('k', '%K', 3, 1, 50, 1), pNum('d', '%D', 3, 1, 50, 1), pPrecio()],
+      params: [pNumero('rsi', 'Periodo RSI', 14, 2, 200, 1), pNumero('est', 'Periodo estocástico', 14, 2, 200, 1), pNumero('k', '%K', 3, 1, 50, 1), pNumero('d', '%D', 3, 1, 50, 1), pPrecio()],
       capas: [['%K', '#2962ff'], ['%D', '#ff9800']], niveles: [80, 20], rango: [0, 100], dec: 2,
       calc: function(d, p){ var e = mEstocRSI(precioDe(d, p.precio), p.rsi, p.est, p.k, p.d); return [{ vals: e.k }, { vals: e.d }]; } });
 
     // Indicador «ADX — Índice direccional medio» (id adx)
     def({ id: 'adx', nombre: 'ADX — Índice direccional medio', corto: 'ADX', grupo: 'Osciladores', destino: 'panel', etiq: false,
       desc: 'Fuerza de la tendencia (ADX) y dirección (+DI / −DI).',
-      params: [pPeriodo(14, 200), pSel('metodo', 'Suavizado', 'wilder', [['wilder', 'Wilder (ADXW)'], ['ema', 'Exponencial (MT5)']])],
+      params: [pPeriodo(14, 200), pSeleccion('metodo', 'Suavizado', 'wilder', [['wilder', 'Wilder (ADXW)'], ['ema', 'Exponencial (MT5)']])],
       capas: [['ADX', '#d1d4dc'], ['+DI', '#3fb950'], ['−DI', '#f85149']], niveles: [20], dec: 2,
       calc: function(d, p){ var a = mADX(d, p.periodo, p.metodo); return [{ vals: a.adx }, { vals: a.pdi }, { vals: a.mdi }]; } });
 
@@ -331,9 +349,11 @@ Transportes y Servicios Ltda.
     // Indicador «Oscilador último (Ultimate)» (id uo)
     def({ id: 'uo', nombre: 'Oscilador último (Ultimate)', corto: 'UO', grupo: 'Osciladores', destino: 'panel',
       desc: 'Combina el momento en tres periodos (0–100).',
-      params: [pNum('p1', 'Periodo 1', 7, 1, 100, 1), pNum('p2', 'Periodo 2', 14, 1, 200, 1), pNum('p3', 'Periodo 3', 28, 1, 400, 1)],
+      params: [pNumero('p1', 'Periodo 1', 7, 1, 100, 1), pNumero('p2', 'Periodo 2', 14, 1, 200, 1), pNumero('p3', 'Periodo 3', 28, 1, 400, 1)],
       capas: [['UO', '#00bcd4']], niveles: [70, 30], rango: [0, 100], dec: 2,
       calc: function(d, p){ return [{ vals: mUltimate(d, p.p1, p.p2, p.p3) }]; } });
+
+    // TITULO DEF PODER
 
     /**
      * Atajo para registrar Bulls Power y Bears Power: histograma de (máximo o mínimo) menos la EMA del cierre,
@@ -342,7 +362,7 @@ Transportes y Servicios Ltda.
     function defPoder(id, nombre, corto, campo, desc){
       def({ id: id, nombre: nombre, corto: corto, grupo: 'Osciladores', destino: 'panel', desc: desc,
         params: [pPeriodo(13, 300)], capas: [[corto, campo === 'high' ? '#3fb950' : '#f85149', 'hist']], niveles: [0], dec: 'auto',
-        calc: function(d, p){ var v = mResta(columna(d, campo), mEMA(columna(d, 'close'), p.periodo)); return [{ vals: v, cols: colHistSigno(v) }]; } });
+        calc: function(d, p){ var v = mResta(columna(d, campo), mEMA(columna(d, 'close'), p.periodo)); return [{ vals: v, cols: columnaHistorialSigno(v) }]; } });
     }
     // Indicador «Bulls Power — Fuerza alcista» (id bulls)
     defPoder('bulls', 'Bulls Power — Fuerza alcista', 'Bulls', 'high', 'Máximo menos EMA: fuerza de los compradores.');
@@ -352,9 +372,9 @@ Transportes y Servicios Ltda.
     // Indicador «Force Index — Índice de fuerza» (id force)
     def({ id: 'force', nombre: 'Force Index — Índice de fuerza', corto: 'Force', grupo: 'Osciladores', destino: 'panel',
       desc: 'Variación del precio multiplicada por el volumen.',
-      params: [pPeriodo(13, 300), pSel('metodo', 'Método', 'ema', OPC_MA)], capas: [['Force', '#26a69a']], niveles: [0], dec: 'auto',
+      params: [pPeriodo(13, 300), pSeleccion('metodo', 'Método', 'ema', OPCION_MA)], capas: [['Force', '#26a69a']], niveles: [0], dec: 'auto',
       calc: function(d, p){
-        var f = d.map(function(v, i){ return i === 0 ? null : (v.close - d[i-1].close) * volDe(v); });
+        var f = d.map(function(v, i){ return i === 0 ? null : (v.close - d[i-1].close) * volumenDe(v); });
         return [{ vals: mMA(f, p.periodo, p.metodo) }];
       } });
 
@@ -363,7 +383,7 @@ Transportes y Servicios Ltda.
     def({ id: 'volumenes', nombre: 'Volúmenes', corto: 'Volumen', grupo: 'Volumen', destino: 'panel',
       desc: 'Volumen de ticks de cada vela en su propio panel.',
       params: [], capas: [['Volumen', '#3fb950', 'hist']], dec: 0,
-      calc: function(d){ return [{ vals: d.map(volDe), cols: d.map(function(v){ return v.close >= v.open ? 'rgba(63,185,80,0.6)' : 'rgba(248,81,73,0.6)'; }) }]; } });
+      calc: function(d){ return [{ vals: d.map(volumenDe), cols: d.map(function(v){ return v.close >= v.open ? 'rgba(63,185,80,0.6)' : 'rgba(248,81,73,0.6)'; }) }]; } });
 
     // Indicador «OBV — Volumen en balance» (id obv)
     def({ id: 'obv', nombre: 'OBV — Volumen en balance', corto: 'OBV', grupo: 'Volumen', destino: 'panel',
@@ -384,7 +404,7 @@ Transportes y Servicios Ltda.
     // Indicador «Oscilador de Chaikin» (id chaikin)
     def({ id: 'chaikin', nombre: 'Oscilador de Chaikin', corto: 'Chaikin', grupo: 'Volumen', destino: 'panel',
       desc: 'Diferencia de dos EMA de la línea de acumulación/distribución.',
-      params: [pNum('rapida', 'EMA rápida', 3, 1, 100, 1), pNum('lenta', 'EMA lenta', 10, 2, 300, 1)],
+      params: [pNumero('rapida', 'EMA rápida', 3, 1, 100, 1), pNumero('lenta', 'EMA lenta', 10, 2, 300, 1)],
       capas: [['Chaikin', '#e056fd']], niveles: [0], dec: 'auto',
       calc: function(d, p){ var ad = mAD(d); return [{ vals: mResta(mEMA(ad, p.rapida), mEMA(ad, p.lenta)) }]; } });
 
@@ -394,9 +414,13 @@ Transportes y Servicios Ltda.
       params: [pPeriodo(14, 300)], capas: [['MFI', '#a78bfa']], niveles: [80, 20], rango: [0, 100], dec: 2,
       calc: function(d, p){ return [{ vals: mMFI(d, p.periodo) }]; } });
 
+    // TITULO MEDIANA
+
     // ================= BILL WILLIAMS =================
     /** Devuelve el precio mediano (H+L)/2 de cada vela, base de los indicadores de Bill Williams. */
     function mediana(d){ return precioDe(d, 'hl2'); }
+    // TITULO AO
+
     /**
      * Awesome Oscillator: diferencia entre la SMA rápida r y la lenta l de la mediana. Devuelve un array alineado.
      */
@@ -405,21 +429,23 @@ Transportes y Servicios Ltda.
     // Indicador «Awesome Oscillator» (id ao)
     def({ id: 'ao', nombre: 'Awesome Oscillator', corto: 'AO', grupo: 'Bill Williams', destino: 'panel',
       desc: 'Diferencia entre SMA 5 y SMA 34 de la mediana; verde sube, rojo baja.',
-      params: [pNum('rapida', 'Periodo rápido', 5, 1, 100, 1), pNum('lenta', 'Periodo lento', 34, 2, 300, 1)],
+      params: [pNumero('rapida', 'Periodo rápido', 5, 1, 100, 1), pNumero('lenta', 'Periodo lento', 34, 2, 300, 1)],
       capas: [['AO', '#3fb950', 'hist']], niveles: [0], dec: 'auto',
-      calc: function(d, p){ var v = ao(d, p.rapida, p.lenta); return [{ vals: v, cols: colHistSube(v) }]; } });
+      calc: function(d, p){ var v = ao(d, p.rapida, p.lenta); return [{ vals: v, cols: columnaHistorialSube(v) }]; } });
 
     // Indicador «Accelerator Oscillator» (id ac)
     def({ id: 'ac', nombre: 'Accelerator Oscillator', corto: 'AC', grupo: 'Bill Williams', destino: 'panel',
       desc: 'Aceleración del Awesome Oscillator.',
-      params: [pNum('rapida', 'Periodo rápido', 5, 1, 100, 1), pNum('lenta', 'Periodo lento', 34, 2, 300, 1), pNum('suav', 'Suavizado', 5, 1, 100, 1)],
+      params: [pNumero('rapida', 'Periodo rápido', 5, 1, 100, 1), pNumero('lenta', 'Periodo lento', 34, 2, 300, 1), pNumero('suav', 'Suavizado', 5, 1, 100, 1)],
       capas: [['AC', '#3fb950', 'hist']], niveles: [0], dec: 'auto',
-      calc: function(d, p){ var a = ao(d, p.rapida, p.lenta), v = mResta(a, mSMA(a, p.suav)); return [{ vals: v, cols: colHistSube(v) }]; } });
+      calc: function(d, p){ var a = ao(d, p.rapida, p.lenta), v = mResta(a, mSMA(a, p.suav)); return [{ vals: v, cols: columnaHistorialSube(v) }]; } });
 
     // P_ALLIGATOR: parámetros compartidos por el Alligator y el Gator
-    var P_ALLIGATOR = [pNum('mand', 'Mandíbula', 13, 1, 200, 1), pNum('mandd', 'Desplazamiento mandíbula', 8, 0, 100, 1),
-                       pNum('dien', 'Dientes', 8, 1, 200, 1), pNum('diend', 'Desplazamiento dientes', 5, 0, 100, 1),
-                       pNum('lab', 'Labios', 5, 1, 200, 1), pNum('labd', 'Desplazamiento labios', 3, 0, 100, 1)];
+    var P_ALLIGATOR = [pNumero('mand', 'Mandíbula', 13, 1, 200, 1), pNumero('mandd', 'Desplazamiento mandíbula', 8, 0, 100, 1),
+                       pNumero('dien', 'Dientes', 8, 1, 200, 1), pNumero('diend', 'Desplazamiento dientes', 5, 0, 100, 1),
+                       pNumero('lab', 'Labios', 5, 1, 200, 1), pNumero('labd', 'Desplazamiento labios', 3, 0, 100, 1)];
+    // TITULO LINEAS ALLIGATOR
+
     /**
      * Calcula las tres medias suavizadas del Alligator (mandíbula, dientes y labios) sobre la mediana; los
      * desplazamientos se aplican al dibujar. Devuelve {jaw, teeth, lips}.
@@ -440,10 +466,10 @@ Transportes y Servicios Ltda.
       params: P_ALLIGATOR, capas: [['Superior', '#3fb950', 'hist'], ['Inferior', '#3fb950', 'hist']], niveles: [0], dec: 'auto',
       calc: function(d, p){
         var a = lineasAlligator(d, p), jaw = mDesplazar(a.jaw, p.mandd), teeth = mDesplazar(a.teeth, p.diend), lips = mDesplazar(a.lips, p.labd);
-        var sup = mOp(jaw, teeth, function(x, y){ return Math.abs(x - y); });
-        var inf = mOp(teeth, lips, function(x, y){ return -Math.abs(x - y); });
-        var cS = sup.map(function(v, i){ return esNum(v) ? ((i > 0 && esNum(sup[i-1]) && v < sup[i-1]) ? '#f85149' : '#3fb950') : null; });
-        var cI = inf.map(function(v, i){ return esNum(v) ? ((i > 0 && esNum(inf[i-1]) && v > inf[i-1]) ? '#f85149' : '#3fb950') : null; });
+        var sup = mOperacion(jaw, teeth, function(x, y){ return Math.abs(x - y); });
+        var inf = mOperacion(teeth, lips, function(x, y){ return -Math.abs(x - y); });
+        var cS = sup.map(function(v, i){ return esNumero(v) ? ((i > 0 && esNumero(sup[i-1]) && v < sup[i-1]) ? '#f85149' : '#3fb950') : null; });
+        var cI = inf.map(function(v, i){ return esNumero(v) ? ((i > 0 && esNumero(inf[i-1]) && v > inf[i-1]) ? '#f85149' : '#3fb950') : null; });
         return [{ vals: sup, cols: cS }, { vals: inf, cols: cI }];
       } });
 
@@ -452,10 +478,10 @@ Transportes y Servicios Ltda.
       desc: 'Rango por unidad de volumen. Verde: sube MFI y volumen · Marrón: bajan ambos · Azul: sube MFI, baja volumen · Rosa: baja MFI, sube volumen.',
       params: [], capas: [['BW MFI', '#3fb950', 'hist']], dec: 'auto',
       calc: function(d){
-        var punto = Math.pow(10, -DIGITS), v = d.map(function(c){ var vo = volDe(c); return vo > 0 ? (c.high - c.low) / vo / punto : null; });
+        var punto = Math.pow(10, -DIGITS), v = d.map(function(c){ var vo = volumenDe(c); return vo > 0 ? (c.high - c.low) / vo / punto : null; });
         var cols = v.map(function(m, i){
-          if (!esNum(m) || i === 0 || !esNum(v[i-1])) return esNum(m) ? '#8b949e' : null;
-          var mSube = m > v[i-1], vSube = volDe(d[i]) > volDe(d[i-1]);
+          if (!esNumero(m) || i === 0 || !esNumero(v[i-1])) return esNumero(m) ? '#8b949e' : null;
+          var mSube = m > v[i-1], vSube = volumenDe(d[i]) > volumenDe(d[i-1]);
           return mSube && vSube ? '#3fb950' : (!mSube && !vSube ? '#8d6e63' : (mSube ? '#2962ff' : '#e056fd'));
         });
         return [{ vals: v, cols: cols }];
@@ -464,7 +490,7 @@ Transportes y Servicios Ltda.
     // Indicador «Fractales (Bill Williams)» (id fractales)
     def({ id: 'fractales', nombre: 'Fractales (Bill Williams)', corto: 'Fractales', grupo: 'Bill Williams', destino: 'precio',
       desc: 'Máximos y mínimos locales confirmados por 2 velas a cada lado.',
-      params: [pNum('lados', 'Velas a cada lado', 2, 1, 10, 1)],
+      params: [pNumero('lados', 'Velas a cada lado', 2, 1, 10, 1)],
       capas: [['Fractal alcista (máximo)', '#3fb950', 'puntos'], ['Fractal bajista (mínimo)', '#f85149', 'puntos']],
       calc: function(d, p){ var f = mFractales(d, p.lados); return [{ vals: f.arriba }, { vals: f.abajo }]; } });
 
@@ -481,45 +507,53 @@ Transportes y Servicios Ltda.
     // Indicador «ZigZag» (id zigzag)
     def({ id: 'zigzag', nombre: 'ZigZag', corto: 'ZigZag', grupo: 'Niveles', destino: 'precio',
       desc: 'Une los extremos relevantes ignorando retrocesos menores al % indicado.',
-      params: [pNum('pct', 'Desviación mínima (%)', 0.5, 0.01, 50, 0.01)], capas: [['ZigZag', '#ff9800']], etiq: false,
+      params: [pNumero('pct', 'Desviación mínima (%)', 0.5, 0.01, 50, 0.01)], capas: [['ZigZag', '#ff9800']], etiq: false,
       calc: function(d, p){ return [{ vals: mZigZag(d, p.pct) }]; } });
 
     // ================= Instancias =================
     // seqUid: contador que genera el identificador único de cada instancia
     var seqUid = 0;
+    // TITULO VALOR PARAM
+
     /**
      * Valida el valor v de un parámetro pd: en listas exige una opción válida; en numéricos lo convierte, lo limita a
      * [min, max] y lo redondea según el paso. Si no es válido devuelve el valor por defecto.
      */
-    function valorParam(pd, v){
+    function valorParametro(pd, v){
       if (pd.t === 'sel') { for (var i = 0; i < pd.o.length; i++) if (pd.o[i][0] === v) return v; return pd.d; }
       var x = Number(v);
       if (!isFinite(x)) return pd.d;
       x = Math.min(pd.max, Math.max(pd.min, x));
       return pd.paso >= 1 ? Math.round(x) : Math.round(x * 1e6) / 1e6;
     }
+    // TITULO VALIDAR PARAMS
+
     /**
      * Construye el objeto de parámetros de un indicador d validando cada uno contra el objeto crudo (o usando los
      * valores por defecto).
      */
-    function validarParams(d, crudo){
+    function validarParametros(d, crudo){
       var p = {};
-      d.params.forEach(function(pd){ p[pd.k] = valorParam(pd, crudo && typeof crudo === 'object' ? crudo[pd.k] : undefined); });
+      d.params.forEach(function(pd){ p[pd.k] = valorParametro(pd, crudo && typeof crudo === 'object' ? crudo[pd.k] : undefined); });
       return p;
     }
     // COLOR_OK: expresión regular que acepta colores #rrggbb
-    var COLOR_OK = /^#[0-9a-fA-F]{6}$/;
+    var COLOR_ACEPTAR = /^#[0-9a-fA-F]{6}$/;
     // Visibilidad por temporalidad: grupo -> [activo, mínimo, máximo] (como en TradingView)
     // GRUPOS_TF: grupos de visibilidad por temporalidad [clave, nombre, mínimo, máximo]
-    var GRUPOS_TF = [['m', 'Minutos', 1, 59], ['h', 'Horas', 1, 24], ['d', 'Días', 1, 366], ['w', 'Semanas', 1, 52], ['M', 'Meses', 1, 12]];
+    var GRUPOS_TEMPORALIDAD = [['m', 'Minutos', 1, 59], ['h', 'Horas', 1, 24], ['d', 'Días', 1, 366], ['w', 'Semanas', 1, 52], ['M', 'Meses', 1, 12]];
     // TF_GRUPO: temporalidad -> [grupo, cantidad] usada para evaluar la visibilidad
-    var TF_GRUPO = { M1: ['m', 1], M5: ['m', 5], M15: ['m', 15], M30: ['m', 30], H1: ['h', 1], H4: ['h', 4], D1: ['d', 1], W1: ['w', 1], MN1: ['M', 1] };
+    var TEMPORALIDAD_GRUPO = { M1: ['m', 1], M5: ['m', 5], M15: ['m', 15], M30: ['m', 30], H1: ['h', 1], H4: ['h', 4], D1: ['d', 1], W1: ['w', 1], MN1: ['M', 1] };
+    // TITULO VISIBILIDAD POR DEFECTO
+
     /** Devuelve la visibilidad inicial por temporalidad: todos los grupos activos y con el rango completo. */
     function visibilidadPorDefecto(){
       var v = {};
-      GRUPOS_TF.forEach(function(g){ v[g[0]] = [true, g[2], g[3]]; });
+      GRUPOS_TEMPORALIDAD.forEach(function(g){ v[g[0]] = [true, g[2], g[3]]; });
       return v;
     }
+    // TITULO VALIDAR VISIBILIDAD
+
     /**
      * Valida la visibilidad recordada (grupo -> [activo, mínimo, máximo]) y la corrige al formato correcto,
      * completando con los valores por defecto.
@@ -527,7 +561,7 @@ Transportes y Servicios Ltda.
     function validarVisibilidad(crudo){
       var v = visibilidadPorDefecto();
       if (!crudo || typeof crudo !== 'object') return v;
-      GRUPOS_TF.forEach(function(g){
+      GRUPOS_TEMPORALIDAD.forEach(function(g){
         var c = crudo[g[0]];
         if (!Array.isArray(c) || c.length !== 3) return;
         var mn = Math.round(Number(c[1])), mx = Math.round(Number(c[2]));
@@ -537,13 +571,17 @@ Transportes y Servicios Ltda.
       });
       return v;
     }
+    // TITULO VISIBLE EN TF
+
     /** Indica si la instancia inst debe mostrarse en la temporalidad actual según sus reglas de visibilidad. */
-    function visibleEnTF(inst){
-      var g = TF_GRUPO[tfActual];
+    function visibleEnTemporalidad(inst){
+      var g = TEMPORALIDAD_GRUPO[temporalidadActual];
       if (!g || !inst.vis) return true;
       var r = inst.vis[g[0]];
       return !r || (r[0] && g[1] >= r[1] && g[1] <= r[2]);
     }
+    // TITULO LISTA VALIDADA
+
     // Lista de n elementos validados (null = valor por defecto)
     /**
      * Valida una lista de n elementos con la función ok (que devuelve el valor válido o null). Devuelve null si
@@ -557,6 +595,8 @@ Transportes y Servicios Ltda.
       }
       return hay ? out : null;
     }
+    // TITULO NUEVA INSTANCIA
+
     /**
      * Crea una instancia de indicador { uid, id, p, c, w, s, v, pr, et, sl, vis, oculto } a partir del id y de datos
      * recordados (crudo), validándolo todo. Devuelve null si el id no existe.
@@ -565,8 +605,8 @@ Transportes y Servicios Ltda.
       var d = DEFS[id];
       if (!d) return null;
       var n = d.capas.length, r = crudo || {};
-      var inst = { uid: 'i' + (++seqUid), id: id, p: validarParams(d, r.p), oculto: !!r.o };
-      inst.c = listaValidada(r.c, n, function(x){ return (typeof x === 'string' && COLOR_OK.test(x)) ? x : null; });
+      var inst = { uid: 'i' + (++seqUid), id: id, p: validarParametros(d, r.p), oculto: !!r.o };
+      inst.c = listaValidada(r.c, n, function(x){ return (typeof x === 'string' && COLOR_ACEPTAR.test(x)) ? x : null; });
       var w = (typeof r.w === 'number') ? r.w : null;   // formato antiguo: un solo grosor para todas las líneas
       inst.w = listaValidada(Array.isArray(r.w) ? r.w : (w ? new Array(n).fill(w) : null), n, function(x){ return (typeof x === 'number' && x >= 1 && x <= 5) ? Math.round(x) : null; });
       inst.s = listaValidada(r.s, n, function(x){ return (x === 0 || x === 1 || x === 2) ? x : null; });
@@ -577,6 +617,8 @@ Transportes y Servicios Ltda.
       inst.vis = validarVisibilidad(r.vis);
       return inst;
     }
+    // TITULO RESTAURAR INSTANCIA
+
     // Vuelve a dejar `inst` como estaba en `snap` (Cancelar en la ventana de ajustes)
     /** Deja la instancia inst como estaba en la copia snap (usado por Cancelar y Restablecer en los ajustes). */
     function restaurarInstancia(inst, snap){
@@ -586,9 +628,11 @@ Transportes y Servicios Ltda.
 
     // Restaura lo recordado (descarta lo que ya no existe o está mal formado)
     // Restaura las instancias recordadas en el almacenamiento local (el estado indActivos se declara en 01_estado_y_configuracion.js)
-    indActivos = (cfgIndRaw || []).map(function(r){
+    indicadorActivos = (configuracionIndicadorRaw || []).map(function(r){
       return (r && typeof r.id === 'string') ? nuevaInstancia(r.id, r) : null;
     }).filter(function(x){ return x; });
+
+    // TITULO TITULO INSTANCIA
 
     /**
      * Devuelve el título de una instancia: abreviatura y parámetros numéricos entre paréntesis (sin el
@@ -599,12 +643,20 @@ Transportes y Servicios Ltda.
       d.params.forEach(function(pd){ if (pd.t === 'num' && pd.k !== 'desp') partes.push(inst.p[pd.k]); });
       return d.corto + (partes.length ? ' (' + partes.join(', ') + ')' : '');
     }
+    // TITULO COLOR CAPA
+
     /** Devuelve el color de la capa i de la instancia: el elegido por el usuario o el del catálogo. */
     function colorCapa(inst, i){ return (inst.c && inst.c[i]) || DEFS[inst.id].capas[i][1]; }
+    // TITULO ANCHO CAPA
+
     /** Devuelve el grosor de línea de la capa i de la instancia (2 por defecto). */
     function anchoCapa(inst, i){ return (inst.w && inst.w[i]) || 2; }
+    // TITULO ESTILO LINEA CAPA
+
     /** Devuelve el tipo de trazo de la capa i de la instancia (0 = sólida por defecto). */
     function estiloLineaCapa(inst, i){ return (inst.s && inst.s[i]) || 0; }
+    // TITULO CAPA VISIBLE
+
     /** Indica si la capa i de la instancia está visible (solo se oculta cuando se marcó explícitamente). */
     function capaVisible(inst, i){ return !(inst.v && inst.v[i] === 0); }
 

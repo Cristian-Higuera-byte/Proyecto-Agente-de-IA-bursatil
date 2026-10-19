@@ -28,6 +28,8 @@ from herramientas_agente.base import herramienta
 from herramientas_agente.diagnostico_herramientas.auxiliares import _mapear_simbolo_yfinance
 
 
+# TITULO ANALIZAR POSICION HOLISTICA
+
 @herramienta(
     descripcion=(
         "Realiza un diagnóstico integral (holístico) de una posición abierta o un activo en MT5. "
@@ -95,56 +97,56 @@ def analizar_posicion_holistica(
     # Primero Investing.com; si no trae nada, respaldo con Yahoo Finance. Los errores se ignoran.
     noticias_list = []
     try:
-        inv_res = inv_fuente.buscar_noticias(busqueda=simbolo_clean, categoria="forex", cantidad=3)
-        noticias_list.extend(inv_res.get("noticias", []))
+        inv_resultado = inv_fuente.buscar_noticias(busqueda=simbolo_clean, categoria="forex", cantidad=3)
+        noticias_list.extend(inv_resultado.get("noticias", []))
     except Exception:
         pass
 
     if not noticias_list:
         try:
-            yf_sym = _mapear_simbolo_yfinance(simbolo_clean)
-            yf_news = yf_fuente.noticias(yf_sym, cantidad=3)
-            noticias_list.extend(yf_news)
+            yahoo_simbolo = _mapear_simbolo_yfinance(simbolo_clean)
+            yahoo_noticias = yf_fuente.noticias(yahoo_simbolo, cantidad=3)
+            noticias_list.extend(yahoo_noticias)
         except Exception:
             pass
 
     # 5. Generación de Escenarios (Alcista / Neutral / Bajista)
     atr_data = ind_tecnicos.get("indicadores", {}).get("atr_14", {})
     # Si no hay ATR se usa 0.5% del precio como amplitud de referencia.
-    atr_val = atr_data.get("valor_absoluto") or (precio_actual * 0.005)
+    atr_valor = atr_data.get("valor_absoluto") or (precio_actual * 0.005)
 
-    lotes_pos = posicion_activa.get("lotes", 0.1) if posicion_activa else 0.1
-    tipo_pos = posicion_activa.get("tipo", "COMPRA") if posicion_activa else "COMPRA"
+    lotes_posicion = posicion_activa.get("lotes", 0.1) if posicion_activa else 0.1
+    tipo_posicion = posicion_activa.get("tipo", "COMPRA") if posicion_activa else "COMPRA"
     hipotetico = posicion_activa is None   # sin posición abierta se ilustra con 0.1 lotes de compra
 
     def impacto(precio_destino: float) -> float | None:
         """Devuelve el resultado en dinero que calcula MT5 si el precio va del actual al proyectado (None si MT5 no puede calcularlo)."""
         try:
-            return mt5_fuente.resultado_si_precio(simbolo_clean, tipo_pos, lotes_pos, precio_actual, precio_destino)
+            return mt5_fuente.resultado_si_precio(simbolo_clean, tipo_posicion, lotes_posicion, precio_actual, precio_destino)
         except mt5_fuente.ErrorMT5:
             return None
 
     # Precios objetivo a +/- 1.5 ATR del precio actual.
-    sube = precio_actual + atr_val * 1.5
-    baja = precio_actual - atr_val * 1.5
+    sube = precio_actual + atr_valor * 1.5
+    baja = precio_actual - atr_valor * 1.5
     escenarios = [
         {
             "escenario": "Alcista",
-            "condicion_tecnica": f"Supera resistencia a +{round(atr_val * 1.5, 4)}",
+            "condicion_tecnica": f"Supera resistencia a +{round(atr_valor * 1.5, 4)}",
             "precio_proyectado": round(sube, 5),
             "impacto_estimado_usd": impacto(sube),
             "accion_sugerida": "Mantener / Buscar TP si es COMPRA; evaluar SL si es VENTA",
         },
         {
             "escenario": "Consolidación / Neutral",
-            "condicion_tecnica": f"Mantener rango ±{round(atr_val, 4)}",
+            "condicion_tecnica": f"Mantener rango ±{round(atr_valor, 4)}",
             "precio_proyectado": round(precio_actual, 5),
             "impacto_estimado_usd": 0.0,
             "accion_sugerida": "Ajustar Trailing Stop y vigilar ruptura de rango",
         },
         {
             "escenario": "Bajista",
-            "condicion_tecnica": f"Quiebre de soporte a -{round(atr_val * 1.5, 4)}",
+            "condicion_tecnica": f"Quiebre de soporte a -{round(atr_valor * 1.5, 4)}",
             "precio_proyectado": round(baja, 5),
             "impacto_estimado_usd": impacto(baja),
             "accion_sugerida": "Evaluar cierre o cobertura si rompe soporte clave",

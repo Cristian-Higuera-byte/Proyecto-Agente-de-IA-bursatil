@@ -29,6 +29,8 @@ from herramientas_agente.base import cargar_json, herramienta
 _ESQ = cargar_json(Path(__file__).parent / "esquemas.json")
 
 
+# TITULO OBTENER SENTIMIENTO MERCADO
+
 @herramienta(**_ESQ["obtener_sentimiento_mercado"])
 def obtener_sentimiento_mercado(
     mercado: str = "STOCKS",
@@ -75,6 +77,8 @@ def obtener_sentimiento_mercado(
     }
 
 
+# TITULO ANALIZAR SENTIMIENTO NOTICIAS
+
 @herramienta(**_ESQ["analizar_sentimiento_noticias"])
 def analizar_sentimiento_noticias(
     simbolo: str,
@@ -92,8 +96,8 @@ def analizar_sentimiento_noticias(
     titulares = []
 
     try:
-        res = investing_fuente.noticias(categoria="general", cantidad=cantidad_noticias)
-        titulares = res.get("noticias", [])
+        resultado = investing_fuente.noticias(categoria="general", cantidad=cantidad_noticias)
+        titulares = resultado.get("noticias", [])
     except Exception:
         pass
 
@@ -118,20 +122,20 @@ def analizar_sentimiento_noticias(
     # Puntúa cada titular: (positivas - negativas) / total de coincidencias.
     scores_titulares = []
 
-    for item in titulares:
-        texto = item.get("titulo", "").lower()
-        pos_hits = sum(1 for w in keywords_positivas if re.search(r"\b" + w + r"\b", texto))
-        neg_hits = sum(1 for w in keywords_negativas if re.search(r"\b" + w + r"\b", texto))
+    for elemento in titulares:
+        texto = elemento.get("titulo", "").lower()
+        posicion_hits = sum(1 for w in keywords_positivas if re.search(r"\b" + w + r"\b", texto))
+        negativo_hits = sum(1 for w in keywords_negativas if re.search(r"\b" + w + r"\b", texto))
 
-        total_hits = pos_hits + neg_hits
+        total_hits = posicion_hits + negativo_hits
         if total_hits > 0:
-            score = (pos_hits - neg_hits) / total_hits
+            score = (posicion_hits - negativo_hits) / total_hits
         else:
             score = 0.0
 
         scores_titulares.append({
-            "titulo": item.get("titulo"),
-            "fuente": item.get("fuente", "N/A"),
+            "titulo": elemento.get("titulo"),
+            "fuente": elemento.get("fuente", "N/A"),
             "score_nlp": round(score, 2),
         })
 

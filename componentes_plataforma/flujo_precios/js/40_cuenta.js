@@ -13,6 +13,8 @@ Transportes y Servicios Ltda.
    ----------------------------------- INICIO Piña y Jara 40_cuenta .JS ----------------------------------
    ------------------------------------------------------------------------------------------------------- */
 
+  // TITULO PINTAR CUENTA
+
   /**
    * Pinta todos los elementos que dependen de los datos de la cuenta (último mensaje `cuenta`).
    * Cubre: data-pj-acc (equity, profit y formatos genéricos usd/pct/signed), barras data-pj-bar,
@@ -73,9 +75,9 @@ Transportes y Servicios Ltda.
                        : (el.getAttribute('data-pj-dn') || '#f85149'));
     });
     // Botón del modal "¿Quiere cerrar su posición?" (cartera_panel.py): su
-    // contenedor se llama st-key-ca_btncerrar_<ticket>; el texto sigue el P/G vivo.
-    D.querySelectorAll('[class*="st-key-ca_btncerrar_"]').forEach(function(el){
-      var m = el.className.match(/st-key-ca_btncerrar_([\w-]+)/);
+    // contenedor se llama st-key-cartera_boton_cerrar_<ticket>; el texto sigue el P/G vivo.
+    D.querySelectorAll('[class*="st-key-cartera_boton_cerrar_"]').forEach(function(el){
+      var m = el.className.match(/st-key-cartera_boton_cerrar_([\w-]+)/);
       var v = m ? pos[m[1]] : undefined;
       if (v === undefined) return;
       var txt = el.querySelector('button p') || el.querySelector('button');
@@ -84,9 +86,9 @@ Transportes y Servicios Ltda.
                           (v < 0 ? '-' : '') + '$' + fmt(Math.abs(v), 2));
     });
     // Botón "Cerrar operación: $X" del drawer de detalle (cartera_panel.py):
-    // contenedor st-key-cadet_cerrar_<ticket>; el monto sigue el P/G vivo.
-    D.querySelectorAll('[class*="st-key-cadet_cerrar_"]').forEach(function(el){
-      var m = el.className.match(/st-key-cadet_cerrar_([\w-]+)/);
+    // contenedor st-key-cartera_detalle_cerrar_<ticket>; el monto sigue el P/G vivo.
+    D.querySelectorAll('[class*="st-key-cartera_detalle_cerrar_"]').forEach(function(el){
+      var m = el.className.match(/st-key-cartera_detalle_cerrar_([\w-]+)/);
       var v = m ? pos[m[1]] : undefined;
       if (v === undefined) return;
       var txt = el.querySelector('button p') || el.querySelector('button');

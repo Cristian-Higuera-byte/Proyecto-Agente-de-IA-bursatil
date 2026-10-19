@@ -16,15 +16,17 @@ Transportes y Servicios Ltda.
 // [grafico] Pantalla completa: botón, modo "pj-fs" y selector de activo (cambiar de símbolo sin salir)
     // Se pone en pantalla completa el IFRAME entero (window.frameElement), no solo el gráfico: así sigue en pantalla
     // completa aunque Streamlit recargue el contenido (p. ej. al cambiar de activo). Si no se puede, se usa el
-    // contenedor del gráfico como antes. En pantalla completa se ven los botones VENDER/COMPRAR (posiciones_grafico.py)
+    // contenedor del gráfico como antes. En pantalla completa se ven los botones VENDER/COMPRAR (posiciones/)
     // y el nombre del activo abre la lista de activos de la watchlist.
     // ACTIVOS: lista de activos de la watchlist inyectada por Python (símbolo b, nombre n, icono i y marca a de activo actual)
     var ACTIVOS = __ACTIVOS_JSON__;
     // wrapFs / btnFullEl: contenedor del gráfico y botón de pantalla completa; docPadre: documento de Streamlit si es accesible
-    var wrapFs = document.getElementById('tv-wrap');
-    var btnFullEl = document.getElementById('btn-full');
+    var contenedorFs = document.getElementById('tradingview-contenedor');
+    var botonCompletoEl = document.getElementById('boton-completo');
     var docPadre = null;
     try { docPadre = window.parent.document; } catch (e) {}
+
+    // TITULO EN PANTALLA COMPLETA
 
     /**
      * Indica si la pantalla completa está activa sobre este iframe o sobre el contenedor del gráfico, consultando
@@ -33,8 +35,10 @@ Transportes y Servicios Ltda.
     function enPantallaCompleta(){
       var fe = docPadre ? docPadre.fullscreenElement : document.fullscreenElement;
       if (!fe && document.fullscreenElement) fe = document.fullscreenElement;
-      return !!fe && (fe === window.frameElement || fe === wrapFs);
+      return !!fe && (fe === window.frameElement || fe === contenedorFs);
     }
+    // TITULO ALTERNAR PANTALLA COMPLETA
+
     /**
      * Entra o sale de pantalla completa: pide pantalla completa del iframe entero (o del contenedor si no es posible)
      * y sale usando el documento que la tiene.
@@ -46,7 +50,7 @@ Transportes y Servicios Ltda.
         return;
       }
       /** Alternativa de alternarPantallaCompleta: pone en pantalla completa solo el contenedor del gráfico. */
-      var respaldo = function(){ if (wrapFs.requestFullscreen) wrapFs.requestFullscreen(); };
+      var respaldo = function(){ if (contenedorFs.requestFullscreen) contenedorFs.requestFullscreen(); };
       var fe = window.frameElement;
       if (fe && fe.requestFullscreen) {
         var p = null;
@@ -54,43 +58,51 @@ Transportes y Servicios Ltda.
         if (p && p.catch) p.catch(respaldo);
       } else { respaldo(); }
     }
-    if (btnFullEl) btnFullEl.addEventListener('click', alternarPantallaCompleta);
+    if (botonCompletoEl) botonCompletoEl.addEventListener('click', alternarPantallaCompleta);
 
     // --- Selector de activo ---
     // Elementos del selector de activo
-    var panelSel = document.getElementById('sel-activo');
-    var listaSel = document.getElementById('sel-activo-lista');
-    var msgSel = document.getElementById('sel-activo-msg');
-    var simboloEl = document.getElementById('lg-sym');
+    var panelSeleccion = document.getElementById('seleccion-activo');
+    var listaSeleccion = document.getElementById('seleccion-activo-lista');
+    var mensajeSeleccion = document.getElementById('seleccion-activo-mensaje');
+    var simboloEl = document.getElementById('leyenda-simbolo');
+
+    // TITULO CONSTRUIR SELECTOR
 
     /**
      * Dibuja la lista de activos de la watchlist (icono, nombre, descripción y marca del activo actual) y asocia el
      * clic a elegirActivo.
      */
     function construirSelector(){
-      listaSel.innerHTML = '';
+      listaSeleccion.innerHTML = '';
       ACTIVOS.forEach(function(a, i){
-        var fila = document.createElement('div'); fila.className = 'sel-fila';
-        var ico = document.createElement('div'); ico.className = 'sel-ico'; ico.innerHTML = a.i || '';
-        var txt = document.createElement('div'); txt.className = 'sel-txt';
-        var nom = document.createElement('span'); nom.className = 'sel-nom'; nom.textContent = a.b;
+        var fila = document.createElement('div'); fila.className = 'seleccion-fila';
+        var ico = document.createElement('div'); ico.className = 'seleccion-icono'; ico.innerHTML = a.i || '';
+        var txt = document.createElement('div'); txt.className = 'seleccion-texto';
+        var nom = document.createElement('span'); nom.className = 'seleccion-nombre'; nom.textContent = a.b;
         txt.appendChild(nom);
-        if (a.n) { var de = document.createElement('span'); de.className = 'sel-desc'; de.textContent = a.n; txt.appendChild(de); }
+        if (a.n) { var de = document.createElement('span'); de.className = 'seleccion-descripcion'; de.textContent = a.n; txt.appendChild(de); }
         fila.appendChild(ico); fila.appendChild(txt);
-        if (a.a) { var ok = document.createElement('span'); ok.className = 'sel-ok'; ok.textContent = String.fromCharCode(10003); fila.appendChild(ok); }
+        if (a.a) { var ok = document.createElement('span'); ok.className = 'seleccion-aceptar'; ok.textContent = String.fromCharCode(10003); fila.appendChild(ok); }
         fila.addEventListener('click', function(){ elegirActivo(i); });
-        listaSel.appendChild(fila);
+        listaSeleccion.appendChild(fila);
       });
     }
+    // TITULO ABRIR SELECTOR ACTIVO
+
     /** Muestra el panel selector de activo; solo funciona en pantalla completa y si hay activos. */
     function abrirSelectorActivo(){
       if (!enPantallaCompleta() || !ACTIVOS.length) return;
-      msgSel.textContent = '';
+      mensajeSeleccion.textContent = '';
       construirSelector();
-      panelSel.classList.add('abierto');
+      panelSeleccion.classList.add('abierto');
     }
+    // TITULO CERRAR SELECTOR ACTIVO
+
     /** Oculta el panel selector de activo. */
-    function cerrarSelectorActivo(){ panelSel.classList.remove('abierto'); }
+    function cerrarSelectorActivo(){ panelSeleccion.classList.remove('abierto'); }
+    // TITULO ELEGIR ACTIVO
+
     /**
      * Cambia al activo número i pulsando el botón oculto de Streamlit correspondiente; si no se puede, muestra un
      * mensaje.
@@ -101,25 +113,27 @@ Transportes y Servicios Ltda.
       if (a.a) { cerrarSelectorActivo(); return; }
       // Streamlit tiene un botón oculto por activo (posiciones_grafico.gatillos_cierre): se pulsa el nº i
       var b = null;
-      try { b = docPadre.querySelector('.st-key-chcls_sel_' + i + ' button'); } catch (e) {}
-      if (!b) { msgSel.textContent = 'No se pudo cambiar de activo desde aquí. Sal de la pantalla completa y elígelo en la lista.'; return; }
-      msgSel.textContent = 'Cambiando a ' + a.b + '…';
+      try { b = docPadre.querySelector('.st-key-grafico_cerrar_sel_' + i + ' button'); } catch (e) {}
+      if (!b) { mensajeSeleccion.textContent = 'No se pudo cambiar de activo desde aquí. Sal de la pantalla completa y elígelo en la lista.'; return; }
+      mensajeSeleccion.textContent = 'Cambiando a ' + a.b + '…';
       b.click();
     }
     // Eventos del selector: el nombre del activo lo abre o cierra; la X, un clic fuera o Escape lo cierran
     if (simboloEl) simboloEl.addEventListener('click', function(e){
       e.stopPropagation();
-      if (panelSel.classList.contains('abierto')) cerrarSelectorActivo(); else abrirSelectorActivo();
+      if (panelSeleccion.classList.contains('abierto')) cerrarSelectorActivo(); else abrirSelectorActivo();
     });
-    document.getElementById('sel-activo-x').addEventListener('click', cerrarSelectorActivo);
+    document.getElementById('seleccion-activo-x').addEventListener('click', cerrarSelectorActivo);
     document.addEventListener('mousedown', function(e){
-      if (panelSel.classList.contains('abierto') && !panelSel.contains(e.target) && e.target !== simboloEl) cerrarSelectorActivo();
+      if (panelSeleccion.classList.contains('abierto') && !panelSeleccion.contains(e.target) && e.target !== simboloEl) cerrarSelectorActivo();
     });
     document.addEventListener('keydown', function(e){ if (e.key === 'Escape') cerrarSelectorActivo(); });
 
     // --- Modo pantalla completa (clase pj-fs): se revisa a menudo porque el evento llega al documento padre ---
     // fsPrevio: último estado de pantalla completa visto, para detectar cambios
     var fsPrevio = null;
+    // TITULO SINCRONIZAR PANTALLA
+
     /**
      * Revisa si cambió el estado de pantalla completa: actualiza la clase pj-fs, cierra el selector al salir y
      * redibuja los dibujos.
@@ -128,7 +142,7 @@ Transportes y Servicios Ltda.
       var fs = enPantallaCompleta();
       if (fs === fsPrevio) return;
       fsPrevio = fs;
-      wrapFs.classList.toggle('pj-fs', fs);
+      contenedorFs.classList.toggle('pj-fs', fs);
       if (!fs) cerrarSelectorActivo();
       redibujarTodo();
     }

@@ -27,7 +27,7 @@ Paquete de la página "Mercados" (barra lateral), con diseño de plataforma de b
   con periodos 1S/1M/3M/6M/1A, rendimiento, estadísticas clave y
   especificaciones del contrato.
 
-Precios, cambios y Bid/Ask se pintan en vivo con el feed SSE (flujo_vivo.py);
+Precios, cambios y Bid/Ask se pintan en vivo con el feed SSE (flujo_precios/);
 sin servidor de datos, los fragmentos se refrescan cada pocos segundos.
 La variación es la DEL DÍA (contra el cierre diario anterior), la misma base
 que usan Favoritos, la lista de activos y el feed.

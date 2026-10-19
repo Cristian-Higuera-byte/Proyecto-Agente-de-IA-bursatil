@@ -20,7 +20,7 @@ servidor, así la sesión sobrevive a un F5 mientras la consola esté encendida.
 
 Estado de sesión de Streamlit que maneja este módulo:
   * `usuario_autenticado` (bool): indica que esta pestaña ya inició sesión.
-  * `usuario_info` (dict): datos del usuario ({id, nombre, email}).
+  * `usuario_informacion` (dict): datos del usuario ({id, nombre, email}).
 Lo consume acceso/pantalla.py (requerir_login) y, a través de él, aplicacion.py.
 """
 import streamlit as st
@@ -28,19 +28,23 @@ import streamlit as st
 from herramientas import almacen_sesiones
 
 
+# TITULO CERRAR SESION
+
 def cerrar_sesion() -> None:
     """Cierra la sesión del usuario actual.
 
     Efectos secundarios: elimina del almacén de sesiones del servidor el token que viaja en
     el parámetro `s` de la URL y borra de `st.session_state` las claves `usuario_autenticado`
-    y `usuario_info`. No devuelve nada; el llamador decide si limpia la URL y reejecuta.
+    y `usuario_informacion`. No devuelve nada; el llamador decide si limpia la URL y reejecuta.
     """
     # Invalida el token en el servidor para que un F5 ya no restaure la sesión
     almacen_sesiones.eliminar(st.query_params.get("s", ""))
     # Olvida el estado local de la pestaña
-    for clave in ("usuario_autenticado", "usuario_info"):
+    for clave in ("usuario_autenticado", "usuario_informacion"):
         st.session_state.pop(clave, None)
 
+
+# TITULO INICIAR SESION
 
 def iniciar_sesion(usuario: dict) -> None:
     """Inicia la sesión de un usuario ya validado.
@@ -53,21 +57,23 @@ def iniciar_sesion(usuario: dict) -> None:
     """
     # Marca la pestaña como autenticada y guarda los datos del usuario
     st.session_state.usuario_autenticado = True
-    st.session_state.usuario_info = usuario
+    st.session_state.usuario_informacion = usuario
     st.query_params["s"] = almacen_sesiones.crear(usuario)  # persiste tras F5
     st.rerun()
 
+
+# TITULO USUARIO EN SESION
 
 def usuario_en_sesion() -> dict | None:
     """Devuelve el usuario autenticado de esta pestaña, o None si no hay sesión.
 
     Primero consulta `st.session_state`; si está vacío (por ejemplo tras un F5) intenta
     restaurar la sesión con el token `s` de la URL consultando almacen_sesiones. Al
-    restaurar, vuelve a poblar `usuario_autenticado` y `usuario_info` en el estado de sesión.
+    restaurar, vuelve a poblar `usuario_autenticado` y `usuario_informacion` en el estado de sesión.
     """
     # Caso normal: la pestaña ya está autenticada
     if st.session_state.get("usuario_autenticado"):
-        return st.session_state.get("usuario_info", {})
+        return st.session_state.get("usuario_informacion", {})
 
     # Tras un F5, session_state se vacía pero el token sigue en la URL:
     # si el servidor aún lo tiene (consola encendida), restauramos la sesión.
@@ -76,7 +82,7 @@ def usuario_en_sesion() -> dict | None:
         usuario = almacen_sesiones.obtener(token)
         if usuario:
             st.session_state.usuario_autenticado = True
-            st.session_state.usuario_info = usuario
+            st.session_state.usuario_informacion = usuario
             return usuario
     return None
 

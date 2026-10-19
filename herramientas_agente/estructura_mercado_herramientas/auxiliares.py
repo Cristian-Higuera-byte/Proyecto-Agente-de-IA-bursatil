@@ -23,6 +23,8 @@ from fuentes import mt5_fuentes as mt5_fuente
 from fuentes import yfinance_fuente as yf_fuente
 
 
+# TITULO OBTENER VELAS HISTORICAS
+
 def _obtener_velas_historicas(simbolo: str, timeframe: str = "H1", cantidad: int = 100) -> list[dict[str, Any]]:
     """Devuelve las últimas `cantidad` velas de un símbolo como lista de dicts (time, open, high, low, close, tick_volume).
 
@@ -35,24 +37,24 @@ def _obtener_velas_historicas(simbolo: str, timeframe: str = "H1", cantidad: int
 
     # Fuente primaria: MT5.
     try:
-        res = mt5_fuente.velas(simbolo=s_clean, timeframe=timeframe, cantidad=cantidad, ultimas_velas=cantidad)
-        velas = res.get("ultimas_velas", [])
+        resultado = mt5_fuente.velas(simbolo=s_clean, timeframe=timeframe, cantidad=cantidad, ultimas_velas=cantidad)
+        velas = resultado.get("ultimas_velas", [])
     except Exception:
         pass
 
     # Respaldo: Yahoo Finance con el ticker equivalente (par de divisas con "=X", oro como GC=F).
     if not velas:
         try:
-            yf_sym = s_clean
+            yahoo_simbolo = s_clean
             if len(s_clean) == 6 and s_clean.isalpha() and not s_clean.endswith("=X"):
-                yf_sym = f"{s_clean}=X"
+                yahoo_simbolo = f"{s_clean}=X"
             elif s_clean in ("XAUUSD", "GOLD"):
-                yf_sym = "GC=F"
+                yahoo_simbolo = "GC=F"
 
-            tf_yf = "1h" if "H" in timeframe.upper() else "1d"
-            res_yf = yf_fuente.historico(simbolo=yf_sym, periodo="1mo", intervalo=tf_yf, ultimas_velas=cantidad)
+            temporalidad_yahoo = "1h" if "H" in timeframe.upper() else "1d"
+            resultado_yahoo = yf_fuente.historico(simbolo=yahoo_simbolo, periodo="1mo", intervalo=temporalidad_yahoo, ultimas_velas=cantidad)
             # Se traducen las claves de Yahoo (fecha, apertura...) a las de MT5 (time, open...).
-            for v in res_yf.get("ultimas_velas", []):
+            for v in resultado_yahoo.get("ultimas_velas", []):
                 velas.append({
                     "time": v.get("fecha"),
                     "open": v.get("apertura"),

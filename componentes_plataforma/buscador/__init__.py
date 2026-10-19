@@ -14,11 +14,11 @@
 """
 Paquete del buscador de activos. API pública:
   - abrir_buscador / renderizar_buscador (patrón bandera + render en aplicacion.py).
-  - _agregar_a_watchlist: lo reutiliza mercados_panel.py.
+  - _agregar_a_watchlist: lo reutiliza mercados/.
 La lógica/datos viven en datos.py y el modal en dialogo.py.
 
 Este __init__ es una fachada: reexporta esos nombres para que barra_superior, aplicacion.py
-y mercados_panel.py importen todo desde `componentes_plataforma.buscador`.
+y mercados/ importen todo desde `componentes_plataforma.buscador`.
 """
 from .dialogo import abrir_buscador, renderizar_buscador
 from .datos import _agregar_a_watchlist, cargar_simbolos_broker

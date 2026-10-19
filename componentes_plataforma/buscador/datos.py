@@ -16,7 +16,7 @@ buscador/datos.py
 -----------------
 Datos y lógica del buscador (sin UI): carga de TODOS los símbolos del broker MT5
 (cacheada 10 min), categorías, filtro por texto/categoría y alta de un activo en la
-watchlist del usuario. `_agregar_a_watchlist` lo reutiliza también mercados_panel.py.
+watchlist del usuario. `_agregar_a_watchlist` lo reutiliza también mercados/.
 La interfaz (modal) está en dialogo.py.
 """
 import streamlit as st
@@ -25,6 +25,8 @@ from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 from herramientas.puente_mt5 import MT5_LOCK, inicializar_mt5
 from herramientas import gestor_lista_activos as wl
 
+
+# TITULO CARGAR SIMBOLOS BROKER
 
 @st.cache_data(ttl=600, show_spinner=False)
 def cargar_simbolos_broker() -> list[dict]:
@@ -55,10 +57,14 @@ def cargar_simbolos_broker() -> list[dict]:
     return salida
 
 
+# TITULO CATEGORIAS
+
 def categorias(activos: list[dict]) -> list[str]:
     """Devuelve las categorías para el filtro: "Todo" seguido de las presentes en `activos`, ordenadas."""
     return ["Todo"] + sorted({a["cat"] for a in activos})
 
+
+# TITULO FILTRAR
 
 def filtrar(activos: list[dict], q: str, cat: str) -> list[dict]:
     """Filtra `activos` por categoría y por texto.
@@ -69,7 +75,7 @@ def filtrar(activos: list[dict], q: str, cat: str) -> list[dict]:
     """
     # Normaliza el texto de búsqueda
     q = (q or "").strip().upper()
-    res = []
+    resultado = []
     for a in activos:
         # Descarta por categoría
         if cat and cat != "Todo" and a["cat"] != cat:
@@ -77,9 +83,11 @@ def filtrar(activos: list[dict], q: str, cat: str) -> list[dict]:
         # Descarta si el texto no aparece en ningún campo
         if q and q not in a["visible"].upper() and q not in a["name"].upper() and q not in a["desc"].upper():
             continue
-        res.append(a)
-    return res
+        resultado.append(a)
+    return resultado
 
+
+# TITULO AGREGAR A WATCHLIST
 
 def _agregar_a_watchlist(uid, a: dict):
     """Agrega el activo `a` a la lista de seguimiento del usuario `uid`.

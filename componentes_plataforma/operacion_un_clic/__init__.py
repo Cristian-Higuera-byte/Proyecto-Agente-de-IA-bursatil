@@ -21,11 +21,11 @@ ticket, del menú del clic derecho del gráfico y los arrastres de líneas
 La PRIMERA vez que un usuario lo activa debe aceptar la renuncia de
 responsabilidades (modal). La aceptación queda registrada en el servidor, con
 fecha, en `data/one_click_aceptaciones.json` (ignorado por git) y no se vuelve a
-pedir. El interruptor vive en el ticket de órdenes (clave `ord_oc`); el gráfico
+pedir. El interruptor vive en el ticket de órdenes (clave `orden_un_clic`); el gráfico
 lee su estado del DOM y, para activarlo desde el menú, pulsa ese mismo interruptor.
 
 Uso:
-- panel_orden/panel.py: `st.toggle(..., key="ord_oc", on_change=al_cambiar)`
+- panel_orden/panel.py: `st.toggle(..., key="orden_un_clic", on_change=al_cambiar)`
 - aplicacion.py: `renderizar_modal_terminos()` (fuera de los fragmentos en vivo)
 
 Archivos: registro.py (aceptación por usuario; PEDIR_SIEMPRE vive aquí), estado.py (callbacks del

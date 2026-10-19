@@ -19,6 +19,8 @@ from typing import Any
 import configuracion  # type: ignore[import-not-found]
 
 
+# TITULO CONSTRUIR KWARGS
+
 def construir_kwargs(
     nombre: str,
     mensajes: list[dict[str, Any]],

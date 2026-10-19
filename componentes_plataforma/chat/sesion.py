@@ -13,7 +13,7 @@
 
 """Sesión del chat: quién es el usuario, qué agente usa y con qué perfil.
 
-Guarda en st.session_state: usuario_info (datos del login), agente_ia (instancia del
+Guarda en st.session_state: usuario_informacion (datos del login), agente_ia (instancia del
 Agente) y perfil_agente (perfil elegido en el selector). El agente se registra además en
 nucleo_agente.turnos para que sobreviva a recargas de la página.
 """
@@ -31,13 +31,17 @@ SALUDO = (
 )
 
 
+# TITULO USUARIO ID
+
 def usuario_id() -> str:
     """Id del usuario con sesión iniciada: clave del turno en segundo plano y de las notificaciones.
 
     Devuelve el id como texto, o "local" si no hay sesión iniciada.
     """
-    return str((st.session_state.get("usuario_info") or {}).get("id") or "local")
+    return str((st.session_state.get("usuario_informacion") or {}).get("id") or "local")
 
+
+# TITULO OBTENER AGENTE
 
 def obtener_agente():
     """Devuelve (agente, mensaje_error). Un agente por usuario: sobrevive a recargas de la página,
@@ -64,6 +68,8 @@ def obtener_agente():
     st.session_state["agente_ia"] = agente
     return agente, ""
 
+
+# TITULO CAMBIAR PERFIL
 
 def cambiar_perfil():
     """Callback del selector de perfil: aplica al agente el perfil elegido en st.session_state.perfil_agente.

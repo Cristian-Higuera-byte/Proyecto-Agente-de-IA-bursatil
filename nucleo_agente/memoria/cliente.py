@@ -23,6 +23,8 @@ from nucleo_agente.memoria.errores import ErrorMemoria
 _cliente_global: Any = None
 
 
+# TITULO OBTENER CLIENTE
+
 def _obtener_cliente() -> Any:
     """Devuelve el cliente de Supabase del proceso, creándolo la primera vez.
 
@@ -43,6 +45,8 @@ def _obtener_cliente() -> Any:
             raise ErrorMemoria(f"No se pudo crear el cliente de Supabase: {e}") from e
     return _cliente_global
 
+
+# TITULO AHORA
 
 def _ahora() -> str:
     """Hora actual en UTC como texto ISO 8601 (para las columnas de fecha de Supabase)."""

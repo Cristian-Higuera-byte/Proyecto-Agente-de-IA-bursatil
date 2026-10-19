@@ -22,6 +22,8 @@ from componentes_plataforma.noticias.modal import abrir_modal
 from componentes_plataforma.noticias.secciones import renderizar_contenido
 
 
+# TITULO RENDERIZAR PANEL NOTICIAS
+
 def renderizar_panel_noticias(main: Optional[ModuleType] = None):
     """Dibuja la página de noticias.
 

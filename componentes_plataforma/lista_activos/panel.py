@@ -27,6 +27,8 @@ from componentes_plataforma.lista_activos.fila import dibujar_fila
 ALTURA_LISTA = 640
 
 
+# TITULO RENDERIZAR WATCHLIST
+
 def renderizar_watchlist():
     """Dibuja el panel «Lista de activos»: encabezado, zona con scroll con las filas y botón «Agregar activo».
 
@@ -44,15 +46,15 @@ def renderizar_watchlist():
     if "activo_seleccionado" not in st.session_state:
         st.session_state.activo_seleccionado = "EURUSD..."
 
-    with st.container(key="wl_panel"):
+    with st.container(key="lista_activos_panel"):
         # Encabezado
         st.markdown(
             """
-            <div class='wl-head'>
-                <div class='ic'><span class='wl-mi'>show_chart</span></div>
+            <div class='lista-activos-cabecera'>
+                <div class='ic'><span class='lista-activos-icono-material'>show_chart</span></div>
                 <div>
-                    <div class='wl-title'>Lista de activos</div>
-                    <div class='wl-sub'>Precios de activos en tiempo real</div>
+                    <div class='lista-activos-titulo'>Lista de activos</div>
+                    <div class='lista-activos-subtitulo'>Precios de activos en tiempo real</div>
                 </div>
             </div>
             """,
@@ -60,19 +62,19 @@ def renderizar_watchlist():
         )
 
         # Contenedor con altura fija y scroll vertical individual
-        with st.container(height=ALTURA_LISTA, border=False, key="wl_scroll"):
+        with st.container(height=ALTURA_LISTA, border=False, key="lista_activos_desplazamiento"):
             # Si un ticker aún no tiene datos de mercado se usa un item neutro.
             for ticker in tickers_watchlist:
-                item = info_activos_real.get(ticker, {
+                elemento = info_activos_real.get(ticker, {
                     "nombre": ticker,
                     "precio": 1.0000,
                     "var": "+0.00 (0.00%)",
                     "sube": True
                 })
-                dibujar_fila(ticker, item)
+                dibujar_fila(ticker, elemento)
 
         # Botón de agregar activo, en un contenedor con clave para estilizarlo.
-        with st.container(key="wl_add"):
+        with st.container(key="lista_activos_agregar"):
             if st.button("Agregar activo", icon=":material/add:", width="stretch"):
                 # Importación diferida del buscador (diálogo de búsqueda de activos).
                 from componentes_plataforma.buscador import abrir_buscador

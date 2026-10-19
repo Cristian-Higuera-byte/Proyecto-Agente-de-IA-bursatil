@@ -29,6 +29,8 @@ from componentes_plataforma._estaticos import texto
 _DIRECTORIO = Path(__file__).parent
 
 
+# TITULO CSS GLOBAL
+
 def css_global() -> str:
     """
     Entrega el bloque `<style>` con el tema oscuro tipo terminal de trading, listo para `st.markdown`.
@@ -40,6 +42,8 @@ def css_global() -> str:
     css = texto(_DIRECTORIO / "estilos.css")
     return "\n    <style>\n" + textwrap.indent(css, " " * 8) + "    </style>\n"
 
+
+# TITULO HTML PANTALLA CARGA
 
 def html_pantalla_carga() -> str:
     """

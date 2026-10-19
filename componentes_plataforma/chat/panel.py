@@ -24,23 +24,27 @@ import configuracion
 from componentes_plataforma.chat.historial import (iniciar_conversacion, pintar_mensajes, reiniciar_conversacion,
                                        sincronizar_turno)
 from componentes_plataforma.chat.sesion import cambiar_perfil, obtener_agente, usuario_id
-from componentes_plataforma.panel_ordenes import cabecera_agente
+from componentes_plataforma.agente_paneles import cabecera_agente
 from nucleo_agente import turnos
 
+
+# TITULO RENDERIZAR CHAT AGENTE
 
 def renderizar_chat_agente() -> None:
     """Chat del agente. Va en la fila de abajo de aplicacion.py, junto al historial y las propuestas.
 
-    Dibuja la tarjeta (contenedor agc_panel) con la cabecera común de los paneles del
+    Dibuja la tarjeta (contenedor agente_chat_panel) con la cabecera común de los paneles del
     agente y el cuerpo del chat. No recibe parámetros ni devuelve nada.
     """
-    with st.container(key="agc_panel"):   # tarjeta con el mismo estilo que el historial y las propuestas
+    with st.container(key="agente_chat_panel"):   # tarjeta con el mismo estilo que el historial y las propuestas
         st.html(cabecera_agente(
             "smart_toy", "Agente IA Analítico",
             "Consola, gráficos e imágenes · mantiene el contexto y usa las herramientas de MT5",
         ))
         _chat_agente()
 
+
+# TITULO CONTROLES
 
 def _controles(agente, en_curso: bool) -> None:
     """Fila superior: selector de perfil y botón «Nueva conversación».
@@ -50,8 +54,8 @@ def _controles(agente, en_curso: bool) -> None:
     la conversación visible, y relanza la app.
     """
     # Tres columnas: perfil, reinicio y un relleno que mantiene los controles compactos.
-    col_perfil, col_reset, _relleno = st.columns([2, 2, 4])
-    with col_perfil:
+    columna_perfil, columna_reiniciar, _relleno = st.columns([2, 2, 4])
+    with columna_perfil:
         # Perfiles disponibles definidos en configuracion.py.
         perfiles = list(getattr(configuracion, "PERFILES", []) or [])
         if agente is not None and perfiles:
@@ -64,14 +68,16 @@ def _controles(agente, en_curso: bool) -> None:
                 "Perfil", perfiles, key="perfil_agente", on_change=cambiar_perfil,
                 label_visibility="collapsed", help="Perfil activo del agente", disabled=en_curso,
             )
-    with col_reset:
-        if st.button("Nueva conversación", icon=":material/refresh:", key="agc_nueva", width="stretch",
+    with columna_reiniciar:
+        if st.button("Nueva conversación", icon=":material/refresh:", key="agente_chat_nueva", width="stretch",
                      disabled=en_curso):
             if agente is not None:
                 agente.reiniciar()
             reiniciar_conversacion()
             st.rerun()
 
+
+# TITULO ENTRADA
 
 def _entrada(uid: str, agente, error_agente: str, en_curso: bool, vistos) -> None:
     """Caja de texto: lanza el turno en segundo plano (o muestra el error si no hay agente).
@@ -98,6 +104,8 @@ def _entrada(uid: str, agente, error_agente: str, en_curso: bool, vistos) -> Non
                 vistos.add(nuevo.id)
         st.rerun(scope="app")
 
+
+# TITULO CHAT AGENTE
 
 def _chat_agente() -> None:
     """Cuerpo del chat: prepara usuario, agente y turno, y dibuja controles, mensajes y caja de texto.

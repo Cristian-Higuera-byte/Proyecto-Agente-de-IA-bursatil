@@ -57,9 +57,9 @@ from fuentes.mt5_fuentes.constantes import (
     _MAX_RUTAS,
     _REINTENTO_S,
     _TIMEOUT_MS,
-    _TTL_OFFSET_S,
+    _TIEMPO_VIDA_OFFSET_S,
     _TTL_RUTAS_S,
-    _TTL_SIMBOLOS_S,
+    _TIEMPO_VIDA_SIMBOLOS_S,
 )  # noqa: F401
 # Excepciones del paquete.
 from fuentes.mt5_fuentes.errores import (
@@ -72,10 +72,10 @@ from fuentes.mt5_fuentes.solo_lectura import (
 )  # noqa: F401
 # Candado de acceso a MT5 (compartido con el dashboard o propio).
 from fuentes.mt5_fuentes.candado import (
-    _LOCK_COMPARTIDO,
-    _LOCK_PROPIO,
+    _CANDADO_COMPARTIDO,
+    _CANDADO_PROPIO,
     _candado,
-    _resolver_lock_compartido,
+    _resolver_candado_compartido,
 )  # noqa: F401
 # Descubrimiento de las rutas del terminal64.exe.
 from fuentes.mt5_fuentes.rutas import (

@@ -21,6 +21,8 @@ reportes o históricos ya se han generado.
 
 import os
 
+# TITULO LISTAR ARCHIVOS
+
 def listar_archivos(directorio: str = ".") -> dict:
     """
     Lista los archivos y carpetas contenidos en un directorio dado.

@@ -30,6 +30,8 @@ import yfinance as yf  # type: ignore[import-untyped]
 ARCHIVO_ALERTAS = "data/alertas_activas.json"
 
 
+# TITULO CARGAR ALERTAS
+
 def _cargar_alertas() -> list:
     """
     Lee las alertas guardadas en disco.
@@ -46,6 +48,8 @@ def _cargar_alertas() -> list:
         return []
 
 
+# TITULO GUARDAR ALERTAS
+
 def _guardar_alertas(alertas: list):
     """
     Sobrescribe el archivo JSON de alertas con la lista recibida.
@@ -57,6 +61,8 @@ def _guardar_alertas(alertas: list):
     with open(ARCHIVO_ALERTAS, "w", encoding="utf-8") as f:
         json.dump(alertas, f, indent=4, ensure_ascii=False)
 
+
+# TITULO CREAR ALERTA
 
 def crear_alerta(ticker: str, condicion: str, valor_objetivo: float) -> str:
     """
@@ -88,10 +94,14 @@ def crear_alerta(ticker: str, condicion: str, valor_objetivo: float) -> str:
     return f"✅ Alerta creada exitosamente [ID: {nueva['id']}]: Avisar si {ticker.upper()} está {condicion} a {valor_objetivo}."
 
 
+# TITULO LISTAR ALERTAS
+
 def listar_alertas() -> list:
     """Devuelve la lista completa de alertas registradas (activas e inactivas) leída del JSON."""
     return _cargar_alertas()
 
+
+# TITULO EVALUAR ALERTAS ACTIVAS
 
 def evaluar_alertas_activas() -> str:
     """
@@ -119,11 +129,11 @@ def evaluar_alertas_activas() -> str:
         objetivo = alerta["valor_objetivo"]
         try:
             # Obtener precio actual de mercado
-            tk = yf.Ticker(ticker)
-            hist = tk.history(period="1d")
-            if hist.empty:
+            ticket = yf.Ticker(ticker)
+            historial = ticket.history(period="1d")
+            if historial.empty:
                 continue
-            precio_actual = float(hist["Close"].iloc[-1])
+            precio_actual = float(historial["Close"].iloc[-1])
             # Evalúa la condición contra el precio actual.
             condicion_cumplida = False
             if condicion == "menor" and precio_actual <= objetivo:

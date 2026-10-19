@@ -25,6 +25,8 @@ import time
 from fuentes.mt5_fuentes.constantes import _TTL_RUTAS_S
 
 
+# TITULO TERMINAL EN EJECUCION
+
 def _terminal_en_ejecucion() -> list[str]:
     """Busca los terminal64.exe que estén abiertos ahora mismo en Windows.
 
@@ -50,6 +52,8 @@ def _terminal_en_ejecucion() -> list[str]:
 # Caché de rutas: (instante monotónico, lista de rutas) o None si aún no se calculó.
 _rutas_cache: tuple[float, list[str]] | None = None
 
+
+# TITULO RUTAS CANDIDATAS
 
 def rutas_candidatas(refrescar: bool = False) -> list[str]:
     """Devuelve las rutas posibles del terminal64.exe, en orden de prioridad y sin duplicados.

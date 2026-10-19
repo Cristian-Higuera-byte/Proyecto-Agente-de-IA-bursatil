@@ -46,6 +46,8 @@ DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
 DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 
 
+# TITULO PERFIL MODELO
+
 @dataclass(frozen=True)
 class PerfilModelo:
     """
@@ -77,7 +79,7 @@ PERFIL_POR_DEFECTO = "analisis"
 # Comportamiento del agente
 # ──────────────────────────────────────────────────────────────
 MAX_ITERACIONES_HERRAMIENTAS = 8   # tope de ciclos "llamar herramienta → razonar" por consulta
-TIMEOUT_LLM_SEG = 120              # segundos máximos de espera por cada respuesta del modelo
+TIEMPO_ESPERA_LLM_SEGUNDOS = 120              # segundos máximos de espera por cada respuesta del modelo
 REINTENTOS_LLM = 3                 # reintentos automáticos ante fallos de red o del servicio
 
 # ──────────────────────────────────────────────────────────────
@@ -88,6 +90,8 @@ DIR_DATOS = RAIZ / "data"
 # Carpeta con los prompts del agente (prompts/sistema.md).
 DIR_PROMPTS = RAIZ / "prompts"
 
+
+# TITULO VALIDAR CONFIGURACION
 
 def validar_configuracion() -> None:
     """

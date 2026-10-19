@@ -1,3 +1,16 @@
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ---------------------------------- INICIO Piña y Jara puente_mt5 .PY ----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
 """
 puente_mt5.py  —  DESPACHADOR de backend (16-10-2026)
 ---------------------------------------------------------------
@@ -72,8 +85,27 @@ else:
         eliminar_orden,
     )
 
+    # TITULO DETALLE CIERRE
+
     def detalle_cierre(deal_id, t_cierre):   # MT5 trae entrada/salida en sus deals: sin detalle aparte
+        """Con MT5 no hace falta: sus deals ya traen entrada y salida. Devuelve un diccionario vacío."""
         return {}
 
+    # TITULO PRECARGAR PRECIOS
+
     def precargar_precios(symbols=None):   # MT5 lee local: no necesita precarga batch
+        """Con MT5 no hace falta precargar (lee en local). No hace nada."""
         return None
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------------ FIN Piña y Jara puente_mt5 .PY -----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

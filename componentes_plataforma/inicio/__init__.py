@@ -30,7 +30,7 @@ Datos en vivo: los números llevan atributos data-pj-* y los pinta el feed
 (componentes_plataforma/flujo_precios) con el MISMO dato que la barra superior.
 
 Este `__init__` es una fachada: reexporta solo `renderizar_panel_inicio`, el punto de entrada que usa
-`aplicacion.py` (a través de `componentes_plataforma/inicio_panel.py`) para dibujar la vista Inicio.
+`aplicacion.py` (a través de `componentes_plataforma/inicio/`) para dibujar la vista Inicio.
 """
 # Función que dibuja toda la vista de Inicio.
 from componentes_plataforma.inicio.panel import renderizar_panel_inicio

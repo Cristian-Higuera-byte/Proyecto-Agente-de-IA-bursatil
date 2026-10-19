@@ -20,7 +20,7 @@ Garantías de diseño:
     proponer_apertura / proponer_cierre (ver herramientas_agente/ordenes_herramientas), que
     validan contra LIMITES y guardan una propuesta PENDIENTE.
   * La única función que envía algo a MetaTrader 5 es confirmar_orden(), y solo la
-    llama el botón "Confirmar" del dashboard (componentes_plataforma/panel_ordenes.py).
+    llama el botón "Confirmar" del dashboard (componentes_plataforma/agente_paneles/).
   * Los límites de riesgo están en código (LIMITES), no en el prompt: el modelo no
     puede saltárselos ni cambiarlos.
   * Cada propuesta queda registrada en SQLite (data/ordenes.db) con su justificación:
@@ -47,8 +47,8 @@ from nucleo_agente.ordenes.limites import (
 from nucleo_agente.ordenes.base_datos import (
     DIR_DATOS,
     RUTA_DB,
-    kill_switch_activo,
-    fijar_kill_switch,
+    interruptor_emergencia_activo,
+    fijar_interruptor_emergencia,
     _COLUMNAS_NUEVAS_ORDENES,
     _DB_LOCK,
     _SQL_ORDENES,
@@ -66,7 +66,7 @@ from nucleo_agente.ordenes.mt5_utiles import (
     mt5,
     resolver_simbolo,
     _chequeos_globales,
-    _con_lock,
+    _con_candado,
     _desviacion,
     _inicio_dia_servidor,
     _modo_llenado,

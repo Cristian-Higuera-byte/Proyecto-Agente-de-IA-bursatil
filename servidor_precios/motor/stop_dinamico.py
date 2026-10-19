@@ -25,12 +25,16 @@ from herramientas.puente_mt5 import modificar_sltp
 from ..constantes import CANDADO_MT5
 
 
+# TITULO MIXIN STOP DINAMICO
+
 class MixinStopDinamico:
     """Mixin de MotorPrecios con la lógica de stop dinámico.
 
     Usa el estado definido en MotorPrecios.__init__: _trailing (ticket -> config) y
     _trailing_mtime (fecha del archivo ya cargado).
     """
+
+    # TITULO RECARGAR TRAILING
 
     # --- Stop dinámico (trailing stop) ------------------------------------
     # El SL sigue al precio a una distancia fija cuando la operación va a favor y
@@ -46,6 +50,8 @@ class MixinStopDinamico:
         if m != self._trailing_mtime:
             self._trailing = almacen_stop_dinamico.leer()
             self._trailing_mtime = m
+
+    # TITULO PASO TRAILING
 
     def _paso_trailing(self):
         """Ejecuta un ciclo del stop dinámico (lo llama el bucle principal del motor).
@@ -64,7 +70,7 @@ class MixinStopDinamico:
             posiciones = {_tk(p.ticket): p for p in (mt5.positions_get() or [])}
         # Copia de las claves porque el diccionario puede cambiar dentro del ciclo
         for ticket in list(self._trailing.keys()):
-            cfg = self._trailing[ticket]
+            configuracion = self._trailing[ticket]
             p = posiciones.get(ticket)
             if p is None:                      # posición cerrada -> limpiar la config
                 almacen_stop_dinamico.quitar(ticket)
@@ -72,8 +78,8 @@ class MixinStopDinamico:
                 self._trailing_mtime = almacen_stop_dinamico.mtime()
                 continue
             # Distancia fija entre precio y SL; sin distancia válida no hay nada que hacer
-            dist = float(cfg.get("dist", 0.0))
-            if dist <= 0:
+            distancia = float(configuracion.get("dist", 0.0))
+            if distancia <= 0:
                 continue
             # Especificaciones del símbolo y último tick
             with CANDADO_MT5:
@@ -82,33 +88,33 @@ class MixinStopDinamico:
             if si is None or tick is None or not (tick.bid or tick.ask):
                 continue
             # Dígitos, tamaño de punto y distancia mínima de stops que exige el bróker
-            dig = int(getattr(si, "digits", 5) or 5)
-            point = float(getattr(si, "point", 0) or 0)
-            sm = float(getattr(si, "trade_stops_level", 0) or 0) * point
+            digitos = int(getattr(si, "digits", 5) or 5)
+            punto = float(getattr(si, "point", 0) or 0)
+            sm = float(getattr(si, "trade_stops_level", 0) or 0) * punto
             # Paso mínimo para volver a mover el SL (evita reescribirlo en cada
             # micro-tick). Por defecto 5 % de la distancia, con piso de unos points:
             # el SL sigue pegado al precio (gap entre dist y dist×1.05) sin saturar.
-            paso = float(cfg.get("paso", 0.0)) or max(point * 3, dist * 0.05)
+            paso = float(configuracion.get("paso", 0.0)) or max(punto * 3, distancia * 0.05)
             # SL vigente (0 = sin SL)
-            sl_actual = float(p.sl or 0.0)
+            stop_loss_actual = float(p.sl or 0.0)
             if int(p.type) == 0:               # COMPRA: SL por debajo, sigue al Bid
                 precio = tick.bid
-                nuevo = round(precio - dist, dig)
+                nuevo = round(precio - distancia, digitos)
                 if precio - nuevo < sm:        # respeta la distancia mínima del bróker
-                    nuevo = round(precio - sm, dig)
-                sube = nuevo > sl_actual + paso if sl_actual > 0 else True
-                if sube and 0 < nuevo < precio and (sl_actual <= 0 or nuevo > sl_actual):
+                    nuevo = round(precio - sm, digitos)
+                sube = nuevo > stop_loss_actual + paso if stop_loss_actual > 0 else True
+                if sube and 0 < nuevo < precio and (stop_loss_actual <= 0 or nuevo > stop_loss_actual):
                     with CANDADO_MT5:
-                        modificar_sltp(ticket, sl=nuevo)   # tp=None -> conserva el TP
+                        modificar_sltp(ticket, stop_loss=nuevo)   # tp=None -> conserva el TP
             else:                              # VENTA: SL por encima, sigue al Ask
                 precio = tick.ask
-                nuevo = round(precio + dist, dig)
+                nuevo = round(precio + distancia, digitos)
                 if nuevo - precio < sm:
-                    nuevo = round(precio + sm, dig)
-                baja = nuevo < sl_actual - paso if sl_actual > 0 else True
-                if baja and nuevo > precio and (sl_actual <= 0 or nuevo < sl_actual):
+                    nuevo = round(precio + sm, digitos)
+                baja = nuevo < stop_loss_actual - paso if stop_loss_actual > 0 else True
+                if baja and nuevo > precio and (stop_loss_actual <= 0 or nuevo < stop_loss_actual):
                     with CANDADO_MT5:
-                        modificar_sltp(ticket, sl=nuevo)
+                        modificar_sltp(ticket, stop_loss=nuevo)
 
 
 # -------------------------------------------------------------------------------------------------------

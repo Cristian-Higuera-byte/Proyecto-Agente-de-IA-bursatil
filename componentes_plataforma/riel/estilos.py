@@ -22,6 +22,8 @@ from componentes_plataforma._estaticos import texto
 from componentes_plataforma.riel.datos import BOTONES, PANEL, RAIL, TOP
 
 
+# TITULO CSS
+
 def css() -> str:
     """Devuelve el CSS final del rail envuelto en una etiqueta style.
 
@@ -30,8 +32,8 @@ def css() -> str:
     rellenos derechos (rail + panel + 16 y rail + 16). Lee el archivo con caché; no escribe nada."""
     # Una regla de tooltip por botón: el texto sale del tercer elemento de cada tupla de BOTONES.
     tips = "\n".join(
-        f'    .st-key-rail_{pid} button::after {{ content: {json.dumps(nom)}; }}'
-        for _, pid, nom in BOTONES
+        f'    .st-key-rail_{pid} button::after {{ content: {json.dumps(nombre)}; }}'
+        for _, pid, nombre in BOTONES
     )
     # Plantilla con todos los marcadores sustituidos (los más largos primero para no pisar los más cortos).
     cuerpo = (texto(Path(__file__).parent / "estilos.css")

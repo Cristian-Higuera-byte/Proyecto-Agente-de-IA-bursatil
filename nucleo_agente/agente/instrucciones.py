@@ -25,6 +25,8 @@ PROMPT_RESPALDO = (
 )
 
 
+# TITULO PROMPT SISTEMA
+
 def _prompt_sistema(contexto: str = "") -> str:
     """Construye el prompt de sistema del agente.
 

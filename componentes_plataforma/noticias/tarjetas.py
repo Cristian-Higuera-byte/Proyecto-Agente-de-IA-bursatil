@@ -14,6 +14,8 @@
 """Tarjeta HTML de una noticia (la usan el carrusel y "Más noticias")."""
 
 
+# TITULO TARJETA HTML
+
 def tarjeta_html(n: dict) -> str:
     """Devuelve el HTML de una tarjeta de noticia: imagen, título (2 líneas), descripción (2 líneas, 110
     caracteres) y fecha.

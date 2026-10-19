@@ -33,6 +33,8 @@ from herramientas.puente_mt5 import inicializar_mt5, precargar_precios
 _INDICES = datos_json(Path(__file__).parent / "indices_globales.json")
 
 
+# TITULO CARGAR DATOS MERCADO
+
 def cargar_datos_mercado():
     """Carga (una sola vez por sesión) índices globales, watchlist del usuario y datos de cada símbolo.
 
@@ -61,16 +63,16 @@ def cargar_datos_mercado():
         # La importación es perezosa: yfinance es pesado y solo se necesita en esta carga inicial
         import yfinance as yf  # type: ignore[import-untyped]
         simbolos_indices = _INDICES["yfinance"]
-        for key, sym in simbolos_indices.items():
+        for key, simbolo in simbolos_indices.items():
             # Tres días de historia bastan para tener el último cierre y el anterior (fines de semana incluidos)
-            hist = yf.Ticker(sym).history(period="3d")
-            if not hist.empty and "Close" in hist.columns:
-                val = hist["Close"].iloc[-1]
-                if not math.isnan(float(val)):
+            historial = yf.Ticker(simbolo).history(period="3d")
+            if not historial.empty and "Close" in historial.columns:
+                valor = historial["Close"].iloc[-1]
+                if not math.isnan(float(valor)):
                     # Variación = último cierre contra el cierre previo (o contra sí mismo si solo hay una vela)
-                    actual = float(val)
-                    anterior_val = hist["Close"].iloc[-2] if len(hist) > 1 else actual
-                    anterior = float(anterior_val) if not math.isnan(float(anterior_val)) else actual
+                    actual = float(valor)
+                    anterior_valor = historial["Close"].iloc[-2] if len(historial) > 1 else actual
+                    anterior = float(anterior_valor) if not math.isnan(float(anterior_valor)) else actual
                     cambio = actual - anterior
                     porc = (cambio / anterior * 100) if anterior != 0 else 0.0
                     st.session_state.datos_indices_globales[key] = {
@@ -81,11 +83,11 @@ def cargar_datos_mercado():
 
     # 2. Watchlist del USUARIO (desde Supabase; si es nuevo, se siembra el default)
     # El id puede faltar (sesión sin login completo): en ese caso uid es None y el gestor decide qué devolver
-    usuario = st.session_state.get("usuario_info", {})
+    usuario = st.session_state.get("usuario_informacion", {})
     uid = usuario.get("id") if isinstance(usuario, dict) else None
     simbolos = wl.obtener_watchlist(uid)
     if not simbolos:
-        simbolos = wl.sembrar_defaults(uid)
+        simbolos = wl.sembrar_por_defecto(uid)
     st.session_state.watchlist_simbolos = simbolos
     # Activo inicial = el primero de la lista del usuario (antes siempre arrancaba en EURUSD, aunque no estuviera).
     if simbolos and st.session_state.get("activo_seleccionado") in (None, ""):
@@ -95,10 +97,10 @@ def cargar_datos_mercado():
     # Precarga batch: con Capital, pide todos los precios en 1 llamada (en vez de N).
     precargar_precios(simbolos)
     datos = {}
-    for sym in simbolos:
-        datos[sym] = construir_entrada(sym)
+    for simbolo in simbolos:
+        datos[simbolo] = construir_entrada(simbolo)
         # Sembrar el sparkline con histórico M1 (se reintenta si vino vacío)
-        asegurar_semilla(sym)
+        asegurar_semilla(simbolo)
     st.session_state.datos_mercado_real = datos
 
     # Marca la carga como hecha para que los siguientes reruns la omitan

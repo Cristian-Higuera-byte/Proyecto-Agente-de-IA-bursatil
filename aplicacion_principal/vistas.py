@@ -15,14 +15,16 @@
 Enrutado de vistas: decide qué pantalla se dibuja en el área de contenido.
 
 La vista activa depende del botón elegido en la barra lateral, que queda guardado en
-`st.session_state["nav_activo"]`.
+`st.session_state["navegacion_activo"]`.
 """
 import streamlit as st
 
-from componentes_plataforma.noticias_panel import renderizar_panel_noticias
+from componentes_plataforma.noticias import renderizar_panel_noticias
 
 from .vista_operativa import renderizar_vista_operativa
 
+
+# TITULO RENDERIZAR VISTA
 
 def renderizar_vista(fragmentos, consola) -> None:
     """
@@ -34,7 +36,7 @@ def renderizar_vista(fragmentos, consola) -> None:
     momento de dibujarlos para que un problema en uno no impida abrir los demás.
     Recibe `fragmentos` (de `crear_fragmentos()`) y `consola` (módulo `consola_agente` o `None`).
     """
-    vista_activa = st.session_state.get("nav_activo")
+    vista_activa = st.session_state.get("navegacion_activo")
     # Pequeño espacio superior para separar el contenido de la barra fija. Las vistas de operar (Trading y
     # Cartera) lo omiten: ahí el gráfico y la lista de activos van pegados arriba para verse completos.
     if vista_activa not in ("trading", "portafolio"):
@@ -44,11 +46,11 @@ def renderizar_vista(fragmentos, consola) -> None:
         renderizar_panel_noticias(consola)
     elif vista_activa == "cotizaciones":
         # --- VISTA DE COTIZACIONES (tablas estilo Investing) ---
-        from componentes_plataforma.mercados_panel import renderizar_panel_mercados
+        from componentes_plataforma.mercados import renderizar_panel_mercados
         renderizar_panel_mercados(consola)
     elif vista_activa == "copytrading":
         # --- VISTA COPY TRADING (estrategias, MVP de demostración) ---
-        from componentes_plataforma.copytrading_panel import renderizar_panel_copytrading
+        from componentes_plataforma.copytrading import renderizar_panel_copytrading
         renderizar_panel_copytrading(consola)
     elif vista_activa == "trading":
         # --- VISTA TRADING (favoritos + watchlist + gráfico + ticket de orden) ---
@@ -59,15 +61,15 @@ def renderizar_vista(fragmentos, consola) -> None:
         renderizar_vista_operativa(fragmentos.cartera, fragmentos, consola)
     elif vista_activa == "resumen":
         # --- VISTA RESUMEN (dashboard del portafolio: KPIs + curva + exposición) ---
-        from componentes_plataforma.resumen_panel import renderizar_panel_resumen
+        from componentes_plataforma.resumen import renderizar_panel_resumen
         renderizar_panel_resumen(consola)
     elif vista_activa == "journal":
         # --- VISTA DIARIO (trading journal: operaciones + métricas + notas) ---
-        from componentes_plataforma.diario_panel import renderizar_panel_journal
+        from componentes_plataforma.diario import renderizar_panel_journal
         renderizar_panel_journal(consola)
     else:
         # --- VISTA INICIO (panel de cuenta estilo XM), también para botones sin vista propia ---
-        from componentes_plataforma.inicio_panel import renderizar_panel_inicio
+        from componentes_plataforma.inicio import renderizar_panel_inicio
         renderizar_panel_inicio(consola)
 
 

@@ -44,6 +44,8 @@ NIVEL_MARGEN_MINIMO_PCT = 200   # por debajo se avisa de poco margen de segurida
 _DIVISAS_FX = {"USD", "EUR", "GBP", "JPY", "CHF", "CAD", "AUD", "NZD", "SEK", "NOK", "MXN", "ZAR", "CLP", "TRY", "PLN"}
 
 
+# TITULO PAR FX
+
 def _par_fx(simbolo: str) -> tuple[str, str] | None:
     """('EUR', 'USD') si el símbolo es un par de divisas (admite sufijos del broker: EURUSD.r)."""
     s = "".join(c for c in simbolo.upper() if c.isalpha())[:6]
@@ -52,10 +54,14 @@ def _par_fx(simbolo: str) -> tuple[str, str] | None:
     return None
 
 
+# TITULO SIGNO
+
 def _signo(tipo: str) -> int:
     """Devuelve +1 si el tipo de posición es compra (COMPRA/BUY) y -1 en caso contrario (venta)."""
     return 1 if str(tipo).upper() in ("COMPRA", "BUY") else -1
 
+
+# TITULO SENSIBILIDAD 1PCT
 
 def _sensibilidad_1pct(pos: dict[str, Any]) -> float | None:
     """Lo que gana (+) o pierde (-) la posición, en dinero, si el precio sube 1%."""
@@ -69,6 +75,8 @@ def _sensibilidad_1pct(pos: dict[str, Any]) -> float | None:
         return None
     return round(sube * _signo(pos["tipo"]), 2)   # firmada: compra gana si sube, venta pierde
 
+
+# TITULO EXPOSICION
 
 def _exposicion(posiciones: list[dict[str, Any]], equidad: float) -> dict[str, Any]:
     """Calcula la exposición de la cartera por activo y por divisa.
@@ -117,6 +125,8 @@ def _exposicion(posiciones: list[dict[str, Any]], equidad: float) -> dict[str, A
     }
 
 
+# TITULO VOLATILIDAD
+
 def _volatilidad(simbolos: list[str]) -> dict[str, Any]:
     """Obtiene el ATR(14) diario de cada símbolo (hasta ``MAX_SIMBOLOS_VOLATILIDAD``).
 
@@ -140,6 +150,8 @@ def _volatilidad(simbolos: list[str]) -> dict[str, Any]:
     return out
 
 
+# TITULO CORRELACIONES
+
 def _correlaciones(posiciones: list[dict[str, Any]]) -> dict[str, Any]:
     """Mide las correlaciones de retornos diarios (90 días) entre los activos abiertos.
 
@@ -152,18 +164,18 @@ def _correlaciones(posiciones: list[dict[str, Any]]) -> dict[str, Any]:
     simbolos = sorted({p["simbolo"] for p in posiciones})
     if len(simbolos) < 2:
         return {"mensaje": "Se necesitan al menos 2 activos distintos abiertos para medir correlaciones."}
-    res = cuantitativo_herramientas.calcular_matriz_correlacion(",".join(simbolos), 90)
-    if "error" in res:
-        return res
+    resultado = cuantitativo_herramientas.calcular_matriz_correlacion(",".join(simbolos), 90)
+    if "error" in resultado:
+        return resultado
     # Dirección neta (lotes con signo) por símbolo, para saber si cada par se refuerza o compensa.
-    matriz = res["matriz_correlacion"]
+    matriz = resultado["matriz_correlacion"]
     direccion: dict[str, int] = {}
     for p in posiciones:
         direccion[p["simbolo"]] = direccion.get(p["simbolo"], 0) + _signo(p["tipo"]) * p["lotes"]
     # Recorre cada par único de activos y conserva solo los muy correlacionados.
     pares = []
-    for i, a in enumerate(res["activos_analizados"]):
-        for b in res["activos_analizados"][i + 1:]:
+    for i, a in enumerate(resultado["activos_analizados"]):
+        for b in resultado["activos_analizados"][i + 1:]:
             c = matriz[a][b]
             if abs(c) < UMBRAL_CORRELACION:
                 continue
@@ -178,12 +190,14 @@ def _correlaciones(posiciones: list[dict[str, Any]]) -> dict[str, Any]:
                 ),
             })
     return {
-        "dias_historicos": res["dias_historicos"],
+        "dias_historicos": resultado["dias_historicos"],
         "matriz_correlacion": matriz,
         "pares_relevantes": pares,
         "criterio": f"Relevante = correlación absoluta de {UMBRAL_CORRELACION} o más (retornos diarios).",
     }
 
+
+# TITULO NOTICIAS
 
 def _noticias(posiciones: list[dict[str, Any]]) -> dict[str, Any]:
     """Evalúa titulares de alto impacto sobre las divisas y el oro de la cartera.
@@ -224,6 +238,8 @@ def _noticias(posiciones: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+# TITULO ESCENARIOS
+
 def _escenarios(posiciones: list[dict[str, Any]], vol: dict[str, Any], riesgo: dict[str, Any], equidad: float) -> dict[str, Any]:
     """Construye cuatro escenarios de referencia para toda la cartera.
 
@@ -242,10 +258,10 @@ def _escenarios(posiciones: list[dict[str, Any]], vol: dict[str, Any], riesgo: d
         if not v or not p.get("precio_actual"):
             sin_dato += 1
             continue
-        mov = v["atr_diario"]
+        movimiento = v["atr_diario"]
         s = _signo(p["tipo"])
-        contra = p["precio_actual"] - s * mov     # precio se mueve 1 ATR en contra de la posición
-        pro = p["precio_actual"] + s * mov
+        contra = p["precio_actual"] - s * movimiento     # precio se mueve 1 ATR en contra de la posición
+        pro = p["precio_actual"] + s * movimiento
         r_c = mt5_fuente.resultado_si_precio(p["simbolo"], p["tipo"], p["lotes"], p["precio_actual"], contra)
         r_p = mt5_fuente.resultado_si_precio(p["simbolo"], p["tipo"], p["lotes"], p["precio_actual"], pro)
         if r_c is None or r_p is None:
@@ -280,6 +296,8 @@ def _escenarios(posiciones: list[dict[str, Any]], vol: dict[str, Any], riesgo: d
         "posiciones_sin_datos_de_volatilidad": sin_dato,
     }
 
+
+# TITULO ALERTAS
 
 def _alertas(cuenta: dict[str, Any], riesgo: dict[str, Any], expo: dict[str, Any], corr: dict[str, Any], noticias: dict[str, Any]) -> list[str]:
     """Genera la lista de avisos de texto a partir de las demás secciones del informe.

@@ -23,6 +23,8 @@ from componentes_plataforma.mercado_datos.sparkline import asegurar_semilla, emp
 from herramientas.puente_mt5 import inicializar_mt5, obtener_precio_actual
 
 
+# TITULO ACTUALIZAR PRECIOS MT5
+
 def actualizar_precios_mt5():
     """Actualización LIGERA de precios de la watchlist desde MT5 (tick en vivo).
     Usa el nombre EXACTO del símbolo (con '...') — sin limpiarlo.

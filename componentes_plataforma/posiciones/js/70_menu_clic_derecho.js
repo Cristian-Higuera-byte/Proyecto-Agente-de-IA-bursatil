@@ -13,6 +13,8 @@ Transportes y Servicios Ltda.
    ----------------------------- INICIO Piña y Jara 70_menu_clic_derecho .JS -----------------------------
    ------------------------------------------------------------------------------------------------------- */
 
+      // TITULO CERRAR MENU
+
       // ---------- Menú del clic derecho ----------
       /**
        * Cierra el menú contextual abierto (si lo hay) y libera la referencia compartida `menu`.

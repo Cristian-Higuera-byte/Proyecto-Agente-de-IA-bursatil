@@ -14,24 +14,29 @@
 """Secciones de la página Mercados: "Pulso del mercado" (tarjetas) y tabla por categoría.
 
 Cada tarjeta y cada fila de la tabla lleva un botón "ver" (oculto por CSS y accionado desde el clic en el
-HTML) que abre la ficha del instrumento. Los contenedores con `key` (`mktcard_*`, `mktrow_*`, `mkt_tabla`)
+HTML) que abre la ficha del instrumento. Los contenedores con `key` (`mercados_tarjeta_*`, `mercados_fila_*`, `mercados_tabla`)
 son los que engancha `estilos.css`.
 """
 import streamlit as st
 
-from componentes_plataforma.mercados.broker import fila, elementos, resolver
+from componentes_plataforma.mercados.broker import fila, elementos, resolver, serie
+from herramientas.puente_mt5 import NOMBRE_PROVEEDOR
 from componentes_plataforma.mercados.constantes import CATALOGO, ORDENES, RESUMEN
 from componentes_plataforma.mercados.piezas import fila_html, tarjeta_html
 
 
+# TITULO ABRIR FICHA
+
 def abrir_ficha(real: str, nombre: str, cat: str):
-    """Guarda en la sesión el instrumento elegido (`mkt_detalle`) y relanza la app para abrir la ficha.
+    """Guarda en la sesión el instrumento elegido (`mercados_detalle`) y relanza la app para abrir la ficha.
 
     Recibe el símbolo real del bróker, el nombre a mostrar y la categoría. No devuelve nada: `st.rerun()`
     interrumpe la ejecución actual."""
-    st.session_state.mkt_detalle = {"sym": real, "label": nombre, "cat": cat}
+    st.session_state.mercados_detalle = {"sym": real, "label": nombre, "cat": cat}
     st.rerun()
 
+
+# TITULO RESUMEN
 
 def resumen():
     """Dibuja la sección "Pulso del mercado": una tarjeta por cada referencia definida en `RESUMEN`.
@@ -41,45 +46,104 @@ def resumen():
     nada; se llama dentro de un fragmento que se refresca solo."""
     # Reunir las filas de las referencias que existen en este bróker y tienen precio
     filas = []
-    for cat, idx, tag in RESUMEN:
-        cands, nombre = CATALOGO[cat][idx]
-        real = resolver(cands)
+    for categoria, indice, etiqueta in RESUMEN:
+        candidatos, nombre = CATALOGO[categoria][indice]
+        real = resolver(candidatos)
         f = fila(real, nombre) if real else None
         if f:
-            filas.append((f, cat, tag))
+            filas.append((f, categoria, etiqueta))
     # Sin ninguna referencia disponible (MT5 desconectado) no se dibuja la sección
     if not filas:
         return
-    st.html("<div class='mkt-sec'><b>Pulso del mercado</b><span>la referencia más seguida de "
+    st.html("<div class='mercados-seccion'><b>Pulso del mercado</b><span>la referencia más seguida de "
             "cada mercado · variación de hoy y movimiento de los últimos 30 minutos</span></div>")
     # Una columna por tarjeta; el contenedor con key permite que el CSS posicione el botón sobre la tarjeta
-    cols = st.columns(len(filas), gap="small")
-    for i, (f, cat, tag) in enumerate(filas):
-        with cols[i]:
-            with st.container(key=f"mktcard_{i}"):
-                st.html(tarjeta_html(f, tag))
-                if st.button("ver", key=f"mktclk_card_{f['sym']}"):
-                    abrir_ficha(f["sym"], f["label"], cat)
+    columnas = st.columns(len(filas), gap="small")
+    for i, (f, categoria, etiqueta) in enumerate(filas):
+        with columnas[i]:
+            with st.container(key=f"mercados_tarjeta_{i}"):
+                st.html(tarjeta_html(f, etiqueta))
+                if st.button("ver", key=f"mercados_clic_card_{f['sym']}"):
+                    abrir_ficha(f["sym"], f["label"], categoria)
 
+
+# TITULO PRECARGAR
+
+def _precargar(reales: list) -> None:
+    """Calienta en paralelo las lecturas históricas que luego pide cada fila (cierre previo y serie de 5 días).
+    Con Capital cada una es una llamada REST de ~300 ms: en serie, una categoría de 20 instrumentos tardaba
+    más de 10 s en dibujarse; en paralelo y cacheadas, 1-2 s."""
+    from concurrent.futures import ThreadPoolExecutor
+    from proveedores.selector_mt5 import mt5
+    from componentes_plataforma.mercado_datos import cierre_previo
+
+    def _una(real):
+        """Calienta, para un instrumento, los datos que pedirá su fila: ficha, cierre previo y serie de 5 días."""
+        try:
+            mt5.symbol_info(real)          # datos del instrumento (en Capital: una llamada REST, cacheada)
+            cierre_previo(real)
+            serie(real, mt5.TIMEFRAME_H1, 120)
+        except Exception:
+            pass
+    if reales:
+        with ThreadPoolExecutor(max_workers=6) as ex:
+            list(ex.map(_una, reales))
+
+
+_precarga_lanzada = False
+_INTERVALO_PRECARGA = 240.0     # s; menor que el TTL de las cachés (300 s) para que nunca se enfríen
+
+
+# TITULO PRECARGAR TODAS LAS CATEGORIAS
+
+def precargar_todas_las_categorias() -> None:
+    """Deja todas las pestañas de Mercados precargadas y las mantiene calientes (una vez por proceso).
+
+    Un hilo de fondo recorre las categorías, trae por REST los datos de cada instrumento (ficha, cierre previo
+    y serie de 5 días) y repite cada 4 minutos, antes de que caduquen las cachés (`cache_proceso`, compartidas
+    por todas las sesiones). Se lanza al iniciar la app, así al abrir Mercados o cambiar de pestaña no hay espera.
+    No bloquea ni propaga errores."""
+    global _precarga_lanzada
+    if _precarga_lanzada:
+        return
+    _precarga_lanzada = True
+    import threading
+    import time
+
+    def _tarea():
+        """Cuerpo del hilo de precarga: recorre todas las categorías, las calienta y repite cada pocos minutos."""
+        while True:
+            for categoria in CATALOGO:
+                try:
+                    _precargar([r for r, _, _ in elementos(categoria)])
+                except Exception:
+                    pass
+            time.sleep(_INTERVALO_PRECARGA)
+    threading.Thread(target=_tarea, daemon=True, name="precarga-mercados").start()
+
+
+# TITULO RENDERIZAR TABLA
 
 def renderizar_tabla(categoria: str):
     """Dibuja la tabla de instrumentos de una categoría, con búsqueda y orden tomados de la sesión.
 
-    Recibe el nombre de la categoría del catálogo. Lee `mkt_q` (texto de búsqueda) y `mkt_orden` (criterio
+    Recibe el nombre de la categoría del catálogo. Lee `mercados_q` (texto de búsqueda) y `mercados_orden` (criterio
     de orden) de `st.session_state`, filtra y ordena las filas, y pinta cabecera y filas en un mismo
     contenedor. Devuelve una tupla `(total, mostrados)`: instrumentos disponibles en la categoría y los que
     quedan tras el filtro."""
     # Filas con datos en vivo de MT5 (las que no tienen precio se descartan)
-    filas = [f for f in (fila(r, n) for r, n, _ in elementos(categoria)) if f]
+    items = elementos(categoria)
+    _precargar([r for r, _, _ in items])
+    filas = [f for f in (fila(r, n) for r, n, _ in items) if f]
     total = len(filas)
 
     # Filtro de búsqueda: coincide con el nombre, el símbolo o la descripción del bróker
-    q = (st.session_state.get("mkt_q") or "").strip().lower()
+    q = (st.session_state.get("mercados_q") or "").strip().lower()
     if q:
         filas = [f for f in filas if q in f["label"].lower() or q in f["sym"].lower()
                  or q in f["desc"].lower()]
     # Orden elegido por el usuario; con el primero de la lista se conserva el orden del catálogo
-    orden = st.session_state.get("mkt_orden") or ORDENES[0]
+    orden = st.session_state.get("mercados_orden") or ORDENES[0]
     if orden == "Mayor alza":
         filas.sort(key=lambda f: f["pct"], reverse=True)
     elif orden == "Mayor baja":
@@ -89,24 +153,24 @@ def renderizar_tabla(categoria: str):
 
     # Cabecera y filas en el MISMO contenedor (gap 0): si la cabecera va aparte,
     # Streamlit agrega su separación de ~1rem entre ambos bloques.
-    with st.container(key="mkt_tabla"):
+    with st.container(key="mercados_tabla"):
         st.html(
-            "<div class='mkt-head'><div>Instrumento</div><div class='mkt-r'>Precio</div>"
-            "<div class='mkt-r'>Cambio</div><div class='mkt-r'>Cambio %</div>"
+            "<div class='mercados-cabecera'><div>Instrumento</div><div class='mercados-r'>Precio</div>"
+            "<div class='mercados-r'>Cambio</div><div class='mercados-r'>Cambio %</div>"
             "<div>Rango del día</div><div style='text-align:center;'>5 días</div><div>Estado</div></div>"
         )
         # Sin resultados: mensaje distinto si hay búsqueda activa o si falta conexión con MT5
         if not filas:
-            msg = ("Ningún instrumento coincide con la búsqueda." if q else
-                   "No hay datos para esta categoría. Verifica que MetaTrader 5 esté abierto "
+            mensaje = ("Ningún instrumento coincide con la búsqueda." if q else
+                   f"No hay datos para esta categoría. Verifica la conexión con {NOMBRE_PROVEEDOR} "
                    "y que el bróker tenga estos instrumentos.")
-            st.html(f"<div class='mkt-vacio'>{msg}</div>")
+            st.html(f"<div class='mercados-vacio'>{mensaje}</div>")
             return total, 0
         # Cada fila va en su contenedor con key; el botón "ver" invisible abre la ficha al hacer clic
         for i, f in enumerate(filas):
-            with st.container(key=f"mktrow_{i}"):
+            with st.container(key=f"mercados_fila_{i}"):
                 st.html(fila_html(f))
-                if st.button("ver", key=f"mktclk_{f['sym']}"):
+                if st.button("ver", key=f"mercados_clic_{f['sym']}"):
                     abrir_ficha(f["sym"], f["label"], categoria)
     return total, len(filas)
 

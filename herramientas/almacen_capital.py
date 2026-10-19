@@ -62,13 +62,15 @@ _DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
 _RUTA = os.path.join(_DIR, "equity.json")
 
 # Candado del proceso.
-_LOCK = threading.Lock()         # serializa lecturas/escrituras dentro del proceso
+_CANDADO = threading.Lock()         # serializa lecturas/escrituras dentro del proceso
 # Tope de puntos guardados.
 MAX_PUNTOS = 40_000              # ~4 semanas a 1 punto/min; se recorta el más antiguo
 MIN_INTERVALO = 55.0            # s mínimos entre snapshots (lo controla también el motor)
 
 _ultimo_ts = 0.0                # último snapshot escrito en ESTA ejecución (anti-spam)
 
+
+# TITULO LEER
 
 def leer() -> list:
     """Lee `data/equity.json` y devuelve la serie completa [[ts, equity, balance], ...] (vieja → nueva).
@@ -78,26 +80,30 @@ def leer() -> list:
     """
     # Lectura protegida: cualquier fallo de archivo/JSON equivale a "sin histórico".
     try:
-        with _LOCK, open(_RUTA, "r", encoding="utf-8") as f:
+        with _CANDADO, open(_RUTA, "r", encoding="utf-8") as f:
             datos = json.load(f)
         return list(datos.get("puntos", []))
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         return []
 
 
+# TITULO SERIE
+
 def serie(desde: float | None = None) -> list:
     """Devuelve la serie de snapshots, opcionalmente recortada a ts >= `desde` (epoch).
 
     Es la interfaz de lectura que usa la vista Resumen para calcular el drawdown de equity.
     """
-    pts = leer()
+    puntos = leer()
     # Filtro por fecha de inicio (descarta también filas vacías o malformadas).
     if desde is not None:
-        pts = [p for p in pts if p and p[0] >= desde]
-    return pts
+        puntos = [p for p in puntos if p and p[0] >= desde]
+    return puntos
 
 
-def registrar(equity: float, balance: float, ts: float | None = None,
+# TITULO REGISTRAR
+
+def registrar(equity: float, balance: float, marca_tiempo: float | None = None,
               min_intervalo: float = MIN_INTERVALO) -> bool:
     """Añade un snapshot [ts, equity, balance] si pasó `min_intervalo` desde el anterior.
 
@@ -109,7 +115,7 @@ def registrar(equity: float, balance: float, ts: float | None = None,
     motor sin saturar el disco.
     """
     global _ultimo_ts
-    ahora = ts if ts is not None else time.time()
+    ahora = marca_tiempo if marca_tiempo is not None else time.time()
     # Anti-spam: si el último snapshot de esta ejecución es muy reciente, no escribe.
     if ahora - _ultimo_ts < min_intervalo:
         return False
@@ -120,30 +126,32 @@ def registrar(equity: float, balance: float, ts: float | None = None,
     except (TypeError, ValueError):
         return False
 
-    with _LOCK:
+    with _CANDADO:
         # Relee el archivo dentro del candado para no perder puntos de otro hilo.
-        pts = []
+        puntos = []
         try:
             with open(_RUTA, "r", encoding="utf-8") as f:
-                pts = json.load(f).get("puntos", [])
+                puntos = json.load(f).get("puntos", [])
         except (FileNotFoundError, json.JSONDecodeError, OSError):
-            pts = []
-        pts.append([round(ahora, 1), eq, bal])
+            puntos = []
+        puntos.append([round(ahora, 1), eq, bal])
         # Recorte: se descartan los puntos más antiguos al superar el máximo.
-        if len(pts) > MAX_PUNTOS:
-            pts = pts[-MAX_PUNTOS:]
+        if len(puntos) > MAX_PUNTOS:
+            puntos = puntos[-MAX_PUNTOS:]
         # Escritura atómica: archivo temporal en la misma carpeta y luego os.replace.
         try:
             os.makedirs(_DIR, exist_ok=True)
             fd, tmp = tempfile.mkstemp(dir=_DIR, suffix=".tmp")
             with os.fdopen(fd, "w", encoding="utf-8") as f:
-                json.dump({"puntos": pts}, f)
+                json.dump({"puntos": puntos}, f)
             os.replace(tmp, _RUTA)          # atómico
         except OSError:
             return False
     _ultimo_ts = ahora
     return True
 
+
+# TITULO MTIME
 
 def mtime() -> float:
     """Devuelve la fecha de modificación (epoch) de `equity.json`, o -1.0 si no existe.

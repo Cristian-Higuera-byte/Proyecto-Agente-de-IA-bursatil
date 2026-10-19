@@ -19,6 +19,8 @@ from openai import APIConnectionError, APIStatusError, APITimeoutError
 from nucleo_agente.llm.tipos import ErrorLLM
 
 
+# TITULO TRADUCIR ERROR
+
 def traducir_error(e: Exception) -> ErrorLLM:
     """Convierte una excepción de la API en un ErrorLLM con mensaje legible en español.
 
