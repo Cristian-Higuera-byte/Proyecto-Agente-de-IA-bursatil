@@ -48,6 +48,38 @@ Transportes y Servicios Ltda.
         opacity:0 !important; cursor:pointer !important;
     }
 
+    /* VENTANA DE LA NOTICIA */
+    /* Panel del diálogo de Streamlit, solo cuando contiene una noticia (contenedor key noticia_root): fondo oscuro, borde y
+       esquinas redondeadas, igual que la ficha de mercados, con texto claro aunque Streamlit esté en tema claro. */
+    [data-testid="stDialog"]:has(.st-key-noticia_root) section {
+        background:#0d1117 !important; border:1px solid #30363d; border-radius:16px; color:#e6edf3; }
+    /* Título del diálogo («Noticia») y botón de cerrar legibles sobre el fondo oscuro. */
+    [data-testid="stDialog"]:has(.st-key-noticia_root) h2, [data-testid="stDialog"]:has(.st-key-noticia_root) button svg { color:#e6edf3 !important; }
+    /* Aviso de «artículo no disponible completo». */
+    [data-testid="stDialog"]:has(.st-key-noticia_root) [data-testid="stCaptionContainer"] { color:#8b949e !important; }
+
+    /* PANEL OTRAS FUENTES */
+    /* Lista lateral de noticias que solo se abren en su sitio (contenedor key news_ext): fondo oscuro, borde tenue y desplazamiento propio. */
+    .st-key-news_ext { background:#0b0f19; border:1px solid #1f2937; border-radius:12px; padding:6px 12px 12px !important; }
+    /* Botón con enlace al sitio de la noticia: discreto, de ancho completo, con borde tenue. */
+    .st-key-news_ext a[data-testid="stBaseLinkButton-secondary"] { background:#161b22 !important; border:1px solid #30363d !important;
+        color:#c9d1d9 !important; font-size:12px !important; min-height:32px !important; }
+    /* Resalta el botón al pasar el ratón con el verde de la plataforma. */
+    .st-key-news_ext a[data-testid="stBaseLinkButton-secondary"]:hover { border-color:#22c55e !important; color:#22c55e !important; }
+
+    /* SELECTOR DE IDIOMA */
+    /* Selector Español / English / Todos (widget con key news_idioma): alineado a la derecha y con el tema oscuro de la plataforma. */
+    .st-key-news_idioma { display:flex; justify-content:flex-end; }
+    /* Cada opción: fondo oscuro, borde tenue y texto gris. */
+    .st-key-news_idioma button { background:#0d1117 !important; border:1px solid #30363d !important; color:#8b949e !important;
+        font-size:13px !important; }
+    /* Resalta al pasar el ratón. */
+    .st-key-news_idioma button:hover { color:#e6edf3 !important; border-color:#484f58 !important; }
+    /* Opción activa: verde, como los iconos activos de la plataforma. */
+    .st-key-news_idioma button[aria-checked="true"], .st-key-news_idioma button[aria-pressed="true"],
+    .st-key-news_idioma button[data-testid="stBaseButton-segmented_controlActive"] {
+        background:rgba(34,197,94,0.15) !important; border-color:#22c55e !important; color:#22c55e !important; }
+
 /* -------------------------------------------------------------------------------------------------------
    ------------------------------------- FIN Piña y Jara estilos .CSS ------------------------------------
    ------------------------------------------------------------------------------------------------------- */
