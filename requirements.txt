@@ -2,6 +2,8 @@
 yfinance>=0.2.40
 pandas>=2.0.0
 numpy>=1.24.0
+requests>=2.31.0
+websockets>=12.0
 
 # Pip Instalaciones
 pip install python-dotenv

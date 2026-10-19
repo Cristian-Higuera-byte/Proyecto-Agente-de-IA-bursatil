@@ -11,8 +11,8 @@
 # ------------------------------------- INICIO Piña y Jara panel .PY ------------------------------------
 # -------------------------------------------------------------------------------------------------------
 
-"""Panel de noticias estilo Investing.com: arma la página (modal de la noticia abierta + contenido que se
-refresca cada 30 s)."""
+"""Panel de noticias financieras (varias fuentes, ES y EN): arma la página (modal de la noticia abierta + contenido
+que se revisa cada 10 s)."""
 from types import ModuleType
 from typing import Optional
 
@@ -27,13 +27,14 @@ def renderizar_panel_noticias(main: Optional[ModuleType] = None):
 
     El parámetro `main` se acepta por compatibilidad con las demás páginas y no se usa. Si hay una noticia
     guardada en `st.session_state["noticia_abierta"]`, abre su modal; después pinta el contenido dentro de un
-    fragmento que se vuelve a ejecutar cada 30 s. No devuelve nada."""
+    fragmento que se vuelve a ejecutar cada 10 s (las fuentes se revisan con peticiones condicionales, que casi no
+    cuestan cuando no hay novedades). No devuelve nada."""
     # Si hay una noticia seleccionada, se abre el modal desde el flujo principal
     # (no desde un fragmento) para que funcione correctamente.
     if st.session_state.get("noticia_abierta") is not None:
         abrir_modal(st.session_state["noticia_abierta"])
 
-    @st.fragment(run_every="30s")
+    @st.fragment(run_every="10s")
     def _contenido():
         """Fragmento con auto-refresco que repinta noticia principal, carrusel y "Más noticias"."""
         renderizar_contenido()

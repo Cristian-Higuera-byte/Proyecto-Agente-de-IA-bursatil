@@ -29,7 +29,7 @@ from herramientas.tickets import ticket as _tk
 from .constantes import CANDADO_MT5, PING_SSE, VERSION_API
 from .motor import MOTOR
 from .simbolos import listar_simbolos
-from .velas import obtener_velas
+from .velas import obtener_ultima, obtener_velas, precalentar
 
 
 def _lista_simbolos(qs) -> list:
@@ -133,10 +133,13 @@ class Manejador(BaseHTTPRequestHandler):
         tf = qs.get("tf", ["H1"])[0]
         try:
             if partes and partes[0] == "stream":
-                self._stream(_lista_simbolos(qs))
+                simbolos = _lista_simbolos(qs)
+                precalentar(simbolos)          # velas de la lista de activos listas en memoria (solo Capital.com)
+                self._stream(simbolos)
             elif partes and partes[0] == "ticks":
                 simbolos = _lista_simbolos(qs)
                 MOTOR.suscribir(simbolos)
+                precalentar(simbolos)
                 _, ticks, cuenta = MOTOR.foto(simbolos, 0)
                 self._responder({"t": ticks, "acc": cuenta})
             elif partes and partes[0] == "simbolos":
@@ -147,8 +150,7 @@ class Manejador(BaseHTTPRequestHandler):
                 n = int(qs.get("n", ["150"])[0])
                 self._responder(obtener_velas(partes[1], tf, n))
             elif len(partes) >= 2 and partes[0] == "ultima":
-                velas = obtener_velas(partes[1], tf, 2)
-                self._responder(velas[-1] if velas else {})
+                self._responder(obtener_ultima(partes[1], tf))
             else:
                 self._responder({"error": "ruta no reconocida"})
         except Exception as e:
