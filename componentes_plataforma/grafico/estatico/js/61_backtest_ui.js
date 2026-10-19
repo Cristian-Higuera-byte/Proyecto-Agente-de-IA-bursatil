@@ -81,7 +81,7 @@ Transportes y Servicios Ltda.
         var c = JSON.parse(localStorage.getItem(BACKTEST_KEY) || 'null');
         if (!c || !c.est || !c.est.largo || !c.est.corto || !c.est.tam || !c.cost) return;
         var d = backtestConfiguracionPorDefecto();
-        backtestConfiguracion = { est: Object.assign(d.est, c.est), cost: Object.assign(d.cost, c.cost), capital: Number(c.capital) > 0 ? Number(c.capital) : d.capital, n: Number(c.n) > 0 ? Number(c.n) : d.n };
+        backtestConfiguracion = { est: Object.assign(d.est, c.est), cost: Object.assign(d.cost, c.cost), capital: Number(c.capital) > 0 ? Number(c.capital) : d.capital, n: Number(c.n) > 0 ? Math.min(Number(c.n), 20000) : d.n };
         ['largo', 'corto'].forEach(function(l){
           ['entrada', 'salida'].forEach(function(s){
             var b = backtestConfiguracion.est[l][s];
@@ -270,7 +270,7 @@ Transportes y Servicios Ltda.
 
       sec('Datos');
       backtestFormulario.appendChild(filaFormulario('Símbolo y temporalidad', el('b', '', SIMBOLO + ' · ' + (temporalidadActual === 'MN1' ? 'MN' : temporalidadActual))));
-      backtestFormulario.appendChild(filaFormulario('Velas históricas', selectorBacktest([[2000, '2.000'], [5000, '5.000'], [10000, '10.000'], [20000, '20.000'], [50000, '50.000']], backtestConfiguracion.n, function(v){ backtestConfiguracion.n = Number(v); })));
+      backtestFormulario.appendChild(filaFormulario('Velas históricas', selectorBacktest([[2000, '2.000'], [5000, '5.000'], [10000, '10.000'], [20000, '20.000']], backtestConfiguracion.n, function(v){ backtestConfiguracion.n = Number(v); })));
       backtestFormulario.appendChild(el('div', 'backtest-nota', 'Se descargan de MT5 al ejecutar. Más velas = resultado más fiable.'));
 
       sec('Dirección');
@@ -336,7 +336,7 @@ Transportes y Servicios Ltda.
     function backtestEjecutarUI(){
       var boton = document.getElementById('backtest-ejecutar'), configuracion = backtestConfiguracion;
       backtestResultado.innerHTML = '';
-      boton.disabled = true; boton.textContent = 'Descargando ' + configuracion.n + ' velas de MT5…';
+      boton.disabled = true; boton.textContent = 'Descargando ' + configuracion.n + ' velas…';
       fetch(API + '/velas/' + encodeURIComponent(SIMBOLO) + '?tf=' + temporalidadActual + '&n=' + configuracion.n)
         .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
         .then(function(datos){

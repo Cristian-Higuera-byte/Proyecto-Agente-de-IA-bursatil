@@ -126,7 +126,7 @@ def _insertar(**campos: Any) -> str:
     return id_
 
 
-# TITULO KILL SWITCH ACTIVO
+# TITULO INTERRUPTOR EMERGENCIA ACTIVO
 
 def interruptor_emergencia_activo() -> bool:
     """Indica si el interruptor de emergencia está activado (bloquea nuevas aperturas). Lee la tabla estado."""
@@ -134,7 +134,7 @@ def interruptor_emergencia_activo() -> bool:
     return bool(filas) and filas[0]["valor"] == "1"
 
 
-# TITULO FIJAR KILL SWITCH
+# TITULO FIJAR INTERRUPTOR EMERGENCIA
 
 def fijar_interruptor_emergencia(activo: bool) -> None:
     """Activa o desactiva el interruptor de emergencia guardando "1" o "0" en la tabla estado (upsert)."""

@@ -19,7 +19,7 @@ import threading
 
 from http.server import ThreadingHTTPServer
 
-from herramientas.puente_mt5 import inicializar_mt5
+from herramientas.puente_mt5 import PROVEEDOR, inicializar_mt5
 
 from .constantes import INTERVALO_TICKS, PUERTO
 from .manejador import Manejador
@@ -36,6 +36,11 @@ def ejecutar() -> None:
     que atiende cada petición en su propio hilo. Imprime avisos en consola y bloquea
     en serve_forever().
     """
+    # Con Capital.com el límite de 10 peticiones por segundo es de la sesión, que comparten este servidor y el dashboard:
+    # aquí se dejan 4 (velas, precargas y consulta de la cuenta) y 6 quedan para las vistas de Streamlit.
+    if PROVEEDOR == "capital":
+        from herramientas.backends.capital import fijar_limite_peticiones
+        fijar_limite_peticiones(4)
     # Conecta con el terminal MT5 antes de aceptar peticiones
     inicializar_mt5()
     # Hilo demonio del motor: lee ticks y cuenta en segundo plano

@@ -161,7 +161,7 @@ def quitar_simbolo(usuario_id, simbolo: str) -> bool:
         return False
 
 
-# TITULO SEMBRAR DEFAULTS
+# TITULO SEMBRAR POR DEFECTO
 
 def sembrar_por_defecto(usuario_id) -> list[str]:
     """

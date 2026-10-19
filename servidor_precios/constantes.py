@@ -18,6 +18,7 @@ y el paquete motor, para que se ajusten en un solo lugar.
 """
 import threading
 
+from herramientas.puente_mt5 import PROVEEDOR
 from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
 # Puerto TCP local (127.0.0.1) en el que escucha el servidor de datos
@@ -45,10 +46,42 @@ TF_MAP = {
     "MN1": mt5.TIMEFRAME_MN1,
 }
 
-# Todas las llamadas a MT5 de ESTE proceso pasan por aquí (la API no es thread-safe
-# y el servidor atiende cada petición en su propio hilo).
-# RLock reentrante: permite anidar secciones críticas en el mismo hilo
-CANDADO_MT5 = threading.RLock()
+# TITULO SIN CANDADO
+
+class _SinCandado:
+    """Candado que no bloquea nunca (misma interfaz que `threading.RLock`), para el proveedor Capital.com."""
+
+    # TITULO ENTER
+
+    def __enter__(self):
+        """Entra al bloque `with` del candado y lo devuelve."""
+        return self
+
+    # TITULO EXIT
+
+    def __exit__(self, *exc):
+        """Sale del bloque `with` del candado sin ocultar errores."""
+        return False
+
+    # TITULO ACQUIRE
+
+    def acquire(self, *args, **kwargs):
+        """Imita la toma del candado: siempre tiene éxito y nunca espera."""
+        return True
+
+    # TITULO RELEASE
+
+    def release(self):
+        """Imita la liberación del candado: no hace nada."""
+        return None
+
+
+# Con MT5, todas las llamadas de ESTE proceso pasan por aquí (la API no es thread-safe y el servidor atiende cada petición
+# en su propio hilo); RLock reentrante: permite anidar secciones críticas en el mismo hilo.
+# Con Capital.com (API REST) NO se serializa nada: un candado global hacía que cada lectura de ~300-800 ms bloqueara a las
+# demás y que las velas del gráfico no llegaran mientras el motor consultaba la cuenta. Las órdenes se serializan en el
+# backend (`_ORDEN_CANDADO`) y el ritmo de peticiones lo limita `capital._limitar()`.
+CANDADO_MT5 = _SinCandado() if PROVEEDOR == "capital" else threading.RLock()
 
 INTERVALO_TICKS = 0.5        # s entre refrescos de ticks (con Capital los ticks llegan por WebSocket: leer es instantáneo)
 INTERVALO_CUENTA = 3.0       # s entre lecturas de saldo / P-G (sigue siendo REST)

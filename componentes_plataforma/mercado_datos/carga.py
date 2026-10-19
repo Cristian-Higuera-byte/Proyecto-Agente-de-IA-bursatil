@@ -24,13 +24,46 @@ from pathlib import Path
 import streamlit as st
 
 from componentes_plataforma._estaticos import datos_json
+from componentes_plataforma.paralelo import en_paralelo
 from componentes_plataforma.mercado_datos.entrada import construir_entrada
-from componentes_plataforma.mercado_datos.sparkline import asegurar_semilla
+from componentes_plataforma.mercado_datos.sparkline import asegurar_semilla, historial_sparkline
 from herramientas import gestor_lista_activos as wl
 from herramientas.puente_mt5 import inicializar_mt5, precargar_precios
 
 # Valores de respaldo de la barra de índices y su símbolo en yfinance (indices_globales.json)
 _INDICES = datos_json(Path(__file__).parent / "indices_globales.json")
+
+# Segundos máximos que se espera a los índices globales (yfinance) antes de dibujar la página.
+_ESPERA_INDICES = 6.0
+
+
+# TITULO INDICE GLOBAL
+
+def _indice_global(par):
+    """Último valor y variación de un índice global (par `(clave, símbolo de yfinance)`) o None si no hay datos."""
+    import yfinance as yf  # type: ignore[import-untyped]
+    key, simbolo = par
+    historial = yf.Ticker(simbolo).history(period="3d")
+    if historial.empty or "Close" not in historial.columns:
+        return None
+    valor = historial["Close"].iloc[-1]
+    if math.isnan(float(valor)):
+        return None
+    actual = float(valor)
+    anterior_valor = historial["Close"].iloc[-2] if len(historial) > 1 else actual
+    anterior = float(anterior_valor) if not math.isnan(float(anterior_valor)) else actual
+    cambio = actual - anterior
+    porc = (cambio / anterior * 100) if anterior != 0 else 0.0
+    return key, {"valor": actual, "var": f"{'+' if cambio >= 0 else ''}{porc:.2f}%", "sube": cambio >= 0}
+
+
+# TITULO CALENTAR SIMBOLO
+
+def _calentar_simbolo(simbolo: str):
+    """Pide por adelantado (en un hilo) todo lo que luego necesita la entrada de un símbolo: su ficha, su precio, el cierre
+    previo y el histórico del sparkline. Así la pasada que arma la lista encuentra todo en caché."""
+    construir_entrada(simbolo)
+    historial_sparkline(simbolo)
 
 
 # TITULO CARGAR DATOS MERCADO
@@ -41,7 +74,7 @@ def cargar_datos_mercado():
     Pasos: inicializa la conexión con MT5; si `datos_cargados` ya está en la sesión, termina sin repetir el
     trabajo; actualiza la barra de índices globales con yfinance (con valores de respaldo si falla la red);
     obtiene la watchlist del usuario (sembrando los símbolos por defecto si es nuevo); y construye la entrada
-    de cada símbolo con su semilla de sparkline.
+    de cada símbolo con su semilla de sparkline. Los índices y las lecturas de cada símbolo se piden en paralelo.
 
     No recibe parámetros ni devuelve nada. Efectos secundarios: escribe en `st.session_state` las claves
     `datos_indices_globales`, `watchlist_simbolos`, `datos_mercado_real` y `datos_cargados`; consulta MT5,
@@ -59,27 +92,12 @@ def cargar_datos_mercado():
     # Primero se parte de los valores de respaldo para que la barra nunca quede vacía
     if "datos_indices_globales" not in st.session_state:
         st.session_state.datos_indices_globales = copy.deepcopy(_INDICES["defecto"])
-    try:
-        # La importación es perezosa: yfinance es pesado y solo se necesita en esta carga inicial
-        import yfinance as yf  # type: ignore[import-untyped]
-        simbolos_indices = _INDICES["yfinance"]
-        for key, simbolo in simbolos_indices.items():
-            # Tres días de historia bastan para tener el último cierre y el anterior (fines de semana incluidos)
-            historial = yf.Ticker(simbolo).history(period="3d")
-            if not historial.empty and "Close" in historial.columns:
-                valor = historial["Close"].iloc[-1]
-                if not math.isnan(float(valor)):
-                    # Variación = último cierre contra el cierre previo (o contra sí mismo si solo hay una vela)
-                    actual = float(valor)
-                    anterior_valor = historial["Close"].iloc[-2] if len(historial) > 1 else actual
-                    anterior = float(anterior_valor) if not math.isnan(float(anterior_valor)) else actual
-                    cambio = actual - anterior
-                    porc = (cambio / anterior * 100) if anterior != 0 else 0.0
-                    st.session_state.datos_indices_globales[key] = {
-                        "valor": actual, "var": f"{'+' if cambio >= 0 else ''}{porc:.2f}%", "sube": cambio >= 0}
-    except Exception:
-        # Sin red o con error de yfinance se conservan los valores de respaldo ya cargados
-        pass
+    # Los índices se piden a la vez (antes uno tras otro) y sin esperar más de `_ESPERA_INDICES` s: si yfinance tarda o no hay
+    # red, se conservan los valores de respaldo ya cargados y la página se dibuja igual.
+    for resultado in en_paralelo(_indice_global, _INDICES["yfinance"].items(), max_hilos=len(_INDICES["yfinance"]),
+                                  espera=_ESPERA_INDICES):
+        if resultado:
+            st.session_state.datos_indices_globales[resultado[0]] = resultado[1]
 
     # 2. Watchlist del USUARIO (desde Supabase; si es nuevo, se siembra el default)
     # El id puede faltar (sesión sin login completo): en ese caso uid es None y el gestor decide qué devolver
@@ -96,6 +114,9 @@ def cargar_datos_mercado():
     # 3. Construir los datos de mercado de esos símbolos (nombre EXACTO para MT5)
     # Precarga batch: con Capital, pide todos los precios en 1 llamada (en vez de N).
     precargar_precios(simbolos)
+    # Cada símbolo necesita varias lecturas a la API (ficha, cierre previo, histórico del sparkline): se piden todas a la vez
+    # y la pasada de abajo, que arma la lista, las encuentra ya en caché (antes eran decenas de llamadas una tras otra).
+    en_paralelo(_calentar_simbolo, simbolos)
     datos = {}
     for simbolo in simbolos:
         datos[simbolo] = construir_entrada(simbolo)

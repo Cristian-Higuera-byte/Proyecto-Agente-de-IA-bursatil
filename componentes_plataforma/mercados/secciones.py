@@ -19,10 +19,13 @@ son los que engancha `estilos.css`.
 """
 import streamlit as st
 
+from componentes_plataforma.paralelo import en_paralelo
 from componentes_plataforma.mercados.broker import fila, elementos, resolver, serie
 from herramientas.puente_mt5 import NOMBRE_PROVEEDOR
 from componentes_plataforma.mercados.constantes import CATALOGO, ORDENES, RESUMEN
 from componentes_plataforma.mercados.piezas import fila_html, tarjeta_html
+from componentes_plataforma.mercado_datos.sparkline import historial_sparkline
+from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
 
 # TITULO ABRIR FICHA
@@ -44,14 +47,17 @@ def resumen():
     Resuelve el símbolo real de cada referencia en el bróker, obtiene su fila de datos desde MT5 y omite las
     que no existan. Cada tarjeta incluye un botón "ver" que abre la ficha. No recibe parámetros ni devuelve
     nada; se llama dentro de un fragmento que se refresca solo."""
-    # Reunir las filas de las referencias que existen en este bróker y tienen precio
-    filas = []
-    for categoria, indice, etiqueta in RESUMEN:
-        candidatos, nombre = CATALOGO[categoria][indice]
+    # Reunir las filas de las referencias que existen en este bróker y tienen precio (se leen todas a la vez)
+    def _referencia(elemento):
+        """Fila de una referencia del pulso del mercado como `(fila, categoría, etiqueta)`, o None si no existe o no tiene precio."""
+        cat, indice, tag = elemento
+        candidatos, nombre = CATALOGO[cat][indice]
         real = resolver(candidatos)
         f = fila(real, nombre) if real else None
-        if f:
-            filas.append((f, categoria, etiqueta))
+        return (f, cat, tag) if f else None
+    filas = [x for x in en_paralelo(_referencia, RESUMEN) if x]
+    # El mini-gráfico de cada tarjeta necesita sus últimas velas M1: se piden todas a la vez antes de dibujar las tarjetas.
+    en_paralelo(lambda x: historial_sparkline(x[0]["sym"]), filas)
     # Sin ninguna referencia disponible (MT5 desconectado) no se dibuja la sección
     if not filas:
         return
@@ -166,6 +172,9 @@ def renderizar_tabla(categoria: str):
                    "y que el bróker tenga estos instrumentos.")
             st.html(f"<div class='mercados-vacio'>{mensaje}</div>")
             return total, 0
+        # El mini-gráfico de 5 días de cada fila necesita su histórico H1: se piden todos a la vez (quedan en la caché de
+        # `serie`) en vez de uno por fila mientras se dibuja la tabla.
+        en_paralelo(lambda f: serie(f["sym"], mt5.TIMEFRAME_H1, 120), filas)
         # Cada fila va en su contenedor con key; el botón "ver" invisible abre la ficha al hacer clic
         for i, f in enumerate(filas):
             with st.container(key=f"mercados_fila_{i}"):

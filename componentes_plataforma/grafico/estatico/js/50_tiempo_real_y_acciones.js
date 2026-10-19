@@ -18,7 +18,7 @@ Transportes y Servicios Ltda.
     // El feed reenvía cada tick por BroadcastChannel('pj-ticks'); aquí se mueve
     // la vela actual (o se abre una nueva al cambiar de periodo) al instante.
     // TF_SEG: duración en segundos de cada temporalidad, para calcular a qué vela pertenece un tick
-    var TEMPORALIDAD_SEGUNDOS = {M1: 60, M5: 300, M15: 900, M30: 1800, H1: 3600, H4: 14400, D1: 86400};
+    var TEMPORALIDAD_SEGUNDOS = {M1: 60, M5: 300, M15: 900, M30: 1800, H1: 3600, H4: 14400, D1: 86400, W1: 604800};
     // ultimoTickBC / ultimoPoll: instantes del último tick recibido y del último sondeo; rafTick evita repintados múltiples por fotograma
     var ultimoTickBC = 0, ultimoSondeo = 0, rafTick = false;
     // Escucha el canal pj-ticks si el navegador lo soporta
@@ -35,7 +35,9 @@ Transportes y Servicios Ltda.
         var px = t.b;                       // las velas de MT5 se construyen con el Bid
         var ultima = datosActuales[datosActuales.length - 1];
         var seg = TEMPORALIDAD_SEGUNDOS[temporalidadActual];
-        var inicio = seg ? Math.floor(t.t / seg) * seg : ultima.time;
+        // La vela del tick se calcula a partir de la última vela cargada (no del reloj UNIX): así coincide con el horario de apertura
+        // de H4, D1 y W1 de la fuente, que no empiezan en múltiplos exactos de su duración.
+        var inicio = seg ? ultima.time + Math.floor((t.t - ultima.time) / seg) * seg : ultima.time;
         if (inicio > ultima.time){
           datosActuales.push({time: inicio, open: px, high: px, low: px, close: px, volume: 0});
         } else if (inicio === ultima.time){

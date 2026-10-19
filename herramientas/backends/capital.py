@@ -36,6 +36,7 @@ DIFERENCIAS con MT5 (documentadas donde aplican):
   - No hay campo "swap" por posición -> se informa 0.0 (el P/G usa `upl`).
 """
 
+import calendar
 import json
 import os
 import threading
@@ -51,7 +52,14 @@ from dotenv import load_dotenv
 os.environ.setdefault("SSL_CERT_FILE", certifi.where())
 os.environ.setdefault("REQUESTS_CA_BUNDLE", certifi.where())
 
-load_dotenv()
+# El .env del proyecto manda sobre las variables de entorno del sistema: `load_dotenv()` a secas NO pisa una variable que ya exista
+# (por ejemplo una CAPITAL_API_KEY antigua de Windows), y entonces se enviaba una clave distinta a la del .env.
+_VARIABLES_CAPITAL = ("CAPITAL_DEMO", "CAPITAL_API_KEY", "CAPITAL_IDENTIFIER", "CAPITAL_API_PASSWORD")
+_previas = {k: os.environ.get(k) for k in _VARIABLES_CAPITAL}
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), ".env"), override=True)
+for _k, _v in _previas.items():
+    if _v and os.environ.get(_k) != _v:
+        print(f"[CAPITAL] Aviso: la variable de entorno del sistema {_k} era distinta a la del .env; se usa la del .env.")
 
 # ---------------------------------------------------------------------------
 # Configuración
@@ -63,11 +71,45 @@ _API_KEY = os.getenv("CAPITAL_API_KEY", "").strip()
 _IDENTIFIER = os.getenv("CAPITAL_IDENTIFIER", "").strip()
 _API_CONTRASENA = os.getenv("CAPITAL_API_PASSWORD", "").strip()
 
-# Candado de acceso: mantiene el mismo nombre que usaba el puente MT5, porque
-# muchos módulos hacen `with MT5_LOCK:` al leer/operar. Aquí serializa el refresco
-# de la sesión y las llamadas sensibles.
-MT5_LOCK = threading.RLock()
-_ORDEN_CANDADO = MT5_LOCK
+# TITULO SIN CANDADO
+
+class _SinCandado:
+    """Candado que no bloquea nunca: cumple la interfaz de `threading.RLock` (with, acquire, release) sin esperar a nadie.
+
+    La API de MetaTrader 5 no admite varios hilos a la vez, por eso en la versión MT5 todas las lecturas pasaban por un
+    candado global. La API REST de Capital.com sí admite peticiones simultáneas, y mantener ese candado durante una llamada
+    de 300-800 ms hacía que cualquier otra lectura (velas, cuenta, precios) esperara a las demás, y hasta quedara sin
+    respuesta si el motor volvía a tomarlo sin parar. El límite de peticiones por segundo lo controla `_limitar()`."""
+
+    # TITULO ENTER
+
+    def __enter__(self):
+        """Entra al bloque `with` del candado y lo devuelve."""
+        return self
+
+    # TITULO EXIT
+
+    def __exit__(self, *exc):
+        """Sale del bloque `with` del candado sin ocultar errores."""
+        return False
+
+    # TITULO ACQUIRE
+
+    def acquire(self, *args, **kwargs):
+        """Imita la toma del candado: siempre tiene éxito y nunca espera."""
+        return True
+
+    # TITULO RELEASE
+
+    def release(self):
+        """Imita la liberación del candado: no hace nada."""
+        return None
+
+
+# Nombre heredado del puente MT5: muchos módulos hacen `with MT5_LOCK:` al leer. Con Capital.com no serializa nada.
+MT5_LOCK = _SinCandado()
+# Las operaciones que modifican órdenes y posiciones (leer niveles y luego enviar el cambio) sí se serializan entre sí.
+_ORDEN_CANDADO = threading.RLock()
 
 # Caché de lecturas (cuenta, precio, posiciones): como cada llamada REST a Capital
 # tarda ~300-500 ms y el dashboard re-ejecuta toda la página en cada interacción,
@@ -168,41 +210,237 @@ _CANDADO_SESION = threading.RLock()   # solo serializa la apertura/renovación d
 
 _TIEMPO_ESPERA = 15
 
+# ---------------------------------------------------------------------------
+# Control de la sesión y del ritmo de peticiones
+# ---------------------------------------------------------------------------
+# Capital.com admite 1 POST /session por segundo y unas 10 peticiones por segundo en total; si se insiste responde
+# HTTP 429 y cada intento rechazado alarga el castigo. Antes, con la sesión caída, el motor (cada 0,5 s), el WebSocket,
+# cada rerun de Streamlit y los dos procesos (dashboard y servidor de datos) pedían sesión sin descanso: cientos de
+# intentos por minuto. Ahora:
+#   1. Tras un rechazo se espera (la que indique Retry-After o 10 s, 20 s, 40 s, 80 s, 160 s, 5 min) y durante la espera NO se
+#      llama a la API: las lecturas devuelven "sin conexión" al instante y el aviso se imprime una sola vez.
+#   2. La sesión y la espera se comparten entre procesos con data/capital_sesion.json: el segundo proceso adopta la
+#      sesión abierta por el primero en vez de abrir otra, y un candado de archivo evita que ambos la pidan a la vez.
+#   3. Un 401 solo reabre la sesión si nadie la renovó ya (antes cada hilo con 401 reabría una).
+#   4. Un limitador deja pasar como máximo _MAX_PETICIONES_S peticiones por segundo en cada proceso: 6 para el dashboard (que
+#      concentra las ráfagas al abrir vistas) y 4 para el servidor de datos (`fijar_limite_peticiones`), 10 en total, el tope de
+#      Capital. Las peticiones de segundo plano (precargas y refrescos) solo pueden usar la mitad de ese cupo, así que una acción
+#      del usuario nunca espera detrás de ellas.
+_MIN_ENTRE_SESIONES = 2.0               # s mínimos entre dos POST /session de este proceso
+_ESPERAS_RECHAZO = (10, 20, 40, 80, 160, 300)   # s de pausa tras el 1.º, 2.º... rechazo seguido (429 u otro)
+_ESPERA_CREDENCIALES = 300              # s de pausa si Capital rechaza las credenciales
+_MAX_PETICIONES_S = 6                   # límite propio de este proceso (el de Capital es 10 por segundo en total); el servidor de datos baja el suyo a 4
+_espera_hasta = 0.0                     # epoch hasta el que NO se pide sesión
+_fallos_sesion = 0
+_ultimo_intento = 0.0
+_ultimo_aviso = 0.0
+_ultimo_guardado = 0.0
+_INTERVALO_GUARDADO_S = 30
+_RAIZ = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_ARCHIVO_SESION = os.path.join(_RAIZ, "data", "capital_sesion.json")   # data/*.json no se sube al repositorio
+_ARCHIVO_CANDADO = _ARCHIVO_SESION + ".lock"
+_marcas_peticion: list = []
+_marcas_fondo: list = []
+_CANDADO_RITMO = threading.Lock()
+
+
+# TITULO AVISO
+
+def _aviso(mensaje: str) -> None:
+    """Imprime un aviso como máximo una vez cada 30 s, para no inundar la consola."""
+    global _ultimo_aviso
+    if time.time() - _ultimo_aviso >= 30:
+        _ultimo_aviso = time.time()
+        print(mensaje)
+
+
+# TITULO LEER ARCHIVO
+
+def _leer_archivo() -> dict:
+    """Lee la sesión compartida entre procesos; {} si no existe o no se puede leer."""
+    try:
+        with open(_ARCHIVO_SESION, "r", encoding="utf-8") as fh:
+            d = json.load(fh)
+        return d if isinstance(d, dict) else {}
+    except Exception:
+        return {}
+
+
+# TITULO GUARDAR ARCHIVO
+
+def _guardar_archivo() -> None:
+    """Guarda la sesión y la espera actuales para que otros procesos las reutilicen (escritura atómica)."""
+    global _ultimo_guardado
+    _ultimo_guardado = time.time()
+    try:
+        os.makedirs(os.path.dirname(_ARCHIVO_SESION), exist_ok=True)
+        tmp = _ARCHIVO_SESION + f".{os.getpid()}.tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump({"CST": _tokens["CST"], "X-SECURITY-TOKEN": _tokens["X-SECURITY-TOKEN"], "ts": _ultimo_uso,
+                       "cuenta": _cuenta_activa_id, "espera_hasta": _espera_hasta}, fh)
+        os.replace(tmp, _ARCHIVO_SESION)
+    except Exception:
+        pass
+
+
+# TITULO ADOPTAR ARCHIVO
+
+def _adoptar_archivo(excluir_cst: str = "") -> bool:
+    """Usa la sesión que otro proceso dejó en el archivo si sigue vigente y no es `excluir_cst` (la que acaba de fallar).
+
+    También hereda la pausa compartida. Devuelve True si quedó una sesión válida en memoria."""
+    global _ultimo_uso, _cuenta_activa_id, _espera_hasta
+    d = _leer_archivo()
+    if not d:
+        return False
+    if float(d.get("espera_hasta", 0) or 0) > _espera_hasta:
+        _espera_hasta = float(d["espera_hasta"])
+    cst, xst, marca_tiempo = d.get("CST", ""), d.get("X-SECURITY-TOKEN", ""), float(d.get("ts", 0) or 0)
+    if cst and xst and cst != excluir_cst and (time.time() - marca_tiempo) < _VIDA_TOKEN_S:
+        _tokens["CST"], _tokens["X-SECURITY-TOKEN"] = cst, xst
+        _cuenta_activa_id = d.get("cuenta", "") or _cuenta_activa_id
+        _ultimo_uso = max(_ultimo_uso, marca_tiempo)
+        return True
+    return False
+
+
+# TITULO CANDADO ARCHIVO
+
+class _CandadoArchivo:
+    """Candado entre procesos: solo uno pide sesión a la vez; los demás esperan (hasta 6 s) y luego la adoptan."""
+
+    # TITULO ENTER
+
+    def __enter__(self):
+        """Entra al bloque `with` del candado y lo devuelve."""
+        self.tengo = False
+        limite = time.time() + 6
+        while time.time() < limite:
+            try:
+                fd = os.open(_ARCHIVO_CANDADO, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                os.close(fd)
+                self.tengo = True
+                break
+            except FileExistsError:
+                try:
+                    if time.time() - os.path.getmtime(_ARCHIVO_CANDADO) > 20:   # candado huérfano de un proceso caído
+                        os.remove(_ARCHIVO_CANDADO)
+                        continue
+                except OSError:
+                    pass
+                time.sleep(0.2)
+            except OSError:
+                break
+        return self
+
+    # TITULO EXIT
+
+    def __exit__(self, *exc):
+        """Sale del bloque `with` del candado sin ocultar errores."""
+        if self.tengo:
+            try:
+                os.remove(_ARCHIVO_CANDADO)
+            except OSError:
+                pass
+        return False
+
+
+# TITULO PAUSAR
+
+def _pausar(segundos: float, motivo: str) -> None:
+    """Deja de pedir sesión durante `segundos`, lo comparte con los demás procesos y avisa (con límite de frecuencia)."""
+    global _espera_hasta
+    _espera_hasta = time.time() + segundos
+    _guardar_archivo()
+    _aviso(f"[CAPITAL] {motivo} Pausa de {int(segundos)} s antes de volver a intentarlo (no se llama a la API mientras tanto).")
+
+
+# TITULO RECHAZO SESION
+
+def _rechazo_sesion(r) -> None:
+    """Decide la pausa tras un POST /session rechazado: Retry-After si Capital lo envía; si no, una espera creciente.
+
+    Las credenciales inválidas (HTTP 401 o errorCode `invalid`) esperan más, porque reintentar no sirve de nada."""
+    global _fallos_sesion
+    texto = (r.text or "")[:200]
+    if r.status_code == 401 or "invalid" in texto.lower():
+        extra = ""
+        if "invalid.api.key" in texto:
+            extra = (f" La API key enviada tiene {len(_API_KEY)} caracteres ({_API_KEY[:2]}…{_API_KEY[-2:]}) y se usa el entorno "
+                     f"{'DEMO' if _ES_DEMO else 'REAL'}: compárala con la de Capital.com (Configuración → API integrations).")
+        _pausar(_ESPERA_CREDENCIALES, f"Capital.com rechazó las credenciales (HTTP {r.status_code}: {texto}). Revisa el .env.{extra}")
+        return
+    try:
+        espera = float(r.headers.get("Retry-After", ""))
+    except (TypeError, ValueError):
+        espera = float(_ESPERAS_RECHAZO[min(_fallos_sesion, len(_ESPERAS_RECHAZO) - 1)])
+    _fallos_sesion += 1
+    _pausar(espera, f"Falló la sesión (HTTP {r.status_code}): {texto}.")
+
+
+# TITULO INVALIDAR ARCHIVO
+
+def _invalidar_archivo(cst: str) -> None:
+    """Borra el archivo de sesión compartida si todavía guarda el token `cst` (que Capital acaba de rechazar), para que
+    ningún proceso vuelva a adoptar una sesión muerta."""
+    if cst and _leer_archivo().get("CST") == cst:
+        try:
+            os.remove(_ARCHIVO_SESION)
+        except OSError:
+            pass
+
 
 # TITULO ABRIR SESION
 
-# ---------------------------------------------------------------------------
-# Sesión y peticiones
-# ---------------------------------------------------------------------------
-def _abrir_sesion() -> bool:
-    """POST /session -> guarda CST y X-SECURITY-TOKEN. Devuelve True si conecta."""
-    global _ultimo_uso, _cuenta_activa_id
+def _abrir_sesion(excluir_cst: str = "") -> bool:
+    """POST /session -> guarda CST y X-SECURITY-TOKEN. Devuelve True si conecta.
+
+    No llama a la API durante una pausa; primero intenta adoptar la sesión abierta por otro proceso (distinta de
+    `excluir_cst`, la que acaba de fallar); y serializa la petición real con un candado de archivo y un mínimo de
+    `_MIN_ENTRE_SESIONES` segundos entre intentos."""
+    global _ultimo_uso, _cuenta_activa_id, _espera_hasta, _fallos_sesion, _ultimo_intento
     if not (_API_KEY and _IDENTIFIER and _API_CONTRASENA):
-        print("[CAPITAL] Faltan credenciales en el .env "
-              "(CAPITAL_API_KEY / CAPITAL_IDENTIFIER / CAPITAL_API_PASSWORD).")
+        _aviso("[CAPITAL] Faltan credenciales en el .env "
+               "(CAPITAL_API_KEY / CAPITAL_IDENTIFIER / CAPITAL_API_PASSWORD).")
         return False
-    try:
-        r = _HTTP.post(
-            f"{BASE}/session",
-            headers={"X-CAP-API-KEY": _API_KEY, "Content-Type": "application/json"},
-            json={"identifier": _IDENTIFIER, "password": _API_CONTRASENA,
-                  "encryptedPassword": False},
-            timeout=_TIEMPO_ESPERA,
-        )
-    except requests.exceptions.RequestException as e:
-        print(f"[CAPITAL] No se pudo contactar a Capital.com: {e}")
+    if _adoptar_archivo(excluir_cst) and _tokens["CST"]:
+        return True
+    if time.time() < _espera_hasta:
         return False
-    if r.status_code != 200:
-        print(f"[CAPITAL] Falló la sesión (HTTP {r.status_code}): {r.text}")
-        return False
-    _tokens["CST"] = r.headers.get("CST", "")
-    _tokens["X-SECURITY-TOKEN"] = r.headers.get("X-SECURITY-TOKEN", "")
-    try:
-        _cuenta_activa_id = r.json().get("accountId", "")
-    except Exception:
-        _cuenta_activa_id = ""
-    _ultimo_uso = time.time()
-    return bool(_tokens["CST"] and _tokens["X-SECURITY-TOKEN"])
+    with _CandadoArchivo():
+        if _adoptar_archivo(excluir_cst) and _tokens["CST"]:      # la abrió otro proceso mientras esperábamos el candado
+            return True
+        if time.time() < _espera_hasta:
+            return False
+        pausa = _MIN_ENTRE_SESIONES - (time.time() - _ultimo_intento)
+        if pausa > 0:
+            time.sleep(pausa)
+        _ultimo_intento = time.time()
+        try:
+            r = _HTTP.post(
+                f"{BASE}/session",
+                headers={"X-CAP-API-KEY": _API_KEY, "Content-Type": "application/json"},
+                json={"identifier": _IDENTIFIER, "password": _API_CONTRASENA,
+                      "encryptedPassword": False},
+                timeout=_TIEMPO_ESPERA,
+            )
+        except requests.exceptions.RequestException as e:
+            _pausar(10, f"No se pudo contactar a Capital.com: {e}.")
+            return False
+        if r.status_code != 200:
+            _rechazo_sesion(r)
+            return False
+        _tokens["CST"] = r.headers.get("CST", "")
+        _tokens["X-SECURITY-TOKEN"] = r.headers.get("X-SECURITY-TOKEN", "")
+        try:
+            _cuenta_activa_id = r.json().get("accountId", "")
+        except Exception:
+            _cuenta_activa_id = ""
+        _ultimo_uso = time.time()
+        _fallos_sesion = 0
+        _espera_hasta = 0.0
+        _guardar_archivo()
+        return bool(_tokens["CST"] and _tokens["X-SECURITY-TOKEN"])
 
 
 # TITULO INICIALIZAR MT5
@@ -211,10 +449,13 @@ def inicializar_mt5(inicio_sesion=None, contrasena=None, servidor=None) -> bool:
     """Compat: asegura una sesión activa con Capital.com (nombre heredado del puente).
 
     Los parámetros login/password/server se ignoran (eran de MT5); las credenciales
-    salen del .env. Renueva la sesión si está por caducar."""
+    salen del .env. Renueva la sesión si está por caducar y, si Capital la rechazó hace poco,
+    devuelve False al instante sin llamar a la API (ver «Control de la sesión»)."""
     # Vía rápida SIN candado: con sesión vigente las lecturas no se esperan entre sí.
     if _tokens["CST"] and (time.time() - _ultimo_uso) < _VIDA_TOKEN_S:
         return True
+    if time.time() < _espera_hasta and not _adoptar_archivo():
+        return False
     with _CANDADO_SESION:
         if _tokens["CST"] and (time.time() - _ultimo_uso) < _VIDA_TOKEN_S:
             return True
@@ -231,6 +472,11 @@ def cerrar_mt5():
                 _HTTP.delete(f"{BASE}/session", headers=_cabeceras(), timeout=_TIEMPO_ESPERA)
         except Exception:
             pass
+        if _leer_archivo().get("CST") == _tokens["CST"]:
+            try:
+                os.remove(_ARCHIVO_SESION)
+            except OSError:
+                pass
         _tokens["CST"] = _tokens["X-SECURITY-TOKEN"] = ""
 
 
@@ -241,32 +487,89 @@ def _cabeceras() -> dict:
     return {"CST": _tokens["CST"], "X-SECURITY-TOKEN": _tokens["X-SECURITY-TOKEN"]}
 
 
+# TITULO FIJAR LIMITE PETICIONES
+
+def fijar_limite_peticiones(por_segundo: int) -> None:
+    """Cambia el máximo de peticiones por segundo de ESTE proceso. El servidor de datos lo baja a 4 para que, sumado al dashboard
+    (6), nunca se supere el tope de 10 por segundo que Capital.com aplica a la sesión compartida."""
+    global _MAX_PETICIONES_S
+    _MAX_PETICIONES_S = max(1, int(por_segundo))
+
+
+# TITULO MARCAR HILO FONDO
+
+def marcar_hilo_fondo() -> None:
+    """Marca el hilo actual como de segundo plano (precargas y refrescos): sus peticiones usan solo la mitad del cupo por segundo,
+    de modo que una acción del usuario no espere detrás de ellas."""
+    _tl.bg = True
+
+
+# TITULO LIMITAR
+
+def _limitar() -> None:
+    """Limitador de ritmo: deja pasar como máximo `_MAX_PETICIONES_S` peticiones en cualquier ventana de 1 s, y las de segundo
+    plano (`marcar_hilo_fondo`) como máximo la mitad de ese cupo.
+
+    Si se alcanzó el tope, espera (nunca más de ~1 s) en vez de provocar un 429 de Capital.com."""
+    fondo = bool(getattr(_tl, "bg", False))
+    tope_fondo = max(1, _MAX_PETICIONES_S // 2)
+    while True:
+        with _CANDADO_RITMO:
+            ahora = time.time()
+            while _marcas_peticion and ahora - _marcas_peticion[0] >= 1.0:
+                _marcas_peticion.pop(0)
+            while _marcas_fondo and ahora - _marcas_fondo[0] >= 1.0:
+                _marcas_fondo.pop(0)
+            if len(_marcas_peticion) < _MAX_PETICIONES_S and (not fondo or len(_marcas_fondo) < tope_fondo):
+                _marcas_peticion.append(ahora)
+                if fondo:
+                    _marcas_fondo.append(ahora)
+                return
+            if fondo and len(_marcas_fondo) >= tope_fondo:
+                espera = 1.0 - (ahora - _marcas_fondo[0])
+            else:
+                espera = 1.0 - (ahora - _marcas_peticion[0])
+        time.sleep(max(0.01, espera))
+
+
 # TITULO PEDIR
 
 def _pedir(metodo: str, ruta: str, *, parametros=None, json=None, reintento=True):
-    """Petición autenticada. Renueva sesión si hace falta y reintenta una vez ante 401.
-    Devuelve el objeto requests.Response, o None si no hay conexión."""
+    """Petición autenticada. Renueva sesión si hace falta y reintenta una vez ante 401 (solo si nadie la renovó ya)
+    o ante 429 en lecturas GET. Devuelve el objeto requests.Response, o None si no hay conexión."""
     # Sin candado global durante la petición: antes cada llamada (~300-800 ms) bloqueaba a todas las
     # demás, y los refrescos en segundo plano retrasaban al rerun de la página. Solo la apertura de
     # sesión se serializa (en inicializar_mt5).
     if not inicializar_mt5():
         return None
+    token_usado = _tokens["CST"]
+    _limitar()
     try:
         r = _HTTP.request(metodo, f"{BASE}{ruta}", headers=_cabeceras(),
                           params=parametros, json=json, timeout=_TIEMPO_ESPERA)
     except requests.exceptions.RequestException as e:
         print(f"[CAPITAL] Error de red en {metodo} {ruta}: {e}")
         return None
-    # Token caducado/ inválido -> reautenticar una vez
+    # Token caducado/ inválido -> reautenticar una vez, salvo que otro hilo o proceso ya lo haya renovado
     if r.status_code == 401 and reintento:
         with _CANDADO_SESION:
-            _tokens["CST"] = ""
-            correcto = _abrir_sesion()
+            if _tokens["CST"] == token_usado:
+                _tokens["CST"] = ""
+                _invalidar_archivo(token_usado)
+                correcto = _abrir_sesion(excluir_cst=token_usado)
+            else:
+                correcto = True
         if correcto:
             return _pedir(metodo, ruta, parametros=parametros, json=json, reintento=False)
+    # Demasiado ritmo: una lectura se reintenta una vez tras una breve pausa
+    if r.status_code == 429 and reintento and metodo.upper() == "GET":
+        time.sleep(1.2)
+        return _pedir(metodo, ruta, parametros=parametros, json=json, reintento=False)
     if r.status_code < 400:
         global _ultimo_uso
         _ultimo_uso = time.time()
+        if _ultimo_uso - _ultimo_guardado > _INTERVALO_GUARDADO_S:
+            _guardar_archivo()
     return r
 
 
@@ -468,7 +771,7 @@ def _resolucion(timeframe) -> str:
     return _TEMPORALIDAD_MT5_A_CAPITAL.get(int(timeframe) if timeframe is not None else 16385, "HOUR")
 
 
-# TITULO SEG RESOLUCION
+# TITULO SEGUNDOS RESOLUCION
 
 def _segundos_resolucion(resolucion: str) -> int:
     """Devuelve cuántos segundos dura una vela de la resolución de Capital indicada."""
@@ -898,7 +1201,7 @@ def _velas_crudas(epic: str, resolucion: str, maximo: int = None,
     return datos
 
 
-# TITULO MID
+# TITULO MEDIO
 
 def _medio(precio: dict) -> float:
     """Precio BID de una pieza open/close/high/low de la vela (como MT5 y como los ticks en vivo:
@@ -909,27 +1212,167 @@ def _medio(precio: dict) -> float:
     return float(a if a is not None else 0.0)
 
 
+_TIMEFRAME_MN1 = 49153   # Capital.com no tiene resolución mensual: el mes se arma con velas semanales y diarias
+
+
+# TITULO PUNTO DE
+
+def _punto_de(epic: str) -> float:
+    """Tamaño del punto (10 elevado a menos los decimales) del instrumento, según `decimalPlacesFactor`; 0.0 si no se conoce."""
+    try:
+        snap = (obtener_mercado(epic) or {}).get("snapshot", {}) or {}
+        return 10 ** (-int(snap.get("decimalPlacesFactor", 2) or 2))
+    except Exception:
+        return 0.0
+
+
+# TITULO SPREAD PUNTOS
+
+def _spread_puntos(pieza: dict, punto: float) -> float:
+    """Spread de una vela en puntos: (ask - bid) del cierre dividido por el punto. 0.0 si la vela no trae ambos precios.
+
+    Capital.com entrega bid y ask en cada vela, y el backtest/replay lo usa como el spread histórico que daba MT5."""
+    b = pieza.get("bid")
+    a = pieza.get("ask")
+    if b is None or a is None or not punto:
+        return 0.0
+    return float(max(0.0, round((float(a) - float(b)) / punto)))
+
+
+# TITULO FILAS VELAS
+
+def _filas_velas(velas: list, punto: float) -> list:
+    """Convierte las velas crudas de Capital.com en filas time/open/high/low/close/tick_volume/spread (precios BID)."""
+    return [{
+        "time": _epoch_utc(v.get("snapshotTimeUTC") or v.get("snapshotTime")),
+        "open": _medio(v.get("openPrice", {})),
+        "high": _medio(v.get("highPrice", {})),
+        "low": _medio(v.get("lowPrice", {})),
+        "close": _medio(v.get("closePrice", {})),
+        "tick_volume": v.get("lastTradedVolume", 0),
+        "spread": _spread_puntos(v.get("closePrice", {}), punto),
+    } for v in velas]
+
+
+# TITULO AGRUPAR MESES
+
+def _agrupar_meses(semanales: list, diarias: list) -> list:
+    """Arma velas mensuales (inicio de mes UTC) a partir de filas semanales y diarias, de la más antigua a la más reciente.
+
+    Cada mes posterior al primero cubierto por las velas diarias se calcula con ellas (exacto); ese primer mes (incompleto en las
+    diarias) y los anteriores, con las semanales (cada semana cuenta en el mes en que empieza, así que el borde puede variar unos días). Apertura = primera vela,
+    cierre = última, máximo y mínimo = extremos, volumen = suma y spread = el de la última vela."""
+    def mes(t):
+        """Devuelve el par (año, mes) de una marca de tiempo UNIX en hora universal."""
+        g = time.gmtime(t)
+        return (g.tm_year, g.tm_mon)
+
+    def agrupar(filas):
+        """Agrupa las filas de velas por mes, de la más antigua a la más reciente."""
+        grupos: dict = {}
+        for f in sorted(filas, key=lambda x: x["time"]):
+            grupos.setdefault(mes(f["time"]), []).append(f)
+        return grupos
+    dias = agrupar(diarias)
+    primer_mes = min(dias) if dias else None
+    sem = agrupar(semanales)
+    meses = {k: v for k, v in sem.items() if primer_mes is None or k <= primer_mes}   # el primer mes de las diarias está incompleto
+    meses.update({k: v for k, v in dias.items() if k != primer_mes or k not in meses})
+    out = []
+    for (anio, m) in sorted(meses):
+        g = meses[(anio, m)]
+        out.append({
+            "time": calendar.timegm((anio, m, 1, 0, 0, 0)),
+            "open": g[0]["open"], "close": g[-1]["close"],
+            "high": max(x["high"] for x in g), "low": min(x["low"] for x in g),
+            "tick_volume": sum(x["tick_volume"] for x in g), "spread": g[-1]["spread"],
+        })
+    return out
+
+
+# TITULO DATOS MENSUALES
+
+def _datos_mensuales(epic: str, n_meses: int) -> list:
+    """Filas mensuales de los últimos `n_meses`: pide a Capital.com las semanales y diarias necesarias y las agrupa por mes."""
+    punto = _punto_de(epic)
+    dias = _filas_velas(_velas_crudas(epic, "DAY", maximo=min(_MAX_VELAS_CAPITAL, n_meses * 31 + 5)), punto)
+    semanas = _filas_velas(_velas_crudas(epic, "WEEK", maximo=min(_MAX_VELAS_CAPITAL, int(n_meses * 4.4) + 6)), punto)
+    return _agrupar_meses(semanas, dias)[-n_meses:]
+
+
 # TITULO OBTENER DATOS HISTORICOS
 
 def obtener_datos_historicos(symbol: str, timeframe=TIMEFRAME_H1, n_velas: int = 100) -> pd.DataFrame:
-    """OHLCV histórico como DataFrame indexado por tiempo (equivalente a MT5)."""
+    """OHLCV histórico como DataFrame indexado por tiempo (equivalente a MT5), con la columna `spread` en puntos.
+
+    Para la temporalidad mensual (la constante MN1 de MT5) Capital.com no ofrece resolución propia, así que se agrupan
+    velas semanales y diarias (ver `_agrupar_meses`)."""
+    epic = resolver_simbolo(symbol)
+    if timeframe == _TIMEFRAME_MN1:
+        filas = _datos_mensuales(epic, int(n_velas))
+    else:
+        filas = _filas_velas(_velas_crudas(epic, _resolucion(timeframe), maximo=int(n_velas)), _punto_de(epic))
+    if not filas:
+        return pd.DataFrame()
+    tabla_datos = pd.DataFrame(filas)
+    tabla_datos["time"] = pd.to_datetime(tabla_datos["time"], unit="s")
+    return tabla_datos.set_index("time")
+
+
+_PAGINAS_MAX = 80
+
+
+# TITULO TEXTO UTC
+
+def _texto_utc(marca_tiempo: float) -> str:
+    """Epoch -> 'YYYY-MM-DDTHH:MM:SS' (UTC), el formato de `from`/`to` de /prices."""
+    return datetime.fromtimestamp(max(float(marca_tiempo), 86400.0), tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+
+
+# TITULO OBTENER DATOS ANTERIORES
+
+def obtener_datos_anteriores(symbol: str, timeframe, antes_de: float, cantidad: int) -> pd.DataFrame:
+    """Hasta `cantidad` velas ANTERIORES al instante `antes_de` (epoch, excluido), con el mismo formato que `obtener_datos_historicos`.
+
+    Capital.com entrega como máximo 1000 velas por petición, así que el historial más largo se pide por tramos hacia atrás: cada
+    petición usa una ventana de tiempo `from`–`to` que debe contener menos de 1000 velas (así el tope `max` nunca decide qué velas
+    llegan). El tamaño de la ventana se adapta a la densidad observada (en instrumentos que cierran de noche entra menos de una
+    vela por hueco), y si una ventana llena el tope se parte a la mitad y se repite. Termina al juntar `cantidad` velas, tras dos
+    ventanas seguidas sin datos (fin del historial) o a las `_PAGINAS_MAX` peticiones. DataFrame vacío si no hay nada más antiguo.
+    No admite la temporalidad mensual (esa se arma aparte)."""
     epic = resolver_simbolo(symbol)
     resultado = _resolucion(timeframe)
-    velas = _velas_crudas(epic, resultado, maximo=int(n_velas))
-    if not velas:
+    segundos = _segundos_resolucion(resultado)
+    punto = _punto_de(epic)
+    huecos = int(_MAX_VELAS_CAPITAL * 0.9)       # velas que cabe esperar en una ventana
+    ventana = huecos * segundos
+    fin = float(antes_de) - 1
+    filas: dict = {}
+    vacias = 0
+    for _ in range(_PAGINAS_MAX):
+        if len(filas) >= cantidad or vacias >= 2 or fin < 86400.0:
+            break
+        inicio = fin - ventana
+        crudas = _filas_velas(_velas_crudas(epic, resultado, maximo=_MAX_VELAS_CAPITAL,
+                                            desde=_texto_utc(inicio), hasta=_texto_utc(fin)), punto)
+        crudas = [f for f in crudas if f["time"] <= fin]
+        if len(crudas) >= _MAX_VELAS_CAPITAL:   # ventana llena: pudo quedar un hueco, se repite con una más corta
+            ventana = max(segundos * 10, ventana // 2)
+            continue
+        if not crudas:
+            vacias += 1
+        else:
+            vacias = 0
+            for f in crudas:
+                filas[f["time"]] = f
+            densidad = len(crudas) / max(1.0, ventana / segundos)
+            ventana = int(min(max(huecos / max(densidad, 0.02), 100), 6000)) * segundos
+        fin = inicio - 1
+    if not filas:
         return pd.DataFrame()
-    filas = []
-    for v in velas:
-        filas.append({
-            "time": pd.to_datetime(v.get("snapshotTimeUTC") or v.get("snapshotTime")),
-            "open": _medio(v.get("openPrice", {})),
-            "high": _medio(v.get("highPrice", {})),
-            "low": _medio(v.get("lowPrice", {})),
-            "close": _medio(v.get("closePrice", {})),
-            "tick_volume": v.get("lastTradedVolume", 0),
-        })
-    tabla_datos = pd.DataFrame(filas).set_index("time")
-    return tabla_datos
+    tabla_datos = pd.DataFrame([filas[t] for t in sorted(filas)][-int(cantidad):])
+    tabla_datos["time"] = pd.to_datetime(tabla_datos["time"], unit="s")
+    return tabla_datos.set_index("time")
 
 
 # TITULO OBTENER VELAS RANGO
@@ -1109,7 +1552,7 @@ def modificar_sltp(ticket, stop_loss=None, take_profit=None) -> dict:
         cuerpo["stopLevel"] = stop_loss_nuevo
     if take_profit_nuevo > 0:
         cuerpo["profitLevel"] = take_profit_nuevo
-    with MT5_LOCK:
+    with _ORDEN_CANDADO:
         r = _pedir("PUT", f"/positions/{ticket}", json=cuerpo)
     if r is None:
         return {"error": "Sin conexión con Capital.com"}
@@ -1161,7 +1604,7 @@ def modificar_orden(ticket, precio=None, stop_loss=None, take_profit=None,
             int(expiracion), tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
     if not cuerpo:
         return {"error": "Nada que modificar"}
-    with MT5_LOCK:
+    with _ORDEN_CANDADO:
         r = _pedir("PUT", f"/workingorders/{ticket}", json=cuerpo)
     if r is None:
         return {"error": "Sin conexión con Capital.com"}
@@ -1179,7 +1622,7 @@ def modificar_orden(ticket, precio=None, stop_loss=None, take_profit=None,
 
 def eliminar_orden(ticket) -> dict:
     """Cancela una orden PENDIENTE (working order)."""
-    with MT5_LOCK:
+    with _ORDEN_CANDADO:
         r = _pedir("DELETE", f"/workingorders/{ticket}")
     if r is None:
         return {"error": "Sin conexión con Capital.com"}

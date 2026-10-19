@@ -82,7 +82,7 @@ def _notificar(v: dict[str, Any], titulo: str, texto: str, tipo: str = "auto") -
         traceback.print_exc()
 
 
-# TITULO LADO TXT
+# TITULO LADO TEXTO
 
 def _lado_texto(lado: str) -> str:
     """Devuelve "Compra" o "Venta" con mayúscula inicial para los títulos de notificación."""

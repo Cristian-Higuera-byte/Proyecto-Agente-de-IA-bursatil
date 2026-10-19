@@ -36,7 +36,7 @@ _VISIBLES = 6           # tarjetas visibles
 _CSS = Path(__file__).parent / "estilos.css"
 
 
-# TITULO SLOT AGREGAR
+# TITULO RANURA AGREGAR
 
 def _ranura_agregar(disponibles):
     """Tarjeta '+' en el hueco libre: popover con selector para agregar favorito.
@@ -59,7 +59,7 @@ def _ranura_agregar(disponibles):
                 st.rerun(scope="fragment")
 
 
-# TITULO SLOT FAVORITO
+# TITULO RANURA FAVORITO
 
 def _ranura_favorito(ticket: str, datos: dict):
     """Dibuja el slot de un favorito: tarjeta HTML, botón invisible de selección y botón ✕ de quitar.

@@ -153,7 +153,7 @@ def _editor_nivel(clave, titulo, ticket, p, e, apertura, actual, compra, bloquea
         st.markdown(f"<div class='cartera-detalle-error'>{html.escape(error)}</div>", unsafe_allow_html=True)
 
 
-# TITULO FB SLTP
+# TITULO RETROALIMENTACION STOP LOSS TAKE PROFIT
 
 def _retroalimentacion_stop_loss_take_profit(res, titulo, verbo):
     """Guarda en st.session_state.cartera_detalle_fb el mensaje de resultado de modificar_sltp.
@@ -340,7 +340,7 @@ def detalle_inline(ticket, p):
         _grid_y_editores(ticket, p, e, simbolo, lado, compra, neto_ganancia_perdida, apertura, actual, digitos, variacion)
 
 
-# TITULO CUADRICULA Y EDITORES
+# TITULO GRID Y EDITORES
 
 def _grid_y_editores(ticket, p, e, simbolo, lado, compra, neto_ganancia_perdida, apertura, actual, digitos, var):
     """Dibuja la tabla de datos de la posición y los editores de TP, SL y stop dinámico.

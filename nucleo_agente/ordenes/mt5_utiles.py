@@ -67,7 +67,7 @@ def _desviacion(info: Any) -> int:
     return max(LIMITES.desviacion_puntos, int(getattr(info, "spread", 0) or 0) * 2)
 
 
-# TITULO CON LOCK
+# TITULO CON CANDADO
 
 def _con_candado(funcion):
     """Decorador que serializa el acceso a MT5 con el MISMO candado del resto de la app (MT5_LOCK).

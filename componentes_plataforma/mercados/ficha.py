@@ -152,7 +152,7 @@ def mostrar_ficha():
                     f"{bid:,.{digitos}f}</span>{pildora(f)}"
                     f"<span class='mercados-numero' style='color:{VERDE if ch >= 0 else ROJO};font-size:14px;"
                     f"font-weight:700;' {_en_vivo(real, 'ch', d=digitos)}>{ch:+,.{digitos}f}</span></div>"
-                    f"<div class='ficha-precio-sub'><span class='mercados-dot{'' if abierto else ' off'}'></span>&nbsp; "
+                    f"<div class='ficha-precio-subtitulo'><span class='mercados-dot{'' if abierto else ' off'}'></span>&nbsp; "
                     f"{'Mercado abierto' if abierto else 'Mercado cerrado'} · último tick {hora} (hora del servidor)"
                     + (f" · cierre anterior {anterior_cerrar:,.{digitos}f}" if anterior_cerrar else "") + "</div>"
                 )
