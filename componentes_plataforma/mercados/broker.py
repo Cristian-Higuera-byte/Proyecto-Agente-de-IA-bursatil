@@ -18,6 +18,8 @@ Es la única capa de la página Mercados que habla con MetaTrader 5. Las consult
 """
 import re
 
+from concurrent.futures import ThreadPoolExecutor
+
 import streamlit as st
 from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
@@ -63,13 +65,13 @@ def _indice_broker():
         return set(), {}
 
 
-def resolver(candidatos) -> str | None:
+def resolver(candidatos, _indice=None) -> str | None:
     """Nombre real en el bróker del primer candidato que exista, o None.
 
     Recibe una lista de nombres posibles de un instrumento. Prueba, en orden y para cada candidato: el nombre
     resuelto por el puente de MT5, el mismo con sufijo `Cash`, y el primer futuro cuyo nombre empiece por
     `candidato-`. Si ninguno funciona, busca el candidato como ticker en la descripción de las acciones."""
-    nombres, por_ticker = _indice_broker()
+    nombres, por_ticker = _indice if _indice is not None else _indice_broker()
     # Sin índice (MT5 desconectado) no se puede resolver nada
     if not nombres:
         return None
@@ -94,8 +96,13 @@ def _elementos_cache(categoria: str):
 
     Devuelve una lista de tuplas `(real, nombre, indice)`. Lanza `SinDatos` si no se resolvió ninguno."""
     out = []
-    for i, (cands, nombre) in enumerate(CATALOGO.get(categoria, [])):
-        real = resolver(cands)
+    items = list(enumerate(CATALOGO.get(categoria, [])))
+    indice = _indice_broker()        # se calcula aquí (hilo principal) y se comparte con los hilos de abajo
+    # Resolución en paralelo: cada candidato nuevo puede costar varias llamadas REST (~300 ms) y en serie
+    # la vista Cotizaciones tardaba decenas de segundos la primera vez.
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        reales = list(ex.map(lambda it: resolver(it[1][0], indice), items))
+    for (i, (cands, nombre)), real in zip(items, reales):
         if real:
             out.append((real, nombre, i))
     if not out:

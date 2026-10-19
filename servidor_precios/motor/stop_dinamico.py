@@ -19,6 +19,7 @@ en MT5 con modificar_sltp.
 """
 from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 from herramientas import almacen_stop_dinamico
+from herramientas.tickets import ticket as _tk
 from herramientas.puente_mt5 import modificar_sltp
 
 from ..constantes import CANDADO_MT5
@@ -60,7 +61,7 @@ class MixinStopDinamico:
             return
         # Posiciones abiertas indexadas por ticket
         with CANDADO_MT5:
-            posiciones = {p.ticket: p for p in (mt5.positions_get() or [])}
+            posiciones = {_tk(p.ticket): p for p in (mt5.positions_get() or [])}
         # Copia de las claves porque el diccionario puede cambiar dentro del ciclo
         for ticket in list(self._trailing.keys()):
             cfg = self._trailing[ticket]
@@ -98,7 +99,7 @@ class MixinStopDinamico:
                 sube = nuevo > sl_actual + paso if sl_actual > 0 else True
                 if sube and 0 < nuevo < precio and (sl_actual <= 0 or nuevo > sl_actual):
                     with CANDADO_MT5:
-                        modificar_sltp(int(ticket), sl=nuevo)   # tp=None -> conserva el TP
+                        modificar_sltp(ticket, sl=nuevo)   # tp=None -> conserva el TP
             else:                              # VENTA: SL por encima, sigue al Ask
                 precio = tick.ask
                 nuevo = round(precio + dist, dig)
@@ -107,7 +108,7 @@ class MixinStopDinamico:
                 baja = nuevo < sl_actual - paso if sl_actual > 0 else True
                 if baja and nuevo > precio and (sl_actual <= 0 or nuevo < sl_actual):
                     with CANDADO_MT5:
-                        modificar_sltp(int(ticket), sl=nuevo)
+                        modificar_sltp(ticket, sl=nuevo)
 
 
 # -------------------------------------------------------------------------------------------------------

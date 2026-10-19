@@ -19,6 +19,7 @@ pata sobrante cuando la otra se ejecuta.
 """
 from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 from herramientas import almacen_oco
+from herramientas.tickets import ticket as _tk
 from herramientas.puente_mt5 import eliminar_orden
 
 from ..constantes import CANDADO_MT5
@@ -68,17 +69,17 @@ class MixinOco:
             ordenes = mt5.orders_get() or []
             posiciones = mt5.positions_get() or []
         # tickets de órdenes pendientes vivas ahora mismo
-        vivos = {int(o.ticket) for o in ordenes if int(o.type) in (2, 3, 4, 5)}
+        vivos = {_tk(o.ticket) for o in ordenes if int(o.type) in (2, 3, 4, 5)}
         # tickets que ya son posición (una pendiente al ejecutarse conserva su ticket
         # como identifier de la posición): sirve para distinguir "ejecutada" de "cancelada"
         en_posicion = set()
         for p in posiciones:
-            en_posicion.add(int(p.ticket))
-            en_posicion.add(int(getattr(p, "identifier", p.ticket)))
+            en_posicion.add(_tk(p.ticket))
+            en_posicion.add(_tk(getattr(p, "identifier", p.ticket)))
         # Evalúa cada par (copia de las claves: _cerrar_oco modifica el dict)
         for par_id in list(self._oco.keys()):
             cfg = self._oco[par_id]
-            a, b = int(cfg["a"]), int(cfg["b"])
+            a, b = _tk(cfg["a"]), _tk(cfg["b"])
             a_vivo, b_vivo = a in vivos, b in vivos
             if a_vivo and b_vivo:
                 self._oco_armados.add(par_id)        # ambas patas confirmadas

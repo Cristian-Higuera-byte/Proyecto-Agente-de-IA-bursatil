@@ -43,6 +43,7 @@ import os
 import tempfile
 import threading
 import time
+from herramientas.tickets import ticket as _tk
 
 # Carpeta `data/` en la raíz del proyecto.
 _DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
@@ -54,7 +55,7 @@ _LOCK = threading.Lock()
 
 def _par_id(a: int, b: int) -> str:
     """Construye el id del par "<menor>-<mayor>" a partir de dos tickets, sin importar el orden."""
-    x, y = sorted((int(a), int(b)))
+    x, y = sorted((_tk(a), _tk(b)), key=lambda t: (isinstance(t, str), t if isinstance(t, int) else 0, str(t)))
     return f"{x}-{y}"
 
 
@@ -73,7 +74,7 @@ def leer() -> dict:
     # Normaliza tipos y descarta entradas dañadas sin interrumpir la lectura.
     for k, v in _leer_crudo().items():
         try:
-            out[str(k)] = {"a": int(v["a"]), "b": int(v["b"]),
+            out[str(k)] = {"a": _tk(v["a"]), "b": _tk(v["b"]),
                            "symbol": str(v.get("symbol", "")), "ts": float(v.get("ts", 0.0))}
         except (ValueError, TypeError, KeyError, AttributeError):
             continue
@@ -111,7 +112,7 @@ def fijar(a: int, b: int, symbol: str = "") -> str:
     with _LOCK:
         d = leer()
         pid = _par_id(a, b)
-        d[pid] = {"a": int(a), "b": int(b), "symbol": str(symbol or ""), "ts": time.time()}
+        d[pid] = {"a": _tk(a), "b": _tk(b), "symbol": str(symbol or ""), "ts": time.time()}
         _guardar(d)
         return pid
 
@@ -125,11 +126,11 @@ def quitar_par(par_id: str) -> None:
             _guardar(d)
 
 
-def quitar_ticket(ticket: int) -> None:
+def quitar_ticket(ticket) -> None:
     """Elimina cualquier par que contenga este ticket (si existía)."""
     with _LOCK:
         d = leer()
-        tk = int(ticket)
+        tk = _tk(ticket)
         cambio = False
         # Busca todos los pares donde el ticket sea pata A o B.
         for pid in [p for p, v in d.items() if v["a"] == tk or v["b"] == tk]:

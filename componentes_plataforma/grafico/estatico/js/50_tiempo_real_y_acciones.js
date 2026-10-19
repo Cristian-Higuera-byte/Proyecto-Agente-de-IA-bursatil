@@ -78,6 +78,12 @@ Transportes y Servicios Ltda.
             var ultima = datosActuales[datosActuales.length - 1];
             if (v.time < ultima.time) return;
             if (ultima.time === v.time){
+              // Con el feed activo el cierre lo manda el último tick (Bid): el sondeo solo aporta el
+              // volumen y los extremos, para que la línea del precio no salte y quede igual al recuadro.
+              if (Date.now() - ultimoTickBC < 4000) {
+                v = Object.assign({}, v, {close: ultima.close,
+                  high: Math.max(v.high, ultima.high), low: Math.min(v.low, ultima.low)});
+              }
               datosActuales[datosActuales.length - 1] = v;
             } else {
               datosActuales.push(v);

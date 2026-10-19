@@ -75,7 +75,7 @@ Transportes y Servicios Ltda.
     // Botón del modal "¿Quiere cerrar su posición?" (cartera_panel.py): su
     // contenedor se llama st-key-ca_btncerrar_<ticket>; el texto sigue el P/G vivo.
     D.querySelectorAll('[class*="st-key-ca_btncerrar_"]').forEach(function(el){
-      var m = el.className.match(/st-key-ca_btncerrar_(\d+)/);
+      var m = el.className.match(/st-key-ca_btncerrar_([\w-]+)/);
       var v = m ? pos[m[1]] : undefined;
       if (v === undefined) return;
       var txt = el.querySelector('button p') || el.querySelector('button');
@@ -86,7 +86,7 @@ Transportes y Servicios Ltda.
     // Botón "Cerrar operación: $X" del drawer de detalle (cartera_panel.py):
     // contenedor st-key-cadet_cerrar_<ticket>; el monto sigue el P/G vivo.
     D.querySelectorAll('[class*="st-key-cadet_cerrar_"]').forEach(function(el){
-      var m = el.className.match(/st-key-cadet_cerrar_(\d+)/);
+      var m = el.className.match(/st-key-cadet_cerrar_([\w-]+)/);
       var v = m ? pos[m[1]] : undefined;
       if (v === undefined) return;
       var txt = el.querySelector('button p') || el.querySelector('button');

@@ -48,6 +48,11 @@ Transportes y Servicios Ltda.
       background:#0f1620; border:1px solid #202a37; border-radius:18px; padding:6px 0; }
   /* La ficha lleva mas relleno interior que la tabla (sobrescribe el padding anterior). */
   .st-key-jr_ficha { padding:16px 18px 18px; }
+  /* Los selectores de la ficha son listas cerradas: no se escribe en ellos (el campo de texto interno
+     del selectbox no recibe clics ni cursor; el clic cae en el contenedor y abre la lista). */
+  .st-key-jr_ficha [data-baseweb="select"] input {
+      caret-color:transparent !important; pointer-events:none !important; user-select:none !important; }
+  .st-key-jr_ficha [data-baseweb="select"] { cursor:pointer; }
 
   /* RESUMEN DE METRICAS */
   /* Resumen de métricas (estilo hist-sum de Inicio), repartido en todo el ancho */

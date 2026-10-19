@@ -293,20 +293,21 @@ Los demás ceros (exposición, riesgo, comisiones, flotante) son correctos: no h
 PENDIENTE multiusuario: el depósito reconstruido asume sin depósitos/retiros; con cuentas reales habrá
 que usar el historial de movimientos real.
 
-### Pendiente
-- Reiniciar servidor + dashboard y confirmar todo (velocidad, buscador, layout de Cristian).
-- Commitear WebSocket + optimizaciones + buscador (sin commitear aún).
-- DRAWDOWN −99% = equity_store viejo de MT5 → resetear.
-- Decidir si se hace push de la rama EmilioFuentes.
-- Commitear los cambios del WebSocket (sin commitear aún).
-- DRAWDOWN −99% = historial de equity viejo (MT5) → resetear ese registro.
-- Optimizar la carga del catálogo (paralelizar); quedan etiquetas "MT5" menores (diario, chat, backtest).
-- Motor de precios a WebSocket; validar /workingorders y /history/transactions con operaciones reales.
-- Rotar credenciales de prueba antes de producción.
-- Pulir etiquetas "MT5"/"XM" restantes (badge del gráfico, barra superior, buscador, diario).
-- Motor de precios a WebSocket de Capital (para volver a ticks rápidos sin chocar el límite REST).
-- Validar /workingorders y /history/transactions con operaciones reales.
-- Rotar las credenciales de prueba por unas seguras antes de producción.
-- Validar las funciones de órdenes con una operación demo real (y el P/G del historial).
-- UI: panel DOM → mostrar "no disponible"; `info_mt5.py` → estado de conexión de Capital.
-- Rotar las credenciales de prueba por unas seguras antes de producción.
+### Cierre del Día 19 (16-10-2026)
+- **Commiteado y pusheado a `main`.** `main` remoto quedó en `edd73b5` (fast-forward desde `ca65cf0`):
+  migración Capital (f5edc95) + merge de Cristian (f4c845b) + WebSocket/rendimiento/vistas (edd73b5).
+- Informe del día generado (Día 19) en `OCTUBRE/16-10-2026/`. Guía de creación de cuenta + API del
+  usuario corregida (frases + estilo, 32 imágenes conservadas).
+- Scripts de prueba (`_prueba_*.py`, `_descubrir_capital.py`) y `data/` no versionados a propósito.
+
+### Pendientes (consolidados al cierre del Día 19)
+1. Pulir etiquetas/textos menores que aún nombran "MT5"/"XM" en la UI (badge del gráfico, barra
+   superior, buscador, diario, backtest, chat) → provider-aware.
+2. Validar las funciones de órdenes (abrir/cerrar/pendientes/SL-TP) con operaciones demo reales en
+   Capital; confirmar los campos de `/workingorders` y el P/L del historial con más cierres.
+3. Afinar aproximaciones del backend Capital: `especs_posicion.k` y swap (para la Cartera).
+4. Multicliente: almacenamiento por usuario (equity, journal, credenciales de API cifradas) en Supabase;
+   el depósito reconstruido (balance − P/L) asume sin depósitos/retiros → usar historial real.
+5. Cobertura del catálogo del buscador (categorías) y set curado de respaldo.
+6. Rotar las credenciales de prueba por unas seguras antes de producción.
+7. Opcional: capturas del dashboard con Capital para el informe.

@@ -26,6 +26,7 @@ import streamlit as st
 from herramientas.puente_mt5 import (colocar_orden_pendiente, ejecutar_orden_mercado,
                               eliminar_orden)
 from herramientas import almacen_oco
+from herramientas.tickets import ticket as _tk
 
 
 def registrar_resultado(estado, msg):
@@ -78,7 +79,7 @@ def ejecutar_oco(real, visible, lado_a, lado_b, precio_a, precio_b, vol, gtc=Tru
     # Segunda pata: si falla se elimina la primera para no dejar el par a medias
     rb = colocar_orden_pendiente(real, lado_b, vol, precio_b, 0.0, 0.0, hasta_cancelar=gtc)
     if "error" in rb:
-        und = eliminar_orden(int(ra["order"]))
+        und = eliminar_orden(_tk(ra["order"]))
         extra = "" if "error" not in und else " (no se pudo deshacer la 1.ª: revísala en el gráfico)"
         registrar_resultado(
             "error",
@@ -86,7 +87,7 @@ def ejecutar_oco(real, visible, lado_a, lado_b, precio_a, precio_b, vol, gtc=Tru
         st.session_state.ord_oco_confirm = None
         return
     # Ambas colocadas: se vinculan por número de orden para que, al ejecutarse una, se cancele la otra
-    almacen_oco.fijar(int(ra["order"]), int(rb["order"]), real)
+    almacen_oco.fijar(_tk(ra["order"]), _tk(rb["order"]), real)
     ok = (f"¡Listo! OCO colocado en {visible}: {ra.get('tipo')} {vol:.2f} @ {ra.get('price')} · "
           f"{rb.get('tipo')} {vol:.2f} @ {rb.get('price')}"
           + (" · GTC" if gtc else " · DAY (solo hoy)")

@@ -22,6 +22,7 @@ from __future__ import annotations
 import concurrent.futures
 import json
 import os
+import threading
 import time
 from datetime import datetime, timezone
 from types import SimpleNamespace
@@ -120,18 +121,12 @@ _cache_mercado: dict = {}
 # display llega por SSE/WebSocket; por eso se cachea el mercado 30 s y así el render
 # del dashboard no hace una llamada REST por cada symbol_info.
 _TTL_MERCADO = 30.0
+_refrescando_mercado: set = set()
 
 
 def _mercado(epic: str) -> dict:
-    """GET /markets/{epic} con caché breve. Devuelve el JSON crudo o {}."""
-    ahora = time.time()
-    hit = _cache_mercado.get(epic)
-    if hit and (ahora - hit[0]) < _TTL_MERCADO:
-        return hit[1]
-    r = cap._pedir("GET", f"/markets/{epic}")
-    data = r.json() if (r is not None and r.status_code == 200) else {}
-    _cache_mercado[epic] = (ahora, data)
-    return data
+    """GET /markets/{epic} compartido y cacheado con el backend (ver capital.get_mercado)."""
+    return cap.get_mercado(epic)
 
 
 def _specs(epic: str) -> dict:
@@ -148,7 +143,8 @@ def _specs(epic: str) -> dict:
     else:
         stops_level = int(float(md.get("value", 0.0) or 0.0) / point) if point else 0
     tick_size = float(d.get("tickSize", 0.0) or snap.get("scalingFactor", 0.0) or point)
-    contract = float(inst.get("lotSize", 1.0) or 1.0)
+    fl = cap.factor_lote(inst.get("type", ""))
+    contract = float(inst.get("lotSize", 1.0) or 1.0) * fl
     return {
         "digitos": digitos,
         "point": float(point),
@@ -158,9 +154,9 @@ def _specs(epic: str) -> dict:
         "tick_value": contract * (tick_size or point),   # valor de 1 tick por 1 unidad (USD)
         "contract": contract,
         "margin_factor": float(inst.get("marginFactor", 0.0) or 0.0),
-        "vmin": float((reglas.get("minDealSize", {}) or {}).get("value", 0.01) or 0.01),
-        "vmax": float((reglas.get("maxDealSize", {}) or {}).get("value", 1e9) or 1e9),
-        "vstep": float((reglas.get("minSizeIncrement", {}) or {}).get("value", 0.01) or 0.01),
+        "vmin": float((reglas.get("minDealSize", {}) or {}).get("value", 0.01) or 0.01) / fl,
+        "vmax": float((reglas.get("maxDealSize", {}) or {}).get("value", 1e9) or 1e9) / fl,
+        "vstep": float((reglas.get("minSizeIncrement", {}) or {}).get("value", 0.01) or 0.01) / fl,
         "stops_level": stops_level,
         "tradeable": snap.get("marketStatus") == "TRADEABLE",
         "high": float(snap.get("high", 0.0) or 0.0),
@@ -345,11 +341,11 @@ def account_info():
 # Posiciones / órdenes / historial
 # ===========================================================================
 def positions_get(ticket: Any = None, symbol: str = None, **kwargs: Any) -> list:
-    r = cap._pedir("GET", "/positions")
-    if r is None or r.status_code != 200:
+    datos = cap.leer_json("/positions")
+    if datos is None:
         return []
     out = []
-    for item in r.json().get("positions", []):
+    for item in datos.get("positions", []):
         p = item.get("position", {}) or {}
         m = item.get("market", {}) or {}
         if ticket is not None and str(p.get("dealId")) != str(ticket):
@@ -359,8 +355,9 @@ def positions_get(ticket: Any = None, symbol: str = None, **kwargs: Any) -> list
         es_compra = p.get("direction", "").upper() == "BUY"
         out.append(SimpleNamespace(
             ticket=p.get("dealId", ""), symbol=m.get("epic", ""),
+            identifier=p.get("workingOrderId") or p.get("dealId", ""),   # id de la pendiente que la abrió (OCO)
             type=POSITION_TYPE_BUY if es_compra else POSITION_TYPE_SELL,
-            volume=float(p.get("size", 0.0) or 0.0),
+            volume=float(p.get("size", 0.0) or 0.0) / cap.factor_lote(m.get("instrumentType", "")),
             price_open=float(p.get("level", 0.0) or 0.0),
             price_current=float(m.get("bid", 0.0) or 0.0) if es_compra else float(m.get("offer", 0.0) or 0.0),
             profit=float(p.get("upl", 0.0) or 0.0), swap=0.0,
@@ -373,11 +370,11 @@ def positions_get(ticket: Any = None, symbol: str = None, **kwargs: Any) -> list
 def orders_get(ticket: Any = None, **kwargs: Any) -> list:
     """Órdenes pendientes. NOTA: los nombres de campo de /workingorders se leen de forma
     defensiva (no se pudo observar una orden real); validar con una pendiente creada."""
-    r = cap._pedir("GET", "/workingorders")
-    if r is None or r.status_code != 200:
+    datos = cap.leer_json("/workingorders")
+    if datos is None:
         return []
     out = []
-    for item in r.json().get("workingOrders", []):
+    for item in datos.get("workingOrders", []):
         w = item.get("workingOrderData", item) or {}
         m = item.get("marketData", {}) or {}
         dealId = w.get("dealId", "")
@@ -392,8 +389,8 @@ def orders_get(ticket: Any = None, **kwargs: Any) -> list:
         gtd = w.get("goodTillDate")
         out.append(SimpleNamespace(
             ticket=dealId, symbol=m.get("epic", "") or w.get("epic", ""), type=tipo,
-            volume=float(w.get("orderSize", 0.0) or 0.0),
-            volume_current=float(w.get("orderSize", 0.0) or 0.0),
+            volume=float(w.get("orderSize", 0.0) or 0.0) / cap.factor_lote_epic(w.get("epic") or m.get("epic", "")),
+            volume_current=float(w.get("orderSize", 0.0) or 0.0) / cap.factor_lote_epic(w.get("epic") or m.get("epic", "")),
             price_open=float(w.get("orderLevel", 0.0) or 0.0),
             price_current=float(m.get("bid", 0.0) or 0.0),
             sl=float(w.get("stopLevel", 0.0) or 0.0), tp=float(w.get("profitLevel", 0.0) or 0.0),
@@ -410,11 +407,11 @@ def history_deals_get(desde: Any = None, hasta: Any = None, **kwargs: Any) -> li
     params = {}
     if isinstance(desde, datetime):
         params["from"] = desde.replace(tzinfo=None).strftime("%Y-%m-%dT%H:%M:%S")
-    r = cap._pedir("GET", "/history/transactions", params=params or None)
-    if r is None or r.status_code != 200:
+    datos = cap.leer_json("/history/transactions", 15.0, params or None)
+    if datos is None:
         return []
     out = []
-    for t in r.json().get("transactions", []):
+    for t in datos.get("transactions", []):
         tipo_tx = str(t.get("transactionType", "")).upper()
         if "TRADE" not in tipo_tx and "DEAL" not in tipo_tx:
             continue

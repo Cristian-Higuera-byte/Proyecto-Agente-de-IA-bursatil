@@ -23,6 +23,7 @@ import time
 from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 from herramientas import almacen_capital, almacen_oco, almacen_stop_dinamico
 from herramientas.puente_mt5 import PROVEEDOR, resolver_simbolo
+from herramientas.tickets import ticket as _tk
 
 from ..constantes import (CANDADO_MT5, INTERVALO_CUENTA, INTERVALO_EQUITY, INTERVALO_TICKS,
                           TTL_REFERENCIA, TTL_SUSCRIPCION)
@@ -190,7 +191,7 @@ class MotorPrecios(MixinStopDinamico, MixinOco):
             k, sm = _spec(p.symbol)
             pi[str(p.ticket)] = {"s": p.symbol, "t": int(p.type), "v": p.volume, "po": p.price_open,
                                  "sl": p.sl, "tp": p.tp, "k": k, "sm": sm,
-                                 "tr": 1 if p.ticket in tr else 0}
+                                 "tr": 1 if _tk(p.ticket) in tr else 0}
         # Resumen de órdenes pendientes
         # órdenes pendientes (t: 2 Buy Limit, 3 Sell Limit, 4 Buy Stop, 5 Sell Stop)
         oco_tks = almacen_oco.tickets_en_oco()   # tickets vinculados en un par OCO (etiqueta "OCO")
@@ -203,7 +204,7 @@ class MotorPrecios(MixinStopDinamico, MixinOco):
                                     "po": o.price_open, "sl": o.sl, "tp": o.tp, "k": k, "sm": sm,
                                     # caducidad: 0 GTC, 1 DAY, 2 fecha (ex, hora del servidor)
                                     "tt": int(o.type_time), "ex": int(o.time_expiration or 0),
-                                    "oco": 1 if o.ticket in oco_tks else 0}
+                                    "oco": 1 if _tk(o.ticket) in oco_tks else 0}
         return {"equity": info.equity, "balance": info.balance,
                 "profit": info.profit, "currency": info.currency,
                 "margin": info.margin, "margin_free": info.margin_free,

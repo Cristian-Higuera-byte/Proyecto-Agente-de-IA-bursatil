@@ -19,6 +19,7 @@ from typing import Any
 
 from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
+from herramientas.tickets import ticket as _tk
 from nucleo_agente.ordenes.limites import MAGIC, TOLERANCIA_VS_PROPUESTA
 from nucleo_agente.ordenes.mt5_utiles import _chequeos_globales, _con_lock, _desviacion, _modo_llenado
 from nucleo_agente.ordenes.validacion import _evaluar_apertura
@@ -77,7 +78,7 @@ def _enviar_cierre(o: dict[str, Any]) -> dict[str, Any]:
     _, motivo = _chequeos_globales(para_abrir=False)
     if motivo:
         return {"ok": False, "estado": "RECHAZADA_RIESGO", "mensaje": motivo}
-    posiciones = mt5.positions_get(ticket=int(o["ticket_objetivo"]))
+    posiciones = mt5.positions_get(ticket=_tk(o["ticket_objetivo"]))
     if not posiciones:
         return {"ok": False, "estado": "ERROR", "mensaje": "La posición ya no existe (¿se cerró antes?)."}
     # Para cerrar se opera en sentido contrario al de la posición.

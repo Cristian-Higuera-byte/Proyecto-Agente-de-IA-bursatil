@@ -21,6 +21,7 @@ from typing import Any
 
 from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
+from herramientas.tickets import ticket as _tk
 from nucleo_agente.ordenes.base_datos import _ahora, _consultar, _insertar, kill_switch_activo
 from nucleo_agente.ordenes.limites import LIMITES
 from nucleo_agente.ordenes.mt5_utiles import (_chequeos_globales, _con_lock, _perdida_del_dia, _preparar_mt5,
@@ -130,9 +131,9 @@ def proponer_cierre(
     if motivo:
         return rechazo(motivo)
     try:
-        ticket = int(ticket)
+        ticket = _tk(ticket)
     except (TypeError, ValueError):
-        return rechazo("El ticket debe ser un número entero (usa ver_posiciones para consultarlo).")
+        return rechazo("El ticket no es válido (usa ver_posiciones para consultarlo).")
     previa = _propuesta_pendiente("cerrar", ticket_objetivo=ticket)
     if previa:
         return _respuesta_duplicada(previa)

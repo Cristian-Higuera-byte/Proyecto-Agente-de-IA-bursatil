@@ -33,6 +33,8 @@ import os
 import tempfile
 import threading
 
+from herramientas.tickets import ticket as _tk
+
 # Carpeta `data/` en la raíz del proyecto.
 _DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 # Archivo JSON compartido con las configuraciones de trailing por ticket.
@@ -56,7 +58,7 @@ def leer() -> dict:
     # Convierte claves a int y valores a float; descarta entradas dañadas.
     for k, v in _leer_crudo().items():
         try:
-            out[int(k)] = {"dist": float(v.get("dist", 0.0)), "paso": float(v.get("paso", 0.0))}
+            out[_tk(k)] = {"dist": float(v.get("dist", 0.0)), "paso": float(v.get("paso", 0.0))}
         except (ValueError, TypeError, AttributeError):
             continue
     return out
@@ -75,7 +77,7 @@ def _guardar(d: dict) -> None:
     os.replace(tmp.name, _RUTA)   # atómico: el otro proceso nunca ve un archivo a medias
 
 
-def fijar(ticket: int, dist: float, paso: float = 0.0) -> None:
+def fijar(ticket, dist: float, paso: float = 0.0) -> None:
     """Activa o actualiza el trailing de una posición.
 
     Recibe el ticket, la distancia `dist` (en precio) del SL respecto al precio y el
@@ -83,16 +85,16 @@ def fijar(ticket: int, dist: float, paso: float = 0.0) -> None:
     """
     with _LOCK:
         d = leer()
-        d[int(ticket)] = {"dist": float(dist), "paso": float(paso)}
+        d[_tk(ticket)] = {"dist": float(dist), "paso": float(paso)}
         _guardar(d)
 
 
-def quitar(ticket: int) -> None:
+def quitar(ticket) -> None:
     """Desactiva el trailing de una posición (si existía)."""
     with _LOCK:
         d = leer()
-        if int(ticket) in d:
-            d.pop(int(ticket))
+        if _tk(ticket) in d:
+            d.pop(_tk(ticket))
             _guardar(d)
 
 

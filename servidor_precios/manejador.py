@@ -25,6 +25,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 from herramientas.puente_mt5 import (colocar_orden_pendiente, ejecutar_orden_mercado, eliminar_orden,
                                      modificar_orden, modificar_sltp)
 
+from herramientas.tickets import ticket as _tk
 from .constantes import CANDADO_MT5, PING_SSE, VERSION_API
 from .motor import MOTOR
 from .simbolos import listar_simbolos
@@ -197,16 +198,16 @@ class Manejador(BaseHTTPRequestHandler):
             ruta = urlparse(self.path).path.strip("/")
             with CANDADO_MT5:   # mismo candado que el motor: la API de MT5 no es thread-safe
                 if ruta == "sltp":
-                    res = modificar_sltp(int(datos["ticket"]), datos.get("sl"), datos.get("tp"))
+                    res = modificar_sltp(_tk(datos["ticket"]), datos.get("sl"), datos.get("tp"))
                 elif ruta == "orden":
                     res = colocar_orden_pendiente(datos["symbol"], datos["lado"],
                                                   float(datos["volumen"]), float(datos["precio"]))
                 elif ruta == "orden/modificar":
-                    res = modificar_orden(int(datos["ticket"]), datos.get("precio"),
+                    res = modificar_orden(_tk(datos["ticket"]), datos.get("precio"),
                                           datos.get("sl"), datos.get("tp"),
                                           datos.get("caducidad"), datos.get("expiracion"))
                 elif ruta == "orden/eliminar":
-                    res = eliminar_orden(int(datos["ticket"]))
+                    res = eliminar_orden(_tk(datos["ticket"]))
                 elif ruta == "mercado":
                     lado = str(datos.get("lado", "")).upper()
                     vol = float(datos["volumen"])

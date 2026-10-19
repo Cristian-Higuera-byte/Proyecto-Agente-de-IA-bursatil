@@ -44,7 +44,7 @@ Transportes y Servicios Ltda.
                       : (px ? NOMBRE[f] + ' en <b>' + fmt(px, DIGITS) + '</b>' : 'Se quitará el ' + NOMBRE[f]));
         accion(titulo, desc, function(){
           // Cuerpo de la petición: el ticket y el campo cambiado ('precio' para la entrada).
-          var cuerpo = {ticket: +it.tk};
+          var cuerpo = {ticket: it.tk};
           cuerpo[f === 'po' ? 'precio' : f] = px;
           post(it.kind === 'pos' ? '/sltp' : '/orden/modificar', cuerpo).then(function(res){
             delete n.pend[f];
@@ -67,7 +67,7 @@ Transportes y Servicios Ltda.
         if (!it || !n) return;
         n.pend.del = true;
         accion('Cancelar orden pendiente', '<b>' + etiqueta(it) + '</b> ' + REAL + ' @ ' + fmt(it.po, DIGITS), function(){
-          post('/orden/eliminar', {ticket: +it.tk}).then(function(res){
+          post('/orden/eliminar', {ticket: it.tk}).then(function(res){
             delete n.pend.del;
             if (res.error){ avisar(res.error, true); return; }
             delete ORD[it.tk]; unir();

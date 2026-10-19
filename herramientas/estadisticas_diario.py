@@ -72,30 +72,51 @@ def _leer_deals(dias: int):
 
 
 def _operaciones_capital(dias: int, limite: int) -> list:
-    """Diario BÁSICO con Capital.com. Capital no entrega deals de entrada/salida
-    emparejables como MT5 (su `/history/transactions` solo da "Trade closed" con
-    símbolo, monto y fecha), así que se arma cada operación con lo disponible:
-    símbolo, P/L (neto) y fecha de cierre. Los campos ricos de MT5 (entrada/salida
-    exactas, duración, R/R) no están disponibles y quedan neutros.
-    """
+    """Diario con Capital.com. `/history/transactions` da símbolo, P/L y fecha; el detalle (dirección, lotes,
+    precio de entrada y de salida, hora de apertura) se completa con `detalle_cierre` (`/history/activity`),
+    que se guarda en disco por operación. El pos_id es el dealId de la posición, el mismo con el que
+    `almacen_diario` guarda el plan (SL/TP) y las notas, así que el R/R planificado y realizado también se calcula."""
+    from concurrent.futures import ThreadPoolExecutor
+    from herramientas.puente_mt5 import detalle_cierre
+
+    hist = obtener_historial(dias=dias, limite=limite)
+    with ThreadPoolExecutor(max_workers=6) as ex:
+        detalles = list(ex.map(lambda h: detalle_cierre(h.get("deal_id", ""), h.get("fecha", 0)), hist))
+    notas = almacen_diario.leer()
     salida = []
-    for h in obtener_historial(dias=dias, limite=limite):
+    for h, d in zip(hist, detalles):
         sym = h.get("symbol", "") or ""
         neto = float(h.get("pg", 0.0) or 0.0)      # en Capital el monto del cierre es el P/L
         cierre = int(h.get("fecha", 0) or 0)
+        pid = h.get("deal_id") or h.get("ticket", "")
+        entrada, salida_p = float(d.get("entrada", 0.0)), float(d.get("salida", 0.0))
+        tipo = d.get("tipo") or "—"
+        compra = tipo == "Compra"
+        hora_in = int(d.get("hora_in", 0) or 0) or cierre   # sin hora de apertura: la del cierre (rango válido)
+        info = notas.get(str(pid), {})
+        plan = info.get("plan") or {}
+        sl = float(plan.get("sl", 0.0) or 0.0)
+        tp = float(plan.get("tp", 0.0) or 0.0)
+        ent_plan = float(plan.get("entrada", 0.0) or 0.0) or entrada
+        rr_plan = rr_real = None
+        if sl > 0 and ent_plan > 0 and tipo != "—":
+            riesgo = (ent_plan - sl) if compra else (sl - ent_plan)
+            if riesgo > 0:
+                if tp > 0:
+                    rr_plan = ((tp - ent_plan) if compra else (ent_plan - tp)) / riesgo
+                if entrada and salida_p:
+                    rr_real = ((salida_p - entrada) if compra else (entrada - salida_p)) / riesgo
         salida.append({
-            "pos_id": h.get("ticket", ""), "symbol": sym,
+            "pos_id": pid, "symbol": sym,
             "nombre": wl.nombre_visible(sym) if sym else sym,
-            "tipo": "—",                           # Capital no expone la dirección en el historial
-            "volumen": float(h.get("volumen", 0.0) or 0.0),
-            "entrada": 0.0, "salida": float(h.get("precio_cierre", 0.0) or 0.0),
-            # Capital no da la hora de apertura; se usa la del cierre (duración 0) para
-            # que el mini-gráfico tenga un rango válido (evita timestamps negativos).
-            "hora_in": cierre, "hora_out": cierre,
+            "tipo": tipo, "volumen": float(d.get("volumen", 0.0) or 0.0),
+            "entrada": entrada, "salida": salida_p,
+            "hora_in": hora_in, "hora_out": cierre,
             "neto": neto, "profit": neto, "comision": 0.0, "swap": 0.0,
-            "duracion_s": 0,
-            "estrategia": "", "emocion": "", "razon": "", "plan": {},
-            "sl": 0.0, "tp": 0.0, "rr_plan": None, "rr_real": None,
+            "duracion_s": max(0, cierre - hora_in),
+            "estrategia": info.get("estrategia", ""), "emocion": info.get("emocion", ""),
+            "razon": info.get("razon", ""), "plan": plan,
+            "sl": sl, "tp": tp, "rr_plan": rr_plan, "rr_real": rr_real,
         })
     salida.sort(key=lambda x: x["hora_out"], reverse=True)
     return salida[:limite]

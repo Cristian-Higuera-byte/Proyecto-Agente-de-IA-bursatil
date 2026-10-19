@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from herramientas.tickets import ticket as _tk
 from nucleo_agente import ordenes
 from nucleo_agente.vigilancia.configuracion import MAX_ABIERTAS_POR_VIGILANCIA
 from nucleo_agente.vigilancia.utilidades import _lado_txt, _notificar
@@ -62,7 +63,7 @@ def _aplicar(v: dict[str, Any], d: dict[str, Any], posiciones: list[Any]) -> str
         if not v.get("permite_cerrar"):
             return "No se cerró: esta vigilancia no tiene permiso para cerrar."
         # Solo se puede cerrar una posición abierta por esta misma vigilancia; con una sola, el ticket es implícito.
-        propias = {int(p.ticket): p for p in posiciones}
+        propias = {_tk(p.ticket): p for p in posiciones}
         ticket = d["ticket"] if d["ticket"] is not None else (next(iter(propias)) if len(propias) == 1 else None)
         if ticket not in propias:
             return "No se cerró: el ticket no corresponde a una posición abierta por esta vigilancia."

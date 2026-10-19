@@ -153,7 +153,7 @@ Transportes y Servicios Ltda.
         // Botón Eliminar: cancela la orden en el servidor y la quita de los datos locales.
         q('.del').onclick = function(){
           q('.del').disabled = q('.ok').disabled = true;
-          post('/orden/eliminar', {ticket: +it.tk}).then(function(res){
+          post('/orden/eliminar', {ticket: it.tk}).then(function(res){
             if (res.error){ q('.msg').textContent = res.error; q('.del').disabled = false; revisar(); return; }
             delete ORD[it.tk]; unir(); cerrarEditor();
             avisar(TIPO[it.t] + ' #' + it.tk + ' eliminada', false);
@@ -163,7 +163,7 @@ Transportes y Servicios Ltda.
         q('.ok').onclick = function(){
           var v = leer();
           q('.ok').disabled = q('.del').disabled = true; q('.ok').textContent = 'Enviando…';
-          post('/orden/modificar', {ticket: +it.tk, precio: redondear(v.po), sl: redondear(v.sl), tp: redondear(v.tp),
+          post('/orden/modificar', {ticket: it.tk, precio: redondear(v.po), sl: redondear(v.sl), tp: redondear(v.tp),
                                     caducidad: v.tt, expiracion: v.tt === 'specified' ? aServidor(v.ex) : 0})
             .then(function(res){
               if (!ed) return;

@@ -34,6 +34,7 @@ import streamlit as st
 
 from herramientas.puente_mt5 import modificar_sltp, especs_posicion
 from herramientas import almacen_stop_dinamico
+from herramientas.tickets import ticket as _tk
 from herramientas import gestor_lista_activos as wl
 
 from .comun import neto
@@ -198,7 +199,7 @@ def _editor_trailing(ticket, p, e):
     puede quitar el SL en MT5 con modificar_sltp y relanza la app tras cada acción.
     """
     # Configuración guardada (si existe), distancia mínima del bróker y clave del modo edición.
-    cfg = almacen_stop_dinamico.leer().get(int(ticket))
+    cfg = almacen_stop_dinamico.leer().get(_tk(ticket))
     dig = e.get("digitos", 5)
     sm = e.get("stops_level", 0) * e.get("point", 0.0)
     edit_key = f"cad_trail_edit_{ticket}"
@@ -332,7 +333,8 @@ def _grid_y_editores(ticket, p, e, sym, lado, compra, neto_pg, ap, ac, dig, var)
     off = e.get("srv_now", 0.0) - time.time() if e.get("srv_now") else 0.0
     off = round(off / 900) * 900
     f_srv = datetime.fromtimestamp(tsrv, timezone.utc).strftime("%d/%m/%y, %H:%M:%S") if tsrv else "—"
-    f_loc = datetime.fromtimestamp(max(0, tsrv - off), timezone.utc).strftime("%d/%m/%y, %H:%M:%S") if tsrv else "—"
+    # Hora local real: el epoch ya sin desfase es UTC; se muestra en la zona horaria del equipo.
+    f_loc = datetime.fromtimestamp(max(0, tsrv - off), timezone.utc).astimezone().strftime("%d/%m/%y, %H:%M:%S") if tsrv else "—"
     tp = float(p.get("tp", 0.0) or 0.0)
     sl = float(p.get("sl", 0.0) or 0.0)
     tp_txt = f"{tp:,.{dig}f}" if tp > 0 else "–"
@@ -364,7 +366,7 @@ def _grid_y_editores(ticket, p, e, sym, lado, compra, neto_pg, ap, ac, dig, var)
     # Editores Take Profit / Stop Loss (toggle + Precio/Cantidad + Cancelar/Guardar).
     # Si el stop dinámico está activo, el Stop loss manual queda deshabilitado (el
     # auto gestiona ese mismo SL): no se puede editar ni quitar desde aquí.
-    trailing_activo = int(ticket) in almacen_stop_dinamico.leer()
+    trailing_activo = _tk(ticket) in almacen_stop_dinamico.leer()
     with st.container(key=f"cad_tpbox_{ticket}"):
         _editor_nivel("tp", "Take profit", ticket, p, e, ap, ac, compra)
     with st.container(key=f"cad_slbox_{ticket}"):

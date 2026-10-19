@@ -87,6 +87,9 @@ def cargar_datos_mercado():
     if not simbolos:
         simbolos = wl.sembrar_defaults(uid)
     st.session_state.watchlist_simbolos = simbolos
+    # Activo inicial = el primero de la lista del usuario (antes siempre arrancaba en EURUSD, aunque no estuviera).
+    if simbolos and st.session_state.get("activo_seleccionado") in (None, ""):
+        st.session_state.activo_seleccionado = simbolos[0]
 
     # 3. Construir los datos de mercado de esos símbolos (nombre EXACTO para MT5)
     # Precarga batch: con Capital, pide todos los precios en 1 llamada (en vez de N).
