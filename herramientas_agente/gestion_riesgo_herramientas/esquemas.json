@@ -16,7 +16,7 @@
       },
       "capital_usd": {
         "type": "number",
-        "description": "Capital base en USD. Si no se especifica, toma la equidad actual de MT5."
+        "description": "Capital base en USD. Si no se especifica, toma la equidad actual de la cuenta."
       }
     },
     "requeridos": [
@@ -44,7 +44,7 @@
     "nombre": "calcular_criterio_kelly"
   },
   "analizar_exposicion_divisas": {
-    "descripcion": "Analiza la exposición neta consolidada por divisa/moneda individual a través de todas las posiciones abiertas en la cuenta de MT5.",
+    "descripcion": "Analiza la exposición neta consolidada por divisa/moneda individual a través de todas las posiciones abiertas en la cuenta del broker.",
     "parametros": {},
     "nombre": "analizar_exposicion_divisas"
   }

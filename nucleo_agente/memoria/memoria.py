@@ -20,6 +20,8 @@ from nucleo_agente.memoria.conversaciones import _ConversacionesMixin
 from nucleo_agente.memoria.datos import _DatosMixin
 
 
+# TITULO MEMORIA
+
 class Memoria(_ConversacionesMixin, _DatosMixin, _ContextoMixin, _BaseMemoria):
     """Memoria persistente de un usuario (Supabase). Ver el docstring del paquete.
 

@@ -22,6 +22,8 @@ from typing import Any
 _EXT_IMAGEN = (".png", ".jpg", ".jpeg", ".webp")
 
 
+# TITULO BUSCAR RUTAS IMAGEN
+
 def _buscar_rutas_imagen(dato: Any, rutas: list) -> None:
     """Busca de forma recursiva el campo 'archivo_guardado' (imagen en disco) en un resultado."""
     # En un diccionario se revisa su propio campo y luego se desciende a sus valores anidados.
@@ -37,6 +39,8 @@ def _buscar_rutas_imagen(dato: Any, rutas: list) -> None:
         for valor in dato:
             _buscar_rutas_imagen(valor, rutas)
 
+
+# TITULO IMAGENES DE RESULTADO
 
 def imagenes_de_resultado(resultado: Any) -> list:
     """Devuelve las rutas de imágenes que una herramienta guardó en disco, a partir de su resultado.

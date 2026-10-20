@@ -36,7 +36,9 @@ _VISIBLES = 6           # tarjetas visibles
 _CSS = Path(__file__).parent / "estilos.css"
 
 
-def _slot_agregar(disponibles):
+# TITULO RANURA AGREGAR
+
+def _ranura_agregar(disponibles):
     """Tarjeta '+' en el hueco libre: popover con selector para agregar favorito.
 
     Recibe `disponibles`, la lista de tickers que aún no son favoritos. Al elegir uno lo agrega
@@ -46,18 +48,20 @@ def _slot_agregar(disponibles):
     with st.container(key="favadd"):
         with st.popover("＋", help="Agregar favorito", use_container_width=True):
             # Selector de activo; la cadena vacía actúa como opción "sin selección".
-            sel = st.selectbox(
+            seleccion = st.selectbox(
                 "Agregar activo", options=[""] + disponibles,
                 format_func=lambda x: "Elegir activo…" if x == "" else x.replace("...", ""),
-                label_visibility="collapsed", key="fav_add_sel",
+                label_visibility="collapsed", key="favorito_agregar_seleccion",
             )
-            if sel:
+            if seleccion:
                 # Se guarda el favorito y se redibuja solo este fragmento.
-                agregar_favorito(sel)
+                agregar_favorito(seleccion)
                 st.rerun(scope="fragment")
 
 
-def _slot_favorito(tk: str, datos: dict):
+# TITULO RANURA FAVORITO
+
+def _ranura_favorito(ticket: str, datos: dict):
     """Dibuja el slot de un favorito: tarjeta HTML, botón invisible de selección y botón ✕ de quitar.
 
     Recibe el ticker `tk` y el diccionario `datos` con los precios de mercado. Al pulsar la tarjeta
@@ -65,20 +69,22 @@ def _slot_favorito(tk: str, datos: dict):
     y relanza solo el fragmento.
     """
     # Tarjeta visual con precio y variación (los números en vivo los repinta el feed del navegador).
-    st.html(tarjeta_html(tk, datos))
+    st.html(tarjeta_html(ticket, datos))
     # Clic en la tarjeta -> carga el activo en el gráfico, el ticket y la cabecera (igual que la watchlist).
     # scope="app" porque esos paneles están fuera de este fragmento. Sin st.toast antes del rerun
     # (error "Cannot set a node at a delta path", ver watchlist.py).
     # Slug sin caracteres especiales para usarlo en la clave del botón (las claves de widget no admiten símbolos).
-    slug = re.sub(r"\W", "", tk)
+    slug = re.sub(r"\W", "", ticket)
     if st.button("Seleccionar", key=f"favsel_{slug}"):
-        st.session_state.activo_seleccionado = tk
+        st.session_state.activo_seleccionado = ticket
         st.rerun(scope="app")
     # Botón de quitar; estilos.css lo coloca en la esquina superior derecha de la tarjeta.
-    if st.button("✕", key=f"favx_{tk}", help="Quitar de favoritos"):
-        quitar_favorito(tk)
+    if st.button("✕", key=f"favx_{ticket}", help="Quitar de favoritos"):
+        quitar_favorito(ticket)
         st.rerun(scope="fragment")
 
+
+# TITULO RENDERIZAR BARRA FAVORITOS
 
 def renderizar_barra_favoritos(vertical: bool = False):
     """Dibuja el panel completo de favoritos: encabezado con contador y los 6 slots.
@@ -95,42 +101,42 @@ def renderizar_barra_favoritos(vertical: bool = False):
     inicializar_favoritos()
     # Precios de mercado más recientes por ticker (para pintar cada tarjeta).
     datos = st.session_state.get("datos_mercado_real", {})
-    favs = list(st.session_state.favoritos)
+    favoritos = list(st.session_state.favoritos)
     # Universo de activos candidatos: la watchlist del usuario o, si no existe, los símbolos con datos.
     lista = st.session_state.get("watchlist_simbolos") or list(datos.keys())
-    disponibles = [t for t in lista if t not in favs]
+    disponibles = [t for t in lista if t not in favoritos]
     # Solo se ofrece «+» si queda algún activo por agregar y no se llegó al tope.
-    total = len(favs)
+    total = len(favoritos)
     puede_agregar = bool(disponibles) and total < FAVORITOS_MAX
 
-    with st.container(key="fav_panel"):
+    with st.container(key="favorito_panel"):
         # Inyecta la hoja de estilos de la barra dentro del panel.
         st.html(_estaticos.estilos(_CSS))
 
         # --- Encabezado: solo título + contador ---
         st.html(
-            "<div class='fav-head'>"
-            "<span class='fav-chip'><span class='fav-mi'>star</span></span>"
-            "<span class='fav-title'>Mis favoritos</span>"
-            f"<span class='fav-badge'>{total}</span></div>"
+            "<div class='favorito-cabecera'>"
+            "<span class='favorito-chip'><span class='favorito-icono-material'>star</span></span>"
+            "<span class='favorito-titulo'>Mis favoritos</span>"
+            f"<span class='favorito-insignia'>{total}</span></div>"
         )
 
         # --- 6 slots: favorito (con ✕), '+' en el primer hueco libre, o vacío ---
         # Una columna por slot; cada slot lleva su propia clave para que el CSS lo posicione.
         # En vertical no hay columnas: los slots se apilan y no se dibujan huecos vacíos.
-        cols = None if vertical else st.columns(_VISIBLES, gap="small")
+        columnas = None if vertical else st.columns(_VISIBLES, gap="small")
         for i in range(_VISIBLES):
             if vertical and (i > total or (i == total and not puede_agregar)):
                 break   # en vertical se detiene tras el último favorito (o tras el «+»)
-            with (st.container() if vertical else cols[i]):
+            with (st.container() if vertical else columnas[i]):
                 with st.container(key=f"favslot_{i}"):
                     if i < total:
-                        _slot_favorito(favs[i], datos)
+                        _ranura_favorito(favoritos[i], datos)
                     elif i == total and puede_agregar:
-                        _slot_agregar(disponibles)
+                        _ranura_agregar(disponibles)
                     else:
                         # Hueco vacío invisible: conserva el ancho de la columna y la altura de la fila.
-                        st.html("<div class='fav-card' style='visibility:hidden;'></div>")
+                        st.html("<div class='favorito-tarjeta' style='visibility:hidden;'></div>")
 
 
 # -------------------------------------------------------------------------------------------------------

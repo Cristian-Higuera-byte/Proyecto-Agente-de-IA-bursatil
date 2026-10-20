@@ -29,20 +29,26 @@ FAVORITOS_MAX = 6       # tope de favoritos por usuario (solo caben 6 en una fil
 FAVORITOS_DEFAULT = wl.FAVORITOS_DEFAULT
 
 
+# TITULO UID
+
 def _uid():
-    """Devuelve el id del usuario autenticado (de `usuario_info` en session_state) o None si no hay sesión."""
-    # `usuario_info` puede faltar o no ser un diccionario; se tolera ambos casos.
-    usuario = st.session_state.get("usuario_info") or {}
+    """Devuelve el id del usuario autenticado (de `usuario_informacion` en session_state) o None si no hay sesión."""
+    # `usuario_informacion` puede faltar o no ser un diccionario; se tolera ambos casos.
+    usuario = st.session_state.get("usuario_informacion") or {}
     return usuario.get("id") if isinstance(usuario, dict) else None
 
+
+# TITULO INICIALIZAR FAVORITOS
 
 def inicializar_favoritos():
     """Carga los favoritos del usuario desde Supabase (una vez por sesión)."""
     if "favoritos" not in st.session_state:
         # Consulta a Supabase; si no hay registros se usan los favoritos por defecto.
-        favs = wl.obtener_favoritos(_uid())
-        st.session_state.favoritos = favs if favs else list(FAVORITOS_DEFAULT)
+        favoritos = wl.obtener_favoritos(_uid())
+        st.session_state.favoritos = favoritos if favoritos else list(FAVORITOS_DEFAULT)
 
+
+# TITULO AGREGAR FAVORITO
 
 def agregar_favorito(ticker: str):
     """Agrega un activo a favoritos (respetando el máximo y sin duplicar)."""
@@ -63,6 +69,8 @@ def agregar_favorito(ticker: str):
     wl.marcar_favorito(_uid(), ticker, True)
     st.toast(f"⭐ {limpio} agregado a favoritos")
 
+
+# TITULO QUITAR FAVORITO
 
 def quitar_favorito(ticker: str):
     """Quita un activo de favoritos en session_state y lo desmarca en Supabase (no hace nada si no estaba)."""

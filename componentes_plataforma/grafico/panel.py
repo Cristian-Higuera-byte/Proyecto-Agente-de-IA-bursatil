@@ -30,7 +30,7 @@ import streamlit.components.v1 as components
 from componentes_plataforma.grafico.cabecera_precio import renderizar_cabecera_precio
 from componentes_plataforma.grafico.ensamblador import html_grafico
 from componentes_plataforma.grafico.simbolo import info_simbolo, limpiar_simbolo
-from componentes_plataforma.posiciones_grafico import gatillos_cierre, js_posiciones
+from componentes_plataforma.posiciones import gatillos_cierre, js_posiciones
 from herramientas.puente_mt5 import inicializar_mt5
 from herramientas.gestor_lista_activos import nombre_visible
 
@@ -38,6 +38,8 @@ from herramientas.gestor_lista_activos import nombre_visible
 # Se puede sobrescribir con la variable de entorno MT5_API_URL; por defecto, el servidor local en el puerto 8000.
 API_URL = os.environ.get("MT5_API_URL", "http://localhost:8000")
 
+
+# TITULO LISTA ACTIVOS
 
 def _lista_activos(activo_visible: str) -> str:
     """Activos que ofrece el selector del gráfico en pantalla completa (la watchlist del usuario), como JSON para el JS.
@@ -70,6 +72,8 @@ def _lista_activos(activo_visible: str) -> str:
     # Se escapa "</" para que el JSON no cierre por error una etiqueta script al incrustarse en el HTML.
     return json.dumps(lista).replace("</", "<\\/")
 
+
+# TITULO RENDERIZAR PANEL CENTRAL
 
 def renderizar_panel_central(main: Optional[ModuleType] = None) -> None:
     """Dibuja el panel central completo: cabecera de precio, gráfico interactivo y botones ocultos de cierre.

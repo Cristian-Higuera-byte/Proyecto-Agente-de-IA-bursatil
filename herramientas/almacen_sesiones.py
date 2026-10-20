@@ -31,6 +31,8 @@ import secrets
 _sesiones: dict[str, dict] = {}
 
 
+# TITULO CREAR
+
 def crear(usuario: dict) -> str:
     """Crea un token aleatorio seguro (secrets) para el usuario, lo guarda en memoria y lo devuelve.
 
@@ -41,12 +43,16 @@ def crear(usuario: dict) -> str:
     return token
 
 
+# TITULO OBTENER
+
 def obtener(token: str) -> dict | None:
     """Retorna el usuario asociado al token, o None si no existe."""
     if not token:
         return None
     return _sesiones.get(token)
 
+
+# TITULO ELIMINAR
 
 def eliminar(token: str) -> None:
     """Elimina el token (cerrar sesión)."""

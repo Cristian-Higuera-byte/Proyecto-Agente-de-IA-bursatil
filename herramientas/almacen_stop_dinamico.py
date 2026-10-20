@@ -40,8 +40,10 @@ _DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
 # Archivo JSON compartido con las configuraciones de trailing por ticket.
 _RUTA = os.path.join(_DIR, "trailing.json")
 # Candado que serializa las modificaciones dentro del proceso.
-_LOCK = threading.Lock()
+_CANDADO = threading.Lock()
 
+
+# TITULO LEER CRUDO
 
 def _leer_crudo() -> dict:
     """Lee `trailing.json` tal cual (sin validar); devuelve {} si falta o está corrupto."""
@@ -51,6 +53,8 @@ def _leer_crudo() -> dict:
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         return {}
 
+
+# TITULO LEER
 
 def leer() -> dict:
     """Devuelve {ticket(int): {"dist": float, "paso": float}}."""
@@ -63,6 +67,8 @@ def leer() -> dict:
             continue
     return out
 
+
+# TITULO GUARDAR
 
 def _guardar(d: dict) -> None:
     """Escribe las configuraciones en `trailing.json` de forma atómica (claves convertidas a texto)."""
@@ -77,26 +83,32 @@ def _guardar(d: dict) -> None:
     os.replace(tmp.name, _RUTA)   # atómico: el otro proceso nunca ve un archivo a medias
 
 
-def fijar(ticket, dist: float, paso: float = 0.0) -> None:
+# TITULO FIJAR
+
+def fijar(ticket, distancia: float, paso: float = 0.0) -> None:
     """Activa o actualiza el trailing de una posición.
 
     Recibe el ticket, la distancia `dist` (en precio) del SL respecto al precio y el
     `paso` mínimo de mejora. Persiste el cambio para que el motor lo lea.
     """
-    with _LOCK:
+    with _CANDADO:
         d = leer()
-        d[_tk(ticket)] = {"dist": float(dist), "paso": float(paso)}
+        d[_tk(ticket)] = {"dist": float(distancia), "paso": float(paso)}
         _guardar(d)
 
 
+# TITULO QUITAR
+
 def quitar(ticket) -> None:
     """Desactiva el trailing de una posición (si existía)."""
-    with _LOCK:
+    with _CANDADO:
         d = leer()
         if _tk(ticket) in d:
             d.pop(_tk(ticket))
             _guardar(d)
 
+
+# TITULO MTIME
 
 def mtime() -> float:
     """Marca de tiempo del archivo (para recargar solo cuando cambió)."""

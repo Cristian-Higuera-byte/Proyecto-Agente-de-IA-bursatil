@@ -42,19 +42,19 @@ Transportes y Servicios Ltda.
               np[tk] = {s: x.s, t: x.t, v: x.v, po: x.po, sl: x.sl, tp: x.tp, k: x.k, sm: x.sm,
                         tr: x.tr, p: (acc.pos || {})[tk], pc: (acc.pc || {})[tk]};
             }
-            POS = np;
+            POSICION = np;
           } else {
             // Sin lista nueva: solo se actualizan P/G y precio actual de las posiciones existentes.
-            for (var tk2 in POS){
-              if (acc.pos && tk2 in acc.pos) POS[tk2].p = acc.pos[tk2];
-              if (acc.pc && tk2 in acc.pc) POS[tk2].pc = acc.pc[tk2];
+            for (var tk2 in POSICION){
+              if (acc.pos && tk2 in acc.pos) POSICION[tk2].p = acc.pos[tk2];
+              if (acc.pc && tk2 in acc.pc) POSICION[tk2].pc = acc.pc[tk2];
             }
           }
           if (acc.ord){
             // Lista completa de órdenes pendientes del símbolo.
             var no = {};
             for (var tk3 in acc.ord){ var o = acc.ord[tk3]; if (o.s === REAL) no[tk3] = o; }
-            ORD = no;
+            ORDEN = no;
           }
           // Si cambió alguna lista se recrean o borran las líneas.
           if (acc.pi || acc.ord) unir();
@@ -66,7 +66,7 @@ Transportes y Servicios Ltda.
       fetch(API + '/salud').then(function(r){ return r.json(); }).then(function(r){
         if (!r.v || r.v < V_API){
           avisar('El servidor de datos está desactualizado: reinicia servidor_datos.py', true);
-          var el = document.getElementById('pj-pos-aviso'); clearTimeout(tAviso);
+          var el = document.getElementById('pj-posicion-aviso'); clearTimeout(tAviso);
           if (el) el.style.whiteSpace = 'normal';
         }
       }).catch(function(){});

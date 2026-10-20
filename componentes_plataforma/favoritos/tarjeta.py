@@ -27,11 +27,15 @@ from componentes_plataforma.iconografia import icono_activo as _icono
 from componentes_plataforma.flujo_precios import atributos as _en_vivo
 
 
-def icono_activo(ticker: str, size: int = 30) -> str:
-    """Ícono del activo (estilo XM). Lo define componentes_plataforma/iconos.py para todo el
-    dashboard; se mantiene aquí por compatibilidad con quien lo importa."""
-    return _icono(ticker, size)
+# TITULO ICONO ACTIVO
 
+def icono_activo(ticker: str, tamano: int = 30) -> str:
+    """Ícono del activo (estilo XM). Lo define componentes_plataforma/iconografia/ para todo el
+    dashboard; se mantiene aquí por compatibilidad con quien lo importa."""
+    return _icono(ticker, tamano)
+
+
+# TITULO FORMATEAR PRECIO
 
 def formatear_precio(precio: float) -> str:
     """Formatea un precio para la tarjeta: 2 decimales si es 100 o más, 5 decimales si es menor (pares de divisas)."""
@@ -40,7 +44,9 @@ def formatear_precio(precio: float) -> str:
     return f"{precio:,.5f}"
 
 
-def tarjeta_html(tk: str, datos: dict) -> str:
+# TITULO TARJETA HTML
+
+def tarjeta_html(ticket: str, datos: dict) -> str:
     """Construye el HTML de la tarjeta de un favorito.
 
     Recibe el ticker `tk` y `datos` (diccionario ticker -> {precio, var, sube}). Si el ticker no tiene
@@ -49,29 +55,29 @@ def tarjeta_html(tk: str, datos: dict) -> str:
     `data-pj-*` para que el feed del navegador los actualice sin recargar Streamlit.
     """
     # Datos del activo con valores por defecto si aún no hay cotización.
-    item = datos.get(tk, {"precio": 0.0, "var": "", "sube": True})
+    elemento = datos.get(ticket, {"precio": 0.0, "var": "", "sube": True})
     # Dirección del día: define la clase CSS, el color y la flecha.
-    sube = item.get("sube", True)
+    sube = elemento.get("sube", True)
     dir_cls = "up" if sube else "down"
     color = "#3fb950" if sube else "#f85149"
     flecha = "↗" if sube else "↘"
     # Textos a mostrar; el nombre quita los puntos suspensivos con que se marcan algunos símbolos.
-    precio = item.get("precio", 0.0)
-    var = item.get("var", "") or "0.00 (0.00%)"
-    nombre = tk.replace("...", "")
+    precio = elemento.get("precio", 0.0)
+    variacion = elemento.get("var", "") or "0.00 (0.00%)"
+    nombre = ticket.replace("...", "")
     # Marca la tarjeta del activo que está abierto en el gráfico.
-    sel = " sel" if st.session_state.get("activo_seleccionado") == tk else ""
+    seleccion = " sel" if st.session_state.get("activo_seleccionado") == ticket else ""
     # Composición final de la tarjeta (ícono, ticker, precio, variación y flecha).
     return (
-        f"<div class='fav-card {dir_cls}{sel}'>"
-        f"<span class='fav-ic'>{icono_activo(tk)}</span>"
-        "<div class='fav-l'>"
-        f"<div class='fav-tk'>{nombre}</div>"
-        "<div class='fav-row'>"
-        f"<span class='fav-px' {_en_vivo(tk, 'px')}>{formatear_precio(precio)}</span>"
-        f"<span class='fav-var' {_en_vivo(tk, 'var')} style='color:{color};'>{var}</span>"
+        f"<div class='favorito-tarjeta {dir_cls}{seleccion}'>"
+        f"<span class='favorito-icono'>{icono_activo(ticket)}</span>"
+        "<div class='favorito-l'>"
+        f"<div class='favorito-ticket'>{nombre}</div>"
+        "<div class='favorito-fila'>"
+        f"<span class='favorito-precio' {_en_vivo(ticket, 'px')}>{formatear_precio(precio)}</span>"
+        f"<span class='favorito-variacion' {_en_vivo(ticket, 'var')} style='color:{color};'>{variacion}</span>"
         "</div></div>"
-        f"<span class='fav-arrow' style='color:{color};'>{flecha}</span>"
+        f"<span class='favorito-arrow' style='color:{color};'>{flecha}</span>"
         "</div>"
     )
 

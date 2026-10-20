@@ -24,7 +24,7 @@ Limitaciones honestas que la propia UI indica:
   - Drawdown mostrado = de BALANCE (MT5 no guarda snapshots de equity).
   - Dividendos: si el bróker/demo no generó eventos, muestra "sin dividendos".
 
-La fachada `componentes_plataforma/resumen_panel.py` reexporta `renderizar_panel_resumen` desde este paquete para
+La fachada `componentes_plataforma/resumen/` reexporta `renderizar_panel_resumen` desde este paquete para
 que `aplicacion.py` siga importando el nombre de siempre.
 
 Archivos: panel.py, secciones.py (bloques), tarjetas.py, curva.py, formato.py, datos.py + datos.json y estilos.css.

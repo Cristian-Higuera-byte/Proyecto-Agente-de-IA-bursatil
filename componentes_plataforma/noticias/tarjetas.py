@@ -15,6 +15,8 @@
 import html as _html
 
 
+# TITULO TARJETA HTML
+
 def tarjeta_html(n: dict) -> str:
     """Devuelve el HTML de una tarjeta de noticia: imagen, título (2 líneas), descripción (2 líneas, 110
     caracteres) y la fuente con la fecha.
@@ -36,6 +38,8 @@ def tarjeta_html(n: dict) -> str:
       </div>
     """
 
+
+# TITULO TARJETA EXTERNA HTML
 
 def tarjeta_externa_html(n: dict) -> str:
     """Devuelve el HTML de una tarjeta del panel «Otras fuentes»: imagen, titular (3 líneas) y la fuente con la fecha.

@@ -22,6 +22,8 @@ import re
 _INFO_CACHE: dict = {}
 
 
+# TITULO INFO MT5
+
 def info_mt5(simbolo: str) -> tuple:
     """(carpeta, ric) del símbolo según MT5. carpeta = primer nivel de `path`
     ("Stocks", "ETF Derivatives", "Cryptocurrencies"…); ric = código entre
@@ -36,7 +38,7 @@ def info_mt5(simbolo: str) -> tuple:
     if simbolo in _INFO_CACHE:
         return _INFO_CACHE[simbolo]
     # Resultado por defecto si MT5 no está disponible o no conoce el símbolo.
-    res = ("", "")
+    resultado = ("", "")
     try:
         # Importación diferida: MT5 solo existe en equipos con la terminal instalada.
         from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
@@ -49,12 +51,12 @@ def info_mt5(simbolo: str) -> tuple:
             carpeta = (info.path or "").split(chr(92))[0]
             # Código entre paréntesis al final de la descripción.
             m = re.search(r"\(([A-Za-z0-9_]+(?:\.[A-Za-z]{1,3})?)\)\s*$", info.description or "")
-            res = (carpeta, m.group(1) if m else "")
-            _INFO_CACHE[simbolo] = res     # solo se guarda si MT5 respondió
+            resultado = (carpeta, m.group(1) if m else "")
+            _INFO_CACHE[simbolo] = resultado     # solo se guarda si MT5 respondió
     except Exception:
         # MT5 ausente o con error: se devuelve el valor vacío por defecto.
         pass
-    return res
+    return resultado
 
 
 # -------------------------------------------------------------------------------------------------------

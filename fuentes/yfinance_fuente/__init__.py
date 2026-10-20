@@ -38,7 +38,7 @@ from fuentes.yfinance_fuente.constantes import (
     AVISO_RETRASO,
     INTERVALOS,
     PERIODOS,
-    _CAMPOS_NUM,
+    _CAMPOS_NUMERO,
     _CAMPOS_TEXTO,
     _ESTADOS,
 )  # noqa: F401

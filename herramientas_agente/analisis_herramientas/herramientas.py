@@ -37,15 +37,17 @@ from herramientas_agente.base import cargar_json, herramienta
 _ESQ = cargar_json(Path(__file__).parent / "esquemas.json")
 
 
+# TITULO CALCULAR INDICADORES TECNICOS
+
 @herramienta(
     descripcion=(
-        "Calcula indicadores técnicos clave en tiempo real sobre un activo en MT5: "
+        "Calcula indicadores técnicos clave en tiempo real sobre un activo del broker (Capital.com o MT5): "
         "RSI(14), ATR(14), MACD(12,26,9), Medias Móviles (EMA20, SMA50, SMA200) y Bandas de Bollinger(20,2)."
     ),
     parametros={
         "simbolo": {
             "type": "string",
-            "description": "Símbolo del activo en MT5 (ej. 'EURUSD', 'GOLD', 'US500').",
+            "description": "Símbolo del activo en el broker (ej. 'EURUSD', 'GOLD', 'US500').",
         },
         "timeframe": {
             "type": "string",
@@ -90,24 +92,24 @@ def calcular_indicadores_tecnicos(
     precio_actual = cierres[-1]
 
     # 1. RSI
-    rsi_val = _rsi(cierres, 14)
+    rsi_valor = _rsi(cierres, 14)
     # Umbrales clásicos: 70 o más sobrecompra, 30 o menos sobreventa.
     estado_rsi = "NEUTRAL"
-    if rsi_val is not None:
-        if rsi_val >= 70:
+    if rsi_valor is not None:
+        if rsi_valor >= 70:
             estado_rsi = "SOBRECOMPRA"
-        elif rsi_val <= 30:
+        elif rsi_valor <= 30:
             estado_rsi = "SOBREVENTA"
 
     # 2. ATR
-    atr_val = _atr(maximos, minimos, cierres, 14)
+    atr_valor = _atr(maximos, minimos, cierres, 14)
 
     # 3. MACD
-    macd_val, signal_val, hist_val = _macd(cierres)
+    macd_valor, signal_valor, historial_valor = _macd(cierres)
     # El signo del histograma define el sesgo (positivo alcista, negativo bajista).
     sesgo_macd = "NEUTRAL"
-    if hist_val is not None:
-        sesgo_macd = "ALCISTA" if hist_val > 0 else "BAJISTA"
+    if historial_valor is not None:
+        sesgo_macd = "ALCISTA" if historial_valor > 0 else "BAJISTA"
 
     # 4. Medias Móviles
     ema_20_list = _ema_serie(cierres, 20)
@@ -123,23 +125,23 @@ def calcular_indicadores_tecnicos(
 
     # Respuesta final: valores redondeados a 5 decimales y diagnósticos en texto para el modelo.
     return {
-        "fuente": "MetaTrader 5",
+        "fuente": fuente.NOMBRE_FUENTE,
         "simbolo": datos_velas["simbolo"],
         "timeframe": timeframe,
         "precio_actual": precio_actual,
         "indicadores": {
             "rsi_14": {
-                "valor": rsi_val,
+                "valor": rsi_valor,
                 "diagnostico": estado_rsi,
             },
             "atr_14": {
-                "valor_absoluto": round(atr_val, 5) if atr_val is not None else None,
-                "volatilidad_pct": round((atr_val / precio_actual) * 100, 2) if atr_val else None,
+                "valor_absoluto": round(atr_valor, 5) if atr_valor is not None else None,
+                "volatilidad_pct": round((atr_valor / precio_actual) * 100, 2) if atr_valor else None,
             },
             "macd_12_26_9": {
-                "linea_macd": round(macd_val, 5) if macd_val is not None else None,
-                "linea_senal": round(signal_val, 5) if signal_val is not None else None,
-                "histograma": round(hist_val, 5) if hist_val is not None else None,
+                "linea_macd": round(macd_valor, 5) if macd_valor is not None else None,
+                "linea_senal": round(signal_valor, 5) if signal_valor is not None else None,
+                "histograma": round(historial_valor, 5) if historial_valor is not None else None,
                 "sesgo": sesgo_macd,
             },
             "medias_moviles": {
@@ -156,6 +158,8 @@ def calcular_indicadores_tecnicos(
         },
     }
 
+
+# TITULO ANALIZAR RIESGO POSICION
 
 @herramienta(**_ESQ["analizar_riesgo_posicion"])
 def analizar_riesgo_posicion(simbolo: str | None = None, ticket: int | None = None) -> dict[str, Any]:
@@ -185,43 +189,43 @@ def analizar_riesgo_posicion(simbolo: str | None = None, ticket: int | None = No
     sin_calculo = 0
 
     # Diagnóstico posición por posición.
-    for pos in posiciones_lista:
-        sl = pos["sl"]
-        tp = pos["tp"]
+    for posicion in posiciones_lista:
+        stop_loss = posicion["sl"]
+        take_profit = posicion["tp"]
         try:
             d = fuente.distancias_y_riesgo(
-                pos["simbolo"], pos["tipo"], pos["lotes"], pos["precio_apertura"], pos["precio_actual"], sl, tp,
+                posicion["simbolo"], posicion["tipo"], posicion["lotes"], posicion["precio_apertura"], posicion["precio_actual"], stop_loss, take_profit,
             )
         except fuente.ErrorMT5:
             d = {}
         # Riesgo, beneficio objetivo y ratio R:B (solo si ambos importes existen).
         riesgo_usd = d.get("riesgo_usd")
         beneficio_usd = d.get("beneficio_objetivo_usd")
-        ratio_rr = round(beneficio_usd / riesgo_usd, 2) if riesgo_usd and beneficio_usd else None
+        ratio_riesgo_beneficio = round(beneficio_usd / riesgo_usd, 2) if riesgo_usd and beneficio_usd else None
 
         # Estado del Stop Loss: sin SL el riesgo es ilimitado; con SL en o sobre la apertura la posición está protegida.
-        if not sl:
-            estado_sl = "SIN STOP LOSS (ALTO RIESGO)"
+        if not stop_loss:
+            estado_stop_loss = "SIN STOP LOSS (ALTO RIESGO)"
             sin_stop += 1
         else:
-            asegura = (pos["tipo"] == "COMPRA" and sl >= pos["precio_apertura"]) or (
-                pos["tipo"] != "COMPRA" and sl <= pos["precio_apertura"])
-            estado_sl = "PROTEGIDO EN PROFIT" if asegura else "STOP LOSS ACTIVO"
+            asegura = (posicion["tipo"] == "COMPRA" and stop_loss >= posicion["precio_apertura"]) or (
+                posicion["tipo"] != "COMPRA" and stop_loss <= posicion["precio_apertura"])
+            estado_stop_loss = "PROTEGIDO EN PROFIT" if asegura else "STOP LOSS ACTIVO"
             if riesgo_usd is None:
                 sin_calculo += 1
             else:
                 riesgo_total_usd += riesgo_usd
 
         diagnosticos.append({
-            "ticket": pos["ticket"],
-            "simbolo": pos["simbolo"],
-            "tipo": pos["tipo"],
-            "lotes": pos["lotes"],
-            "precio_apertura": pos["precio_apertura"],
-            "precio_actual": pos["precio_actual"],
-            "pnl_flotante_usd": pos["beneficio"],
-            "stop_loss": sl,
-            "take_profit": tp,
+            "ticket": posicion["ticket"],
+            "simbolo": posicion["simbolo"],
+            "tipo": posicion["tipo"],
+            "lotes": posicion["lotes"],
+            "precio_apertura": posicion["precio_apertura"],
+            "precio_actual": posicion["precio_actual"],
+            "pnl_flotante_usd": posicion["beneficio"],
+            "stop_loss": stop_loss,
+            "take_profit": take_profit,
             "distancia_sl_desde_precio_actual_pips": d.get("distancia_sl_desde_precio_actual_pips"),
             "distancia_sl_desde_precio_actual_pct": d.get("distancia_sl_desde_precio_actual_pct"),
             "distancia_sl_desde_apertura_pips": d.get("distancia_sl_desde_apertura_pips"),
@@ -231,13 +235,13 @@ def analizar_riesgo_posicion(simbolo: str | None = None, ticket: int | None = No
             "ganancia_asegurada_usd": d.get("ganancia_asegurada_usd"),
             "beneficio_estimado_usd": beneficio_usd,
             "riesgo_equidad_pct": round(riesgo_usd / equidad * 100, 2) if riesgo_usd else None,
-            "ratio_riesgo_beneficio": ratio_rr,
-            "estado_stop_loss": estado_sl,
+            "ratio_riesgo_beneficio": ratio_riesgo_beneficio,
+            "estado_stop_loss": estado_stop_loss,
         })
 
     # Resumen agregado sobre todas las posiciones analizadas.
     resultado = {
-        "fuente": "MetaTrader 5 (riesgo calculado con el cálculo de beneficios del propio MT5)",
+        "fuente": f"{fuente.NOMBRE_FUENTE} (riesgo calculado con el cálculo de beneficios del propio broker)",
         "equidad_cuenta_usd": equidad,
         "total_posiciones_analizadas": len(diagnosticos),
         "riesgo_total_acumulado_usd": round(riesgo_total_usd, 2),

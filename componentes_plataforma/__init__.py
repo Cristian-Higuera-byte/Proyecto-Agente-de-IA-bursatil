@@ -17,7 +17,7 @@ Agrupa un subpaquete por componente (gráfico, chat del agente, favoritos, lista
 diario, riel derecho, profundidad de mercado, resumen, etc.). Cada subpaquete contiene su código Python, su CSS
 (`estilos.css`), su JavaScript y sus datos JSON.
 
-Los módulos sueltos de este primer nivel (`central_panel.py`, `chat_agente.py`, `iconos.py`, `un_clic.py`, …) son
+Los módulos sueltos de este primer nivel (`grafico/panel.py`, `chat/`, `iconos.py`, `operacion_un_clic/`, …) son
 fachadas de compatibilidad: solo reexportan nombres de los subpaquetes para que los imports antiguos de
 `aplicacion.py` y de otros módulos sigan funcionando. `_estaticos.py` es la utilidad común que lee los archivos
 estáticos (CSS, JS, JSON) de cada componente. Este archivo no ejecuta nada al importarse.

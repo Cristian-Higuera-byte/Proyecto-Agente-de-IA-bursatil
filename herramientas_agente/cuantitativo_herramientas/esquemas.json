@@ -29,7 +29,7 @@
       },
       "capital_inicial": {
         "type": "number",
-        "description": "Capital en USD. Si no se especifica, toma la equidad actual de MT5."
+        "description": "Capital en USD. Si no se especifica, toma la equidad actual de la cuenta."
       }
     },
     "nombre": "simular_monte_carlo_cartera"

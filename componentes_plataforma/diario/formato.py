@@ -14,6 +14,8 @@
 """Formateadores del Diario: duración legible, factor numérico (con infinito) y clase CSS de signo."""
 
 
+# TITULO DURACION
+
 def duracion(seg):
     """Convierte segundos en un texto corto de duración.
 
@@ -32,10 +34,14 @@ def duracion(seg):
     return f"{mn}m"
 
 
+# TITULO FACTOR
+
 def factor(x):
     """Formatea un factor (por ejemplo, el profit factor): "∞" si es infinito o el número con 2 decimales."""
     return "∞" if x == float("inf") else f"{x:,.2f}"
 
+
+# TITULO CLASE SUBE BAJA
 
 def clase_sube_baja(x):
     """Devuelve la clase CSS "up" si `x` es mayor o igual a cero (o None) y "down" si es negativo."""

@@ -24,6 +24,8 @@ from componentes_plataforma._estaticos import texto
 _JS_DIR = Path(__file__).parent / "js"
 
 
+# TITULO SCRIPT FLUJO
+
 def script_flujo(api_url: str) -> str:
     """HTML (<script>…</script>) del feed en vivo apuntando a `api_url`.
 

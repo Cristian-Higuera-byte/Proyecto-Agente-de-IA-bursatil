@@ -21,9 +21,12 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any, Iterator
 
-from fuentes.mt5_fuentes.constantes import _ALIAS
+from fuentes.mt5_fuentes.conexion import _ES_CAPITAL
+from fuentes.mt5_fuentes.constantes import _ALIAS, NOMBRE_FUENTE
 from fuentes.mt5_fuentes.errores import ErrorMT5
 
+
+# TITULO NUM
 
 def _num(v: Any, dec: int = 5) -> float | None:
     """Convierte un valor a float redondeado y seguro para JSON.
@@ -40,6 +43,8 @@ def _num(v: Any, dec: int = 5) -> float | None:
     return round(f, dec)
 
 
+# TITULO NIVEL
+
 def _nivel(v: Any) -> float | None:
     """Convierte un nivel de precio (SL/TP) a float, tratando 0 o vacío como "sin nivel" (None).
 
@@ -47,14 +52,18 @@ def _nivel(v: Any) -> float | None:
     return _num(v) if v else None
 
 
-def _hora_utc(ts: Any, mt5: Any) -> str:
+# TITULO HORA UTC
+
+def _hora_utc(marca_tiempo: Any, mt5: Any) -> str:
     """Convierte un timestamp en segundos a texto 'AAAA-MM-DD HH:MM:SS UTC'.
 
     El parámetro `mt5` no se usa; se conserva para mantener la firma de quienes
     la llaman. Nota: MT5 entrega horas del servidor del broker, que aquí se
     interpretan como UTC sin aplicar desfase."""
-    return datetime.fromtimestamp(int(ts), tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S") + " UTC"
+    return datetime.fromtimestamp(int(marca_tiempo), tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S") + " UTC"
 
+
+# TITULO FECHA UTC
 
 def _fecha_utc(texto: str, campo: str) -> datetime:
     """Convierte un texto 'AAAA-MM-DD' a datetime a medianoche UTC.
@@ -67,6 +76,8 @@ def _fecha_utc(texto: str, campo: str) -> datetime:
         raise ErrorMT5(f"'{campo}' debe tener formato AAAA-MM-DD.") from None
 
 
+# TITULO COMO TUPLA
+
 def _como_tupla(mt5: Any, resultado: Any, accion: str) -> Any:
     """Normaliza el resultado de una consulta de MT5 que devuelve None cuando no hay datos.
 
@@ -74,13 +85,34 @@ def _como_tupla(mt5: Any, resultado: Any, accion: str) -> Any:
     ErrorMT5 ("MT5 falló al <accion>"); si no, devuelve una tupla vacía (simple
     ausencia de datos). Si hay resultado, lo devuelve sin cambios."""
     if resultado is None:
-        err = mt5.last_error()
+        error = mt5.last_error()
         # RES_S_OK (código 1) significa "sin error"; cualquier otro código es un fallo real.
-        if err and err[0] != getattr(mt5, "RES_S_OK", 1):
-            raise ErrorMT5(f"MT5 falló al {accion}: {err}")
+        if error and error[0] != getattr(mt5, "RES_S_OK", 1):
+            raise ErrorMT5(f"MT5 falló al {accion}: {error}")
         return ()
     return resultado
 
+
+# TITULO NORMALIZAR ESCRITURA
+
+# Tickers de Yahoo Finance de materias primas, índices y criptomonedas -> epic de Capital.com.
+_YAHOO_A_EPIC = {
+    "GC=F": "GOLD", "SI=F": "SILVER", "CL=F": "OIL_CRUDE", "BZ=F": "OIL_BRENT", "NG=F": "NATURALGAS", "HG=F": "COPPER",
+    "^GSPC": "US500", "^DJI": "US30", "^IXIC": "US100", "^NDX": "US100", "^GDAXI": "DE40", "^FTSE": "UK100",
+    "^N225": "J225", "^VIX": "VIX", "BTC-USD": "BTCUSD", "ETH-USD": "ETHUSD",
+}
+
+
+def _normalizar_escritura(texto: str) -> str:
+    """Pasa a la forma de Capital.com los símbolos escritos al estilo de Yahoo (EURUSD=X, GC=F, ^GSPC, BTC-USD) o con barra (EUR/USD)."""
+    if texto in _YAHOO_A_EPIC:
+        return _YAHOO_A_EPIC[texto]
+    if texto.endswith("=X"):
+        texto = texto[:-2]
+    return texto.replace("/", "")
+
+
+# TITULO RESOLVER
 
 def _resolver(mt5: Any, texto: str) -> str:
     """Resuelve el nombre de un símbolo tal como lo llama el broker.
@@ -92,6 +124,14 @@ def _resolver(mt5: Any, texto: str) -> str:
     bruto = (texto or "").strip().upper()
     if not bruto:
         raise ErrorMT5("Falta el símbolo.")
+    if _ES_CAPITAL:
+        # Capital.com llama a los instrumentos por su epic (US100, DE40, GOLD...): se traducen los nombres de MT5, de Yahoo
+        # (EURUSD=X, GC=F) y los escritos a mano (NAS100, EUR/USD) con el mismo resolvedor del resto de la app.
+        try:
+            from herramientas.backends.capital import resolver_simbolo
+            bruto = (resolver_simbolo(_normalizar_escritura(bruto)) or bruto).upper()
+        except Exception:  # noqa: BLE001 - si el resolvedor falla se sigue con el texto original
+            pass
     info = mt5.symbol_info(bruto)
     if info is not None:
         return bruto
@@ -101,6 +141,8 @@ def _resolver(mt5: Any, texto: str) -> str:
             return alias
     return bruto
 
+
+# TITULO SIMBOLO TEMPORAL
 
 @contextmanager
 def _simbolo_temporal(mt5: Any, simbolo: str) -> Iterator[Any]:
@@ -112,7 +154,7 @@ def _simbolo_temporal(mt5: Any, simbolo: str) -> Iterator[Any]:
     ErrorMT5 si el símbolo no existe."""
     info = mt5.symbol_info(simbolo)
     if info is None:
-        raise ErrorMT5(f"El símbolo '{simbolo}' no existe en MT5.")
+        raise ErrorMT5(f"El símbolo '{simbolo}' no existe en {NOMBRE_FUENTE}.")
     estaba_visible = bool(info.visible)
     # MT5 solo entrega ticks y velas de símbolos visibles en Market Watch.
     if not estaba_visible:
@@ -128,11 +170,15 @@ def _simbolo_temporal(mt5: Any, simbolo: str) -> Iterator[Any]:
                 pass
 
 
+# TITULO TAMANO PIP
+
 def _tamano_pip(info: Any) -> float:
     """Tamaño de un 'pip' en precio: 10 puntos en símbolos de 3 o 5 decimales; el punto en el resto."""
     punto = float(getattr(info, "point", 0) or 0)
     return punto * 10 if getattr(info, "digits", 0) in (3, 5) else punto
 
+
+# TITULO TIPO ORDEN
 
 def _tipo_orden(mt5: Any, tipo: str) -> int:
     """Traduce el tipo de operación en texto ('COMPRA'/'BUY' u otro) a la constante ORDER_TYPE de MT5.

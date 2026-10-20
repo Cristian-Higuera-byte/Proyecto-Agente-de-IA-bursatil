@@ -16,7 +16,7 @@
 NOMBRE DEL ARCHIVO: nucleo_agente/notificaciones.py
 
 Almacén en memoria del proceso, por usuario. No usa Streamlit, así que lo puede escribir un hilo
-en segundo plano (nucleo_agente/turnos.py) y leer la barra superior (componentes_plataforma/navegacion_superior.py).
+en segundo plano (nucleo_agente/turnos.py) y leer la barra superior (componentes_plataforma/barra_superior/).
 
 Las notificaciones se pierden si se reinicia el servidor; es un aviso, no un registro de auditoría
 (la auditoría de las órdenes ya está en data/ordenes.db).
@@ -33,10 +33,12 @@ from typing import Any
 MAX_POR_USUARIO = 50
 
 # Candado que protege _DATOS: lo escriben hilos en segundo plano y lo lee la interfaz.
-_LOCK = threading.Lock()
+_CANDADO = threading.Lock()
 # Almacén en memoria: id de usuario -> lista de notificaciones (la más reciente primero).
 _DATOS: dict[str, list[dict[str, Any]]] = {}
 
+
+# TITULO AGREGAR
 
 def agregar(
     usuario_id: str,
@@ -57,43 +59,53 @@ def agregar(
         "ref": ref, "leida": leida, "creada": time.time(),
     }
     # Inserción protegida por el candado: la lista queda ordenada de más reciente a más antigua.
-    with _LOCK:
+    with _CANDADO:
         lista = _DATOS.setdefault(usuario_id, [])
         lista.insert(0, nueva)
         del lista[MAX_POR_USUARIO:]
     return dict(nueva)
 
 
+# TITULO LISTAR
+
 def listar(usuario_id: str, limite: int = 10) -> list[dict[str, Any]]:
     """Devuelve copias de las `limite` notificaciones más recientes del usuario."""
-    with _LOCK:
+    with _CANDADO:
         return [dict(n) for n in _DATOS.get(usuario_id, [])[:limite]]
 
 
+# TITULO NO LEIDAS
+
 def no_leidas(usuario_id: str) -> int:
     """Cuenta las notificaciones sin leer del usuario (el número que muestra la campana)."""
-    with _LOCK:
+    with _CANDADO:
         return sum(1 for n in _DATOS.get(usuario_id, []) if not n["leida"])
 
 
+# TITULO ULTIMA ID
+
 def ultima_id(usuario_id: str) -> str | None:
     """Id de la notificación más reciente (sirve para detectar que llegó una nueva)."""
-    with _LOCK:
+    with _CANDADO:
         lista = _DATOS.get(usuario_id, [])
         return lista[0]["id"] if lista else None
 
 
+# TITULO MARCAR LEIDAS
+
 def marcar_leidas(usuario_id: str, ref: str | None = None) -> None:
     """Marca como leídas todas las del usuario, o solo las de un turno (`ref`)."""
-    with _LOCK:
+    with _CANDADO:
         for n in _DATOS.get(usuario_id, []):
             if ref is None or n["ref"] == ref:
                 n["leida"] = True
 
 
+# TITULO LIMPIAR
+
 def limpiar(usuario_id: str) -> None:
     """Elimina todas las notificaciones del usuario."""
-    with _LOCK:
+    with _CANDADO:
         _DATOS.pop(usuario_id, None)
 
 

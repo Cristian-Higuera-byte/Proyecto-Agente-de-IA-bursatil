@@ -31,13 +31,13 @@ Transportes y Servicios Ltda.
    terminal de trading se ve como parpadeo cada refresco. */
 [data-stale="true"] { opacity: 1 !important; transition: none !important; }
 
-/* Contenedor del feed en vivo (componentes_plataforma/flujo_vivo.py): fuera del flujo,
+/* Contenedor del feed en vivo (componentes_plataforma/flujo_precios/): fuera del flujo,
    sin ocupar espacio ni sumar separación. */
-.st-key-pj_feed { position: absolute !important; width: 0 !important;
+.st-key-pj_flujo { position: absolute !important; width: 0 !important;
                   height: 0 !important; overflow: hidden !important; }
 /* Botones invisibles que pulsa la ✕ de las líneas de posición del gráfico
-   (componentes_plataforma/posiciones_grafico.py): mismo tratamiento. */
-.st-key-chcls_wrap { position: absolute !important; width: 0 !important;
+   (componentes_plataforma/posiciones/): mismo tratamiento. */
+.st-key-grafico_cerrar_wrap { position: absolute !important; width: 0 !important;
                      height: 0 !important; overflow: hidden !important; }
 
 /* Fondo y tipografía base */
@@ -79,7 +79,7 @@ div[data-testid="stVerticalBlockBorderWrapper"] {
 }
 
 /* Barra de navegación superior FIJA */
-.st-key-barra_nav_fija {
+.st-key-barra_navegacion_fija {
     position: fixed !important;
     top: 0; left: 70px; right: 0;
     width: calc(100% - 70px) !important;
@@ -89,17 +89,17 @@ div[data-testid="stVerticalBlockBorderWrapper"] {
     padding: 10px 24px;
     box-sizing: border-box;
 }
-.st-key-barra_nav_fija [data-testid="stVerticalBlock"] { gap: 0 !important; }
-.st-key-barra_nav_fija [data-testid="stVerticalBlockBorderWrapper"],
-.st-key-barra_nav_fija [data-testid="stVerticalBlock"] {
+.st-key-barra_navegacion_fija [data-testid="stVerticalBlock"] { gap: 0 !important; }
+.st-key-barra_navegacion_fija [data-testid="stVerticalBlockBorderWrapper"],
+.st-key-barra_navegacion_fija [data-testid="stVerticalBlock"] {
     background: transparent !important;
     border: none !important;
     border-radius: 0 !important;
 }
 
 /* Barra lateral izquierda extendida sin forzar paddings excesivos */
-div[data-testid="stColumn"]:has(.pj-nav),
-div[data-testid="column"]:has(.pj-nav) {
+div[data-testid="stColumn"]:has(.pj-navegacion),
+div[data-testid="column"]:has(.pj-navegacion) {
     background: #0d1117 !important;
     border-right: 1px solid #30363d;
     min-height: 100vh;
@@ -109,7 +109,7 @@ div[data-testid="column"]:has(.pj-nav) {
 }
 
 /* Separador fino entre la fila del gráfico y la del chat del agente (vista_operativa.py). */
-.pj-sep { border-top: 1px solid #30363d; height: 0; margin: 0; }
+.pj-separador { border-top: 1px solid #30363d; height: 0; margin: 0; }
 
 /* Alinea el logo P&J con el buscador de la barra superior.
    Ajusta este valor (negativo = sube) si necesitas moverlo un poco más. */

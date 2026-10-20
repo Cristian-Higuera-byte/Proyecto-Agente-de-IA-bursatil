@@ -34,6 +34,8 @@ from herramientas_agente.tablas_herramientas.auxiliares import OUTPUT_DIR
 _ESQ = cargar_json(Path(__file__).parent / "esquemas.json")
 
 
+# TITULO GENERAR TABLA REPORTE
+
 @herramienta(**_ESQ["generar_tabla_reporte"])
 def generar_tabla_reporte(
     tipo_reporte: str = "posiciones_abiertas",
@@ -55,8 +57,8 @@ def generar_tabla_reporte(
 
     # 1. Recopilar datos según el tipo de reporte
     if tipo_reporte == "posiciones_abiertas":
-        pos_data = mt5_fuente.posiciones()
-        posiciones = pos_data.get("posiciones", [])
+        posicion_data = mt5_fuente.posiciones()
+        posiciones = posicion_data.get("posiciones", [])
         columnas = ["Ticket", "Símbolo", "Tipo", "Lotes", "Precio Apertura", "Precio Actual", "SL", "TP", "PnL ($)"]
         for p in posiciones:
             filas.append([
@@ -94,8 +96,8 @@ def generar_tabla_reporte(
             parsed = json.loads(datos_json)
             if isinstance(parsed, list) and len(parsed) > 0:
                 columnas = list(parsed[0].keys())
-                for item in parsed:
-                    filas.append(list(item.values()))
+                for elemento in parsed:
+                    filas.append(list(elemento.values()))
         except Exception as e:
             return {"error": f"Error al parsear datos_json: {e}"}
 
@@ -111,15 +113,15 @@ def generar_tabla_reporte(
 
     # Tabla Markdown: encabezado, separador y filas.
     if formato == "markdown":
-        header = "| " + " | ".join(columnas) + " |"
-        sep = "| " + " | ".join(["---"] * len(columnas)) + " |"
-        body = "\n".join(["| " + " | ".join(map(str, f)) + " |" for f in filas])
-        resultado_texto = f"{header}\n{sep}\n{body}"
+        cabecera = "| " + " | ".join(columnas) + " |"
+        separador = "| " + " | ".join(["---"] * len(columnas)) + " |"
+        cuerpo = "\n".join(["| " + " | ".join(map(str, f)) + " |" for f in filas])
+        resultado_texto = f"{cabecera}\n{separador}\n{cuerpo}"
 
     # Tabla HTML simple con la clase tabla-bursatil.
     elif formato == "html":
         th_str = "".join([f"<th>{c}</th>" for c in columnas])
-        tr_str = "".join(["<tr>" + "".join([f"<td>{cell}</td>" for cell in f]) + "</tr>" for f in filas])
+        tr_str = "".join(["<tr>" + "".join([f"<td>{celda}</td>" for celda in f]) + "</tr>" for f in filas])
         resultado_texto = f"<table border='1' class='tabla-bursatil'><thead><tr>{th_str}</tr></thead><tbody>{tr_str}</tbody></table>"
 
     # CSV: se escribe directamente en el archivo.

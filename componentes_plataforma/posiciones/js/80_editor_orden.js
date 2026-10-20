@@ -15,7 +15,9 @@ Transportes y Servicios Ltda.
 
       // ---------- Ventana "Modificar orden" (como MT5): doble clic o clic derecho en la línea ----------
       // ed: ventana del editor abierta (o null); edPrev: valores en edición para mostrar la vista previa en el gráfico.
-      var ed = null, edPrev = null;
+      var ed = null, edAnterior = null;
+      // TITULO A LOCAL
+
       /**
        * Convierte una hora del servidor (segundos) al formato del campo datetime-local, restando el desfase OFF.
        */
@@ -23,6 +25,8 @@ Transportes y Servicios Ltda.
         var d = new Date((exServidor - OFF) * 1000), z = function(n){ return (n < 10 ? '0' : '') + n; };
         return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()) + 'T' + z(d.getHours()) + ':' + z(d.getMinutes());
       }
+      // TITULO A SERVIDOR
+
       /**
        * Convierte el valor de un campo datetime-local a hora del servidor (segundos); devuelve 0 si la fecha es inválida.
        */
@@ -30,13 +34,17 @@ Transportes y Servicios Ltda.
         var t = new Date(valorLocal).getTime();
         return isNaN(t) ? 0 : Math.round(t / 1000 + OFF);
       }
+      // TITULO CERRAR EDITOR
+
       /**
        * Cierra la ventana del editor de orden y limpia el estado de vista previa.
        */
       function cerrarEditor(){
         if (ed && ed.parentNode) ed.parentNode.removeChild(ed);
-        ed = null; edPrev = null;
+        ed = null; edAnterior = null;
       }
+      // TITULO MENU ORDEN
+
       /**
        * Menú del clic derecho sobre la etiqueta de una orden pendiente: Modificar o Eliminar.
        * Recibe el evento e y el id del elemento; posiciona el menú dentro del gráfico.
@@ -62,13 +70,15 @@ Transportes y Servicios Ltda.
         });
         capa.appendChild(menu);
       }
+      // TITULO ABRIR EDITOR
+
       /**
        * Abre la ventana 'Modificar orden' (como MT5) para una orden pendiente.
        * Recibe el id del elemento. Permite cambiar precio, Stop Loss, Take Profit y caducidad; valida en vivo con
        * validar(), muestra la proyección de P/G y envía a /orden/modificar o /orden/eliminar.
        */
       function abrirEditor(id){
-        cerrarMenu(); cerrarConf(true); cerrarEditor();
+        cerrarMenu(); cerrarConfiguracion(true); cerrarEditor();
         var it = ITEMS[id];
         if (!it || it.kind !== 'ord') return;
         // Paso de los campos numéricos: la unidad mínima de precio del símbolo.
@@ -79,8 +89,8 @@ Transportes y Servicios Ltda.
           '<div class="hd"><span class="tt"></span><span class="cx" title="Cerrar">&#10005;</span></div>' +
           '<div class="cuerpo"><div class="campos">' +
             '<label>Precio</label><input class="i-po" type="number" step="' + paso + '">' +
-            '<label>Stop Loss</label><input class="i-sl" type="number" step="' + paso + '" min="0">' +
-            '<label>Take Profit</label><input class="i-tp" type="number" step="' + paso + '" min="0">' +
+            '<label>Stop Loss</label><input class="i-stop-loss" type="number" step="' + paso + '" min="0">' +
+            '<label>Take Profit</label><input class="i-take-profit" type="number" step="' + paso + '" min="0">' +
             '<label>Caducidad</label><select class="i-tt"><option value="gtc">Good till cancelled (GTC)</option>' +
               '<option value="day">Day</option><option value="specified">Specified (fecha)</option></select>' +
             '<label class="l-ex">Fecha caducidad</label><input class="i-ex" type="datetime-local">' +
@@ -96,23 +106,23 @@ Transportes y Servicios Ltda.
         ed.querySelector('.tt').textContent = 'Modificar orden #' + it.tk + ' · ' + TIPO[it.t] + ' ' + fmt(it.v, 2) + ' ' + REAL;
         var q = function(c){ return ed.querySelector(c); };
         q('.i-po').value = (+it.po).toFixed(DIGITS);
-        q('.i-sl').value = (+it.sl || 0).toFixed(DIGITS);
-        q('.i-tp').value = (+it.tp || 0).toFixed(DIGITS);
+        q('.i-stop-loss').value = (+it.sl || 0).toFixed(DIGITS);
+        q('.i-take-profit').value = (+it.tp || 0).toFixed(DIGITS);
         // Modo de caducidad actual; se deshabilitan los que el bróker no admite.
-        var cad = ['gtc', 'day', 'specified'][it.tt || 0] || 'gtc';
-        q('.i-tt').value = cad;
+        var carteraDetalle = ['gtc', 'day', 'specified'][it.tt || 0] || 'gtc';
+        q('.i-tt').value = carteraDetalle;
         [['gtc', 1], ['day', 2], ['specified', 4]].forEach(function(m){       // modos que admite el bróker
           if (EM && !(EM & m[1])) q('.i-tt option[value="' + m[0] + '"]').disabled = true;
         });
         // Fecha de caducidad inicial: la de la orden o mañana a esta hora.
         q('.i-ex').value = aLocal(it.ex ? it.ex : Math.round(Date.now() / 1000 + OFF + 86400));
-        var exIni = q('.i-ex').value;
+        var exInicio = q('.i-ex').value;
         /**
          * Lee los campos del editor y devuelve {po, sl, tp, tt, ex} (precios numéricos, caducidad y fecha).
          */
         function leer(){
-          return {po: parseFloat(q('.i-po').value), sl: parseFloat(q('.i-sl').value) || 0,
-                  tp: parseFloat(q('.i-tp').value) || 0, tt: q('.i-tt').value, ex: q('.i-ex').value};
+          return {po: parseFloat(q('.i-po').value), sl: parseFloat(q('.i-stop-loss').value) || 0,
+                  tp: parseFloat(q('.i-take-profit').value) || 0, tt: q('.i-tt').value, ex: q('.i-ex').value};
         }
         /**
          * Revisa el formulario en cada cambio: valida los precios y la fecha, habilita o deshabilita Modificar, muestra el
@@ -128,13 +138,13 @@ Transportes y Servicios Ltda.
                      (v.tp > 0 && validar(it, 'tp', v.tp, v.po)) || '';
           if (!err && fecha && aServidor(v.ex) <= Date.now() / 1000 + OFF) err = 'la fecha de caducidad debe ser futura';
           var cambio = redondear(v.po) !== redondear(it.po) || redondear(v.sl) !== redondear(+it.sl || 0) ||
-                       redondear(v.tp) !== redondear(+it.tp || 0) || v.tt !== cad || (fecha && v.ex !== exIni);
+                       redondear(v.tp) !== redondear(+it.tp || 0) || v.tt !== carteraDetalle || (fecha && v.ex !== exInicio);
           q('.ok').disabled = !!err || !cambio;
           q('.msg').textContent = err ? 'No válido: ' + err : '';
-          edPrev = isNaN(v.po) ? null : {id: id, po: v.po, sl: v.sl, tp: v.tp};
-          var g = v.tp > 0 ? pgEn(it, v.po, v.tp) : null, l = v.sl > 0 ? pgEn(it, v.po, v.sl) : null;
-          q('.proy').innerHTML = (g !== null ? '<span style="color:' + C_TP + '">TP ' + pgTxt(g) + '</span>' : '') +
-                               (l !== null ? '<span style="color:' + C_SL + '">SL ' + pgTxt(l) + '</span>' : '');
+          edAnterior = isNaN(v.po) ? null : {id: id, po: v.po, sl: v.sl, tp: v.tp};
+          var g = v.tp > 0 ? gananciaPerdidaEn(it, v.po, v.tp) : null, l = v.sl > 0 ? gananciaPerdidaEn(it, v.po, v.sl) : null;
+          q('.proy').innerHTML = (g !== null ? '<span style="color:' + C_TAKE_PROFIT + '">TP ' + gananciaPerdidaTexto(g) + '</span>' : '') +
+                               (l !== null ? '<span style="color:' + C_STOP_LOSS + '">SL ' + gananciaPerdidaTexto(l) + '</span>' : '');
         }
         // Revisa en cada edición; la función queda expuesta para que el feed la llame al cambiar Bid/Ask.
         ed._revisar = revisar;
@@ -155,7 +165,7 @@ Transportes y Servicios Ltda.
           q('.del').disabled = q('.ok').disabled = true;
           post('/orden/eliminar', {ticket: it.tk}).then(function(res){
             if (res.error){ q('.msg').textContent = res.error; q('.del').disabled = false; revisar(); return; }
-            delete ORD[it.tk]; unir(); cerrarEditor();
+            delete ORDEN[it.tk]; unir(); cerrarEditor();
             avisar(TIPO[it.t] + ' #' + it.tk + ' eliminada', false);
           });
         };
@@ -171,7 +181,7 @@ Transportes y Servicios Ltda.
                 q('.msg').textContent = res.error; q('.ok').textContent = 'Modificar'; q('.del').disabled = false; revisar();
                 return;
               }
-              var src = ORD[it.tk];
+              var src = ORDEN[it.tk];
               if (src){ src.po = res.price; src.sl = res.sl; src.tp = res.tp; src.tt = res.tt; src.ex = res.ex; }
               cerrarEditor();
               avisar(TIPO[it.t] + ' #' + it.tk + ' modificada', false);

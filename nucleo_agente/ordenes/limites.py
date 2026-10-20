@@ -19,6 +19,8 @@ instrucción ni modificarlos; para cambiarlos hay que editar este archivo."""
 from dataclasses import dataclass
 
 
+# TITULO LIMITES RIESGO
+
 @dataclass(frozen=True)
 class LimitesRiesgo:
     """Conjunto inmutable (frozen) de límites de riesgo que aplican las validaciones de órdenes.
@@ -28,7 +30,7 @@ class LimitesRiesgo:
     solo_demo: bool = True                       # rechaza TODO si la cuenta conectada no es demo
     riesgo_max_por_operacion_pct: float = 1.0    # % del equity que se puede perder si salta el SL
     riesgo_max_total_pct: float = 3.0            # % del equity en riesgo sumando posiciones abiertas + propuestas pendientes + la nueva
-    max_posiciones_abiertas: int = 3
+    max_posiciones_abiertas: int | None = None   # None = sin tope de posiciones abiertas (el riesgo total y la pérdida diaria siguen limitando)
     perdida_max_diaria_pct: float = 3.0          # % del balance; al alcanzarlo no se abren más
     volumen_max: float = 0.5                     # lotes máximos por orden
     vigencia_propuesta_min: int = 10             # minutos antes de que una propuesta venza

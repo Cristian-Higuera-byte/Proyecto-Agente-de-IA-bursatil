@@ -15,7 +15,7 @@
 Fragmentos en vivo: partes de la página que se refrescan solas sin reejecutar todo el script.
 
 Con `servidor_datos.py` corriendo, los precios, variaciones y el saldo llegan al navegador por el
-feed SSE (`componentes_plataforma/flujo_vivo.py`); entonces estos fragmentos solo hacen un
+feed SSE (`componentes_plataforma/flujo_precios/`); entonces estos fragmentos solo hacen un
 refresco LENTO de respaldo (sparkline, nombres, resincronización), lo que evita reejecuciones
 innecesarias y los choques de deltas ("Cannot set a node at a delta path"). Sin el servidor
 vuelven al refresco de 2 segundos de siempre.
@@ -27,11 +27,13 @@ from types import SimpleNamespace
 
 import streamlit as st
 
-from componentes_plataforma.datos_mercado import actualizar_precios_mt5
-from componentes_plataforma.favoritos_barra import renderizar_barra_favoritos
-from componentes_plataforma.flujo_vivo import intervalo
-from componentes_plataforma.lista_activos_panel import renderizar_watchlist
+from componentes_plataforma.mercado_datos import actualizar_precios_mt5
+from componentes_plataforma.favoritos import renderizar_barra_favoritos
+from componentes_plataforma.flujo_precios import intervalo
+from componentes_plataforma.lista_activos import renderizar_watchlist
 
+
+# TITULO CREAR FRAGMENTOS
 
 def crear_fragmentos() -> SimpleNamespace:
     """
@@ -62,12 +64,12 @@ def crear_fragmentos() -> SimpleNamespace:
 
         La ganancia/pérdida total y por posición llegan por el feed en vivo; el refresco del
         fragmento solo agrega o quita filas. El auto-refresco se PAUSA únicamente mientras el
-        usuario edita un nivel (clave `ca_editando`): así, al escribir el TP, el SL o la distancia,
+        usuario edita un nivel (clave `cartera_editando`): así, al escribir el TP, el SL o la distancia,
         la reejecución no le quita el foco al campo. Con el detalle abierto pero sin editar, la
         lista sigue refrescando para detectar cierres que ocurran solos.
         """
         from componentes_plataforma.cartera_panel import renderizar_cartera_lista
-        cada = None if st.session_state.get("ca_editando") else intervalo("2s", "5s")
+        cada = None if st.session_state.get("cartera_editando") else intervalo("2s", "5s")
         st.fragment(run_every=cada)(renderizar_cartera_lista)()
 
     return SimpleNamespace(favoritos=favoritos_en_vivo, watchlist=watchlist_en_vivo, cartera=cartera_en_vivo)

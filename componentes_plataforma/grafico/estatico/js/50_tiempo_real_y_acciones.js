@@ -14,13 +14,13 @@ Transportes y Servicios Ltda.
    ------------------------------------------------------------------------------------------------------- */
 
 // [grafico] Tiempo real, temporalidades, captura y pantalla completa
-    // --- Ticks en vivo del feed SSE (componentes_plataforma/flujo_vivo.py) ---------------
+    // --- Ticks en vivo del feed SSE (componentes_plataforma/flujo_precios/) ---------------
     // El feed reenvía cada tick por BroadcastChannel('pj-ticks'); aquí se mueve
     // la vela actual (o se abre una nueva al cambiar de periodo) al instante.
     // TF_SEG: duración en segundos de cada temporalidad, para calcular a qué vela pertenece un tick
-    var TF_SEG = {M1: 60, M5: 300, M15: 900, M30: 1800, H1: 3600, H4: 14400, D1: 86400, W1: 604800};
+    var TEMPORALIDAD_SEGUNDOS = {M1: 60, M5: 300, M15: 900, M30: 1800, H1: 3600, H4: 14400, D1: 86400, W1: 604800};
     // ultimoTickBC / ultimoPoll: instantes del último tick recibido y del último sondeo; rafTick evita repintados múltiples por fotograma
-    var ultimoTickBC = 0, ultimoPoll = 0, rafTick = false;
+    var ultimoTickBC = 0, ultimoSondeo = 0, rafTick = false;
     // Escucha el canal pj-ticks si el navegador lo soporta
     if ('BroadcastChannel' in window){
       var bcTicks = new BroadcastChannel('pj-ticks');
@@ -30,11 +30,11 @@ Transportes y Servicios Ltda.
        */
       bcTicks.onmessage = function(ev){
         var t = ev.data && ev.data.t && ev.data.t[SIMBOLO];
-        if (!t || !t.b || cargando || rpActivo || !datosActuales.length) return;   // en replay no se mezcla el precio en vivo con el pasado
+        if (!t || !t.b || cargando || repeticionActivo || !datosActuales.length) return;   // en replay no se mezcla el precio en vivo con el pasado
         ultimoTickBC = Date.now();
         var px = t.b;                       // las velas de MT5 se construyen con el Bid
         var ultima = datosActuales[datosActuales.length - 1];
-        var seg = TF_SEG[tfActual];
+        var seg = TEMPORALIDAD_SEGUNDOS[temporalidadActual];
         // La vela del tick se calcula a partir de la última vela cargada (no del reloj UNIX): así coincide con el horario de apertura
         // de H4, D1 y W1 de la fuente, que no empiezan en múltiplos exactos de su duración.
         var inicio = seg ? ultima.time + Math.floor((t.t - ultima.time) / seg) * seg : ultima.time;
@@ -64,18 +64,18 @@ Transportes y Servicios Ltda.
 
     // Sondeo cada 1,5 s de la última vela a la API; con el feed activo solo resincroniza cada 5 s
     setInterval(function(){
-      if (cargando || pollEnCurso || rpActivo || !datosActuales.length) return;   // en replay no se consulta la última vela real
+      if (cargando || sondeoEnCurso || repeticionActivo || !datosActuales.length) return;   // en replay no se consulta la última vela real
       // Con el feed entregando ticks, el polling solo resincroniza (volumen real,
       // vela cerrada) cada 5 s en vez de cada 1,5 s.
-      if (Date.now() - ultimoTickBC < 4000 && Date.now() - ultimoPoll < 5000) return;
-      ultimoPoll = Date.now();
-      var tfLlamada = tfActual;
+      if (Date.now() - ultimoTickBC < 4000 && Date.now() - ultimoSondeo < 5000) return;
+      ultimoSondeo = Date.now();
+      var temporalidadLlamada = temporalidadActual;
       var idLlamada = cargaId;
-      pollEnCurso = true;
-      fetch(API + "/ultima/" + encodeURIComponent(SIMBOLO) + "?tf=" + tfLlamada)
+      sondeoEnCurso = true;
+      fetch(API + "/ultima/" + encodeURIComponent(SIMBOLO) + "?tf=" + temporalidadLlamada)
         .then(function(r){ return r.json(); })
         .then(function(v){
-          if (tfLlamada !== tfActual || idLlamada !== cargaId) return;
+          if (temporalidadLlamada !== temporalidadActual || idLlamada !== cargaId) return;
           if (v && v.time){
             var ultima = datosActuales[datosActuales.length - 1];
             if (v.time < ultima.time) return;
@@ -99,21 +99,23 @@ Transportes y Servicios Ltda.
           }
         })
         .catch(function(){})
-        .then(function(){ pollEnCurso = false; });
+        .then(function(){ sondeoEnCurso = false; });
     }, 1500);
 
     // Al mover el cursor, la leyenda muestra la vela señalada (o la última si el cursor sale)
-    chart.subscribeCrosshairMove(function(param){
-      if (!param || !param.time){
+    chart.subscribeCrosshairMove(function(parametro){
+      if (!parametro || !parametro.time){
         if (datosActuales.length) actualizarLeyenda(datosActuales[datosActuales.length - 1]);
         return;
       }
-      var idx = datosActuales.findIndex(function(d){ return d.time === param.time; });
+      var idx = datosActuales.findIndex(function(d){ return d.time === parametro.time; });
       if (idx >= 0) actualizarLeyenda(datosActuales[idx]);
     });
 
+    // TITULO MARCAR TF
+
     /** Resalta en la barra el botón de la temporalidad tf y quita el resalte de los demás. */
-    function marcarTF(tf){
+    function marcarTemporalidad(tf){
       document.querySelectorAll('.tvtf').forEach(function(b){
         b.classList.toggle('active', b.getAttribute('data-tf') === tf);
       });
@@ -123,10 +125,10 @@ Transportes y Servicios Ltda.
     document.querySelectorAll('.tvtf').forEach(function(btn){
       btn.addEventListener('click', function(){
         var tf = btn.getAttribute('data-tf');
-        marcarTF(tf);
+        marcarTemporalidad(tf);
         document.querySelectorAll('.tvrange').forEach(function(b){ b.classList.remove('active'); });
         cargar(tf, parseInt(btn.getAttribute('data-n'), 10), 'ultimas');
-        guardarConfig();
+        guardarConfiguracion();
       });
     });
 
@@ -136,30 +138,30 @@ Transportes y Servicios Ltda.
         var tf = btn.getAttribute('data-tf');
         document.querySelectorAll('.tvrange').forEach(function(b){ b.classList.remove('active'); });
         btn.classList.add('active');
-        marcarTF(tf);
+        marcarTemporalidad(tf);
         cargar(tf, parseInt(btn.getAttribute('data-n'), 10), true);
-        guardarConfig();
+        guardarConfiguracion();
       });
     });
 
     // Botón de captura: compone en un canvas el gráfico y los dibujos, añade símbolo, temporalidad y fecha, y descarga un PNG
-    var btnShot = document.getElementById('btn-shot');
-    if (btnShot){
-      btnShot.addEventListener('click', function(){
+    var botonCaptura = document.getElementById('boton-captura');
+    if (botonCaptura){
+      botonCaptura.addEventListener('click', function(){
         try {
-          var shot = chart.takeScreenshot();
-          var selPrev = seleccionadoId, hovPrev = hoverId;
-          seleccionadoId = null; hoverId = null;
+          var captura = chart.takeScreenshot();
+          var seleccionAnterior = seleccionadoId, hovAnterior = encimaId;
+          seleccionadoId = null; encimaId = null;
           pintar();
           var out = document.createElement('canvas');
-          out.width = shot.width; out.height = shot.height;
+          out.width = captura.width; out.height = captura.height;
           var oc = out.getContext('2d');
-          oc.drawImage(shot, 0, 0);
-          oc.drawImage(canvas, 0, 0, shot.width, shot.height);
-          seleccionadoId = selPrev; hoverId = hovPrev;
+          oc.drawImage(captura, 0, 0);
+          oc.drawImage(canvas, 0, 0, captura.width, captura.height);
+          seleccionadoId = seleccionAnterior; encimaId = hovAnterior;
           redibujarTodo();
 
-          var esc = shot.width / Math.max(1, cssW);
+          var esc = captura.width / Math.max(1, cssW);
           var ahora = new Date();
           /** Auxiliar de la captura: rellena con cero a la izquierda los números menores de 10. */
           function dos(n){ return (n < 10 ? '0' : '') + n; }
@@ -168,18 +170,18 @@ Transportes y Servicios Ltda.
           oc.textBaseline = 'top';
           oc.font = 'bold ' + Math.round(15 * esc) + 'px sans-serif';
           oc.fillStyle = '#ffffff';
-          oc.fillText(SIMBOLO + '  ·  ' + tfActual, 14 * esc, 10 * esc);
+          oc.fillText(SIMBOLO + '  ·  ' + temporalidadActual, 14 * esc, 10 * esc);
           oc.font = Math.round(11 * esc) + 'px sans-serif';
           oc.fillStyle = '#8b949e';
           oc.textAlign = 'right';
-          oc.fillText('P&J  ·  ' + fecha, shot.width - 74 * esc, 12 * esc);
+          oc.fillText('P&J  ·  ' + fecha, captura.width - 74 * esc, 12 * esc);
           oc.restore();
 
           out.toBlob(function(blob){
             if (!blob) return;
             var url = URL.createObjectURL(blob);
             var enlace = document.createElement('a');
-            enlace.download = SIMBOLO + '_' + tfActual + '_' + fecha.replace(/[- :]/g, '') + '.png';
+            enlace.download = SIMBOLO + '_' + temporalidadActual + '_' + fecha.replace(/[- :]/g, '') + '.png';
             enlace.href = url;
             document.body.appendChild(enlace);
             enlace.click();

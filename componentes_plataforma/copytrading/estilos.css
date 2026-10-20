@@ -13,49 +13,49 @@ Transportes y Servicios Ltda.
    ----------------------------------- INICIO Piña y Jara estilos .CSS -----------------------------------
    ------------------------------------------------------------------------------------------------------- */
 
-  /* CONTENEDOR GENERAL DE LA VISTA */
-  /* Contenedor raiz (clave ct_wrap en panel.py): ancho maximo centrado para el listado y la ficha. */
-  .st-key-ct_wrap { max-width:1180px; margin-left:auto; margin-right:auto; width:100%; }
+  /* TITULO CONTENEDOR GENERAL DE LA VISTA */
+  /* Contenedor raiz (clave copytrading_contenedor en panel.py): ancho maximo centrado para el listado y la ficha. */
+  .st-key-copytrading_contenedor { max-width:1180px; margin-left:auto; margin-right:auto; width:100%; }
   /* Titulo "Copy trading" sobre el listado. */
-  .ct-title { color:#e6edf3; font-size:22px; font-weight:800; margin:0 0 10px; }
+  .copytrading-titulo { color:#e6edf3; font-size:22px; font-weight:800; margin:0 0 10px; }
 
-  /* TARJETA DEL LISTADO */
+  /* TITULO TARJETA DEL LISTADO */
   /* Tarjeta de una estrategia (HTML de tarjeta.tarjeta_html); height:100% iguala alturas en la fila. */
-  .ct-card { background:#0f1620; border:1px solid #202a37; border-radius:16px;
+  .copytrading-tarjeta { background:#0f1620; border:1px solid #202a37; border-radius:16px;
              padding:16px 18px; height:100%; box-sizing:border-box; transition:border-color .15s; }
   /* Realce del borde al pasar el cursor por el contenedor de la tarjeta (clave ctrow_ de panel.py). */
-  [class*="st-key-ctrow_"]:hover .ct-card { border-color:#2f3d4f; }
+  [class*="st-key-ctrow_"]:hover .copytrading-tarjeta { border-color:#2f3d4f; }
   /* Cabecera de la tarjeta: avatar, nombre e insignia de riesgo. */
-  .ct-head { display:flex; align-items:center; gap:10px; }
+  .copytrading-cabecera { display:flex; align-items:center; gap:10px; }
   /* Avatar circular con las iniciales de la estrategia. */
-  .ct-av { width:40px; height:40px; border-radius:50%; background:#1b2430; flex:0 0 auto;
+  .copytrading-av { width:40px; height:40px; border-radius:50%; background:#1b2430; flex:0 0 auto;
            display:flex; align-items:center; justify-content:center; font-weight:800; color:#a78bfa; }
   /* Nombre de la estrategia. */
-  .ct-nm { color:#e6edf3; font-weight:800; font-size:15px; line-height:1.1; }
+  .copytrading-nombre { color:#e6edf3; font-weight:800; font-size:15px; line-height:1.1; }
   /* Alias del gestor. */
-  .ct-gs { color:#8b949e; font-size:12px; }
+  .copytrading-gestion { color:#8b949e; font-size:12px; }
   /* Insignia de riesgo, empujada al extremo derecho; el color lo da rb, rm o ra. */
-  .ct-badge { margin-left:auto; font-size:11px; font-weight:700; padding:3px 10px; border-radius:8px; }
+  .copytrading-insignia { margin-left:auto; font-size:11px; font-weight:700; padding:3px 10px; border-radius:8px; }
   /* Riesgo bajo (verde). */
-  .ct-badge.rb { color:#3fb950; border:1px solid #2ea043; }
+  .copytrading-insignia.rb { color:#3fb950; border:1px solid #2ea043; }
   /* Riesgo medio (amarillo). */
-  .ct-badge.rm { color:#f0b429; border:1px solid #d29922; }
+  .copytrading-insignia.rm { color:#f0b429; border:1px solid #d29922; }
   /* Riesgo alto (rojo). */
-  .ct-badge.ra { color:#f85149; border:1px solid #da3633; }
+  .copytrading-insignia.ra { color:#f85149; border:1px solid #da3633; }
   /* Franja central: sparkline a la izquierda y rentabilidad a la derecha. */
-  .ct-mid { display:flex; justify-content:space-between; align-items:flex-end; margin:14px 0; }
+  .copytrading-medio { display:flex; justify-content:space-between; align-items:flex-end; margin:14px 0; }
   /* Etiqueta "Rentabilidad 1 mes". */
-  .ct-rent-lbl { color:#8b949e; font-size:12px; }
+  .copytrading-rentabilidad-etiqueta { color:#8b949e; font-size:12px; }
   /* Valor de la rentabilidad en verde. */
-  .ct-rent { color:#3fb950; font-size:22px; font-weight:800; font-variant-numeric:tabular-nums; }
+  .copytrading-rentabilidad { color:#3fb950; font-size:22px; font-weight:800; font-variant-numeric:tabular-nums; }
   /* Cuadricula de metricas: tres columnas iguales. */
-  .ct-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px 8px; }
+  .copytrading-cuadricula { display:grid; grid-template-columns:repeat(3,1fr); gap:10px 8px; }
   /* Nombre de cada metrica. */
-  .ct-grid .k { color:#8b949e; font-size:11px; }
+  .copytrading-cuadricula .k { color:#8b949e; font-size:11px; }
   /* Valor de cada metrica. */
-  .ct-grid .v { color:#e6edf3; font-size:14px; font-weight:700; font-variant-numeric:tabular-nums; }
+  .copytrading-cuadricula .v { color:#e6edf3; font-size:14px; font-weight:700; font-variant-numeric:tabular-nums; }
 
-  /* BOTON INVISIBLE SUPERPUESTO (CLIC EN TODA LA TARJETA) */
+  /* TITULO BOTON INVISIBLE SUPERPUESTO (CLIC EN TODA LA TARJETA) */
   /* overlay clic en toda la tarjeta */
   /* El contenedor de la tarjeta sirve de referencia para posicionar el boton. */
   [class*="st-key-ctrow_"] { position:relative; }
@@ -69,31 +69,31 @@ Transportes y Servicios Ltda.
   /* El boton es transparente pero clicable. */
   [class*="st-key-ctsel_"] button { opacity:0; cursor:pointer; }
 
-  /* FICHA DE DETALLE */
+  /* TITULO FICHA DE DETALLE */
   /* Ficha */
   /* Avatar grande circular de la ficha (ficha.py), centrado. */
-  .fic-av { width:84px; height:84px; border-radius:50%; background:#1b2430; margin:0 auto;
+  .ficha-av { width:84px; height:84px; border-radius:50%; background:#1b2430; margin:0 auto;
             display:flex; align-items:center; justify-content:center; font-weight:800;
             font-size:28px; color:#a78bfa; }
   /* Nombre de la estrategia en la ficha. */
-  .fic-nm { color:#e6edf3; font-size:24px; font-weight:800; text-align:center; margin-top:8px; }
+  .ficha-nombre { color:#e6edf3; font-size:24px; font-weight:800; text-align:center; margin-top:8px; }
   /* Alias del gestor en la ficha. */
-  .fic-gs { color:#8b949e; font-size:13px; text-align:center; }
+  .ficha-gestion { color:#8b949e; font-size:13px; text-align:center; }
   /* Chip informativo (tipo, categoria, apalancamiento, comisiones...). */
-  .fic-chip { display:inline-block; background:#161b22; border:1px solid #30363d; color:#c9d1d9;
+  .ficha-chip { display:inline-block; background:#161b22; border:1px solid #30363d; color:#c9d1d9;
               font-size:12px; padding:5px 12px; border-radius:10px; margin:0 6px 6px 0; }
   /* Titulo pequeno de seccion de la ficha. */
-  .fic-sec { color:#8b949e; font-size:12px; margin:12px 0 2px; }
+  .ficha-seccion { color:#8b949e; font-size:12px; margin:12px 0 2px; }
   /* Texto de biografia y descripcion. */
-  .fic-txt { color:#e6edf3; font-size:14px; }
+  .ficha-texto { color:#e6edf3; font-size:14px; }
   /* Rentabilidad destacada, alineada a la derecha. */
-  .fic-rent { color:#3fb950; font-size:26px; font-weight:800; text-align:right; }
+  .ficha-rentabilidad { color:#3fb950; font-size:26px; font-weight:800; text-align:right; }
   /* Texto central de la dona de victorias: margen negativo que lo sube sobre la imagen (graficos.rosquilla). */
-  .don-center { text-align:center; margin-top:-128px; margin-bottom:70px; }
+  .don-centro { text-align:center; margin-top:-128px; margin-bottom:70px; }
   /* Numero de operaciones totales. */
-  .don-center .n { color:#e6edf3; font-size:26px; font-weight:800; }
+  .don-centro .n { color:#e6edf3; font-size:26px; font-weight:800; }
   /* Etiqueta bajo el numero. */
-  .don-center .l { color:#8b949e; font-size:12px; }
+  .don-centro .l { color:#8b949e; font-size:12px; }
 
 /* -------------------------------------------------------------------------------------------------------
    ------------------------------------- FIN Piña y Jara estilos .CSS ------------------------------------

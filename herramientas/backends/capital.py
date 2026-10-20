@@ -1,3 +1,16 @@
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------------ INICIO Piña y Jara capital .PY -----------------------------------
+# -------------------------------------------------------------------------------------------------------
+
 """
 capital.py  —  Backend de Capital.com (API REST)  —  16-10-2026
 ---------------------------------------------------------------
@@ -56,7 +69,9 @@ BASE = ("https://demo-api-capital.backend-capital.com/api/v1" if _ES_DEMO
         else "https://api-capital.backend-capital.com/api/v1")
 _API_KEY = os.getenv("CAPITAL_API_KEY", "").strip()
 _IDENTIFIER = os.getenv("CAPITAL_IDENTIFIER", "").strip()
-_API_PASSWORD = os.getenv("CAPITAL_API_PASSWORD", "").strip()
+_API_CONTRASENA = os.getenv("CAPITAL_API_PASSWORD", "").strip()
+
+# TITULO SIN CANDADO
 
 class _SinCandado:
     """Candado que no bloquea nunca: cumple la interfaz de `threading.RLock` (with, acquire, release) sin esperar a nadie.
@@ -66,92 +81,118 @@ class _SinCandado:
     de 300-800 ms hacía que cualquier otra lectura (velas, cuenta, precios) esperara a las demás, y hasta quedara sin
     respuesta si el motor volvía a tomarlo sin parar. El límite de peticiones por segundo lo controla `_limitar()`."""
 
+    # TITULO ENTER
+
     def __enter__(self):
+        """Entra al bloque `with` del candado y lo devuelve."""
         return self
 
+    # TITULO EXIT
+
     def __exit__(self, *exc):
+        """Sale del bloque `with` del candado sin ocultar errores."""
         return False
 
+    # TITULO ACQUIRE
+
     def acquire(self, *args, **kwargs):
+        """Imita la toma del candado: siempre tiene éxito y nunca espera."""
         return True
 
+    # TITULO RELEASE
+
     def release(self):
+        """Imita la liberación del candado: no hace nada."""
         return None
 
 
 # Nombre heredado del puente MT5: muchos módulos hacen `with MT5_LOCK:` al leer. Con Capital.com no serializa nada.
 MT5_LOCK = _SinCandado()
 # Las operaciones que modifican órdenes y posiciones (leer niveles y luego enviar el cambio) sí se serializan entre sí.
-_ORDER_LOCK = threading.RLock()
+_ORDEN_CANDADO = threading.RLock()
 
 # Caché de lecturas (cuenta, precio, posiciones): como cada llamada REST a Capital
 # tarda ~300-500 ms y el dashboard re-ejecuta toda la página en cada interacción,
 # se cachean unos segundos. El precio/P-G EN VIVO llega por SSE/WebSocket, así que
 # un desfase de pocos segundos en estas lecturas no se nota.
 _cache_lectura: dict = {}          # clave -> (ts, valor)
-_TTL_CUENTA = 2.0
-_TTL_PRECIO = 3.0
-_TTL_POSICIONES = 2.0
+_TIEMPO_VIDA_CUENTA = 2.0
+_TIEMPO_VIDA_PRECIO = 3.0
+_TIEMPO_VIDA_POSICIONES = 2.0
 _STALE_MAX = 120.0                 # una lectura vencida se sirve al instante (y se refresca aparte) hasta esta edad
 _refrescando: set = set()
 _tl = threading.local()
 
 
-def _cache_swr(clave, ttl, fn, *args):
+# TITULO CACHE CON REFRESCO
+
+def _cache_con_refresco(clave, tiempo_vida, funcion, *args):
     """Caché "stale-while-revalidate": devuelve el valor vigente; si venció (pero es reciente) lo devuelve
     igual AL INSTANTE y lo refresca en un hilo aparte, para que ningún rerun de la página espere ~300 ms
     por cada llamada REST (los valores en vivo ya llegan por el WebSocket). None = no hay caché utilizable."""
-    hit = _cache_lectura.get(clave)
-    if not hit or getattr(_tl, "bg", False):
+    impacto = _cache_lectura.get(clave)
+    if not impacto or getattr(_tl, "bg", False):
         return None
-    edad = time.time() - hit[0]
-    if edad < ttl:
-        return hit[1]
+    edad = time.time() - impacto[0]
+    if edad < tiempo_vida:
+        return impacto[1]
     if edad < _STALE_MAX:
         if clave not in _refrescando:
             _refrescando.add(clave)
 
             def _run():
+                """Hilo de refresco: vuelve a calcular el valor vencido sin bloquear a quien lo pidió y lo deja en la caché."""
                 _tl.bg = True
                 try:
-                    fn(*args)
+                    funcion(*args)
                 except Exception:
                     pass
                 finally:
                     _refrescando.discard(clave)
             threading.Thread(target=_run, daemon=True).start()
-        return hit[1]
+        return impacto[1]
     return None
 
 
-def get_mercado(epic: str) -> dict:
+# TITULO OBTENER MERCADO
+
+def obtener_mercado(epic: str) -> dict:
     """GET /markets/{epic} (JSON crudo) con caché 30 s + refresco en segundo plano. {} si falla.
     Lo comparten especs_posicion y el shim (symbol_info): una sola llamada por instrumento."""
     clave = f"mercado:{epic}"
-    v = _cache_swr(clave, 30.0, get_mercado, epic)
+    v = _cache_con_refresco(clave, 30.0, obtener_mercado, epic)
     if v is not None:
         return v
     r = _pedir("GET", f"/markets/{epic}")
+    for _ in range(2):        # fallo transitorio (p. ej. límite de peticiones con muchas en paralelo): reintenta
+        if r is not None and (r.status_code == 200 or r.status_code == 404):
+            break
+        time.sleep(0.5)
+        r = _pedir("GET", f"/markets/{epic}")
     data = r.json() if (r is not None and r.status_code == 200) else {}
     if data:
         _cache_lectura[clave] = (time.time(), data)
     return data
 
 
-def leer_json(ruta: str, ttl: float = 2.0, params: dict = None):
+# TITULO LEER JSON
+
+def leer_json(ruta: str, tiempo_vida: float = 2.0, parametros: dict = None):
     """GET `ruta` y devuelve el JSON (o None si falla), con caché corta + refresco en segundo plano.
     Para lecturas repetidas en cada rerun de la página (/positions, /workingorders, /history/...)."""
-    clave = f"raw:{ruta}:{sorted((params or {}).items())}"
-    v = _cache_swr(clave, ttl, leer_json, ruta, ttl, params)
+    clave = f"raw:{ruta}:{sorted((parametros or {}).items())}"
+    v = _cache_con_refresco(clave, tiempo_vida, leer_json, ruta, tiempo_vida, parametros)
     if v is not None:
         return v
-    r = _pedir("GET", ruta, params=params)
+    r = _pedir("GET", ruta, parametros=parametros)
     if r is None or r.status_code != 200:
         return None
     data = r.json()
     _cache_lectura[clave] = (time.time(), data)
     return data
 
+
+# TITULO INVALIDAR
 
 def _invalidar() -> None:
     """Tras operar (abrir/cerrar/modificar) se descartan las lecturas para no servir datos viejos."""
@@ -165,9 +206,9 @@ _tokens: dict = {"CST": "", "X-SECURITY-TOKEN": ""}
 _ultimo_uso = 0.0            # epoch del último uso con éxito (para renovar antes de 10 min)
 _VIDA_TOKEN_S = 540          # renovar la sesión si pasaron >9 min
 _cuenta_activa_id = ""
-_LOCK_SESION = threading.RLock()   # solo serializa la apertura/renovación de la sesión
+_CANDADO_SESION = threading.RLock()   # solo serializa la apertura/renovación de la sesión
 
-_TIMEOUT = 15
+_TIEMPO_ESPERA = 15
 
 # ---------------------------------------------------------------------------
 # Control de la sesión y del ritmo de peticiones
@@ -200,16 +241,20 @@ _ARCHIVO_SESION = os.path.join(_RAIZ, "data", "capital_sesion.json")   # data/*.
 _ARCHIVO_CANDADO = _ARCHIVO_SESION + ".lock"
 _marcas_peticion: list = []
 _marcas_fondo: list = []
-_LOCK_RITMO = threading.Lock()
+_CANDADO_RITMO = threading.Lock()
 
 
-def _aviso(msg: str) -> None:
+# TITULO AVISO
+
+def _aviso(mensaje: str) -> None:
     """Imprime un aviso como máximo una vez cada 30 s, para no inundar la consola."""
     global _ultimo_aviso
     if time.time() - _ultimo_aviso >= 30:
         _ultimo_aviso = time.time()
-        print(msg)
+        print(mensaje)
 
+
+# TITULO LEER ARCHIVO
 
 def _leer_archivo() -> dict:
     """Lee la sesión compartida entre procesos; {} si no existe o no se puede leer."""
@@ -220,6 +265,8 @@ def _leer_archivo() -> dict:
     except Exception:
         return {}
 
+
+# TITULO GUARDAR ARCHIVO
 
 def _guardar_archivo() -> None:
     """Guarda la sesión y la espera actuales para que otros procesos las reutilicen (escritura atómica)."""
@@ -236,6 +283,8 @@ def _guardar_archivo() -> None:
         pass
 
 
+# TITULO ADOPTAR ARCHIVO
+
 def _adoptar_archivo(excluir_cst: str = "") -> bool:
     """Usa la sesión que otro proceso dejó en el archivo si sigue vigente y no es `excluir_cst` (la que acaba de fallar).
 
@@ -246,19 +295,24 @@ def _adoptar_archivo(excluir_cst: str = "") -> bool:
         return False
     if float(d.get("espera_hasta", 0) or 0) > _espera_hasta:
         _espera_hasta = float(d["espera_hasta"])
-    cst, xst, ts = d.get("CST", ""), d.get("X-SECURITY-TOKEN", ""), float(d.get("ts", 0) or 0)
-    if cst and xst and cst != excluir_cst and (time.time() - ts) < _VIDA_TOKEN_S:
+    cst, xst, marca_tiempo = d.get("CST", ""), d.get("X-SECURITY-TOKEN", ""), float(d.get("ts", 0) or 0)
+    if cst and xst and cst != excluir_cst and (time.time() - marca_tiempo) < _VIDA_TOKEN_S:
         _tokens["CST"], _tokens["X-SECURITY-TOKEN"] = cst, xst
         _cuenta_activa_id = d.get("cuenta", "") or _cuenta_activa_id
-        _ultimo_uso = max(_ultimo_uso, ts)
+        _ultimo_uso = max(_ultimo_uso, marca_tiempo)
         return True
     return False
 
 
+# TITULO CANDADO ARCHIVO
+
 class _CandadoArchivo:
     """Candado entre procesos: solo uno pide sesión a la vez; los demás esperan (hasta 6 s) y luego la adoptan."""
 
+    # TITULO ENTER
+
     def __enter__(self):
+        """Entra al bloque `with` del candado y lo devuelve."""
         self.tengo = False
         limite = time.time() + 6
         while time.time() < limite:
@@ -279,7 +333,10 @@ class _CandadoArchivo:
                 break
         return self
 
+    # TITULO EXIT
+
     def __exit__(self, *exc):
+        """Sale del bloque `with` del candado sin ocultar errores."""
         if self.tengo:
             try:
                 os.remove(_ARCHIVO_CANDADO)
@@ -288,6 +345,8 @@ class _CandadoArchivo:
         return False
 
 
+# TITULO PAUSAR
+
 def _pausar(segundos: float, motivo: str) -> None:
     """Deja de pedir sesión durante `segundos`, lo comparte con los demás procesos y avisa (con límite de frecuencia)."""
     global _espera_hasta
@@ -295,6 +354,8 @@ def _pausar(segundos: float, motivo: str) -> None:
     _guardar_archivo()
     _aviso(f"[CAPITAL] {motivo} Pausa de {int(segundos)} s antes de volver a intentarlo (no se llama a la API mientras tanto).")
 
+
+# TITULO RECHAZO SESION
 
 def _rechazo_sesion(r) -> None:
     """Decide la pausa tras un POST /session rechazado: Retry-After si Capital lo envía; si no, una espera creciente.
@@ -317,6 +378,8 @@ def _rechazo_sesion(r) -> None:
     _pausar(espera, f"Falló la sesión (HTTP {r.status_code}): {texto}.")
 
 
+# TITULO INVALIDAR ARCHIVO
+
 def _invalidar_archivo(cst: str) -> None:
     """Borra el archivo de sesión compartida si todavía guarda el token `cst` (que Capital acaba de rechazar), para que
     ningún proceso vuelva a adoptar una sesión muerta."""
@@ -327,6 +390,8 @@ def _invalidar_archivo(cst: str) -> None:
             pass
 
 
+# TITULO ABRIR SESION
+
 def _abrir_sesion(excluir_cst: str = "") -> bool:
     """POST /session -> guarda CST y X-SECURITY-TOKEN. Devuelve True si conecta.
 
@@ -334,7 +399,7 @@ def _abrir_sesion(excluir_cst: str = "") -> bool:
     `excluir_cst`, la que acaba de fallar); y serializa la petición real con un candado de archivo y un mínimo de
     `_MIN_ENTRE_SESIONES` segundos entre intentos."""
     global _ultimo_uso, _cuenta_activa_id, _espera_hasta, _fallos_sesion, _ultimo_intento
-    if not (_API_KEY and _IDENTIFIER and _API_PASSWORD):
+    if not (_API_KEY and _IDENTIFIER and _API_CONTRASENA):
         _aviso("[CAPITAL] Faltan credenciales en el .env "
                "(CAPITAL_API_KEY / CAPITAL_IDENTIFIER / CAPITAL_API_PASSWORD).")
         return False
@@ -355,9 +420,9 @@ def _abrir_sesion(excluir_cst: str = "") -> bool:
             r = _HTTP.post(
                 f"{BASE}/session",
                 headers={"X-CAP-API-KEY": _API_KEY, "Content-Type": "application/json"},
-                json={"identifier": _IDENTIFIER, "password": _API_PASSWORD,
+                json={"identifier": _IDENTIFIER, "password": _API_CONTRASENA,
                       "encryptedPassword": False},
-                timeout=_TIMEOUT,
+                timeout=_TIEMPO_ESPERA,
             )
         except requests.exceptions.RequestException as e:
             _pausar(10, f"No se pudo contactar a Capital.com: {e}.")
@@ -378,7 +443,9 @@ def _abrir_sesion(excluir_cst: str = "") -> bool:
         return bool(_tokens["CST"] and _tokens["X-SECURITY-TOKEN"])
 
 
-def inicializar_mt5(login=None, password=None, server=None) -> bool:
+# TITULO INICIALIZAR MT5
+
+def inicializar_mt5(inicio_sesion=None, contrasena=None, servidor=None) -> bool:
     """Compat: asegura una sesión activa con Capital.com (nombre heredado del puente).
 
     Los parámetros login/password/server se ignoran (eran de MT5); las credenciales
@@ -389,18 +456,20 @@ def inicializar_mt5(login=None, password=None, server=None) -> bool:
         return True
     if time.time() < _espera_hasta and not _adoptar_archivo():
         return False
-    with _LOCK_SESION:
+    with _CANDADO_SESION:
         if _tokens["CST"] and (time.time() - _ultimo_uso) < _VIDA_TOKEN_S:
             return True
         return _abrir_sesion()
 
+
+# TITULO CERRAR MT5
 
 def cerrar_mt5():
     """Compat: cierra la sesión con Capital.com."""
     with MT5_LOCK:
         try:
             if _tokens["CST"]:
-                _HTTP.delete(f"{BASE}/session", headers=_cabeceras(), timeout=_TIMEOUT)
+                _HTTP.delete(f"{BASE}/session", headers=_cabeceras(), timeout=_TIEMPO_ESPERA)
         except Exception:
             pass
         if _leer_archivo().get("CST") == _tokens["CST"]:
@@ -411,9 +480,14 @@ def cerrar_mt5():
         _tokens["CST"] = _tokens["X-SECURITY-TOKEN"] = ""
 
 
+# TITULO CABECERAS
+
 def _cabeceras() -> dict:
+    """Devuelve las cabeceras de autenticación (CST y X-SECURITY-TOKEN) de la sesión activa."""
     return {"CST": _tokens["CST"], "X-SECURITY-TOKEN": _tokens["X-SECURITY-TOKEN"]}
 
+
+# TITULO FIJAR LIMITE PETICIONES
 
 def fijar_limite_peticiones(por_segundo: int) -> None:
     """Cambia el máximo de peticiones por segundo de ESTE proceso. El servidor de datos lo baja a 4 para que, sumado al dashboard
@@ -422,11 +496,15 @@ def fijar_limite_peticiones(por_segundo: int) -> None:
     _MAX_PETICIONES_S = max(1, int(por_segundo))
 
 
+# TITULO MARCAR HILO FONDO
+
 def marcar_hilo_fondo() -> None:
     """Marca el hilo actual como de segundo plano (precargas y refrescos): sus peticiones usan solo la mitad del cupo por segundo,
     de modo que una acción del usuario no espere detrás de ellas."""
     _tl.bg = True
 
+
+# TITULO LIMITAR
 
 def _limitar() -> None:
     """Limitador de ritmo: deja pasar como máximo `_MAX_PETICIONES_S` peticiones en cualquier ventana de 1 s, y las de segundo
@@ -436,7 +514,7 @@ def _limitar() -> None:
     fondo = bool(getattr(_tl, "bg", False))
     tope_fondo = max(1, _MAX_PETICIONES_S // 2)
     while True:
-        with _LOCK_RITMO:
+        with _CANDADO_RITMO:
             ahora = time.time()
             while _marcas_peticion and ahora - _marcas_peticion[0] >= 1.0:
                 _marcas_peticion.pop(0)
@@ -454,7 +532,9 @@ def _limitar() -> None:
         time.sleep(max(0.01, espera))
 
 
-def _pedir(metodo: str, ruta: str, *, params=None, json=None, reintento=True):
+# TITULO PEDIR
+
+def _pedir(metodo: str, ruta: str, *, parametros=None, json=None, reintento=True):
     """Petición autenticada. Renueva sesión si hace falta y reintenta una vez ante 401 (solo si nadie la renovó ya)
     o ante 429 en lecturas GET. Devuelve el objeto requests.Response, o None si no hay conexión."""
     # Sin candado global durante la petición: antes cada llamada (~300-800 ms) bloqueaba a todas las
@@ -466,25 +546,25 @@ def _pedir(metodo: str, ruta: str, *, params=None, json=None, reintento=True):
     _limitar()
     try:
         r = _HTTP.request(metodo, f"{BASE}{ruta}", headers=_cabeceras(),
-                          params=params, json=json, timeout=_TIMEOUT)
+                          params=parametros, json=json, timeout=_TIEMPO_ESPERA)
     except requests.exceptions.RequestException as e:
         print(f"[CAPITAL] Error de red en {metodo} {ruta}: {e}")
         return None
     # Token caducado/ inválido -> reautenticar una vez, salvo que otro hilo o proceso ya lo haya renovado
     if r.status_code == 401 and reintento:
-        with _LOCK_SESION:
+        with _CANDADO_SESION:
             if _tokens["CST"] == token_usado:
                 _tokens["CST"] = ""
                 _invalidar_archivo(token_usado)
-                ok = _abrir_sesion(excluir_cst=token_usado)
+                correcto = _abrir_sesion(excluir_cst=token_usado)
             else:
-                ok = True
-        if ok:
-            return _pedir(metodo, ruta, params=params, json=json, reintento=False)
+                correcto = True
+        if correcto:
+            return _pedir(metodo, ruta, parametros=parametros, json=json, reintento=False)
     # Demasiado ritmo: una lectura se reintenta una vez tras una breve pausa
     if r.status_code == 429 and reintento and metodo.upper() == "GET":
         time.sleep(1.2)
-        return _pedir(metodo, ruta, params=params, json=json, reintento=False)
+        return _pedir(metodo, ruta, parametros=parametros, json=json, reintento=False)
     if r.status_code < 400:
         global _ultimo_uso
         _ultimo_uso = time.time()
@@ -505,9 +585,25 @@ _ALIAS_EPIC = {
     "NAS100": "US100", "US100": "US100", "US100CASH": "US100", "USTEC": "US100", "NDX100": "US100",
     "US500": "US500", "SPX500": "US500", "US500CASH": "US500", "SP500": "US500",
     "BTCUSD": "BTCUSD", "ETHUSD": "ETHUSD", "XRPUSD": "XRPUSD",
+    # Índices: nombres típicos de MT5/XM -> epic de Capital (sin esto la búsqueda por texto devolvía otro
+    # instrumento, p. ej. ESP35 -> un ETF y US2000/AUS200 -> US100)
+    "US2000": "RTY", "RUSSELL2000": "RTY", "RUT": "RTY", "VIX": "VIX", "DXY": "DXY", "USDX": "DXY",
+    "GER40": "DE40", "DE40": "DE40", "DAX40": "DE40", "UK100": "UK100", "FTSE100": "UK100",
+    "FRA40": "FR40", "FR40": "FR40", "CAC40": "FR40", "ESP35": "SP35", "SPAIN": "SP35", "SPAIN35": "SP35",
+    "SP35": "SP35", "IBEX35": "SP35", "EU50": "EU50", "STOXX50": "EU50", "ITA40": "IT40", "IT40": "IT40",
+    "NETH25": "NL25", "NL25": "NL25", "AEX25": "NL25", "SWI20": "SW20", "SW20": "SW20",
+    "JP225": "J225", "J225": "J225", "NIKKEI225": "J225", "AUS200": "AU200", "AU200": "AU200",
+    "HK50": "HK50", "HSI": "HK50", "CHINA50": "CN50", "CHN50": "CN50", "CN50": "CN50",
+    # Materias primas
+    "XPTUSD": "PLATINUM", "XPDUSD": "PALLADIUM", "XCUUSD": "COPPER", "HGCOP": "COPPER", "COPPER": "COPPER",
+    "USOIL": "OIL_CRUDE", "WTI": "OIL_CRUDE", "UKOIL": "OIL_BRENT", "BRENT": "OIL_BRENT",
+    "NGAS": "NATURALGAS", "NATGAS": "NATURALGAS", "COFFEE": "COFFEEARABICA", "COCOA": "USCOCOA",
+    "SUGAR": "SB", "WHEAT": "WHEAT", "CORN": "CORN", "SOYBEAN": "SOYBEAN", "COTTON": "USCOTTON",
 }
 _cache_epic: dict = {}
 
+
+# TITULO CORE SIMBOLO
 
 def _core_simbolo(name: str) -> str:
     """Núcleo comparable de un símbolo: sin '...' ni sufijos de bróker."""
@@ -515,11 +611,13 @@ def _core_simbolo(name: str) -> str:
     if s.endswith("MICRO"):
         s = s[:-5]
     if "." in s:
-        base, suf = s.rsplit(".", 1)
-        if suf.isalnum() and 1 <= len(suf) <= 4:
+        base, sufijo = s.rsplit(".", 1)
+        if sufijo.isalnum() and 1 <= len(sufijo) <= 4:
             s = base
     return s
 
+
+# TITULO BUSCAR EPIC
 
 def _buscar_epic(termino: str):
     """Busca el epic de Capital por texto (GET /markets?searchTerm). Prefiere coincidencia
@@ -527,7 +625,7 @@ def _buscar_epic(termino: str):
     if not termino:
         return None
     try:
-        r = _pedir("GET", "/markets", params={"searchTerm": termino})
+        r = _pedir("GET", "/markets", parametros={"searchTerm": termino})
         if r is not None and r.status_code == 200:
             mercados = r.json().get("markets", [])
             for m in mercados:
@@ -543,11 +641,13 @@ def _buscar_epic(termino: str):
 _RUTA_EPICS = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
                            "data", "epics_resueltos.json")
 _RUTA_CATALOGO = os.path.join(os.path.dirname(_RUTA_EPICS), "catalogo_capital.json")
-_TTL_FALLO_EPIC = 3 * 86400        # un símbolo sin epic se vuelve a buscar recién a los 3 días
-_LOCK_EPICS = threading.Lock()
+_TIEMPO_VIDA_FALLO_EPIC = 3 * 86400        # un símbolo sin epic se vuelve a buscar recién a los 3 días
+_CANDADO_EPICS = threading.Lock()
 _epics_disco: dict = {}            # símbolo -> {"e": epic, "ok": bool, "t": epoch}
 _epics_catalogo: set = set()
 
+
+# TITULO CARGAR EPICS
 
 def _cargar_epics() -> None:
     """Carga de disco los epics ya resueltos (evita cientos de búsquedas REST al reiniciar) y los nombres del catálogo."""
@@ -563,7 +663,10 @@ def _cargar_epics() -> None:
         pass
 
 
+# TITULO GUARDAR EPICS
+
 def _guardar_epics() -> None:
+    """Guarda en disco, de forma atómica, los epics ya resueltos (`data/epics_resueltos.json`). Ignora los errores de escritura."""
     try:
         os.makedirs(os.path.dirname(_RUTA_EPICS), exist_ok=True)
         tmp = _RUTA_EPICS + ".tmp"
@@ -574,6 +677,8 @@ def _guardar_epics() -> None:
         pass
 
 
+# TITULO RESOLVER SIMBOLO
+
 def resolver_simbolo(symbol: str) -> str:
     """Epic de Capital.com para un símbolo del proyecto: alias → catálogo/disco → ¿el núcleo es un epic? →
     búsqueda por texto. Los resultados (y los fallos, 3 días) se guardan en disco: tras el primer uso, resolver
@@ -582,13 +687,16 @@ def resolver_simbolo(symbol: str) -> str:
         return symbol
     if symbol in _cache_epic:
         return _cache_epic[symbol]
-    d = _epics_disco.get(symbol)
-    if d and (d.get("ok") or time.time() - float(d.get("t", 0)) < _TTL_FALLO_EPIC):
-        _cache_epic[symbol] = d["e"]
-        return d["e"]
     core = _core_simbolo(symbol)
     epic = _ALIAS_EPIC.get(core)
-    ok = True
+    if epic is not None:                      # los alias mandan sobre lo guardado en disco
+        _cache_epic[symbol] = epic
+        return epic
+    d = _epics_disco.get(symbol)
+    if d and (d.get("ok") or time.time() - float(d.get("t", 0)) < _TIEMPO_VIDA_FALLO_EPIC):
+        _cache_epic[symbol] = d["e"]
+        return d["e"]
+    correcto = True
     if epic is None:
         if core in _epics_catalogo:
             epic = core                       # está en el catálogo local: sin llamada REST
@@ -599,23 +707,54 @@ def resolver_simbolo(symbol: str) -> str:
                 epic = core
             else:
                 epic = _buscar_epic(core) or _buscar_epic(symbol)
-                ok = epic is not None
+                correcto = epic is not None
                 epic = epic or core
     _cache_epic[symbol] = epic
-    with _LOCK_EPICS:
-        _epics_disco[symbol] = {"e": epic, "ok": ok, "t": time.time()}
+    with _CANDADO_EPICS:
+        _epics_disco[symbol] = {"e": epic, "ok": correcto, "t": time.time()}
         _guardar_epics()
     return epic
 
 
 _cargar_epics()
 
+_RUTA_VALIDOS = os.path.join(os.path.dirname(_RUTA_EPICS), "epics_validos.json")
+_validos: set = set()
+
+
+# TITULO EPIC EXISTE
+
+def epic_existe(epic: str) -> bool:
+    """¿Existe este epic en Capital? Los que ya se comprobaron una vez se recuerdan en disco (no cambian), así
+    la vista Cotizaciones no repite ~50 consultas en cada arranque."""
+    if not epic:
+        return False
+    if not _validos:
+        try:
+            with open(_RUTA_VALIDOS, "r", encoding="utf-8") as f:
+                _validos.update(json.load(f))
+        except Exception:
+            _validos.add("")          # marca "ya intenté leer" aunque el archivo no exista
+    if epic in _validos:
+        return True
+    if obtener_mercado(epic):
+        _validos.add(epic)
+        try:
+            tmp = _RUTA_VALIDOS + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(sorted(_validos - {""}), f)
+            os.replace(tmp, _RUTA_VALIDOS)
+        except Exception:
+            pass
+        return True
+    return False
+
 
 # ---------------------------------------------------------------------------
 # Timeframes:  constante MT5 (int) o texto -> resolución de Capital.com
 # ---------------------------------------------------------------------------
 # Valores enteros de MetaTrader5.TIMEFRAME_* (para no importar el paquete MT5).
-_TF_MT5_A_CAPITAL = {
+_TEMPORALIDAD_MT5_A_CAPITAL = {
     1: "MINUTE", 5: "MINUTE_5", 15: "MINUTE_15", 30: "MINUTE_30",
     16385: "HOUR", 16388: "HOUR_4", 16408: "DAY", 32769: "WEEK",
 }
@@ -623,34 +762,45 @@ _RESOLUCIONES = {"MINUTE", "MINUTE_5", "MINUTE_15", "MINUTE_30", "HOUR", "HOUR_4
 TIMEFRAME_H1 = 16385   # por si algún caller usa backends.capital.TIMEFRAME_H1
 
 
+# TITULO RESOLUCION
+
 def _resolucion(timeframe) -> str:
+    """Traduce una temporalidad de MT5 (constante numérica) a la resolución de Capital ("MINUTE", "HOUR", "DAY"…)."""
     if isinstance(timeframe, str) and timeframe.upper() in _RESOLUCIONES:
         return timeframe.upper()
-    return _TF_MT5_A_CAPITAL.get(int(timeframe) if timeframe is not None else 16385, "HOUR")
+    return _TEMPORALIDAD_MT5_A_CAPITAL.get(int(timeframe) if timeframe is not None else 16385, "HOUR")
 
 
-def _seg_resolucion(resolucion: str) -> int:
+# TITULO SEGUNDOS RESOLUCION
+
+def _segundos_resolucion(resolucion: str) -> int:
+    """Devuelve cuántos segundos dura una vela de la resolución de Capital indicada."""
     return {"MINUTE": 60, "MINUTE_5": 300, "MINUTE_15": 900, "MINUTE_30": 1800,
             "HOUR": 3600, "HOUR_4": 14400, "DAY": 86400, "WEEK": 604800}.get(resolucion, 3600)
 
+
+# TITULO EPOCH UTC
 
 def _epoch_utc(texto: str) -> int:
     """Convierte 'YYYY-MM-DDTHH:MM:SS(.mmm)' (UTC) a epoch en segundos."""
     if not texto:
         return 0
     t = texto.replace("Z", "")
-    for fmt in ("%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S"):
+    for formato in ("%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S"):
         try:
-            return int(datetime.strptime(t, fmt).replace(tzinfo=timezone.utc).timestamp())
+            return int(datetime.strptime(t, formato).replace(tzinfo=timezone.utc).timestamp())
         except ValueError:
             continue
     return 0
 
 
+# TITULO CUENTA PREFERIDA
+
 # ---------------------------------------------------------------------------
 # Cuenta
 # ---------------------------------------------------------------------------
 def _cuenta_preferida() -> dict:
+    """Devuelve los datos de la cuenta marcada como preferida en Capital (balance, depósito, P/G y disponible), o un diccionario vacío si no hay conexión."""
     r = _pedir("GET", "/accounts")
     if r is None or r.status_code != 200:
         return {}
@@ -665,11 +815,15 @@ _UNID_POR_LOTE_FX = 100000.0
 _tipo_cache: dict = {}
 
 
+# TITULO FACTOR LOTE
+
 def factor_lote(tipo: str) -> float:
     """Unidades de Capital por 1 lote en la interfaz: el Forex (CURRENCIES) usa el lote estándar
     de 100.000 unidades; el resto de instrumentos usa 1 unidad = 1 lote (como hasta ahora)."""
     return _UNID_POR_LOTE_FX if str(tipo).upper() == "CURRENCIES" else 1.0
 
+
+# TITULO FACTOR LOTE EPIC
 
 def factor_lote_epic(epic: str) -> float:
     """Igual que factor_lote pero consultando el tipo del instrumento (cacheado)."""
@@ -682,10 +836,12 @@ def factor_lote_epic(epic: str) -> float:
     return factor_lote(_tipo_cache[epic])
 
 
+# TITULO OBTENER INFO CUENTA
+
 def obtener_info_cuenta() -> dict:
     """Balance, equity y margen de la cuenta activa (equivalente a MT5). Cacheado ~2 s."""
     _ahora = time.time()
-    _v = _cache_swr("cuenta", _TTL_CUENTA, obtener_info_cuenta)
+    _v = _cache_con_refresco("cuenta", _TIEMPO_VIDA_CUENTA, obtener_info_cuenta)
     if _v is not None:
         return _v
     c = _cuenta_preferida()
@@ -696,16 +852,16 @@ def obtener_info_cuenta() -> dict:
     # Comprobado con la cuenta demo: margen = balance - available coincide con el margen real.
     equity = float(bal.get("balance", 0.0) or 0.0)
     balance = float(bal.get("deposit", 0.0) or 0.0) or (equity - float(bal.get("profitLoss", 0.0) or 0.0))
-    pl = float(bal.get("profitLoss", 0.0) or 0.0)          # P/G de posiciones abiertas
+    ganancia_perdida = float(bal.get("profitLoss", 0.0) or 0.0)          # P/G de posiciones abiertas
     disponible = float(bal.get("available", 0.0) or 0.0)
-    _res = {
+    _resultado = {
         "login": c.get("accountId", ""),
         "nombre": c.get("accountName", ""),
         "servidor": "Capital.com (demo)" if _ES_DEMO else "Capital.com",
         "tipo": "Demo" if _ES_DEMO else "Real",
         "balance": balance,
         "equity": equity,
-        "profit": pl,
+        "profit": ganancia_perdida,
         "margin": max(0.0, equity - disponible),
         "margin_free": disponible,
         "margin_level": (100.0 * equity / (equity - disponible))
@@ -715,9 +871,11 @@ def obtener_info_cuenta() -> dict:
         "currency": c.get("currency", "USD"),
         "deposito": float(bal.get("deposit", 0.0) or 0.0),   # depósito de la cuenta (Capital /accounts)
     }
-    _cache_lectura["cuenta"] = (_ahora, _res)
-    return _res
+    _cache_lectura["cuenta"] = (_ahora, _resultado)
+    return _resultado
 
+
+# TITULO OBTENER POSICIONES
 
 # ---------------------------------------------------------------------------
 # Posiciones
@@ -725,16 +883,16 @@ def obtener_info_cuenta() -> dict:
 def obtener_posiciones() -> list:
     """Posiciones abiertas (para la 'Cartera'). Cacheado ~2 s."""
     _ahora = time.time()
-    _v = _cache_swr("posiciones", _TTL_POSICIONES, obtener_posiciones)
+    _v = _cache_con_refresco("posiciones", _TIEMPO_VIDA_POSICIONES, obtener_posiciones)
     if _v is not None:
         return _v
     r = _pedir("GET", "/positions")
     if r is None or r.status_code != 200:
         return []
     salida = []
-    for item in r.json().get("positions", []):
-        p = item.get("position", {}) or {}
-        m = item.get("market", {}) or {}
+    for elemento in r.json().get("positions", []):
+        p = elemento.get("position", {}) or {}
+        m = elemento.get("market", {}) or {}
         es_compra = (p.get("direction", "").upper() == "BUY")
         # Al valorar: una COMPRA se cierra al bid; una VENTA al offer.
         actual = float(m.get("bid", 0.0) or 0.0) if es_compra else float(m.get("offer", 0.0) or 0.0)
@@ -755,6 +913,8 @@ def obtener_posiciones() -> list:
     return salida
 
 
+# TITULO BUSCAR POSICION
+
 def _buscar_posicion(dealId) -> dict:
     """Devuelve el item {position, market} de una posición por su dealId."""
     r = _pedir("GET", f"/positions/{dealId}")
@@ -764,29 +924,31 @@ def _buscar_posicion(dealId) -> dict:
     r = _pedir("GET", "/positions")
     if r is None or r.status_code != 200:
         return {}
-    for item in r.json().get("positions", []):
-        if str(item.get("position", {}).get("dealId")) == str(dealId):
-            return item
+    for elemento in r.json().get("positions", []):
+        if str(elemento.get("position", {}).get("dealId")) == str(dealId):
+            return elemento
     return {}
 
+
+# TITULO ESPECS POSICION
 
 def especs_posicion(ticket) -> dict:
     """Datos del contrato de una posición para el panel de TP/SL de la Cartera.
     NOTA: `k` (valor por unidad de precio) es aproximado = contractSize, asumiendo
     instrumento cotizado en la moneda de la cuenta (USD). Afinar si se opera un
     instrumento con otra divisa de cotización."""
-    item = _buscar_posicion(ticket)
-    if not item:
+    elemento = _buscar_posicion(ticket)
+    if not elemento:
         return {}
-    p = item.get("position", {}) or {}
-    epic = item.get("market", {}).get("epic", "")
-    d = get_mercado(epic)
+    p = elemento.get("position", {}) or {}
+    epic = elemento.get("market", {}).get("epic", "")
+    d = obtener_mercado(epic)
     if not d:
         return {}
     snap = d.get("snapshot", {}) or {}
     reglas = d.get("dealingRules", {}) or {}
     digitos = int(snap.get("decimalPlacesFactor", 2) or 2)
-    point = 10 ** (-digitos)
+    punto = 10 ** (-digitos)
     bid = float(snap.get("bid", 0.0) or 0.0)
     ask = float(snap.get("offer", 0.0) or 0.0)
     contract = float(p.get("contractSize", 1.0) or 1.0)
@@ -794,14 +956,14 @@ def especs_posicion(ticket) -> dict:
     # Distancia mínima de stop: Capital la da en % -> la pasamos a "puntos".
     md = reglas.get("minStopOrProfitDistance", {}) or {}
     if (md.get("unit") == "PERCENTAGE") and bid:
-        dist_precio = bid * float(md.get("value", 0.0) or 0.0) / 100.0
-        stops_level = int(dist_precio / point) if point else 0
+        distancia_precio = bid * float(md.get("value", 0.0) or 0.0) / 100.0
+        stops_level = int(distancia_precio / punto) if punto else 0
     else:
-        stops_level = int(float(md.get("value", 0.0) or 0.0) / point) if point else 0
+        stops_level = int(float(md.get("value", 0.0) or 0.0) / punto) if punto else 0
     return {
         "k": contract * factor_lote(snap_tipo),
         "digitos": digitos,
-        "point": float(point),
+        "point": float(punto),
         "stops_level": stops_level,
         "bid": bid,
         "ask": ask,
@@ -811,6 +973,8 @@ def especs_posicion(ticket) -> dict:
         "volumen": float(p.get("size", 0.0) or 0.0) / factor_lote(snap_tipo),
     }
 
+
+# TITULO OBTENER HISTORIAL
 
 # ---------------------------------------------------------------------------
 # Historial (operaciones cerradas)
@@ -827,15 +991,15 @@ def obtener_historial(dias: int = 90, limite: int = 100) -> list:
         return []
     salida = []
     for t in datos.get("transactions", []):
-        tipo_tx = str(t.get("transactionType", "")).upper()
-        if "TRADE" not in tipo_tx and "DEAL" not in tipo_tx:
+        tipo_transaccion = str(t.get("transactionType", "")).upper()
+        if "TRADE" not in tipo_transaccion and "DEAL" not in tipo_transaccion:
             continue
         # P/G realizado: campos posibles según versión de la API.
-        pg = (t.get("profitAndLoss") or t.get("pnl") or t.get("size") or 0)
+        ganancia_perdida = (t.get("profitAndLoss") or t.get("pnl") or t.get("size") or 0)
         try:
-            pg = float(str(pg).replace(t.get("currency", "") or "", "").strip() or 0)
+            ganancia_perdida = float(str(ganancia_perdida).replace(t.get("currency", "") or "", "").strip() or 0)
         except ValueError:
-            pg = 0.0
+            ganancia_perdida = 0.0
         salida.append({
             "ticket": t.get("reference", ""),
             "deal_id": t.get("dealId", ""),          # id de la posición (para detalle_cierre)
@@ -843,7 +1007,7 @@ def obtener_historial(dias: int = 90, limite: int = 100) -> list:
             "tipo": t.get("transactionType", ""),
             "volumen": 0.0,
             "precio_cierre": 0.0,
-            "pg": pg,
+            "pg": ganancia_perdida,
             "fecha": _epoch_utc(t.get("dateUtc", "") or t.get("date", "")),
         })
     salida.sort(key=lambda x: x["fecha"], reverse=True)
@@ -858,10 +1022,13 @@ def obtener_historial(dias: int = 90, limite: int = 100) -> list:
 # dealId de la posición. Una operación cerrada no cambia: el resultado se guarda en disco.
 _RUTA_CIERRES = os.path.join(os.path.dirname(_RUTA_EPICS), "cierres_capital.json")
 _cierres: dict = {}
-_LOCK_CIERRES = threading.Lock()
+_CANDADO_CIERRES = threading.Lock()
 
+
+# TITULO CARGAR CIERRES
 
 def _cargar_cierres() -> None:
+    """Carga de disco el detalle de las operaciones cerradas ya consultadas (`data/cierres_capital.json`). Ignora los errores de lectura."""
     try:
         with open(_RUTA_CIERRES, "r", encoding="utf-8") as f:
             _cierres.update(json.load(f))
@@ -869,17 +1036,21 @@ def _cargar_cierres() -> None:
         pass
 
 
-def _actividad(deal_id: str, desde_ts: float, hasta_ts: float) -> list:
+# TITULO ACTIVIDAD
+
+def _actividad(deal_id: str, desde_marca_tiempo: float, hasta_marca_tiempo: float) -> list:
     """Actividades de una posición dentro de una ventana (máx. 24 h) en epoch UTC."""
-    fmt = "%Y-%m-%dT%H:%M:%S"
-    r = _pedir("GET", "/history/activity", params={
-        "from": datetime.fromtimestamp(desde_ts, timezone.utc).strftime(fmt),
-        "to": datetime.fromtimestamp(hasta_ts, timezone.utc).strftime(fmt),
+    formato = "%Y-%m-%dT%H:%M:%S"
+    r = _pedir("GET", "/history/activity", parametros={
+        "from": datetime.fromtimestamp(desde_marca_tiempo, timezone.utc).strftime(formato),
+        "to": datetime.fromtimestamp(hasta_marca_tiempo, timezone.utc).strftime(formato),
         "dealId": deal_id, "detailed": "true"})
     if r is None or r.status_code != 200:
         return []
     return [a for a in r.json().get("activities", []) if a.get("dealId") == deal_id]
 
+
+# TITULO DETALLE CIERRE
 
 def detalle_cierre(deal_id: str, t_cierre: float) -> dict:
     """Detalle de una operación cerrada: {"epic","tipo","volumen"(lotes),"entrada","salida","hora_in"}.
@@ -910,12 +1081,12 @@ def detalle_cierre(deal_id: str, t_cierre: float) -> dict:
                 break
         if hora_in:
             break
-    res = {"epic": epic, "tipo": tipo,
+    resultado = {"epic": epic, "tipo": tipo,
            "volumen": float(d.get("size", 0.0) or 0.0) / factor_lote_epic(epic),
            "entrada": float(d.get("openPrice", 0.0) or 0.0), "salida": float(d.get("level", 0.0) or 0.0),
            "hora_in": int(hora_in)}
-    with _LOCK_CIERRES:
-        _cierres[deal_id] = res
+    with _CANDADO_CIERRES:
+        _cierres[deal_id] = resultado
         try:
             tmp = _RUTA_CIERRES + ".tmp"
             with open(tmp, "w", encoding="utf-8") as f:
@@ -923,11 +1094,45 @@ def detalle_cierre(deal_id: str, t_cierre: float) -> dict:
             os.replace(tmp, _RUTA_CIERRES)
         except Exception:
             pass
-    return res
+    return resultado
+
+
+_detalles_basicos: dict = {}
+
+
+# TITULO DETALLE OPERACION
+
+def detalle_operacion(deal_id: str, t_cierre: float, consultar: bool = True) -> dict:
+    """Detalle básico de una operación cerrada para el agente: {"epic","tipo","volumen"(lotes),"entrada","salida"}.
+
+    Es la versión rápida de `detalle_cierre`: no busca la hora de apertura (que exige hasta 15 consultas por operación) y solo hace
+    la consulta del cierre. Usa antes lo que ya se guardó en disco para el Diario. Con `consultar=False` solo responde lo que ya
+    se sabe. {} si Capital no lo entrega."""
+    if not deal_id or not t_cierre:
+        return {}
+    if deal_id in _cierres:
+        return _cierres[deal_id]
+    if deal_id in _detalles_basicos:
+        return _detalles_basicos[deal_id]
+    if not consultar:
+        return {}
+    for a in _actividad(deal_id, t_cierre - 3600, t_cierre + 3600):
+        d = a.get("details", {}) or {}
+        if a.get("type") == "POSITION" and d.get("openPrice") is not None:
+            epic = a.get("epic", "")
+            # El registro del cierre trae la dirección CONTRARIA a la de la operación (se cierra una compra vendiendo).
+            _detalles_basicos[deal_id] = {
+                "epic": epic, "tipo": "Venta" if str(d.get("direction", "")).upper() == "BUY" else "Compra",
+                "volumen": float(d.get("size", 0.0) or 0.0) / factor_lote_epic(epic),
+                "entrada": float(d.get("openPrice", 0.0) or 0.0), "salida": float(d.get("level", 0.0) or 0.0)}
+            return _detalles_basicos[deal_id]
+    return {}
 
 
 _cargar_cierres()
 
+
+# TITULO OBTENER PRECIO ACTUAL
 
 # ---------------------------------------------------------------------------
 # Precios e histórico de velas
@@ -936,7 +1141,7 @@ def obtener_precio_actual(symbol: str) -> dict:
     """Bid/Ask del instrumento (snapshot del mercado). Cacheado ~3 s por epic."""
     epic = resolver_simbolo(symbol)
     _ahora = time.time()
-    _v = _cache_swr(f"precio:{epic}", _TTL_PRECIO, obtener_precio_actual, symbol)
+    _v = _cache_con_refresco(f"precio:{epic}", _TIEMPO_VIDA_PRECIO, obtener_precio_actual, symbol)
     if _v is not None:
         return _v
     r = _pedir("GET", f"/markets/{epic}")
@@ -947,16 +1152,18 @@ def obtener_precio_actual(symbol: str) -> dict:
     ask = float(snap.get("offer", 0.0) or 0.0)
     if not (bid or ask):
         return {"error": f"No se pudo obtener el precio para {epic}"}
-    _res = {
+    _resultado = {
         "symbol": epic,
         "bid": bid,
         "ask": ask,
         "last": bid or ask,
         "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
-    _cache_lectura[f"precio:{epic}"] = (_ahora, _res)
-    return _res
+    _cache_lectura[f"precio:{epic}"] = (_ahora, _resultado)
+    return _resultado
 
+
+# TITULO PRECARGAR PRECIOS
 
 def precargar_precios(symbols) -> None:
     """Pide el Bid/Ask de VARIOS instrumentos en UNA sola llamada (GET /markets?epics=...)
@@ -970,7 +1177,7 @@ def precargar_precios(symbols) -> None:
     _ahora = time.time()
     for i in range(0, len(epics), 50):
         lote = epics[i:i + 50]
-        r = _pedir("GET", "/markets", params={"epics": ",".join(lote)})
+        r = _pedir("GET", "/markets", parametros={"epics": ",".join(lote)})
         if r is None or r.status_code != 200:
             continue
         data = r.json()
@@ -994,22 +1201,41 @@ def precargar_precios(symbols) -> None:
 _MAX_VELAS_CAPITAL = 1000
 
 
+# TITULO VELAS CRUDAS
+
 def _velas_crudas(epic: str, resolucion: str, maximo: int = None,
                   desde: str = None, hasta: str = None) -> list:
-    params = {"resolution": resolucion}
+    """Pide velas OHLC a Capital (GET /prices) y devuelve la lista tal como llega.
+
+    Recibe el epic, la resolución y, opcionalmente, la cantidad máxima y el rango de fechas. Usa una caché corta según la resolución para no repetir consultas idénticas.
+    """
+    parametros = {"resolution": resolucion}
     if maximo:
-        params["max"] = min(int(maximo), _MAX_VELAS_CAPITAL)
+        parametros["max"] = min(int(maximo), _MAX_VELAS_CAPITAL)
     if desde:
-        params["from"] = desde
+        parametros["from"] = desde
     if hasta:
-        params["to"] = hasta
-    r = _pedir("GET", f"/prices/{epic}", params=params)
+        parametros["to"] = hasta
+    # Caché corta por resolución: las velas de minuto casi no se cachean (el gráfico las quiere frescas); las de
+    # hora/día sí. Evita repetir la misma consulta (Mercados pide cierre previo y series de muchos instrumentos).
+    tiempo_vida = 3.0 if resolucion == "MINUTE" else (15.0 if resolucion.startswith("MINUTE") else
+                                              (120.0 if resolucion == "DAY" else 60.0))
+    clave = f"velas:{epic}:{resolucion}:{parametros.get('max')}:{desde}:{hasta}"
+    impacto = _cache_lectura.get(clave)
+    if impacto and (time.time() - impacto[0]) < tiempo_vida:
+        return impacto[1]
+    r = _pedir("GET", f"/prices/{epic}", parametros=parametros)
     if r is None or r.status_code != 200:
         return []
-    return r.json().get("prices", [])
+    datos = r.json().get("prices", [])
+    if datos:
+        _cache_lectura[clave] = (time.time(), datos)
+    return datos
 
 
-def _mid(precio: dict) -> float:
+# TITULO MEDIO
+
+def _medio(precio: dict) -> float:
     """Precio BID de una pieza open/close/high/low de la vela (como MT5 y como los ticks en vivo:
     así la vela que se mueve con los ticks y la que llega por REST no difieren en el spread)."""
     b = precio.get("bid"); a = precio.get("ask")
@@ -1021,14 +1247,18 @@ def _mid(precio: dict) -> float:
 _TIMEFRAME_MN1 = 49153   # Capital.com no tiene resolución mensual: el mes se arma con velas semanales y diarias
 
 
+# TITULO PUNTO DE
+
 def _punto_de(epic: str) -> float:
     """Tamaño del punto (10 elevado a menos los decimales) del instrumento, según `decimalPlacesFactor`; 0.0 si no se conoce."""
     try:
-        snap = (get_mercado(epic) or {}).get("snapshot", {}) or {}
+        snap = (obtener_mercado(epic) or {}).get("snapshot", {}) or {}
         return 10 ** (-int(snap.get("decimalPlacesFactor", 2) or 2))
     except Exception:
         return 0.0
 
+
+# TITULO SPREAD PUNTOS
 
 def _spread_puntos(pieza: dict, punto: float) -> float:
     """Spread de una vela en puntos: (ask - bid) del cierre dividido por el punto. 0.0 si la vela no trae ambos precios.
@@ -1041,18 +1271,22 @@ def _spread_puntos(pieza: dict, punto: float) -> float:
     return float(max(0.0, round((float(a) - float(b)) / punto)))
 
 
+# TITULO FILAS VELAS
+
 def _filas_velas(velas: list, punto: float) -> list:
     """Convierte las velas crudas de Capital.com en filas time/open/high/low/close/tick_volume/spread (precios BID)."""
     return [{
         "time": _epoch_utc(v.get("snapshotTimeUTC") or v.get("snapshotTime")),
-        "open": _mid(v.get("openPrice", {})),
-        "high": _mid(v.get("highPrice", {})),
-        "low": _mid(v.get("lowPrice", {})),
-        "close": _mid(v.get("closePrice", {})),
+        "open": _medio(v.get("openPrice", {})),
+        "high": _medio(v.get("highPrice", {})),
+        "low": _medio(v.get("lowPrice", {})),
+        "close": _medio(v.get("closePrice", {})),
         "tick_volume": v.get("lastTradedVolume", 0),
         "spread": _spread_puntos(v.get("closePrice", {}), punto),
     } for v in velas]
 
+
+# TITULO AGRUPAR MESES
 
 def _agrupar_meses(semanales: list, diarias: list) -> list:
     """Arma velas mensuales (inicio de mes UTC) a partir de filas semanales y diarias, de la más antigua a la más reciente.
@@ -1061,10 +1295,12 @@ def _agrupar_meses(semanales: list, diarias: list) -> list:
     diarias) y los anteriores, con las semanales (cada semana cuenta en el mes en que empieza, así que el borde puede variar unos días). Apertura = primera vela,
     cierre = última, máximo y mínimo = extremos, volumen = suma y spread = el de la última vela."""
     def mes(t):
+        """Devuelve el par (año, mes) de una marca de tiempo UNIX en hora universal."""
         g = time.gmtime(t)
         return (g.tm_year, g.tm_mon)
 
     def agrupar(filas):
+        """Agrupa las filas de velas por mes, de la más antigua a la más reciente."""
         grupos: dict = {}
         for f in sorted(filas, key=lambda x: x["time"]):
             grupos.setdefault(mes(f["time"]), []).append(f)
@@ -1086,6 +1322,8 @@ def _agrupar_meses(semanales: list, diarias: list) -> list:
     return out
 
 
+# TITULO DATOS MENSUALES
+
 def _datos_mensuales(epic: str, n_meses: int) -> list:
     """Filas mensuales de los últimos `n_meses`: pide a Capital.com las semanales y diarias necesarias y las agrupa por mes."""
     punto = _punto_de(epic)
@@ -1093,6 +1331,8 @@ def _datos_mensuales(epic: str, n_meses: int) -> list:
     semanas = _filas_velas(_velas_crudas(epic, "WEEK", maximo=min(_MAX_VELAS_CAPITAL, int(n_meses * 4.4) + 6)), punto)
     return _agrupar_meses(semanas, dias)[-n_meses:]
 
+
+# TITULO OBTENER DATOS HISTORICOS
 
 def obtener_datos_historicos(symbol: str, timeframe=TIMEFRAME_H1, n_velas: int = 100) -> pd.DataFrame:
     """OHLCV histórico como DataFrame indexado por tiempo (equivalente a MT5), con la columna `spread` en puntos.
@@ -1106,18 +1346,22 @@ def obtener_datos_historicos(symbol: str, timeframe=TIMEFRAME_H1, n_velas: int =
         filas = _filas_velas(_velas_crudas(epic, _resolucion(timeframe), maximo=int(n_velas)), _punto_de(epic))
     if not filas:
         return pd.DataFrame()
-    df = pd.DataFrame(filas)
-    df["time"] = pd.to_datetime(df["time"], unit="s")
-    return df.set_index("time")
+    tabla_datos = pd.DataFrame(filas)
+    tabla_datos["time"] = pd.to_datetime(tabla_datos["time"], unit="s")
+    return tabla_datos.set_index("time")
 
 
 _PAGINAS_MAX = 80
 
 
-def _texto_utc(ts: float) -> str:
-    """Epoch -> 'YYYY-MM-DDTHH:MM:SS' (UTC), el formato de `from`/`to` de /prices."""
-    return datetime.fromtimestamp(max(float(ts), 86400.0), tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+# TITULO TEXTO UTC
 
+def _texto_utc(marca_tiempo: float) -> str:
+    """Epoch -> 'YYYY-MM-DDTHH:MM:SS' (UTC), el formato de `from`/`to` de /prices."""
+    return datetime.fromtimestamp(max(float(marca_tiempo), 86400.0), tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+
+
+# TITULO OBTENER DATOS ANTERIORES
 
 def obtener_datos_anteriores(symbol: str, timeframe, antes_de: float, cantidad: int) -> pd.DataFrame:
     """Hasta `cantidad` velas ANTERIORES al instante `antes_de` (epoch, excluido), con el mismo formato que `obtener_datos_historicos`.
@@ -1129,23 +1373,23 @@ def obtener_datos_anteriores(symbol: str, timeframe, antes_de: float, cantidad: 
     ventanas seguidas sin datos (fin del historial) o a las `_PAGINAS_MAX` peticiones. DataFrame vacío si no hay nada más antiguo.
     No admite la temporalidad mensual (esa se arma aparte)."""
     epic = resolver_simbolo(symbol)
-    res = _resolucion(timeframe)
-    seg = _seg_resolucion(res)
+    resultado = _resolucion(timeframe)
+    segundos = _segundos_resolucion(resultado)
     punto = _punto_de(epic)
     huecos = int(_MAX_VELAS_CAPITAL * 0.9)       # velas que cabe esperar en una ventana
-    ventana = huecos * seg
+    ventana = huecos * segundos
     fin = float(antes_de) - 1
     filas: dict = {}
     vacias = 0
     for _ in range(_PAGINAS_MAX):
         if len(filas) >= cantidad or vacias >= 2 or fin < 86400.0:
             break
-        ini = fin - ventana
-        crudas = _filas_velas(_velas_crudas(epic, res, maximo=_MAX_VELAS_CAPITAL,
-                                            desde=_texto_utc(ini), hasta=_texto_utc(fin)), punto)
+        inicio = fin - ventana
+        crudas = _filas_velas(_velas_crudas(epic, resultado, maximo=_MAX_VELAS_CAPITAL,
+                                            desde=_texto_utc(inicio), hasta=_texto_utc(fin)), punto)
         crudas = [f for f in crudas if f["time"] <= fin]
         if len(crudas) >= _MAX_VELAS_CAPITAL:   # ventana llena: pudo quedar un hueco, se repite con una más corta
-            ventana = max(seg * 10, ventana // 2)
+            ventana = max(segundos * 10, ventana // 2)
             continue
         if not crudas:
             vacias += 1
@@ -1153,45 +1397,49 @@ def obtener_datos_anteriores(symbol: str, timeframe, antes_de: float, cantidad: 
             vacias = 0
             for f in crudas:
                 filas[f["time"]] = f
-            densidad = len(crudas) / max(1.0, ventana / seg)
-            ventana = int(min(max(huecos / max(densidad, 0.02), 100), 6000)) * seg
-        fin = ini - 1
+            densidad = len(crudas) / max(1.0, ventana / segundos)
+            ventana = int(min(max(huecos / max(densidad, 0.02), 100), 6000)) * segundos
+        fin = inicio - 1
     if not filas:
         return pd.DataFrame()
-    df = pd.DataFrame([filas[t] for t in sorted(filas)][-int(cantidad):])
-    df["time"] = pd.to_datetime(df["time"], unit="s")
-    return df.set_index("time")
+    tabla_datos = pd.DataFrame([filas[t] for t in sorted(filas)][-int(cantidad):])
+    tabla_datos["time"] = pd.to_datetime(tabla_datos["time"], unit="s")
+    return tabla_datos.set_index("time")
 
 
-def obtener_velas_rango(symbol: str, ts_desde: float, ts_hasta: float) -> list:
+# TITULO OBTENER VELAS RANGO
+
+def obtener_velas_rango(symbol: str, marca_tiempo_desde: float, marca_tiempo_hasta: float) -> list:
     """Velas OHLC que cubren [ts_desde, ts_hasta] (epoch), para el mini-gráfico del
     Trading Journal. Elige la resolución según la duración (~40-120 velas)."""
     # Blindaje: timestamps inválidos (<=0) darían un inicio negativo y datetime.fromtimestamp
     # revienta en Windows (OSError 22). Sin rango útil no se dibuja nada.
-    if not ts_hasta or float(ts_hasta) <= 0:
+    if not marca_tiempo_hasta or float(marca_tiempo_hasta) <= 0:
         return []
-    dur = max(60.0, float(ts_hasta) - float(ts_desde))
-    pad = dur * 0.35 + 300
-    d0, d1 = float(ts_desde) - pad, float(ts_hasta) + pad
+    duracion = max(60.0, float(marca_tiempo_hasta) - float(marca_tiempo_desde))
+    pad = duracion * 0.35 + 300
+    d0, d1 = float(marca_tiempo_desde) - pad, float(marca_tiempo_hasta) + pad
     d0 = max(d0, 86400.0)      # nunca antes de 1970 (evita OSError en Windows)
     objetivo = (d1 - d0) / 60.0
     escala = ["MINUTE", "MINUTE_5", "MINUTE_15", "HOUR", "HOUR_4", "DAY"]
-    res = escala[0]
+    resultado = escala[0]
     for r_ in escala:
-        res = r_
-        if _seg_resolucion(r_) >= objetivo:
+        resultado = r_
+        if _segundos_resolucion(r_) >= objetivo:
             break
     epic = resolver_simbolo(symbol)
     desde = datetime.fromtimestamp(d0, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
     hasta = datetime.fromtimestamp(d1, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
-    velas = _velas_crudas(epic, res, desde=desde, hasta=hasta, maximo=1000)
+    velas = _velas_crudas(epic, resultado, desde=desde, hasta=hasta, maximo=1000)
     out = []
     for v in velas:
         t = _epoch_utc(v.get("snapshotTimeUTC") or v.get("snapshotTime"))
-        out.append({"t": t, "o": _mid(v.get("openPrice", {})), "h": _mid(v.get("highPrice", {})),
-                    "l": _mid(v.get("lowPrice", {})), "c": _mid(v.get("closePrice", {}))})
+        out.append({"t": t, "o": _medio(v.get("openPrice", {})), "h": _medio(v.get("highPrice", {})),
+                    "l": _medio(v.get("lowPrice", {})), "c": _medio(v.get("closePrice", {}))})
     return out
 
+
+# TITULO CONFIRMAR
 
 # ---------------------------------------------------------------------------
 # Órdenes
@@ -1216,38 +1464,42 @@ def _confirmar(dealReference: str) -> dict:
     return {"ok": True, "dealId": dealId, "level": d.get("level"), "size": d.get("size")}
 
 
-def ejecutar_orden_mercado(symbol: str, tipo: str, volumen: float, sl: float = 0.0, tp: float = 0.0) -> dict:
+# TITULO EJECUTAR ORDEN MERCADO
+
+def ejecutar_orden_mercado(symbol: str, tipo: str, volumen: float, stop_loss: float = 0.0, take_profit: float = 0.0) -> dict:
     """Orden a mercado (BUY/SELL). Abre una posición en Capital.com."""
     epic = resolver_simbolo(symbol)
     cuerpo = {"epic": epic, "direction": tipo.upper(), "size": round(float(volumen) * factor_lote_epic(epic), 6)}
-    if sl and sl > 0:
-        cuerpo["stopLevel"] = float(sl)
-    if tp and tp > 0:
-        cuerpo["profitLevel"] = float(tp)
-    with _ORDER_LOCK:
+    if stop_loss and stop_loss > 0:
+        cuerpo["stopLevel"] = float(stop_loss)
+    if take_profit and take_profit > 0:
+        cuerpo["profitLevel"] = float(take_profit)
+    with _ORDEN_CANDADO:
         r = _pedir("POST", "/positions", json=cuerpo)
     if r is None:
         return {"error": "Sin conexión con Capital.com"}
     if r.status_code >= 400:
         return {"error": f"Fallo al enviar orden (HTTP {r.status_code}): {r.text}"}
-    conf = _confirmar(r.json().get("dealReference", ""))
-    if "error" in conf:
-        return conf
+    configuracion = _confirmar(r.json().get("dealReference", ""))
+    if "error" in configuracion:
+        return configuracion
     # Trading Journal: guarda el plan (entrada + SL + TP) ligado a la posición.
-    if (sl and sl > 0) or (tp and tp > 0):
+    if (stop_loss and stop_loss > 0) or (take_profit and take_profit > 0):
         try:
             from herramientas import almacen_diario
-            almacen_diario.guardar_plan(conf["dealId"], conf.get("level") or 0.0, sl, tp,
+            almacen_diario.guardar_plan(configuracion["dealId"], configuracion.get("level") or 0.0, stop_loss, take_profit,
                                         tipo.upper(), epic, float(volumen))
         except Exception:
             pass
     _invalidar()
-    return {"status": "success", "order": conf["dealId"], "price": conf.get("level") or 0.0,
+    return {"status": "success", "order": configuracion["dealId"], "price": configuracion.get("level") or 0.0,
             "volume": float(volumen), "symbol": epic}
 
 
+# TITULO COLOCAR ORDEN PENDIENTE
+
 def colocar_orden_pendiente(symbol: str, tipo: str, volumen: float, precio: float,
-                            sl: float = 0.0, tp: float = 0.0,
+                            stop_loss: float = 0.0, take_profit: float = 0.0,
                             hasta_cancelar: bool = True) -> dict:
     """Orden pendiente "al llegar a este precio" (working order).
     El tipo (LIMIT/STOP) se deduce igual que en MT5, según el precio vs mercado:
@@ -1258,83 +1510,89 @@ def colocar_orden_pendiente(symbol: str, tipo: str, volumen: float, precio: floa
     if "error" in precio_actual:
         return {"error": precio_actual["error"]}
     compra = tipo.upper() == "BUY"
-    ref = precio_actual["ask"] if compra else precio_actual["bid"]
+    referencia = precio_actual["ask"] if compra else precio_actual["bid"]
     if compra:
-        tipo_orden, nombre = ("LIMIT", "Buy Limit") if precio < ref else ("STOP", "Buy Stop")
+        tipo_orden, nombre = ("LIMIT", "Buy Limit") if precio < referencia else ("STOP", "Buy Stop")
     else:
-        tipo_orden, nombre = ("LIMIT", "Sell Limit") if precio > ref else ("STOP", "Sell Stop")
+        tipo_orden, nombre = ("LIMIT", "Sell Limit") if precio > referencia else ("STOP", "Sell Stop")
     cuerpo = {"epic": epic, "direction": tipo.upper(), "size": round(float(volumen) * factor_lote_epic(epic), 6),
               "level": float(precio), "type": tipo_orden}
-    if sl and sl > 0:
-        cuerpo["stopLevel"] = float(sl)
-    if tp and tp > 0:
-        cuerpo["profitLevel"] = float(tp)
+    if stop_loss and stop_loss > 0:
+        cuerpo["stopLevel"] = float(stop_loss)
+    if take_profit and take_profit > 0:
+        cuerpo["profitLevel"] = float(take_profit)
     if not hasta_cancelar:   # solo hoy (DAY): caduca al final del día UTC
         fin = datetime.now(timezone.utc).replace(hour=23, minute=59, second=0, microsecond=0)
         cuerpo["goodTillDate"] = fin.strftime("%Y-%m-%dT%H:%M:%S")
-    with _ORDER_LOCK:
+    with _ORDEN_CANDADO:
         r = _pedir("POST", "/workingorders", json=cuerpo)
     if r is None:
         return {"error": "Sin conexión con Capital.com"}
     if r.status_code >= 400:
         return {"error": f"Fallo al colocar la orden pendiente (HTTP {r.status_code}): {r.text}"}
-    conf = _confirmar(r.json().get("dealReference", ""))
-    if "error" in conf:
-        return conf
+    configuracion = _confirmar(r.json().get("dealReference", ""))
+    if "error" in configuracion:
+        return configuracion
     _invalidar()
-    return {"status": "success", "order": conf["dealId"], "price": float(precio),
+    return {"status": "success", "order": configuracion["dealId"], "price": float(precio),
             "volume": float(volumen), "symbol": epic, "tipo": nombre}
 
 
+# TITULO CERRAR POSICION
+
 def cerrar_posicion(ticket) -> dict:
     """Cierra una posición abierta por su dealId."""
-    item = _buscar_posicion(ticket)
-    p = item.get("position", {}) if item else {}
-    symbol = item.get("market", {}).get("epic", "") if item else ""
+    elemento = _buscar_posicion(ticket)
+    p = elemento.get("position", {}) if elemento else {}
+    symbol = elemento.get("market", {}).get("epic", "") if elemento else ""
     profit = float(p.get("upl", 0.0) or 0.0)
-    with _ORDER_LOCK:
+    with _ORDEN_CANDADO:
         r = _pedir("DELETE", f"/positions/{ticket}")
     if r is None:
         return {"error": "Sin conexión con Capital.com"}
     if r.status_code >= 400:
         return {"error": f"Fallo al cerrar (HTTP {r.status_code}): {r.text}"}
-    conf = _confirmar(r.json().get("dealReference", ""))
-    if "error" in conf:
-        return conf
+    configuracion = _confirmar(r.json().get("dealReference", ""))
+    if "error" in configuracion:
+        return configuracion
     _invalidar()
     return {"status": "success", "profit": profit, "symbol": symbol}
 
 
+# TITULO NIVELES ACTUALES
+
 def _niveles_actuales(ticket) -> tuple:
     """(stopLevel, profitLevel) vigentes de una posición (0.0 = sin nivel)."""
-    item = _buscar_posicion(ticket)
-    p = item.get("position", {}) if item else {}
+    elemento = _buscar_posicion(ticket)
+    p = elemento.get("position", {}) if elemento else {}
     return float(p.get("stopLevel", 0.0) or 0.0), float(p.get("profitLevel", 0.0) or 0.0)
 
 
-def modificar_sltp(ticket, sl=None, tp=None) -> dict:
+# TITULO MODIFICAR SLTP
+
+def modificar_sltp(ticket, stop_loss=None, take_profit=None) -> dict:
     """Cambia el Stop Loss / Take Profit de una posición abierta.
     None = deja el valor actual · 0 = QUITA ese nivel. Capital reemplaza ambos niveles en cada
     PUT (lo que no se envía se elimina), así que siempre se mandan los dos ya combinados."""
-    if sl is None and tp is None:
+    if stop_loss is None and take_profit is None:
         return {"error": "Nada que modificar"}
-    sl_act, tp_act = _niveles_actuales(ticket)
-    sl_nuevo = sl_act if sl is None else float(sl)
-    tp_nuevo = tp_act if tp is None else float(tp)
+    stop_loss_act, take_profit_act = _niveles_actuales(ticket)
+    stop_loss_nuevo = stop_loss_act if stop_loss is None else float(stop_loss)
+    take_profit_nuevo = take_profit_act if take_profit is None else float(take_profit)
     cuerpo = {}
-    if sl_nuevo > 0:
-        cuerpo["stopLevel"] = sl_nuevo
-    if tp_nuevo > 0:
-        cuerpo["profitLevel"] = tp_nuevo
-    with _ORDER_LOCK:
+    if stop_loss_nuevo > 0:
+        cuerpo["stopLevel"] = stop_loss_nuevo
+    if take_profit_nuevo > 0:
+        cuerpo["profitLevel"] = take_profit_nuevo
+    with _ORDEN_CANDADO:
         r = _pedir("PUT", f"/positions/{ticket}", json=cuerpo)
     if r is None:
         return {"error": "Sin conexión con Capital.com"}
     if r.status_code >= 400:
         return {"error": f"No se pudo modificar (HTTP {r.status_code}): {r.text}"}
-    conf = _confirmar(r.json().get("dealReference", ""))
-    if "error" in conf:
-        return conf
+    configuracion = _confirmar(r.json().get("dealReference", ""))
+    if "error" in configuracion:
+        return configuracion
     _invalidar()
     return {"status": "success", "ticket": ticket,
             "sl": cuerpo.get("stopLevel", 0.0), "tp": cuerpo.get("profitLevel", 0.0)}
@@ -1343,7 +1601,9 @@ def modificar_sltp(ticket, sl=None, tp=None) -> dict:
 _NOMBRE_PENDIENTE = {"LIMIT": "Limit", "STOP": "Stop"}
 
 
-def modificar_orden(ticket, precio=None, sl=None, tp=None,
+# TITULO MODIFICAR ORDEN
+
+def modificar_orden(ticket, precio=None, stop_loss=None, take_profit=None,
                     caducidad=None, expiracion=None) -> dict:
     """Modifica una orden PENDIENTE (precio de entrada, SL, TP y/o caducidad)."""
     # Capital reemplaza los niveles en cada PUT (lo no enviado se elimina): se parte de los vigentes.
@@ -1360,12 +1620,12 @@ def modificar_orden(ticket, precio=None, sl=None, tp=None,
     nivel = float(precio) if precio is not None else float(actual.get("orderLevel", 0.0) or 0.0)
     if nivel > 0:
         cuerpo["level"] = nivel
-    sl_n = float(sl) if sl is not None else float(actual.get("stopLevel", 0.0) or 0.0)
-    tp_n = float(tp) if tp is not None else float(actual.get("profitLevel", 0.0) or 0.0)
-    if sl_n > 0:
-        cuerpo["stopLevel"] = sl_n
-    if tp_n > 0:
-        cuerpo["profitLevel"] = tp_n
+    stop_loss_n = float(stop_loss) if stop_loss is not None else float(actual.get("stopLevel", 0.0) or 0.0)
+    take_profit_n = float(take_profit) if take_profit is not None else float(actual.get("profitLevel", 0.0) or 0.0)
+    if stop_loss_n > 0:
+        cuerpo["stopLevel"] = stop_loss_n
+    if take_profit_n > 0:
+        cuerpo["profitLevel"] = take_profit_n
     if actual.get("goodTillDate") and caducidad is None:
         cuerpo["goodTillDate"] = actual["goodTillDate"]
     if caducidad == "day":
@@ -1376,38 +1636,56 @@ def modificar_orden(ticket, precio=None, sl=None, tp=None,
             int(expiracion), tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
     if not cuerpo:
         return {"error": "Nada que modificar"}
-    with _ORDER_LOCK:
+    with _ORDEN_CANDADO:
         r = _pedir("PUT", f"/workingorders/{ticket}", json=cuerpo)
     if r is None:
         return {"error": "Sin conexión con Capital.com"}
     if r.status_code >= 400:
         return {"error": f"No se pudo modificar la orden (HTTP {r.status_code}): {r.text}"}
-    conf = _confirmar(r.json().get("dealReference", ""))
-    if "error" in conf:
-        return conf
+    configuracion = _confirmar(r.json().get("dealReference", ""))
+    if "error" in configuracion:
+        return configuracion
     _invalidar()
     return {"status": "success", "ticket": ticket, "price": cuerpo.get("level", 0.0),
             "sl": cuerpo.get("stopLevel", 0.0), "tp": cuerpo.get("profitLevel", 0.0)}
 
 
+# TITULO ELIMINAR ORDEN
+
 def eliminar_orden(ticket) -> dict:
     """Cancela una orden PENDIENTE (working order)."""
-    with _ORDER_LOCK:
+    with _ORDEN_CANDADO:
         r = _pedir("DELETE", f"/workingorders/{ticket}")
     if r is None:
         return {"error": "Sin conexión con Capital.com"}
     if r.status_code >= 400:
         return {"error": f"No se pudo cancelar la orden (HTTP {r.status_code}): {r.text}"}
-    conf = _confirmar(r.json().get("dealReference", ""))
-    if "error" in conf:
-        return conf
+    configuracion = _confirmar(r.json().get("dealReference", ""))
+    if "error" in configuracion:
+        return configuracion
     _invalidar()
     return {"status": "success", "ticket": ticket, "tipo": "", "symbol": ""}
 
+
+# TITULO OBTENER DOM
 
 # ---------------------------------------------------------------------------
 # Profundidad de mercado (DOM): no disponible por REST en Capital.com
 # ---------------------------------------------------------------------------
 def obtener_dom(symbol: str, niveles: int = 8) -> dict:
+    """Profundidad de mercado: Capital no la entrega por REST, así que devuelve listas vacías con `disponible` en False. El nivel 1 sale del streaming (`/dom` del servidor de datos)."""
     return {"ask": [], "bid": [], "disponible": False,
             "motivo": "Capital.com no entrega libro de órdenes (DOM) por su API REST."}
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------------- FIN Piña y Jara capital .PY -------------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

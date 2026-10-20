@@ -21,8 +21,10 @@ from typing import Any
 from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
 from nucleo_agente.ordenes.limites import LIMITES, TOLERANCIA_RIESGO
-from nucleo_agente.ordenes.mt5_utiles import (_con_lock, _normalizar, _preparar_mt5, _resolver_simbolo, _riesgo_expuesto)
+from nucleo_agente.ordenes.mt5_utiles import (NOMBRE_BROKER, _con_candado, _normalizar, _preparar_mt5, _resolver_simbolo, _riesgo_expuesto)
 
+
+# TITULO EVALUAR APERTURA
 
 def _evaluar_apertura(
     cuenta: Any,
@@ -76,7 +78,7 @@ def _evaluar_apertura(
     mt5.symbol_select(sym, True)
     info = mt5.symbol_info(sym)
     if info is None:
-        return no(f"El símbolo '{sym}' no existe en MetaTrader 5. Busca el nombre exacto con la búsqueda de "
+        return no(f"El símbolo '{sym}' no existe en {NOMBRE_BROKER}. Busca el nombre exacto con la búsqueda de "
                   "símbolos (mt5_buscar_simbolos) antes de volver a proponer.")
     if info.trade_mode != mt5.SYMBOL_TRADE_MODE_FULL:
         return no(f"'{sym}' no está disponible para operar en este momento (mercado cerrado o restringido).")
@@ -99,15 +101,15 @@ def _evaluar_apertura(
             return no(f"En una venta el take profit debe estar por DEBAJO del precio ({precio}).")
 
     # Distancia mínima que exige el broker (stops level en puntos).
-    dist_min = info.trade_stops_level * info.point
-    if abs(precio - sl) < dist_min or (tp is not None and abs(tp - precio) < dist_min):
-        return no(f"SL/TP demasiado cerca del precio: el broker exige al menos {dist_min:.{info.digits}f} de distancia.")
+    distancia_min = info.trade_stops_level * info.point
+    if abs(precio - sl) < distancia_min or (tp is not None and abs(tp - precio) < distancia_min):
+        return no(f"SL/TP demasiado cerca del precio: el broker exige al menos {distancia_min:.{info.digits}f} de distancia.")
 
     # Paso 5: pérdida en dinero de 1 lote si salta el SL (base para dimensionar el volumen).
     tipo = mt5.ORDER_TYPE_BUY if es_compra else mt5.ORDER_TYPE_SELL
     perdida_1_lote = mt5.order_calc_profit(tipo, sym, 1.0, precio, sl)
     if not perdida_1_lote:
-        return no("No se pudo calcular el riesgo de la operación en MetaTrader 5.")
+        return no(f"No se pudo calcular el riesgo de la operación en {NOMBRE_BROKER}.")
     perdida_1_lote = abs(perdida_1_lote)
 
     # Paso 6: volumen. Sin volumen fijo se calcula desde el riesgo pedido; con volumen fijo se respeta.
@@ -136,19 +138,19 @@ def _evaluar_apertura(
 
     # Paso 7: riesgo real de esta operación frente al máximo por operación (con tolerancia por movimiento de precio).
     riesgo_dinero = volumen * perdida_1_lote
-    riesgo_pct_real = riesgo_dinero / cuenta.equity * 100
-    if riesgo_pct_real > LIMITES.riesgo_max_por_operacion_pct * TOLERANCIA_RIESGO:
+    riesgo_porcentaje_real = riesgo_dinero / cuenta.equity * 100
+    if riesgo_porcentaje_real > LIMITES.riesgo_max_por_operacion_pct * TOLERANCIA_RIESGO:
         return no(
-            f"Con el precio actual el riesgo sería {riesgo_pct_real:.2f}%, sobre el máximo permitido "
+            f"Con el precio actual el riesgo sería {riesgo_porcentaje_real:.2f}%, sobre el máximo permitido "
             f"({LIMITES.riesgo_max_por_operacion_pct}%)."
         )
 
     # Paso 8: riesgo total en juego (abiertas + pendientes + esta) frente al máximo total.
     expuesto = _riesgo_expuesto(cuenta, incluir_pendientes)
-    total_pct = (expuesto + riesgo_dinero) / cuenta.equity * 100
-    if total_pct > LIMITES.riesgo_max_total_pct * TOLERANCIA_RIESGO:
+    total_porcentaje = (expuesto + riesgo_dinero) / cuenta.equity * 100
+    if total_porcentaje > LIMITES.riesgo_max_total_pct * TOLERANCIA_RIESGO:
         return no(
-            f"Riesgo total demasiado alto: con esta operación quedaría {total_pct:.2f}% del equity en riesgo "
+            f"Riesgo total demasiado alto: con esta operación quedaría {total_porcentaje:.2f}% del equity en riesgo "
             f"(posiciones abiertas y propuestas pendientes incluidas; máximo {LIMITES.riesgo_max_total_pct}%). "
             "Cierra posiciones, rechaza propuestas pendientes o reduce el riesgo."
         )
@@ -162,13 +164,15 @@ def _evaluar_apertura(
         "ok": True,
         "datos": {
             "simbolo": sym, "lado": lado, "tipo": tipo, "volumen": volumen, "precio": precio,
-            "sl": sl, "tp": tp, "riesgo_dinero": riesgo_dinero, "riesgo_pct": riesgo_pct_real,
+            "sl": sl, "tp": tp, "riesgo_dinero": riesgo_dinero, "riesgo_pct": riesgo_porcentaje_real,
             "moneda": cuenta.currency,
         },
     }
 
 
-@_con_lock
+# TITULO VALIDAR SIMBOLO
+
+@_con_candado
 def validar_simbolo(simbolo: str) -> dict[str, Any]:
     """Comprueba que un símbolo se puede operar: existe en MT5, está permitido (si hay lista) y no está
     bloqueado. Devuelve {"ok": True, "simbolo": nombre_real} o {"ok": False, "motivo": ...}.
@@ -184,14 +188,16 @@ def validar_simbolo(simbolo: str) -> dict[str, Any]:
     mt5.symbol_select(sym, True)
     info = mt5.symbol_info(sym)
     if info is None:
-        return {"ok": False, "motivo": f"El símbolo '{sym}' no existe en MetaTrader 5. Busca el nombre exacto "
+        return {"ok": False, "motivo": f"El símbolo '{sym}' no existe en {NOMBRE_BROKER}. Busca el nombre exacto "
                                        "con la búsqueda de símbolos (mt5_buscar_simbolos)."}
     if info.trade_mode != mt5.SYMBOL_TRADE_MODE_FULL:
         return {"ok": False, "motivo": f"'{sym}' no está disponible para operar en este momento (mercado cerrado o restringido)."}
     return {"ok": True, "simbolo": sym}
 
 
-@_con_lock
+# TITULO CUENTA DEMO
+
+@_con_candado
 def cuenta_demo() -> tuple[Any, str | None]:
     """Devuelve (cuenta, motivo). motivo es None solo si MT5 responde Y la cuenta es DEMO. La operación automática
     exige demo SIEMPRE, aunque LIMITES.solo_demo se relaje para las propuestas manuales."""
@@ -200,7 +206,7 @@ def cuenta_demo() -> tuple[Any, str | None]:
         return None, error
     cuenta = mt5.account_info()
     if cuenta is None:
-        return None, "No se pudo leer la cuenta de MetaTrader 5."
+        return None, f"No se pudo leer la cuenta de {NOMBRE_BROKER}."
     if cuenta.trade_mode != mt5.ACCOUNT_TRADE_MODE_DEMO:
         return cuenta, "La operación automática solo está permitida en cuenta DEMO y la cuenta conectada no lo es."
     return cuenta, None

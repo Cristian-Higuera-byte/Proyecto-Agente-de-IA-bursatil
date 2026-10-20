@@ -33,8 +33,10 @@ _DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
 # Archivo JSON de respaldo de las tarjetas cerradas.
 _RUTA = os.path.join(_DIR, "cerradas.json")
 # Candado que serializa las escrituras dentro del proceso.
-_LOCK = threading.Lock()
+_CANDADO = threading.Lock()
 
+
+# TITULO LEER
 
 def leer() -> list:
     """Lee `data/cerradas.json` y devuelve la lista de tarjetas cerradas (más recientes primero).
@@ -50,13 +52,15 @@ def leer() -> list:
         return []
 
 
+# TITULO GUARDAR
+
 def guardar(lista: list) -> None:
     """Persiste la lista de tarjetas cerradas en `data/cerradas.json`, reemplazando el contenido previo.
 
     Escribe en un archivo temporal, fuerza el volcado a disco (fsync) y lo mueve con
     os.replace, de modo que el archivo nunca queda a medias. Crea la carpeta si falta.
     """
-    with _LOCK:
+    with _CANDADO:
         os.makedirs(_DIR, exist_ok=True)
         # Archivo temporal en la misma carpeta para que el reemplazo sea atómico.
         tmp = tempfile.NamedTemporaryFile("w", delete=False, dir=_DIR, encoding="utf-8")

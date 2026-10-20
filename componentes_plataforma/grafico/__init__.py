@@ -25,7 +25,7 @@ Organización:
       esqueleto.html  orden en que se pegan los fragmentos (líneas `@@ruta`)
       css/ html/ js/  fragmentos; los números del nombre marcan el orden
 El trading desde el gráfico (líneas de posición, SL/TP, órdenes) sigue en
-componentes_plataforma/posiciones_grafico.py y se inserta donde el esqueleto dice __POSICIONES_JS__.
+componentes_plataforma/posiciones/ y se inserta donde el esqueleto dice __POSICIONES_JS__.
 """
 
 

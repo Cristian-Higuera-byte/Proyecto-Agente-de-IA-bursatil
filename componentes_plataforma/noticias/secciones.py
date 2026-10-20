@@ -31,32 +31,36 @@ from componentes_plataforma.noticias.tarjetas import tarjeta_externa_html, tarje
 _IDIOMAS = {"Español": "ES", "English": "EN", "Todos": None}
 
 
+# TITULO FILTRAR
+
 def _filtrar(lista: list, idioma: str | None) -> list:
     """Deja solo las noticias del idioma indicado ("ES" o "EN"); con None devuelve la lista sin cambios."""
     return lista if idioma is None else [n for n in lista if n.get("idioma") == idioma]
 
 
+# TITULO AVISO NOVEDADES
+
 def _aviso_novedades(noticias: list) -> None:
     """Dibuja la línea de estado: hora de la última revisión y, si llegaron noticias desde que se abrió la página, cuántas.
 
-    Recuerda en la sesión qué noticias ya se habían visto (`news_vistos`) y cuándo se abrió la página (`news_apertura`);
+    Recuerda en la sesión qué noticias ya se habían visto (`noticias_vistos`) y cuándo se abrió la página (`noticias_apertura`);
     una noticia es nueva si no estaba al abrir y su fecha de publicación es posterior. El botón «Marcar como vistas»
     reinicia el conteo. No devuelve nada."""
     ids = {n["id"] for n in noticias}
-    if "news_vistos" not in st.session_state:
-        st.session_state.news_vistos = ids
-        st.session_state.news_apertura = time.time()
-    nuevas = [n for n in noticias if n["id"] not in st.session_state.news_vistos
-              and n["_ts"] >= st.session_state.news_apertura]
-    c_est, c_btn = st.columns([8, 2], vertical_alignment="center")
+    if "noticias_vistos" not in st.session_state:
+        st.session_state.noticias_vistos = ids
+        st.session_state.noticias_apertura = time.time()
+    nuevas = [n for n in noticias if n["id"] not in st.session_state.noticias_vistos
+              and n["_ts"] >= st.session_state.noticias_apertura]
+    c_est, c_boton = st.columns([8, 2], vertical_alignment="center")
     with c_est:
         punto = "<span style='color:#22c55e;'>●</span> " if not nuevas else "<span style='color:#f59e0b;'>●</span> "
         extra = f" · <b style='color:#f59e0b;'>{len(nuevas)} noticia{'s' if len(nuevas) != 1 else ''} nueva{'s' if len(nuevas) != 1 else ''}</b>" if nuevas else ""
         st.markdown(f"<div style='color:#586174; font-size:12px; margin:-6px 0 8px;'>{punto}Actualizado {time.strftime('%H:%M:%S')} · se revisa cada 10 s{extra}</div>",
                     unsafe_allow_html=True)
-    with c_btn:
-        if nuevas and st.button("Marcar como vistas", key="news_vistas_ok", width="stretch"):
-            st.session_state.news_vistos = ids
+    with c_boton:
+        if nuevas and st.button("Marcar como vistas", key="noticias_vistas_aceptar", width="stretch"):
+            st.session_state.noticias_vistos = ids
             st.rerun(scope="fragment")
 
 
@@ -64,6 +68,8 @@ def _aviso_novedades(noticias: list) -> None:
 _ALTO_PANEL = 820
 _MAX_EXTERNAS_TOTAL = 40
 
+
+# TITULO EXTERNAS
 
 def _externas(todas: list, idioma: str | None) -> list:
     """Noticias de las fuentes que no se pueden leer dentro de la plataforma, del idioma elegido.
@@ -85,6 +91,8 @@ def _externas(todas: list, idioma: str | None) -> list:
     return salida
 
 
+# TITULO PANEL EXTERNAS
+
 def _panel_externas(externas: list) -> None:
     """Dibuja el panel lateral «Otras fuentes»: noticias cuyo artículo no se puede leer aquí.
 
@@ -96,7 +104,7 @@ def _panel_externas(externas: list) -> None:
         "<div style='color:#8b949e; font-size:12px; margin-top:4px;'>Estas noticias se leen en el sitio de cada medio.</div></div>",
         unsafe_allow_html=True,
     )
-    with st.container(height=_ALTO_PANEL, key="news_ext"):
+    with st.container(height=_ALTO_PANEL, key="noticias_ext"):
         if not externas:
             st.caption("Sin noticias de otras fuentes por ahora.")
         for n in externas[:_MAX_EXTERNAS_TOTAL]:
@@ -104,14 +112,16 @@ def _panel_externas(externas: list) -> None:
             st.link_button(f"Leer en {n['fuente']} ↗", n["link"], width="stretch")
 
 
+# TITULO RENDERIZAR CONTENIDO
+
 def renderizar_contenido():
     """Dibuja el contenido completo de la página de noticias.
 
-    Carga las noticias de todas las fuentes y las filtra por el idioma elegido en el selector (`news_idioma`, por
+    Carga las noticias de todas las fuentes y las filtra por el idioma elegido en el selector (`noticias_idioma`, por
     defecto Español); si no hay ninguna, muestra un aviso. Si hay, inyecta el CSS, pinta el título con el selector, la línea
     de estado con las novedades y dos columnas: a la izquierda las noticias que se pueden leer aquí (noticia principal,
     carrusel paginado de 4 en 4 con flechas y vuelta al inicio, y «Más noticias»); a la derecha el panel «Otras fuentes»
-    con las que solo se abren en su sitio. Usa `news_pag` de la sesión para recordar la página del carrusel.
+    con las que solo se abren en su sitio. Usa `noticias_pagina` de la sesión para recordar la página del carrusel.
     No devuelve nada; se ejecuta dentro de un fragmento con auto-refresco."""
     todas_principal = cargar_noticias()
     if not todas_principal:
@@ -121,8 +131,8 @@ def renderizar_contenido():
     st.markdown(CSS_CARRUSEL, unsafe_allow_html=True)
 
     # Título de la sección (con línea superior, igual que "Más noticias") y selector de idioma a la derecha
-    c_tit, c_idioma = st.columns([7, 3], vertical_alignment="center")
-    with c_tit:
+    c_titulo, c_idioma = st.columns([7, 3], vertical_alignment="center")
+    with c_titulo:
         st.markdown(
             "<div style='border-top:1px solid #1f2937; padding-top:12px; margin:-22px 0 14px;'>"
             "<span style='font-size:24px; font-weight:800; color:#e6edf3;'>Noticias</span>"
@@ -131,7 +141,7 @@ def renderizar_contenido():
             unsafe_allow_html=True,
         )
     with c_idioma:
-        eleccion = st.segmented_control("Idioma", list(_IDIOMAS), default="Español", key="news_idioma",
+        eleccion = st.segmented_control("Idioma", list(_IDIOMAS), default="Español", key="noticias_idioma",
                                         label_visibility="collapsed")
     idioma = _IDIOMAS.get(eleccion)
 
@@ -152,6 +162,8 @@ def renderizar_contenido():
         _panel_externas(externas)
 
 
+# TITULO COLUMNA PRINCIPAL
+
 def _columna_principal(noticias: list, idioma: str | None) -> None:
     """Dibuja la columna izquierda de la página: noticia principal, carrusel paginado y «Más noticias».
 
@@ -159,65 +171,67 @@ def _columna_principal(noticias: list, idioma: str | None) -> None:
     «Más noticias». No devuelve nada."""
     # --- Noticia PRINCIPAL (clic -> modal) ---
     # La más reciente; se centra con columnas laterales vacías y se envuelve en un contenedor con key para el CSS
-    hero = noticias[0]
-    _, c_hero, _ = st.columns([0.6, 11, 0.6])
-    with c_hero:
-        with st.container(key="nhero"):
+    destacado = noticias[0]
+    _, c_destacado, _ = st.columns([0.6, 11, 0.6])
+    with c_destacado:
+        with st.container(key="noticia_destacada"):
             st.html(f"""
                 <div style="display:flex; gap:22px; align-items:flex-start; margin-bottom:22px; flex-wrap:wrap;">
-                  <img src="{hero['img']}" referrerpolicy="no-referrer"
+                  <img src="{destacado['img']}" referrerpolicy="no-referrer"
                        style="width:360px; height:220px; object-fit:cover; border-radius:10px;
                               flex:0 0 360px; background:#161b22;">
                   <div style="flex:1; min-width:280px;">
-                    <h2 style="color:#ffffff; font-size:26px; font-weight:800; line-height:1.25; margin:0 0 12px;">{hero['title']}</h2>
+                    <h2 style="color:#ffffff; font-size:26px; font-weight:800; line-height:1.25; margin:0 0 12px;">{destacado['title']}</h2>
                     <p style="color:#c9d1d9; font-size:15px; line-height:1.6; margin:0 0 10px;">
-                       {hero['desc'][:320]}</p>
-                    <span style="color:#586174; font-size:12px;">{hero.get('fuente', '')} &nbsp;·&nbsp; {hero['fecha']} &nbsp;·&nbsp; Ver noticia</span>
+                       {destacado['desc'][:320]}</p>
+                    <span style="color:#586174; font-size:12px;">{destacado.get('fuente', '')} &nbsp;·&nbsp; {destacado['fecha']} &nbsp;·&nbsp; Ver noticia</span>
                   </div>
                 </div>
             """)
-            if st.button("abrir", key="nhero_btn"):
-                st.session_state.noticia_abierta = hero
+            if st.button("abrir", key="noticia_destacada_boton"):
+                st.session_state.noticia_abierta = destacado
                 st.rerun()
 
     # --- CARRUSEL paginado (4 por página, hasta 20, loop) ---
     # `pool` son las noticias del carrusel (sin la principal); `pag` la página actual con vuelta al inicio
     pool = noticias[1:1 + MAX_CARRUSEL]
     if not pool:
-        renderizar_mas_noticias(idioma, {hero["id"]})
+        renderizar_mas_noticias(idioma, {destacado["id"]})
         return
-    num_pag = max(1, math.ceil(len(pool) / POR_PAGINA))
-    if "news_pag" not in st.session_state:
-        st.session_state.news_pag = 0
-    pag = st.session_state.news_pag % num_pag
-    ventana = pool[pag * POR_PAGINA: pag * POR_PAGINA + POR_PAGINA]
+    numero_pagina = max(1, math.ceil(len(pool) / POR_PAGINA))
+    if "noticias_pagina" not in st.session_state:
+        st.session_state.noticias_pagina = 0
+    pagina = st.session_state.noticias_pagina % numero_pagina
+    ventana = pool[pagina * POR_PAGINA: pagina * POR_PAGINA + POR_PAGINA]
 
     # Flecha izquierda, tarjetas y flecha derecha en una sola fila
-    c_prev, c_cards, c_next = st.columns([0.6, 11, 0.6], vertical_alignment="center")
+    c_anterior, c_tarjetas, c_next = st.columns([0.6, 11, 0.6], vertical_alignment="center")
 
-    with c_prev:
-        if st.button("‹", key="news_prev"):
-            st.session_state.news_pag = (pag - 1) % num_pag
+    with c_anterior:
+        if st.button("‹", key="noticias_anterior"):
+            st.session_state.noticias_pagina = (pagina - 1) % numero_pagina
             st.rerun(scope="fragment")
 
-    with c_cards:
-        cols = st.columns(POR_PAGINA)
-        for pos, (col, n) in enumerate(zip(cols, ventana)):
-            with col:
-                with st.container(key=f"nc_{pos}"):
+    with c_tarjetas:
+        columnas = st.columns(POR_PAGINA)
+        for posicion, (columna, n) in enumerate(zip(columnas, ventana)):
+            with columna:
+                with st.container(key=f"nc_{posicion}"):
                     st.html(tarjeta_html(n))
-                    if st.button("abrir", key=f"ncb_{pos}"):
+                    if st.button("abrir", key=f"ncb_{posicion}"):
                         st.session_state.noticia_abierta = n
                         st.rerun()
 
     with c_next:
-        if st.button("›", key="news_next"):
-            st.session_state.news_pag = (pag + 1) % num_pag
+        if st.button("›", key="noticias_siguiente"):
+            st.session_state.noticias_pagina = (pagina + 1) % numero_pagina
             st.rerun(scope="fragment")
 
     # --- Apartado "Más noticias" (sin repetir las que ya salen arriba) ---
-    renderizar_mas_noticias(idioma, {hero["id"]} | {n["id"] for n in pool})
+    renderizar_mas_noticias(idioma, {destacado["id"]} | {n["id"] for n in pool})
 
+
+# TITULO RENDERIZAR MAS NOTICIAS
 
 def renderizar_mas_noticias(idioma: str | None = None, excluir: set | None = None):
     """Dibuja el apartado "Más noticias" (otras fuentes y categorías) en una cuadrícula de 4 columnas.
@@ -243,13 +257,13 @@ def renderizar_mas_noticias(idioma: str | None = None, excluir: set | None = Non
     mostrar = st.session_state.get("mas_mostrar", 8)
     ns = todas[:mostrar]
 
-    _, c_grid, _ = st.columns([0.6, 11, 0.6])
-    with c_grid:
+    _, c_cuadricula, _ = st.columns([0.6, 11, 0.6])
+    with c_cuadricula:
         # Filas de 4 tarjetas; cada una en un contenedor con key único (ync_N) para su botón invisible
         for fila in range(0, len(ns), 4):
-            cols = st.columns(4)
-            for k, (col, n) in enumerate(zip(cols, ns[fila:fila + 4])):
-                with col:
+            columnas = st.columns(4)
+            for k, (columna, n) in enumerate(zip(columnas, ns[fila:fila + 4])):
+                with columna:
                     with st.container(key=f"ync_{fila + k}"):
                         st.html(tarjeta_html(n))
                         if st.button("abrir", key=f"yncb_{fila + k}"):
@@ -257,8 +271,8 @@ def renderizar_mas_noticias(idioma: str | None = None, excluir: set | None = Non
                             st.rerun()
 
         # Botón Ver más / Ver menos (centrado)
-        _, c_btn, _ = st.columns([1, 1.4, 1])
-        with c_btn:
+        _, c_boton, _ = st.columns([1, 1.4, 1])
+        with c_boton:
             if mostrar < len(todas):
                 restantes = len(todas) - mostrar
                 if st.button(f"Ver más noticias ({restantes})", key="mas_ver", width="stretch"):

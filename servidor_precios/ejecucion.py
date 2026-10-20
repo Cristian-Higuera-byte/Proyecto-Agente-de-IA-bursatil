@@ -26,6 +26,8 @@ from .manejador import Manejador
 from .motor import MOTOR
 
 
+# TITULO EJECUTAR
+
 def ejecutar() -> None:
     """Inicia el servidor de datos y lo mantiene en ejecución hasta Ctrl+C.
 

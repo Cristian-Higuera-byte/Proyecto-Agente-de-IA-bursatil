@@ -1,3 +1,16 @@
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------- INICIO Piña y Jara streaming_capital .PY ------------------------------
+# -------------------------------------------------------------------------------------------------------
+
 """
 streaming_capital.py  —  Precios en vivo de Capital.com por WebSocket  —  16-10-2026
 ------------------------------------------------------------------------------------
@@ -20,6 +33,7 @@ Solo se usa con PROVEEDOR=capital; el motor no lo arranca con MT5.
 from __future__ import annotations
 
 import asyncio
+import collections
 import json
 import threading
 import time
@@ -34,15 +48,27 @@ _PING_S = 300            # ping cada 5 min (límite de Capital: 10)
 _BACKOFF_S = 3           # espera antes de reconectar
 
 
+# TITULO STREAM CAPITAL
+
 class _StreamCapital:
+    """Conexión WebSocket con Capital.com que recibe las cotizaciones en vivo (bid, ask y cantidades) y las guarda en memoria.
+
+    El motor de precios lee de aquí en vez de consultar REST; el servidor de datos la usa también para el DOM de nivel 1.
+    """
+    # TITULO INIT
+
     def __init__(self) -> None:
-        self._cache: dict = {}          # epic -> {"bid","ask","t"(ms)}
+        """Crea los diccionarios de cotizaciones y de cinta, los conjuntos de epics deseados/suscritos y el candado; el hilo se arranca al primer `suscribir`."""
+        self._cache: dict = {}          # epic -> {"bid","ask","t"(ms),"bq","aq"}
+        self._cinta: dict = {}          # epic -> deque de las últimas cotizaciones (cinta del panel DOM)
         self._deseados: set = set()     # epics que queremos suscribir
         self._suscritos: set = set()    # epics ya suscritos en la conexión actual
         self._lock = threading.Lock()
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._ws = None
         self._hilo: Optional[threading.Thread] = None
+
+    # TITULO SUSCRIBIR
 
     # ---- API pública (la usa el motor, desde su hilo) --------------------
     def suscribir(self, epics) -> None:
@@ -57,6 +83,21 @@ class _StreamCapital:
         if nuevos and self._loop is not None:
             asyncio.run_coroutine_threadsafe(self._suscribir_pendientes(), self._loop)
 
+    # TITULO DOM
+
+    def dom(self, epic: str) -> dict:
+        """Nivel 1 del libro (mejor bid/ask y la cantidad disponible en cada uno) + cinta de las últimas
+        cotizaciones. Capital.com no publica más niveles. Suscribe el epic si aún no lo estaba."""
+        self.suscribir([epic])
+        d = self._cache.get(epic)
+        if not d:
+            return {"disponible": False, "motivo": "Sin cotización todavía (esperando el streaming)."}
+        return {"disponible": True, "epic": epic, "bid": d["bid"], "ask": d["ask"],
+                "bq": d.get("bq", 0.0), "aq": d.get("aq", 0.0), "t": d["t"],
+                "cinta": list(self._cinta.get(epic, []))}
+
+    # TITULO TICK
+
     def tick(self, epic: str):
         """Último tick del epic como objeto estilo MT5 (bid, ask, last, time, time_msc), o None."""
         d = self._cache.get(epic)
@@ -67,14 +108,20 @@ class _StreamCapital:
             time=int(d["t"] / 1000), time_msc=int(d["t"]),
         )
 
+    # TITULO ASEGURAR HILO
+
     # ---- hilo + bucle asyncio --------------------------------------------
     def _asegurar_hilo(self) -> None:
+        """Arranca el hilo del WebSocket si aún no está corriendo."""
         if self._hilo and self._hilo.is_alive():
             return
         self._hilo = threading.Thread(target=self._run, name="capital-ws", daemon=True)
         self._hilo.start()
 
+    # TITULO RUN
+
     def _run(self) -> None:
+        """Cuerpo del hilo: crea el bucle asyncio y ejecuta la conexión hasta que termine."""
         self._loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self._loop)
         try:
@@ -82,7 +129,10 @@ class _StreamCapital:
         except Exception as e:  # noqa: BLE001
             print(f"[WS Capital] bucle terminó: {e}")
 
+    # TITULO PRINCIPAL
+
     async def _principal(self) -> None:
+        """Bucle de la conexión: se conecta, suscribe los epics pendientes, procesa los mensajes y mantiene el ping; si se corta, espera y reconecta."""
         import websockets  # import tardío: solo si se usa el streaming
         while True:
             try:
@@ -98,8 +148,8 @@ class _StreamCapital:
                     await self._suscribir_pendientes()
                     tarea_ping = asyncio.create_task(self._ping_loop(ws))
                     try:
-                        async for msg in ws:
-                            self._procesar(msg)
+                        async for mensaje in ws:
+                            self._procesar(mensaje)
                     finally:
                         tarea_ping.cancel()
             except Exception as e:  # noqa: BLE001
@@ -107,7 +157,10 @@ class _StreamCapital:
             self._ws = None
             await asyncio.sleep(_BACKOFF_S)
 
+    # TITULO SUSCRIBIR PENDIENTES
+
     async def _suscribir_pendientes(self) -> None:
+        """Envía a Capital la suscripción de los epics deseados que aún no estén suscritos (hasta el máximo permitido)."""
         if self._ws is None:
             return
         with self._lock:
@@ -127,7 +180,10 @@ class _StreamCapital:
         except Exception as e:  # noqa: BLE001
             print(f"[WS Capital] no se pudo suscribir: {e}")
 
+    # TITULO PING LOOP
+
     async def _ping_loop(self, ws) -> None:
+        """Envía un ping cada pocos minutos para que Capital no cierre la conexión por inactividad."""
         while True:
             await asyncio.sleep(_PING_S)
             try:
@@ -140,9 +196,12 @@ class _StreamCapital:
             except Exception:
                 return
 
-    def _procesar(self, msg) -> None:
+    # TITULO PROCESAR
+
+    def _procesar(self, mensaje) -> None:
+        """Interpreta un mensaje del WebSocket: si es una cotización, actualiza el último precio y cantidades del epic y agrega una entrada a su cinta cuando cambia algo."""
         try:
-            d = json.loads(msg)
+            d = json.loads(mensaje)
         except Exception:
             return
         if d.get("destination") != "quote":
@@ -153,11 +212,34 @@ class _StreamCapital:
             return
         bid = p.get("bid")
         ofr = p.get("ofr")
-        self._cache[epic] = {
+        nuevo = {
             "bid": float(bid) if bid is not None else 0.0,
             "ask": float(ofr) if ofr is not None else 0.0,
             "t": int(p.get("timestamp") or time.time() * 1000),
+            "bq": float(p.get("bidQty") or 0.0),
+            "aq": float(p.get("ofrQty") or 0.0),
         }
+        previo = self._cache.get(epic)
+        self._cache[epic] = nuevo
+        # Cinta: solo cuando cambia el precio o la cantidad (máx. 40 entradas por epic).
+        if not previo or (previo["bid"], previo["ask"], previo["bq"], previo["aq"]) != (
+                nuevo["bid"], nuevo["ask"], nuevo["bq"], nuevo["aq"]):
+            cinta = self._cinta.setdefault(epic, collections.deque(maxlen=40))
+            cinta.append({"t": nuevo["t"], "b": nuevo["bid"], "a": nuevo["ask"],
+                          "bq": nuevo["bq"], "aq": nuevo["aq"]})
 
 
 STREAM = _StreamCapital()
+
+
+# -------------------------------------------------------------------------------------------------------
+# -------------------------------- FIN Piña y Jara streaming_capital .PY --------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

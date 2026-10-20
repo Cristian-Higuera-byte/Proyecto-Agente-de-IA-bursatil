@@ -14,7 +14,7 @@
 """Medidas del rail derecho y lista de sus botones.
 
 Las medidas son constantes en píxeles que `estilos.py` sustituye en la plantilla `estilos.css`; los botones se leen
-de `botones.json` (con el caché de `_estaticos`). Lo importan `estilos.py`, `panel.py` y la fachada `panel_riel.py`.
+de `botones.json` (con el caché de `_estaticos`). Lo importan `estilos.py`, `panel.py` y la fachada `riel/`.
 """
 from pathlib import Path
 

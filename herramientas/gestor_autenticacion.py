@@ -59,10 +59,12 @@ if SUPABASE_URL and SUPABASE_KEY:
 _ITERACIONES = 120_000  # iteraciones PBKDF2
 
 
+# TITULO CIFRAR CONTRASENA
+
 # ==========================================
 # Hashing de contraseñas
 # ==========================================
-def _cifrar_contrasena(password: str) -> str:
+def _cifrar_contrasena(contrasena: str) -> str:
     """
     Genera el hash almacenable de una contraseña con PBKDF2-HMAC-SHA256.
 
@@ -71,11 +73,13 @@ def _cifrar_contrasena(password: str) -> str:
     """
     # Salt aleatorio por usuario para que contraseñas iguales den hashes distintos.
     salt = os.urandom(16)
-    dk = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, _ITERACIONES)
+    dk = hashlib.pbkdf2_hmac("sha256", contrasena.encode("utf-8"), salt, _ITERACIONES)
     return binascii.hexlify(salt).decode() + "$" + binascii.hexlify(dk).decode()
 
 
-def _verificar_contrasena(password: str, almacenado: str) -> bool:
+# TITULO VERIFICAR CONTRASENA
+
+def _verificar_contrasena(contrasena: str, almacenado: str) -> bool:
     """
     Comprueba si una contraseña coincide con el valor 'salt$hash' guardado.
 
@@ -86,17 +90,19 @@ def _verificar_contrasena(password: str, almacenado: str) -> bool:
         # Separa el salt y el hash guardados.
         salt_hex, dk_hex = almacenado.split("$")
         salt = binascii.unhexlify(salt_hex)
-        dk = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, _ITERACIONES)
+        dk = hashlib.pbkdf2_hmac("sha256", contrasena.encode("utf-8"), salt, _ITERACIONES)
         # Comparación en tiempo constante
         return hmac.compare_digest(binascii.hexlify(dk).decode(), dk_hex)
     except Exception:
         return False
 
 
+# TITULO REGISTRAR USUARIO
+
 # ==========================================
 # Operaciones de usuario
 # ==========================================
-def registrar_usuario(nombre: str, email: str, password: str) -> dict:
+def registrar_usuario(nombre: str, correo: str, contrasena: str) -> dict:
     """
     Crea un usuario nuevo. Retorna {"ok": bool, "mensaje": str, "usuario": dict|None}.
 
@@ -110,22 +116,22 @@ def registrar_usuario(nombre: str, email: str, password: str) -> dict:
         return {"ok": False, "mensaje": "Supabase no está configurado (revisa SUPABASE_URL / SUPABASE_KEY en .env).", "usuario": None}
 
     nombre = (nombre or "").strip()
-    email = (email or "").strip().lower()
-    if not nombre or not email or not password:
+    correo = (correo or "").strip().lower()
+    if not nombre or not correo or not contrasena:
         return {"ok": False, "mensaje": "Completa nombre, email y contraseña.", "usuario": None}
-    if len(password) < 6:
+    if len(contrasena) < 6:
         return {"ok": False, "mensaje": "La contraseña debe tener al menos 6 caracteres.", "usuario": None}
 
     try:
         # ¿Ya existe el email?
-        existe = _supabase.table("usuarios").select("id").eq("email", email).execute()
+        existe = _supabase.table("usuarios").select("id").eq("email", correo).execute()
         if existe.data:
             return {"ok": False, "mensaje": "Ya existe una cuenta con ese email.", "usuario": None}
 
         registro = {
             "nombre": nombre,
-            "email": email,
-            "password_hash": _cifrar_contrasena(password),
+            "email": correo,
+            "password_hash": _cifrar_contrasena(contrasena),
         }
         resultado = _supabase.table("usuarios").insert(registro).execute()
         if resultado.data:
@@ -137,7 +143,9 @@ def registrar_usuario(nombre: str, email: str, password: str) -> dict:
         return {"ok": False, "mensaje": f"Error al registrar: {e}", "usuario": None}
 
 
-def autenticar_usuario(email: str, password: str) -> dict:
+# TITULO AUTENTICAR USUARIO
+
+def autenticar_usuario(correo: str, contrasena: str) -> dict:
     """
     Valida credenciales. Retorna {"ok": bool, "mensaje": str, "usuario": dict|None}.
 
@@ -149,17 +157,17 @@ def autenticar_usuario(email: str, password: str) -> dict:
     if _supabase is None:
         return {"ok": False, "mensaje": "Supabase no está configurado (revisa SUPABASE_URL / SUPABASE_KEY en .env).", "usuario": None}
 
-    email = (email or "").strip().lower()
-    if not email or not password:
+    correo = (correo or "").strip().lower()
+    if not correo or not contrasena:
         return {"ok": False, "mensaje": "Ingresa email y contraseña.", "usuario": None}
 
     try:
-        resultado = _supabase.table("usuarios").select("*").eq("email", email).limit(1).execute()
+        resultado = _supabase.table("usuarios").select("*").eq("email", correo).limit(1).execute()
         if not resultado.data:
             return {"ok": False, "mensaje": "Email o contraseña incorrectos.", "usuario": None}
 
         usuario = cast(dict, resultado.data[0])
-        if _verificar_contrasena(password, usuario.get("password_hash", "")):
+        if _verificar_contrasena(contrasena, usuario.get("password_hash", "")):
             return {"ok": True, "mensaje": "Sesión iniciada.",
                     "usuario": {"id": usuario.get("id"), "nombre": usuario.get("nombre"), "email": usuario.get("email")}}
         return {"ok": False, "mensaje": "Email o contraseña incorrectos.", "usuario": None}

@@ -13,18 +13,22 @@ Transportes y Servicios Ltda.
    ------------------------------- INICIO Piña y Jara 50_envio_ordenes .JS -------------------------------
    ------------------------------------------------------------------------------------------------------- */
 
+      // TITULO POST
+
       /**
        * Envía un POST JSON al servidor de datos (API + ruta) y devuelve una promesa con la respuesta ya convertida.
        * Si la conexión falla resuelve con {error: ...} en vez de rechazar, para que el llamador solo revise res.error.
        */
       function post(ruta, cuerpo){
         // En modo Replay (práctica sobre el pasado) NUNCA se envía nada al servidor: se rechaza antes de salir.
-        if (rpActivo) return Promise.resolve({error: 'Modo Replay: las órdenes reales están desactivadas'});
+        if (repeticionActivo) return Promise.resolve({error: 'Modo Replay: las órdenes reales están desactivadas'});
         // text/plain = petición "simple" (sin preflight CORS)
         return fetch(API + ruta, {method: 'POST', headers: {'Content-Type': 'text/plain'}, body: JSON.stringify(cuerpo)})
           .then(function(r){ return r.json(); })
           .catch(function(){ return {error: 'Sin conexión con el servidor de datos'}; });
       }
+
+      // TITULO CAMBIAR NIVEL
 
       /**
        * Cambia SL, TP o precio de entrada de una posición u orden tras confirmar.
@@ -50,13 +54,15 @@ Transportes y Servicios Ltda.
             delete n.pend[f];
             if (res.error){ avisar(res.error, true); return; }
             // Actualiza la copia local con los niveles que confirmó el servidor.
-            var src = it.kind === 'pos' ? POS[it.tk] : ORD[it.tk];
+            var src = it.kind === 'pos' ? POSICION[it.tk] : ORDEN[it.tk];
             if (src){ src.sl = res.sl; src.tp = res.tp; if (res.price) src.po = res.price; }
             avisar(f === 'po' ? TIPO[it.t] + ' movido a ' + fmt(px, DIGITS)
                               : (px ? NOMBRE[f] + ' en ' + fmt(px, DIGITS) : NOMBRE[f] + ' eliminado'), false);
           });
         }, function(){ delete n.pend[f]; });
       }
+
+      // TITULO CANCELAR ORDEN
 
       /**
        * Cancela una orden pendiente tras confirmar (POST /orden/eliminar) y la quita de los datos locales.
@@ -70,23 +76,27 @@ Transportes y Servicios Ltda.
           post('/orden/eliminar', {ticket: it.tk}).then(function(res){
             delete n.pend.del;
             if (res.error){ avisar(res.error, true); return; }
-            delete ORD[it.tk]; unir();
+            delete ORDEN[it.tk]; unir();
             avisar(TIPO[it.t] + ' cancelada', false);
           });
         }, function(){ delete n.pend.del; });
       }
 
+      // TITULO VOLUMEN TICKET
+
       /**
-       * Lee el volumen escrito en el ticket de órdenes (campo ord_vol).
+       * Lee el volumen escrito en el ticket de órdenes (campo orden_volumen).
        * Devuelve ese número o, si no está visible o no es válido, el volumen mínimo del símbolo.
        */
       function volumenTicket(){
         try {
-          var i = PD.querySelector('.st-key-ord_vol input');
+          var i = PD.querySelector('.st-key-orden_volumen input');
           var v = i ? parseFloat(String(i.value).replace(',', '.')) : NaN;
           return v > 0 ? v : VMIN;
         } catch(e){ return VMIN; }
       }
+
+      // TITULO NUEVA ORDEN
 
       /**
        * Crea una orden pendiente desde el menú del clic derecho (POST /orden), válida hasta cancelarse (GTC).
@@ -101,7 +111,7 @@ Transportes y Servicios Ltda.
             if (res.error){ avisar(res.error, true); return; }
             if (res.order){
               var t = {'Buy Limit': 2, 'Sell Limit': 3, 'Buy Stop': 4, 'Sell Stop': 5}[res.tipo] || (lado === 'BUY' ? 2 : 3);
-              ORD[String(res.order)] = {s: REAL, t: t, v: res.volume, po: res.price, sl: 0, tp: 0, k: K, sm: SM};
+              ORDEN[String(res.order)] = {s: REAL, t: t, v: res.volume, po: res.price, sl: 0, tp: 0, k: K, sm: SM};
               unir();
             }
             avisar((res.tipo || nombre) + ' ' + fmt(vol, 2) + ' colocada @ ' + fmt(res.price || px, DIGITS), false);

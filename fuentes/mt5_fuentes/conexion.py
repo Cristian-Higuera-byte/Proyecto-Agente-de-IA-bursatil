@@ -54,6 +54,8 @@ _ultimo_error = ""
 _ruta_conectada: str | None = None
 
 
+# TITULO MODULO
+
 def _modulo() -> Any:
     """Importa (una sola vez) la librería MetaTrader5 y crea su envoltorio de solo lectura.
 
@@ -73,6 +75,8 @@ def _modulo() -> Any:
     return _raw
 
 
+# TITULO FALLAR
+
 def _fallar(mensaje: str) -> NoReturn:
     """Registra un fallo de conexión y lanza ErrorMT5 con ese mensaje.
 
@@ -84,6 +88,8 @@ def _fallar(mensaje: str) -> NoReturn:
     raise ErrorMT5(mensaje)
 
 
+# TITULO ESPERA RESTANTE
+
 def _espera_restante() -> float:
     """Devuelve los segundos que faltan antes de poder reintentar la conexión.
 
@@ -92,6 +98,8 @@ def _espera_restante() -> float:
         return 0.0
     return max(0.0, _REINTENTO_S - (time.time() - _ultimo_fallo))
 
+
+# TITULO CONECTAR
 
 def _conectar(raw: Any) -> None:
     """Inicializa el terminal de MT5 probando las rutas candidatas en orden.
@@ -125,6 +133,8 @@ def _conectar(raw: Any) -> None:
     _ultimo_error = ""
 
 
+# TITULO ASEGURAR CONEXION
+
 def asegurar_conexion() -> _SoloLectura:
     """Garantiza que el terminal de MT5 esté conectado y devuelve el módulo de solo lectura.
 
@@ -150,6 +160,8 @@ def asegurar_conexion() -> _SoloLectura:
     return _proxy
 
 
+# TITULO SESION
+
 @contextmanager
 def _sesion() -> Iterator[_SoloLectura]:
     """Administrador de contexto que da acceso exclusivo y de solo lectura a MT5.
@@ -158,17 +170,17 @@ def _sesion() -> Iterator[_SoloLectura]:
     `_SoloLectura`; al salir siempre libera el candado. Si hay una espera de
     reintento activa y el candado está ocupado, falla de inmediato en lugar de
     bloquearse. Es el único punto de entrada de las consultas de cuenta y mercado."""
-    lock = _candado()
+    candado = _candado()
     if _espera_restante() > 0:
         # En período de espera: no se bloquea esperando el candado, se falla rápido.
-        if not lock.acquire(blocking=False):
+        if not candado.acquire(blocking=False):
             raise ErrorMT5(f"{_ultimo_error} (reintento en {_espera_restante():.0f} s)")
     else:
-        lock.acquire()
+        candado.acquire()
     try:
         yield asegurar_conexion()
     finally:
-        lock.release()
+        candado.release()
 
 
 # -------------------------------------------------------------------------------------------------------

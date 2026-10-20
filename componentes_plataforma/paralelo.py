@@ -28,6 +28,8 @@ from streamlit.runtime.scriptrunner import add_script_run_ctx, get_script_run_ct
 HILOS_POR_DEFECTO = 6
 
 
+# TITULO EN PARALELO
+
 def en_paralelo(funcion, elementos, max_hilos: int = HILOS_POR_DEFECTO, espera: float | None = None) -> list:
     """Ejecuta `funcion(elemento)` para cada elemento en hilos paralelos y devuelve los resultados en el mismo orden.
 
@@ -37,18 +39,20 @@ def en_paralelo(funcion, elementos, max_hilos: int = HILOS_POR_DEFECTO, espera: 
     elementos = list(elementos)
     if not elementos:
         return []
-    ctx = get_script_run_ctx()
+    contexto = get_script_run_ctx()
 
     def _tarea(e):
+        """Aplica la función a un elemento y devuelve su resultado, o None si falla."""
         try:
             return funcion(e)
         except Exception:
             return None
-    if len(elementos) == 1 or ctx is None:
+    if len(elementos) == 1 or contexto is None:
         return [_tarea(e) for e in elementos]
 
     def _iniciar_hilo():
-        add_script_run_ctx(threading.current_thread(), ctx)
+        """Asocia al hilo del grupo el contexto de Streamlit, para que sus funciones puedan usar la sesión."""
+        add_script_run_ctx(threading.current_thread(), contexto)
     pool = ThreadPoolExecutor(max_workers=min(max_hilos, len(elementos)), initializer=_iniciar_hilo)
     futuros = [pool.submit(_tarea, e) for e in elementos]
     wait(futuros, timeout=espera)

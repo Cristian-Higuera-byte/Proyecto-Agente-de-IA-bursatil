@@ -25,6 +25,8 @@ from nucleo_agente.turnos.formato import formatear_duracion
 VISTA_RECIENTE_S = 2.0   # la interfaz late cada 1 s: si lo mostró hace menos de esto, el usuario lo está viendo
 
 
+# TITULO TURNO
+
 @dataclass
 class Turno:
     """Estado de una consulta al agente, compartido entre el hilo que la ejecuta y la interfaz que la consulta."""
@@ -50,10 +52,14 @@ class Turno:
     cancelar_solicitado: bool = False  # el usuario pulsó "Detener" (el hilo aún puede estar terminando)
     cancelado: bool = False          # el turno se interrumpió de verdad antes de terminar solo
 
+    # TITULO DURACION
+
     @property
     def duracion(self) -> float:
         """Segundos transcurridos desde el inicio hasta el fin (o hasta ahora si sigue en curso)."""
         return (self.t_fin or time.time()) - self.t_inicio
+
+    # TITULO PIE
 
     @property
     def pie(self) -> str:
@@ -64,6 +70,8 @@ class Turno:
             f"⏱ {formatear_duracion(self.duracion)} · {self.tokens_entrada} entrada / "
             f"{self.tokens_salida} salida | perfil: {self.perfil}"
         )
+
+    # TITULO RESPUESTA FINAL
 
     def respuesta_final(self) -> str:
         """Texto que se guarda en el chat al terminar el turno.

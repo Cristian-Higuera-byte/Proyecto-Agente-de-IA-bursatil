@@ -39,6 +39,8 @@ MINIMO_UTIL = 600
 _MAX_TEXTO = 15000
 
 
+# TITULO ES PUBLICA
+
 def _es_publica(url: str) -> bool:
     """Indica si la dirección es http(s) y su servidor es público (no localhost ni una red privada).
 
@@ -68,13 +70,18 @@ _FIN = re.compile(r"^(comentar|comentarios?\b|esta noticia a[uú]n no tiene|sea 
                   r"related (articles|stories)|read more|sign up)", re.I)
 
 
+# TITULO PARRAFOS
+
 class _Parrafos(HTMLParser):
     """Recorre una página HTML y junta el texto de sus párrafos y subtítulos.
 
     Ignora por completo scripts, estilos, menús, pies de página y demás etiquetas de `_IGNORAR` con todo su contenido.
     Anota si cada texto está dentro de una etiqueta `<article>`; `piezas` es la lista `(dentro_de_article, texto)`."""
 
+    # TITULO INIT
+
     def __init__(self):
+        """Prepara el lector con las listas de párrafos y el estado de la etiqueta que se está leyendo."""
         super().__init__(convert_charrefs=True)
         self.piezas: list = []
         self._ignorar = 0
@@ -82,26 +89,37 @@ class _Parrafos(HTMLParser):
         self._actual: list = []
         self._recogiendo = False
 
-    def handle_starttag(self, tag, attrs):
-        if tag in _IGNORAR:
+    # TITULO HANDLE STARTTAG
+
+    def handle_starttag(self, etiqueta, attrs):
+        """Al abrir una etiqueta decide si lo que viene es texto del artículo o contenido que se ignora."""
+        if etiqueta in _IGNORAR:
             self._ignorar += 1
-        elif tag == "article":
+        elif etiqueta == "article":
             self._article += 1
-        elif tag in _TEXTO and not self._ignorar:
+        elif etiqueta in _TEXTO and not self._ignorar:
             self._cerrar()
             self._recogiendo = True
 
-    def handle_endtag(self, tag):
-        if tag in _IGNORAR:
+    # TITULO HANDLE ENDTAG
+
+    def handle_endtag(self, etiqueta):
+        """Al cerrar una etiqueta termina el párrafo en curso o deja de ignorar el contenido."""
+        if etiqueta in _IGNORAR:
             self._ignorar = max(0, self._ignorar - 1)
-        elif tag == "article":
+        elif etiqueta == "article":
             self._article = max(0, self._article - 1)
-        elif tag in _TEXTO:
+        elif etiqueta in _TEXTO:
             self._cerrar()
 
+    # TITULO HANDLE DATA
+
     def handle_data(self, data):
+        """Agrega al párrafo en curso el texto que hay entre etiquetas, si corresponde al artículo."""
         if self._recogiendo and not self._ignorar:
             self._actual.append(data)
+
+    # TITULO CERRAR
 
     def _cerrar(self):
         """Termina el texto que se estaba recogiendo y, si no está vacío, lo guarda junto con su pertenencia a `<article>`."""
@@ -116,12 +134,16 @@ class _Parrafos(HTMLParser):
 _COLA_CODIGO = re.compile(r"([;,{}\[\]]\s*$)|(\b\w+\s*:\s*[\[{])")
 
 
+# TITULO ES CODIGO
+
 def _es_codigo(texto: str) -> bool:
     """Indica si un texto parece código de programación o publicidad (JavaScript, etiquetas, pares clave: "valor",
     configuraciones de widgets) y no prosa."""
     return (bool(_CODIGO.search(texto)) or bool(_COLA_CODIGO.search(texto))
             or sum(texto.count(c) for c in "{}();=<>") > max(8, len(texto) * 0.08))
 
+
+# TITULO LIMPIAR LINEAS
 
 def limpiar_lineas(lineas: list) -> list:
     """Filtra las líneas de un artículo: quita las que parecen código, las muy cortas y todo lo que sigue a una señal de
@@ -136,6 +158,8 @@ def limpiar_lineas(lineas: list) -> list:
         salida.append(t)
     return salida
 
+
+# TITULO EXTRAER
 
 def _extraer(pagina: str) -> str:
     """Extrae el texto del artículo de una página HTML y lo devuelve con un párrafo por línea.
@@ -169,6 +193,8 @@ _CACHE: dict = {}
 _CANDADO = threading.Lock()
 
 
+# TITULO TEXTO ARTICULO
+
 def texto_articulo(url: str) -> str:
     """Texto del artículo de `url`, o cadena vacía si no se pudo leer o es demasiado corto (menos de MINIMO_UTIL).
 
@@ -186,6 +212,8 @@ def texto_articulo(url: str) -> str:
         _CACHE[url] = (time.time(), texto)
     return texto
 
+
+# TITULO DESCARGAR TEXTO
 
 def _descargar_texto(url: str) -> str:
     """Descarga la página de `url` y devuelve su texto de artículo (vacío si falla o es muy corto). Sin caché."""

@@ -27,7 +27,7 @@ gráfico (es autoSize, solo se reajusta).
 Estados (clase en <html>):
   - (sin clase)      → Operar abierto (DEFAULT: al entrar o F5 el ticket está visible)
   - pj-panel-dom     → DOM abierto (Operar oculto)
-  - pj-panel-fav     → Favoritos abierto (Operar oculto)
+  - pj-panel-favorito     → Favoritos abierto (Operar oculto)
   - pj-panel-none    → todo oculto (gráfico a pantalla completa)
 Así, tras un F5 (ventana nueva, sin clases) el ticket queda desplegado; el usuario
 lo oculta con su botón. El estado se mantiene al navegar entre vistas (la clase
@@ -36,7 +36,7 @@ vive en <html>), solo se reinicia con F5.
 Tooltip: en vez del `help` de Streamlit (que en un contenedor fijo se queda
 pegado), el nombre se muestra con un tooltip CSS propio (::after) al pasar el mouse.
 
-La fachada `componentes_plataforma/panel_riel.py` reexporta desde aquí `RAIL`, `PANEL`, `TOP`, `BOTONES`,
+La fachada `componentes_plataforma/riel/` reexporta desde aquí `RAIL`, `PANEL`, `TOP`, `BOTONES`,
 `inyectar_css_riel`, `renderizar_panel_favoritos` y `renderizar_riel_y_paneles`.
 
 Archivos: panel.py (dibuja paneles y rail), estilos.py + estilos.css (plantilla con las medidas), datos.py +

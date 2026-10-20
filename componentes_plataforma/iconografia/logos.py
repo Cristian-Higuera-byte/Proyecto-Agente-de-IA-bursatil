@@ -25,11 +25,13 @@ import urllib.request
 from componentes_plataforma.iconografia.datos import (BOLSA_SUFIJO, BOLSAS_CLASE, BOLSAS_MENOS_UNA, LOGO_ACCION,
                                           RIC_A_TICKER)
 
-_LOGO_OK: dict = {}        # símbolo -> url (acierto: se guarda para siempre)
+_LOGO_CORRECTO: dict = {}        # símbolo -> url (acierto: se guarda para siempre)
 _LOGO_FALLO: dict = {}     # símbolo -> instante del último fallo (se reintenta)
 # Segundos antes de reintentar una URL que falló (evita martillar la red, pero no descarta para siempre).
 _REINTENTO_LOGO = 120      # s
 
+
+# TITULO TICKER LOGO
 
 def ticker_logo(simbolo: str) -> str:
     """Código Reuters de XM -> ticker de la fuente de logos.
@@ -61,6 +63,8 @@ def ticker_logo(simbolo: str) -> str:
     return base + BOLSA_SUFIJO.get(bolsa, "." + bolsa if bolsa else "")
 
 
+# TITULO URL EXISTE
+
 def url_existe(url: str, clave: str) -> str:
     """Devuelve `url` si responde como imagen, "" si no (misma caché que logos).
 
@@ -68,8 +72,8 @@ def url_existe(url: str, clave: str) -> str:
     guardan para siempre y los fallos se reintentan tras `_REINTENTO_LOGO` segundos.
     """
     # Acierto previo: se devuelve de inmediato.
-    if clave in _LOGO_OK:
-        return _LOGO_OK[clave]
+    if clave in _LOGO_CORRECTO:
+        return _LOGO_CORRECTO[clave]
     # Fallo reciente: no se reintenta todavía.
     if time.time() - _LOGO_FALLO.get(clave, 0) < _REINTENTO_LOGO:
         return ""
@@ -78,7 +82,7 @@ def url_existe(url: str, clave: str) -> str:
         req = urllib.request.Request(url, method="HEAD", headers={"User-Agent": "Mozilla/5.0"})
         with urllib.request.urlopen(req, timeout=6) as r:
             if r.status == 200 and "image" in r.headers.get("Content-Type", ""):
-                _LOGO_OK[clave] = url
+                _LOGO_CORRECTO[clave] = url
                 return url
     except Exception:
         # Cualquier error de red cuenta como fallo.
@@ -87,6 +91,8 @@ def url_existe(url: str, clave: str) -> str:
     _LOGO_FALLO[clave] = time.time()
     return ""
 
+
+# TITULO URL LOGO ACCION
 
 def url_logo_accion(simbolo: str) -> str:
     """URL del logo de una acción/ETF ("" si la fuente no lo tiene). Un <img>

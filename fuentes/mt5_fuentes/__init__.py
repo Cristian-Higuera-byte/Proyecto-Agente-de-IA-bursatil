@@ -40,6 +40,10 @@ la sesión del dashboard, NUNCA de un argumento que decida el LLM.
 
 Las horas de MT5 son del SERVIDOR del broker, no tu hora local.
 
+CAPITAL.COM: con PROVEEDOR=capital en el .env, `_modulo()` entrega el shim de Capital.com (proveedores/capital_mt5_compat.py) en lugar
+de la librería MetaTrader5: no se abre ningún terminal, las consultas van por la API REST de Capital.com y los resultados llevan
+`"fuente": "Capital.com"` (constante NOMBRE_FUENTE). Las horas de las velas y de las operaciones son UTC.
+
 Archivos: entorno.py (.env), constantes.py + datos.json, errores.py, solo_lectura.py, candado.py, rutas.py, conexion.py,
 utiles.py, cuenta.py (cuenta, posiciones, órdenes, historial) y mercado.py (precio, velas, símbolos, riesgo).
 
@@ -51,15 +55,16 @@ cada cosa. Los `# noqa: F401` evitan que el linter marque como "sin usar" lo que
 import fuentes.mt5_fuentes.entorno  # noqa: F401  (carga el .env antes que nada)
 # Tiempos, temporalidades, lista blanca de funciones y alias de símbolos.
 from fuentes.mt5_fuentes.constantes import (
+    NOMBRE_FUENTE,
     TIMEFRAMES,
     _ALIAS,
     _FUNCIONES_PERMITIDAS,
     _MAX_RUTAS,
     _REINTENTO_S,
     _TIMEOUT_MS,
-    _TTL_OFFSET_S,
+    _TIEMPO_VIDA_OFFSET_S,
     _TTL_RUTAS_S,
-    _TTL_SIMBOLOS_S,
+    _TIEMPO_VIDA_SIMBOLOS_S,
 )  # noqa: F401
 # Excepciones del paquete.
 from fuentes.mt5_fuentes.errores import (
@@ -72,10 +77,10 @@ from fuentes.mt5_fuentes.solo_lectura import (
 )  # noqa: F401
 # Candado de acceso a MT5 (compartido con el dashboard o propio).
 from fuentes.mt5_fuentes.candado import (
-    _LOCK_COMPARTIDO,
-    _LOCK_PROPIO,
+    _CANDADO_COMPARTIDO,
+    _CANDADO_PROPIO,
     _candado,
-    _resolver_lock_compartido,
+    _resolver_candado_compartido,
 )  # noqa: F401
 # Descubrimiento de las rutas del terminal64.exe.
 from fuentes.mt5_fuentes.rutas import (

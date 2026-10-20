@@ -26,23 +26,33 @@ from nucleo_agente.vigilancia import configuracion
 from nucleo_agente.vigilancia.configuracion import HERRAMIENTAS_EXCLUIDAS
 
 
+# TITULO REGISTRO SIN EJECUCION
+
 class _RegistroSinEjecucion:
     """Registro de herramientas para el análisis automático: el de siempre MENOS las que proponen o
     programan órdenes. Así el modelo no puede ejecutar nada por su cuenta; solo analiza y decide.
 
     Imita la interfaz del registro real (nombres, esquemas, ejecutar) para poder pasarse al Agente."""
 
+    # TITULO INIT
+
     def __init__(self, base: Any, excluidas: frozenset = HERRAMIENTAS_EXCLUIDAS) -> None:
         """Guarda el registro base y el conjunto de nombres de herramientas que deben ocultarse."""
         self._base, self._excluidas = base, excluidas
+
+    # TITULO NOMBRES
 
     def nombres(self) -> list[str]:
         """Devuelve los nombres de herramientas del registro base sin las excluidas."""
         return [n for n in self._base.nombres() if n not in self._excluidas]
 
+    # TITULO ESQUEMAS
+
     def esquemas(self) -> list[dict[str, Any]]:
         """Devuelve los esquemas de herramientas que se envían al modelo, sin los de las excluidas."""
         return [e for e in self._base.esquemas() if e.get("function", {}).get("name") not in self._excluidas]
+
+    # TITULO EJECUTAR
 
     def ejecutar(self, nombre: str, argumentos: dict[str, Any]) -> str:
         """Ejecuta una herramienta del registro base; si está excluida devuelve un JSON de error sin ejecutarla
@@ -51,6 +61,8 @@ class _RegistroSinEjecucion:
             return json.dumps({"error": "Esa herramienta no está disponible en el análisis automático."}, ensure_ascii=False)
         return self._base.ejecutar(nombre, argumentos)
 
+
+# TITULO FABRICA AGENTE REAL
 
 def _fabrica_agente_real() -> Any:
     """Crea el agente real del análisis: perfil de vigilancia, registro sin herramientas de ejecución y sin usuario.
@@ -65,6 +77,8 @@ def _fabrica_agente_real() -> Any:
 # Se puede sustituir (las pruebas inyectan un agente falso).
 fabrica_agente: Callable[[], Any] = _fabrica_agente_real
 
+
+# TITULO MENSAJE ANALISIS
 
 def _mensaje_analisis(v: dict[str, Any], posiciones: list[Any]) -> str:
     """Construye el mensaje que se envía al agente en cada chequeo.
@@ -106,7 +120,7 @@ Qué hacer:
 {{"accion": "esperar", "resumen": "una frase para el historial"}}
 ```
 Para abrir: {{"accion": "abrir", "lado": "compra" o "venta", "stop_loss": precio, "take_profit": precio, "resumen": "..."}}
-Para cerrar una de las posiciones listadas: {{"accion": "cerrar", "ticket": número, "resumen": "..."}}"""
+Para cerrar una de las posiciones listadas: {{"accion": "cerrar", "ticket": el ticket tal como aparece en la lista (entre comillas si es texto), "resumen": "..."}}"""
 
 
 # -------------------------------------------------------------------------------------------------------

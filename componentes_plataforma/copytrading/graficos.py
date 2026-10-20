@@ -21,6 +21,8 @@ import math
 import random
 
 
+# TITULO MINILINEA
+
 def minilinea(seed: str, w=150, h=44):
     """Genera una mini línea (sparkline) simulada con área degradada.
 
@@ -32,21 +34,21 @@ def minilinea(seed: str, w=150, h=44):
     rnd = random.Random(seed)
     n = 30
     v = 100.0
-    pts = []
+    puntos = []
     # Paseo aleatorio con sesgo positivo.
     for i in range(n):
         v += rnd.uniform(-1.5, 2.6)  # sesgo alcista
-        pts.append(v)
+        puntos.append(v)
     # Escala la serie al alto disponible (con margen de 3 px) y la convierte en coordenadas x,y.
-    lo, hi = min(pts), max(pts)
-    rng = (hi - lo) or 1
-    coords = []
-    for i, p in enumerate(pts):
+    lo, hi = min(puntos), max(puntos)
+    rango = (hi - lo) or 1
+    coordenadas = []
+    for i, p in enumerate(puntos):
         x = i * (w / (n - 1))
-        y = h - 3 - (p - lo) / rng * (h - 6)
-        coords.append(f"{x:.1f},{y:.1f}")
+        y = h - 3 - (p - lo) / rango * (h - 6)
+        coordenadas.append(f"{x:.1f},{y:.1f}")
     # Línea y polígono de área cerrado contra la base; luego el SVG con degradado vertical verde.
-    linea = " ".join(coords)
+    linea = " ".join(coordenadas)
     area = f"0,{h} " + linea + f" {w},{h}"
     svg = (f"<svg xmlns='http://www.w3.org/2000/svg' width='{w}' height='{h}' viewBox='0 0 {w} {h}' "
            f"preserveAspectRatio='none'><defs><linearGradient id='g' x1='0' y1='0' x2='0' y2='1'>"
@@ -59,7 +61,9 @@ def minilinea(seed: str, w=150, h=44):
     return f"<img src='data:image/svg+xml;base64,{b64}' width='{w}' height='{h}'>"
 
 
-def rosquilla(win_pct: float, size=180):
+# TITULO ROSQUILLA
+
+def rosquilla(win_porcentaje: float, tamano=180):
     """Genera una dona SVG del ratio de victorias (verde) frente a pérdidas (rojo).
 
     Parámetros: win_pct (porcentaje de victorias, 0 a 100) y size (lado en píxeles).
@@ -67,12 +71,12 @@ def rosquilla(win_pct: float, size=180):
     círculos: el rojo completo y encima el verde con trazo discontinuo proporcional.
     """
     # Radio, centro y longitud de la circunferencia; el tramo verde es la fracción ganadora.
-    r = size / 2 - 16
-    cx = cy = size / 2
+    r = tamano / 2 - 16
+    cx = cy = tamano / 2
     circ = 2 * math.pi * r
-    gan = circ * win_pct / 100
+    gan = circ * win_porcentaje / 100
     svg = (
-        f"<svg xmlns='http://www.w3.org/2000/svg' width='{size}' height='{size}' viewBox='0 0 {size} {size}'>"
+        f"<svg xmlns='http://www.w3.org/2000/svg' width='{tamano}' height='{tamano}' viewBox='0 0 {tamano} {tamano}'>"
         f"<circle cx='{cx}' cy='{cy}' r='{r}' fill='none' stroke='#f85149' stroke-width='22'/>"
         f"<circle cx='{cx}' cy='{cy}' r='{r}' fill='none' stroke='#3fb950' stroke-width='22' "
         f"stroke-dasharray='{gan:.1f} {circ - gan:.1f}' stroke-dashoffset='{circ/4:.1f}' "
@@ -80,8 +84,10 @@ def rosquilla(win_pct: float, size=180):
     )
     # Codifica el SVG en base64 para usarlo como imagen incrustada.
     b64 = base64.b64encode(svg.encode()).decode()
-    return f"<img src='data:image/svg+xml;base64,{b64}' width='{size}' height='{size}'>"
+    return f"<img src='data:image/svg+xml;base64,{b64}' width='{tamano}' height='{tamano}'>"
 
+
+# TITULO AVATAR
 
 def avatar(nombre: str) -> str:
     """Devuelve las iniciales (hasta dos, en mayúsculas) del nombre, para usarlas como avatar de texto."""

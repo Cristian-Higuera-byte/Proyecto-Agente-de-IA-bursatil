@@ -4,7 +4,7 @@
     "parametros": {
       "simbolo": {
         "type": "string",
-        "description": "Cualquier activo disponible en la cuenta de MT5 (divisas, metales, índices, energía, cripto, acciones...). Se aceptan equivalentes entre brókers (XAUUSD/GOLD). Si no conoces el nombre exacto, búscalo antes con mt5_buscar_simbolos."
+        "description": "Cualquier activo disponible en la cuenta del broker (divisas, metales, índices, energía, cripto, acciones...). Se aceptan equivalentes entre brókers (XAUUSD/GOLD). Si no conoces el nombre exacto, búscalo antes con mt5_buscar_simbolos."
       },
       "lado": {
         "type": "string",
@@ -43,8 +43,8 @@
     "descripcion": "Propone cerrar una posición abierta de la cuenta demo. NO la cierra: queda pendiente y el usuario debe confirmarla con un botón en el dashboard. Obtén el ticket con 'ver_posiciones'.",
     "parametros": {
       "ticket": {
-        "type": "integer",
-        "description": "Ticket de la posición a cerrar."
+        "type": ["integer", "string"],
+        "description": "Ticket de la posición a cerrar, tal como lo entrega ver_posiciones (número en MetaTrader 5, texto en Capital.com)."
       },
       "justificacion": {
         "type": "string",
@@ -58,13 +58,13 @@
     "nombre": "proponer_cierre_posicion"
   },
   "ver_posiciones": {
-    "descripcion": "Consulta la cuenta de MetaTrader 5 (tipo demo/real, balance, equity, margen libre) y las posiciones abiertas con su ticket, stop loss, take profit y resultado actual.",
+    "descripcion": "Consulta la cuenta del broker (MetaTrader 5 o Capital.com; tipo demo/real, balance, equity, margen libre) y las posiciones abiertas con su ticket, stop loss, take profit y resultado actual.",
     "parametros": {},
     "requeridos": [],
     "nombre": "ver_posiciones"
   },
   "ver_limites_riesgo": {
-    "descripcion": "Consulta los límites de riesgo vigentes (riesgo máximo por operación, posiciones máximas, pérdida diaria máxima, restricciones de símbolos: por defecto ninguna, se puede operar cualquier activo de MT5) y el estado actual (pérdida del día, posiciones abiertas, interruptor de emergencia). Úsala antes de proponer una operación si dudas de qué está permitido.",
+    "descripcion": "Consulta los límites de riesgo vigentes (riesgo máximo por operación, pérdida diaria máxima, restricciones de símbolos: por defecto ninguna, se puede operar cualquier activo del broker) y el estado actual (pérdida del día, posiciones abiertas, interruptor de emergencia). Úsala antes de proponer una operación si dudas de qué está permitido.",
     "parametros": {},
     "requeridos": [],
     "nombre": "ver_limites_riesgo"
@@ -74,7 +74,7 @@
     "parametros": {
       "simbolo": {
         "type": "string",
-        "description": "El activo que el usuario pidió vigilar (cualquiera disponible en MT5; XAUUSD/GOLD equivalen)."
+        "description": "El activo que el usuario pidió vigilar (cualquiera disponible en el broker; XAUUSD/GOLD equivalen)."
       },
       "instruccion": {
         "type": "string",

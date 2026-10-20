@@ -23,6 +23,8 @@ import streamlit as st
 from componentes_plataforma.noticias.articulo import texto_articulo
 
 
+# TITULO PARRAFOS HTML
+
 def _parrafos_html(texto: str) -> str:
     """Convierte un texto con un párrafo por línea en HTML de párrafos con estilo, escapando cualquier carácter especial."""
     return "".join(
@@ -30,6 +32,8 @@ def _parrafos_html(texto: str) -> str:
         for p in texto.split("\n") if p.strip()
     )
 
+
+# TITULO CUERPO
 
 def _cuerpo(n: dict) -> tuple:
     """Texto que se muestra de una noticia y su origen: devuelve `(texto, completo)`.
@@ -46,14 +50,16 @@ def _cuerpo(n: dict) -> tuple:
     return n.get("desc", ""), False
 
 
+# TITULO CONTENIDO MODAL
+
 def _contenido_modal(n: dict):
     """Dibuja el interior del modal de una noticia.
 
     Recibe el diccionario de la noticia (`img`, `title`, `fecha`, `fuente`, `link`, `desc`, `texto`). Pinta la imagen, el
     título y la fuente con la fecha, luego el texto del artículo (o el resumen con un aviso si no se puede mostrar
     completo) y un botón que abre la noticia en una pestaña real. No devuelve nada."""
-    # El contenedor con clave `noticia_root` permite que estilos.css oscurezca el diálogo sin importar el tema de Streamlit.
-    with st.container(key="noticia_root"):
+    # El contenedor con clave `noticia_raiz` permite que estilos.css oscurezca el diálogo sin importar el tema de Streamlit.
+    with st.container(key="noticia_raiz"):
         st.html(f"""
             <img src="{_html.escape(n['img'])}" referrerpolicy="no-referrer"
                  style="width:100%; height:260px; object-fit:cover; border-radius:10px; background:#161b22;">
@@ -67,6 +73,8 @@ def _contenido_modal(n: dict):
             st.caption("Este medio no permite mostrar el artículo completo aquí. Ábrelo en su sitio con el botón de abajo.")
         st.link_button(f"Leer en {n.get('fuente') or 'el sitio'} ↗", n["link"], type="primary", width="stretch")
 
+
+# TITULO ABRIR MODAL
 
 def abrir_modal(n: dict):
     """Abre el diálogo "Noticia" con la noticia indicada.

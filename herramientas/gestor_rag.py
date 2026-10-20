@@ -36,6 +36,8 @@ SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
+# TITULO CONSULTAR RAG
+
 def consultar_rag(pregunta: str, limite: int = 3) -> str:
     """
     Realiza una búsqueda semántica en la base de datos vectorial de Supabase
@@ -63,14 +65,14 @@ def consultar_rag(pregunta: str, limite: int = 3) -> str:
             return "No se encontraron documentos indexados en la base de conocimiento interna."
         # Concatena cada fragmento numerado con su fuente (si la metadata la trae).
         contexto_acumulado = "--- CONTEXTO RECUPERADO DE DOCUMENTOS INTERNOS ---\n"
-        for idx, item in enumerate(respuesta.data, 1):
-            doc = cast(dict, item)
+        for indice, elemento in enumerate(respuesta.data, 1):
+            doc = cast(dict, elemento)
             metadata = doc.get("metadata", {})
             fuente = "Documento interno"
             if isinstance(metadata, dict):
                 fuente = metadata.get("fuente", "Documento interno")
             contenido = doc.get("contenido", "")
-            contexto_acumulado += f"[{idx}] (Fuente: {fuente})\n{contenido}\n\n"
+            contexto_acumulado += f"[{indice}] (Fuente: {fuente})\n{contenido}\n\n"
         return contexto_acumulado
     except Exception as e:
         return f"Error al consultar el sistema RAG: {str(e)}"

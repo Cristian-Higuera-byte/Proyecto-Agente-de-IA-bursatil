@@ -17,7 +17,7 @@
 _SIMBOLO = {
     "type": "string",
     "description": (
-        "Símbolo tal como lo llama el broker en MT5 (EURUSD, GOLD, US500...). También acepta "
+        "Símbolo tal como lo llama el broker (Capital.com o MT5; EURUSD, GOLD, US500...). También acepta "
         "formatos de Yahoo (EURUSD=X, GC=F, ^GSPC) y 'EUR/USD'."
     ),
 }

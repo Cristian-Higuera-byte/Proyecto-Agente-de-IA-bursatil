@@ -30,12 +30,18 @@ from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 from componentes_plataforma import _estaticos
 from componentes_plataforma.profundidad_mercado import escalera
 from componentes_plataforma.flujo_precios import intervalo
-from herramientas.puente_mt5 import (MT5_LOCK, inicializar_mt5, obtener_precio_actual,
+import streamlit.components.v1 as components
+
+from componentes_plataforma.flujo_precios import API_URL
+from componentes_plataforma.profundidad_mercado.nivel1 import html_nivel1
+from herramientas.puente_mt5 import (MT5_LOCK, PROVEEDOR, inicializar_mt5, obtener_precio_actual,
                               resolver_simbolo, obtener_dom)
 
 # Ruta de la hoja de estilos del panel, junto a este archivo.
 _CSS = Path(__file__).parent / "estilos.css"
 
+
+# TITULO DIBUJAR ESCALERA
 
 def _dibujar_escalera(real: str) -> None:
     """Contenido de la escalera. Se ejecuta como FRAGMENTO (ver renderizar_panel_dom): solo este bloque se refresca.
@@ -57,17 +63,19 @@ def _dibujar_escalera(real: str) -> None:
     except Exception:
         info = None
     # Decimales del símbolo (5 por defecto) y tamaño del punto (10 elevado a -decimales si falta).
-    dig = int(getattr(info, "digits", 5) or 5) if info else 5
-    point = (float(getattr(info, "point", 0.0) or 0.0) if info else 0.0) or (10 ** -dig)
+    digitos = int(getattr(info, "digits", 5) or 5) if info else 5
+    punto = (float(getattr(info, "point", 0.0) or 0.0) if info else 0.0) or (10 ** -digitos)
 
     # Libro de órdenes con hasta 8 niveles por lado; si el bróker no lo publica se usa la vista demo.
     dom = obtener_dom(real, 8)
     if dom.get("disponible"):
-        filas, nota = escalera.filas_reales(dom, bid, ask, dig)
+        filas, nota = escalera.filas_reales(dom, bid, ask, digitos)
     else:
-        filas, nota = escalera.filas_demo(bid, ask, dig, point)
+        filas, nota = escalera.filas_demo(bid, ask, digitos, punto)
     st.html(escalera.html_escalera(filas, nota))
 
+
+# TITULO RENDERIZAR PANEL DOM
 
 def renderizar_panel_dom():
     """Dibuja el panel DOM completo: estilos, cabecera con el activo y la escalera como fragmento.
@@ -81,8 +89,22 @@ def renderizar_panel_dom():
         activo = st.session_state.get("activo_seleccionado", "EURUSD...")
         real = resolver_simbolo(activo)
         visible = activo.replace("...", "").strip()
+        if PROVEEDOR == "capital":
+            # Capital.com solo publica el nivel 1 (mejor bid/ask con su cantidad): se muestra eso + la cinta,
+            # sin volúmenes de muestra. El componente consulta /dom del servidor de datos cada segundo.
+            st.html(f"<div class='dom-h'>Profundidad · {visible}</div>"
+                    f"<div class='dom-subtitulo'>Nivel 1 (mejor Bid/Ask) y cinta · Capital.com no publica más niveles</div>")
+            info = None
+            try:
+                with MT5_LOCK:
+                    info = mt5.symbol_info(real)
+            except Exception:
+                pass
+            digitos = int(getattr(info, "digits", 5) or 5) if info else 5
+            components.html(html_nivel1(API_URL, real, digitos), height=420)
+            return
         st.html(f"<div class='dom-h'>Profundidad · {visible}</div>"
-                f"<div class='dom-sub'>Libro de órdenes (DOM)</div>")
+                f"<div class='dom-subtitulo'>Libro de órdenes (DOM)</div>")
 
         # La escalera es un fragmento: se refresca sola cada 2 s (o la actualiza el feed en vivo) sin recargar la
         # página. IMPORTANTE: esta línea es la que dibuja la escalera; sin ella el panel solo muestra el título.

@@ -14,6 +14,8 @@
 """Atributos data-pj-* que los componentes ponen en sus etiquetas para que el feed pinte los números."""
 
 
+# TITULO ATRIBUTOS
+
 def atributos(simbolo: str, campo: str = "px", **extra) -> str:
     """Atributos data-pj-* listos para meter en una etiqueta HTML.
 

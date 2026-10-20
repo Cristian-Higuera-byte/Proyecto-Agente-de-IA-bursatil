@@ -32,7 +32,7 @@ AVISO_RETRASO = _D["aviso_retraso"]
 # Fundamentales (Ticker.info): clave de salida -> campo de Yahoo
 # Campos de texto (sector, industria, país...) y campos numéricos (ratios, márgenes...).
 _CAMPOS_TEXTO = dict(_D["campos_texto"])
-_CAMPOS_NUM = dict(_D["campos_num"])
+_CAMPOS_NUMERO = dict(_D["campos_num"])
 
 # Estados financieros: tipo -> (atributo anual, atributo trimestral, filas clave)
 _ESTADOS = {k: (v[0], v[1], tuple(v[2])) for k, v in _D["estados"].items()}

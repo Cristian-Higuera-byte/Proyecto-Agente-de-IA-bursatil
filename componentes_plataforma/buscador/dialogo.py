@@ -29,6 +29,8 @@ from .datos import cargar_simbolos_broker, categorias, filtrar, _agregar_a_watch
 _PASO_RESULTADOS = 40  # cuántos se revelan al inicio y por cada "Ver más"
 
 
+# TITULO ABRIR BUSCADOR
+
 def abrir_buscador():
     """Marca que el diálogo debe mostrarse (se renderiza en aplicacion.py con
     `renderizar_buscador`). Este patrón (bandera + render en el script principal)
@@ -37,10 +39,14 @@ def abrir_buscador():
     st.session_state.mostrar_buscador = True
 
 
+# TITULO CERRAR BUSCADOR
+
 def _cerrar_buscador():
     """Callback `on_dismiss` del diálogo: apaga la bandera `mostrar_buscador` al cerrarlo."""
     st.session_state.mostrar_buscador = False
 
+
+# TITULO RENDERIZAR BUSCADOR
 
 def renderizar_buscador():
     """Abre el diálogo del buscador si la bandera `mostrar_buscador` está activa.
@@ -50,6 +56,8 @@ def renderizar_buscador():
     if st.session_state.get("mostrar_buscador"):
         _dialogo_buscador()
 
+
+# TITULO DIALOGO BUSCADOR
 
 @st.dialog("Buscar activo", width="large", on_dismiss=_cerrar_buscador)
 def _dialogo_buscador():
@@ -69,14 +77,14 @@ def _dialogo_buscador():
     # Campo de texto y filtro de categoría
     q = st.text_input("Buscar", placeholder="Símbolo o nombre, ej. AAPL, EUR, Bitcoin…",
                       label_visibility="collapsed", key="buscar_q")
-    cat = st.segmented_control("Categoría", categorias(activos), default="Todo",
-                               label_visibility="collapsed", key="buscar_cat")
+    categoria = st.segmented_control("Categoría", categorias(activos), default="Todo",
+                               label_visibility="collapsed", key="buscar_categoria")
 
     # Aplica ambos filtros
-    resultados = filtrar(activos, q, cat or "Todo")
+    resultados = filtrar(activos, q, categoria or "Todo")
 
     # Revelado progresivo: se reinicia al cambiar la búsqueda o la categoría.
-    filtro_actual = (q.strip().upper(), cat or "Todo")
+    filtro_actual = (q.strip().upper(), categoria or "Todo")
     if st.session_state.get("_buscar_filtro") != filtro_actual:
         st.session_state._buscar_filtro = filtro_actual
         st.session_state._buscar_limite = _PASO_RESULTADOS
@@ -89,13 +97,13 @@ def _dialogo_buscador():
 
     # Símbolos ya agregados a la lista y usuario actual
     en_lista = set(st.session_state.get("watchlist_simbolos", []))
-    uid = (st.session_state.get("usuario_info") or {}).get("id")
+    uid = (st.session_state.get("usuario_informacion") or {}).get("id")
 
     # Lista con scroll de altura fija
     with st.container(height=400):
         for a in resultados[:mostrados]:
             # Fila: información, botón Abrir y botón Agregar
-            c_info, c_abrir, c_add = st.columns([6, 1.2, 1.2], vertical_alignment="center")
+            c_info, c_abrir, c_agregar = st.columns([6, 1.2, 1.2], vertical_alignment="center")
             # Símbolo, categoría y descripción
             with c_info:
                 st.markdown(
@@ -106,18 +114,18 @@ def _dialogo_buscador():
                 )
             # Abrir el activo en el gráfico
             with c_abrir:
-                if st.button("Abrir", key=f"open_{a['name']}", width="stretch"):
+                if st.button("Abrir", key=f"abrir_{a['name']}", width="stretch"):
                     # Abrir SÍ cierra el diálogo y refresca la app (carga el gráfico).
                     st.session_state.activo_seleccionado = a["name"]
                     st.session_state.mostrar_buscador = False
                     st.rerun()
             # Agregar a la watchlist, o marca si ya está
-            with c_add:
+            with c_agregar:
                 if a["name"] in en_lista:
-                    st.button("✓", key=f"add_{a['name']}", width="stretch", disabled=True,
+                    st.button("✓", key=f"agregar_{a['name']}", width="stretch", disabled=True,
                               help="Ya está en tu lista")
                 else:
-                    if st.button("➕", key=f"add_{a['name']}", width="stretch",
+                    if st.button("➕", key=f"agregar_{a['name']}", width="stretch",
                                  help="Agregar a mi lista"):
                         _agregar_a_watchlist(uid, a)
                         # Rerun SOLO del diálogo (es un fragmento): refresca al instante

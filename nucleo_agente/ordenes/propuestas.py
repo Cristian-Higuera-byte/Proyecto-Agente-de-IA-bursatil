@@ -22,12 +22,14 @@ from typing import Any
 from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
 from herramientas.tickets import ticket as _tk
-from nucleo_agente.ordenes.base_datos import _ahora, _consultar, _insertar, kill_switch_activo
+from nucleo_agente.ordenes.base_datos import _ahora, _consultar, _insertar, interruptor_emergencia_activo
 from nucleo_agente.ordenes.limites import LIMITES
-from nucleo_agente.ordenes.mt5_utiles import (_chequeos_globales, _con_lock, _perdida_del_dia, _preparar_mt5,
+from nucleo_agente.ordenes.mt5_utiles import (NOMBRE_BROKER, _chequeos_globales, _con_candado, _perdida_del_dia, _preparar_mt5,
                                      _resolver_simbolo, _riesgo_expuesto)
 from nucleo_agente.ordenes.validacion import _evaluar_apertura
 
+
+# TITULO PROPUESTA PENDIENTE
 
 def _propuesta_pendiente(accion: str, **filtros: Any) -> str | None:
     """id de una propuesta PENDIENTE (no vencida) con esa acción y esos campos, o None."""
@@ -39,6 +41,8 @@ def _propuesta_pendiente(accion: str, **filtros: Any) -> str | None:
     )
     return filas[0]["id"] if filas else None
 
+
+# TITULO RESPUESTA DUPLICADA
 
 def _respuesta_duplicada(id_: str) -> dict[str, Any]:
     """Construye la respuesta para el modelo cuando ya existe una propuesta pendiente igual (con su id)
@@ -53,7 +57,9 @@ def _respuesta_duplicada(id_: str) -> dict[str, Any]:
     }
 
 
-@_con_lock
+# TITULO PROPONER APERTURA
+
+@_con_candado
 def proponer_apertura(
     simbolo: str, lado: str, stop_loss: Any, take_profit: Any, riesgo_pct: float, justificacion: str,
     origen: str = "agente", vigilancia_id: str | None = None,
@@ -72,11 +78,11 @@ def proponer_apertura(
         if previa:
             return _respuesta_duplicada(previa)
     # Paso 2: validación completa de la apertura (solo si no hay motivo previo).
-    ev: dict[str, Any] | None = None
+    evento: dict[str, Any] | None = None
     if not motivo:
-        ev = _evaluar_apertura(cuenta, simbolo, lado, stop_loss, take_profit, riesgo_pct)
-        if ev is not None and not ev["ok"]:
-            motivo = ev["motivo"]
+        evento = _evaluar_apertura(cuenta, simbolo, lado, stop_loss, take_profit, riesgo_pct)
+        if evento is not None and not evento["ok"]:
+            motivo = evento["motivo"]
 
     # Rechazo: se guarda con su motivo para la auditoría y se informa al modelo.
     if motivo:
@@ -87,8 +93,8 @@ def proponer_apertura(
         return {"estado": "RECHAZADA", "motivo": motivo}
 
     # Paso 3: propuesta válida; se guarda PENDIENTE con los datos calculados (volumen, precio de referencia, riesgo).
-    assert ev is not None and ev["ok"]
-    d = ev["datos"]
+    assert evento is not None and evento["ok"]
+    d = evento["datos"]
     id_ = _insertar(
         estado="PENDIENTE", accion="abrir", simbolo=d["simbolo"], lado=d["lado"], volumen=d["volumen"],
         precio_ref=d["precio"], sl=d["sl"], tp=d["tp"], riesgo_dinero=d["riesgo_dinero"],
@@ -110,7 +116,9 @@ def proponer_apertura(
     }
 
 
-@_con_lock
+# TITULO PROPONER CIERRE
+
+@_con_candado
 def proponer_cierre(
     ticket: Any, justificacion: str, origen: str = "agente", vigilancia_id: str | None = None,
 ) -> dict[str, Any]:
@@ -166,7 +174,9 @@ def proponer_cierre(
     }
 
 
-@_con_lock
+# TITULO RESUMEN POSICIONES
+
+@_con_candado
 def resumen_posiciones() -> dict[str, Any]:
     """Devuelve el estado de la cuenta (tipo, balance, equity, margen libre, flotante) y las posiciones abiertas.
 
@@ -176,7 +186,7 @@ def resumen_posiciones() -> dict[str, Any]:
         return {"error": error}
     cuenta = mt5.account_info()
     if cuenta is None:
-        return {"error": "No se pudo leer la cuenta de MetaTrader 5."}
+        return {"error": f"No se pudo leer la cuenta de {NOMBRE_BROKER}."}
     posiciones = [
         {
             "ticket": p.ticket, "simbolo": p.symbol,
@@ -196,11 +206,13 @@ def resumen_posiciones() -> dict[str, Any]:
     }
 
 
-@_con_lock
+# TITULO ESTADO RIESGO
+
+@_con_candado
 def estado_riesgo() -> dict[str, Any]:
     """Devuelve los límites de riesgo vigentes, el interruptor de emergencia y, si MT5 responde, la pérdida del día,
     el número de posiciones abiertas, el riesgo en juego (abiertas + pendientes) y la moneda."""
-    out: dict[str, Any] = {"limites": asdict(LIMITES), "interruptor_emergencia": kill_switch_activo()}
+    out: dict[str, Any] = {"limites": asdict(LIMITES), "interruptor_emergencia": interruptor_emergencia_activo()}
     error = _preparar_mt5()
     cuenta = None if error else mt5.account_info()
     if cuenta is not None:

@@ -48,6 +48,8 @@ _DB_PREPARADA: Path | None = None   # ruta de la base ya inicializada en este pr
 _DB_LOCK = threading.Lock()
 
 
+# TITULO CONECTAR
+
 def _conectar() -> sqlite3.Connection:
     """Abre una conexión SQLite nueva (filas accesibles por nombre) a RUTA_DB.
 
@@ -76,6 +78,8 @@ def _conectar() -> sqlite3.Connection:
     return con
 
 
+# TITULO EJECUTAR
+
 def _ejecutar(sql: str, params: tuple = ()) -> int:
     """Ejecuta una sentencia de escritura con confirmación automática (commit) y devuelve las filas afectadas.
 
@@ -85,16 +89,22 @@ def _ejecutar(sql: str, params: tuple = ()) -> int:
             return con.execute(sql, params).rowcount
 
 
+# TITULO CONSULTAR
+
 def _consultar(sql: str, params: tuple = ()) -> list[dict[str, Any]]:
     """Ejecuta una consulta SELECT y devuelve todas las filas como lista de diccionarios."""
     with closing(_conectar()) as con:
         return [dict(f) for f in con.execute(sql, params).fetchall()]
 
 
+# TITULO AHORA
+
 def _ahora() -> str:
     """Devuelve la hora local actual como texto ISO sin fracciones (comparable como cadena en SQL)."""
     return datetime.now().isoformat(timespec="seconds")
 
+
+# TITULO INSERTAR
 
 def _insertar(**campos: Any) -> str:
     """Inserta una fila en la tabla ordenes y devuelve su id.
@@ -116,13 +126,17 @@ def _insertar(**campos: Any) -> str:
     return id_
 
 
-def kill_switch_activo() -> bool:
+# TITULO INTERRUPTOR EMERGENCIA ACTIVO
+
+def interruptor_emergencia_activo() -> bool:
     """Indica si el interruptor de emergencia está activado (bloquea nuevas aperturas). Lee la tabla estado."""
     filas = _consultar("SELECT valor FROM estado WHERE clave = 'kill_switch'")
     return bool(filas) and filas[0]["valor"] == "1"
 
 
-def fijar_kill_switch(activo: bool) -> None:
+# TITULO FIJAR INTERRUPTOR EMERGENCIA
+
+def fijar_interruptor_emergencia(activo: bool) -> None:
     """Activa o desactiva el interruptor de emergencia guardando "1" o "0" en la tabla estado (upsert)."""
     _ejecutar(
         "INSERT INTO estado (clave, valor) VALUES ('kill_switch', ?) "

@@ -19,26 +19,33 @@ Favoritos, la lista de activos y el feed en vivo, para que todas las vistas mues
 import streamlit as st
 from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
+from herramientas.cache_proceso import cache_proceso
 from herramientas.puente_mt5 import obtener_datos_historicos
 
+
+# TITULO SIN DATOS
 
 class SinDatos(Exception):
     """Se lanza dentro de las funciones cacheadas cuando MT5 aún no entrega
     histórico: st.cache_data NO cachea excepciones, así se reintenta luego."""
 
 
-@st.cache_data(ttl=300, show_spinner=False)
+# TITULO CIERRE PREVIO CACHE
+
+@cache_proceso(tiempo_vida=300)
 def _cierre_previo_cache(simbolo: str) -> float:
     """Lee de MT5 las dos últimas velas D1 y devuelve el cierre de la penúltima (cierre del día anterior).
 
     Lanza `SinDatos` si MT5 no entrega al menos dos velas, para que `st.cache_data` no guarde el fallo.
     Resultado cacheado 300 s por símbolo.
     """
-    df = obtener_datos_historicos(simbolo, timeframe=mt5.TIMEFRAME_D1, n_velas=2)
-    if df is None or len(df) < 2:
+    tabla_datos = obtener_datos_historicos(simbolo, timeframe=mt5.TIMEFRAME_D1, n_velas=2)
+    if tabla_datos is None or len(tabla_datos) < 2:
         raise SinDatos(simbolo)
-    return float(df["close"].iloc[-2])
+    return float(tabla_datos["close"].iloc[-2])
 
+
+# TITULO CIERRE PREVIO
 
 def cierre_previo(simbolo: str):
     """Cierre de la vela diaria anterior (base de la variación del día, igual
@@ -50,6 +57,8 @@ def cierre_previo(simbolo: str):
     except Exception:
         return None
 
+
+# TITULO VARIACION
 
 def variacion(simbolo: str, precio: float, decimales: int):
     """(texto, sube) de la variación del día, o None si no hay referencia.

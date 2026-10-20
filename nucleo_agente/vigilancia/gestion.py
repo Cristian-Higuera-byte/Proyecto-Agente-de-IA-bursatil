@@ -23,12 +23,14 @@ from nucleo_agente.vigilancia.caducidad import _caducar_autorizaciones
 from nucleo_agente.vigilancia.configuracion import (
     DURACION_DEFECTO_H, DURACION_MAX_H, DURACION_MIN_H, ACTIVA, EXPIRADA, INTERVALO_DEFECTO_MIN, INTERVALO_MAX,
     INTERVALO_MIN, MAX_OPERACIONES_DEFECTO, MAX_OPERACIONES_TOPE, MAX_VIGILANCIAS_POR_USUARIO, PENDIENTE,
-    RIESGO_DEFECTO_PCT,
+    RIESGO_DEFECTO_PORCENTAJE,
 )
 from nucleo_agente.vigilancia.motor import iniciar_motor
 from nucleo_agente.vigilancia.posiciones import _posiciones_de
 from nucleo_agente.vigilancia.utilidades import _a_numero, _actualizar, _consultar, _iso, obtener
 
+
+# TITULO RESUMEN TERMINOS
 
 def resumen_terminos(v: dict[str, Any]) -> dict[str, Any]:
     """Devuelve los términos de una vigilancia (id, símbolo, estado, riesgo, operaciones, intervalo, duración,
@@ -41,6 +43,8 @@ def resumen_terminos(v: dict[str, Any]) -> dict[str, Any]:
         "puede_cerrar_sus_posiciones": bool(v.get("permite_cerrar")),
     }
 
+
+# TITULO CREAR
 
 def crear(
     usuario_id: str, simbolo: str, instruccion: str = "", riesgo_pct: Any = None,
@@ -65,21 +69,21 @@ def crear(
         return (n, None) if n is not None else (None, f"'{nombre}' debe ser un número.")
 
     # Paso 1: leer y convertir los términos; un valor presente pero no numérico es error.
-    riesgo, e1 = leer(riesgo_pct, "riesgo_pct", RIESGO_DEFECTO_PCT)
-    n_ops, e2 = leer(max_operaciones, "max_operaciones", MAX_OPERACIONES_DEFECTO)
+    riesgo, e1 = leer(riesgo_pct, "riesgo_pct", RIESGO_DEFECTO_PORCENTAJE)
+    n_operaciones, e2 = leer(max_operaciones, "max_operaciones", MAX_OPERACIONES_DEFECTO)
     horas, e3 = leer(duracion_horas, "duracion_horas", DURACION_DEFECTO_H)
     cada, e4 = leer(intervalo_min, "intervalo_min", INTERVALO_DEFECTO_MIN)
     for error in (e1, e2, e3, e4):
         if error:
             return no(error)
     # Paso 2: validar rangos (el riesgo nunca puede superar el máximo global por operación).
-    n_ops, cada = int(n_ops), int(cada)
+    n_operaciones, cada = int(n_operaciones), int(cada)
     if riesgo <= 0:
         return no("El riesgo por operación debe ser mayor que 0.")
     if riesgo > ordenes.LIMITES.riesgo_max_por_operacion_pct:
         return no(f"El riesgo por operación ({riesgo}%) supera el máximo permitido "
                   f"({ordenes.LIMITES.riesgo_max_por_operacion_pct}%).")
-    if not 1 <= n_ops <= MAX_OPERACIONES_TOPE:
+    if not 1 <= n_operaciones <= MAX_OPERACIONES_TOPE:
         return no(f"El máximo de operaciones debe estar entre 1 y {MAX_OPERACIONES_TOPE}.")
     if not DURACION_MIN_H <= horas <= DURACION_MAX_H:
         return no(f"La duración debe estar entre {DURACION_MIN_H:g} y {DURACION_MAX_H:g} horas.")
@@ -117,10 +121,12 @@ def crear(
         "duracion_horas, intervalo_min, riesgo_pct, max_operaciones, permite_cerrar) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)",
         (vid, usuario_id, sym, PENDIENTE, (instruccion or "").strip()[:500], _iso(ahora),
-         _iso(ahora + timedelta(minutes=ordenes.LIMITES.vigencia_propuesta_min)), horas, cada, riesgo, n_ops),
+         _iso(ahora + timedelta(minutes=ordenes.LIMITES.vigencia_propuesta_min)), horas, cada, riesgo, n_operaciones),
     )
     return {"ok": True, "id": vid, "resumen": resumen_terminos(obtener(vid) or {})}
 
+
+# TITULO AUTORIZAR
 
 def autorizar(vid: str, usuario_id: str) -> dict[str, Any]:
     """El usuario autoriza la vigilancia (botón del panel). La activa y arranca el motor.
@@ -150,6 +156,8 @@ def autorizar(vid: str, usuario_id: str) -> dict[str, Any]:
     return {"ok": True, "mensaje": f"Vigilancia de {v['simbolo']} activada. Te avisaré de cada operación."}
 
 
+# TITULO RECHAZAR
+
 def rechazar(vid: str, usuario_id: str) -> bool:
     """Cancela una vigilancia aún PENDIENTE_AUTORIZACION del usuario (el botón Rechazar del panel).
     Devuelve True si cambió exactamente una fila."""
@@ -158,6 +166,8 @@ def rechazar(vid: str, usuario_id: str) -> bool:
         "WHERE id = ? AND usuario_id = ? AND estado = 'PENDIENTE_AUTORIZACION'", (vid, usuario_id),
     ) == 1
 
+
+# TITULO DETENER
 
 def detener(usuario_id: str, vid: str | None = None, simbolo: str | None = None) -> dict[str, Any]:
     """Detiene (por id o por símbolo) las vigilancias vigentes del usuario. No cierra posiciones abiertas."""
@@ -185,6 +195,8 @@ def detener(usuario_id: str, vid: str | None = None, simbolo: str | None = None)
                     "(sigue con su stop loss y take profit); ciérrala tú si lo prefieres.")
     return {"ok": True, "mensaje": mensaje, "detenidas": detenidas}
 
+
+# TITULO LISTAR
 
 def listar(usuario_id: str, incluir_finalizadas: bool = False, limite: int = 10) -> list[dict[str, Any]]:
     """Vigilancias del usuario: las vigentes, y opcionalmente las últimas ya terminadas."""

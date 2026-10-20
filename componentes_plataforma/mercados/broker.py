@@ -26,13 +26,18 @@ from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 from componentes_plataforma.mercado_datos import cierre_previo as _cierre_previo
 from componentes_plataforma.mercado_datos.referencias import SinDatos
 from componentes_plataforma.mercados.constantes import CATALOGO
-from herramientas.puente_mt5 import MT5_LOCK, obtener_datos_historicos, resolver_simbolo
+from herramientas.cache_proceso import cache_proceso
+from herramientas.puente_mt5 import MT5_LOCK, PROVEEDOR, obtener_datos_historicos, resolver_simbolo
 
+
+# TITULO LEER ATRIBUTO
 
 def leer_atributo(info, attr):
     """Lee un atributo numérico de un objeto de MT5 (`symbol_info`); devuelve 0 si no existe o es vacío."""
     return getattr(info, attr, 0) or 0
 
+
+# TITULO INDICE BROKER CACHE
 
 @st.cache_data(ttl=600, show_spinner=False)
 def _indice_broker_cache():
@@ -57,6 +62,8 @@ def _indice_broker_cache():
     return nombres, por_ticker
 
 
+# TITULO INDICE BROKER
+
 def _indice_broker():
     """Devuelve el índice de símbolos del bróker, o `(set(), {})` si MT5 no está disponible."""
     try:
@@ -64,6 +71,21 @@ def _indice_broker():
     except Exception:
         return set(), {}
 
+
+# TITULO EXISTE
+
+def _existe(real: str, nombres) -> bool:
+    """¿Existe el instrumento en el bróker? En Capital el catálogo local no incluye todos (p. ej. los
+    índices), así que además se consulta el propio mercado (cacheado; un 404 devuelve vacío)."""
+    if real in nombres:
+        return True
+    if PROVEEDOR == "capital":
+        from herramientas.backends.capital import epic_existe
+        return epic_existe(real)
+    return False
+
+
+# TITULO RESOLVER
 
 def resolver(candidatos, _indice=None) -> str | None:
     """Nombre real en el bróker del primer candidato que exista, o None.
@@ -77,7 +99,7 @@ def resolver(candidatos, _indice=None) -> str | None:
         return None
     for c in candidatos:
         r = resolver_simbolo(c)
-        if r in nombres:
+        if _existe(r, nombres):
             return r
         if c + "Cash" in nombres:                         # XM: FRA40Cash, SpainCash...
             return c + "Cash"
@@ -90,7 +112,9 @@ def resolver(candidatos, _indice=None) -> str | None:
     return None
 
 
-@st.cache_data(ttl=600, show_spinner=False)
+# TITULO ELEMENTOS CACHE
+
+@cache_proceso(tiempo_vida=600)
 def _elementos_cache(categoria: str):
     """Resuelve los instrumentos del catálogo de una categoría que existen en el bróker (cacheado 10 min).
 
@@ -102,13 +126,15 @@ def _elementos_cache(categoria: str):
     # la vista Cotizaciones tardaba decenas de segundos la primera vez.
     with ThreadPoolExecutor(max_workers=8) as ex:
         reales = list(ex.map(lambda it: resolver(it[1][0], indice), items))
-    for (i, (cands, nombre)), real in zip(items, reales):
+    for (i, (candidatos, nombre)), real in zip(items, reales):
         if real:
             out.append((real, nombre, i))
     if not out:
         raise SinDatos(categoria)        # MT5 sin conexión: no cachear el vacío
     return out
 
+
+# TITULO ELEMENTOS
 
 def elementos(categoria: str):
     """[(real, nombre, índice)] de la categoría, solo los que existen en el bróker."""
@@ -117,6 +143,8 @@ def elementos(categoria: str):
     except Exception:
         return []
 
+
+# TITULO HORA SERVIDOR
 
 @st.cache_data(ttl=10, show_spinner=False)
 def hora_servidor() -> int:
@@ -133,28 +161,36 @@ def hora_servidor() -> int:
     return mejor
 
 
+# TITULO ESTA ABIERTO
+
 def esta_abierto(t_tick: int) -> bool:
     """Indica si un mercado está abierto: su último tick (unix) debe estar a menos de 180 s de la hora del servidor."""
-    ref = hora_servidor()
-    return bool(t_tick and ref and ref - t_tick < 180)
+    referencia = hora_servidor()
+    return bool(t_tick and referencia and referencia - t_tick < 180)
 
 
-@st.cache_data(ttl=300, show_spinner=False)
-def _serie_cache(real: str, tf: int, n: int):
+# TITULO SERIE CACHE
+
+@cache_proceso(tiempo_vida=300)
+def _serie_cache(real: str, temporalidad: int, n: int):
     """Descarga `n` velas del timeframe `tf` para el símbolo (cacheado 5 min). Lanza `SinDatos` si llega vacío."""
-    df = obtener_datos_historicos(real, timeframe=tf, n_velas=n)
-    if df is None or df.empty:
+    tabla_datos = obtener_datos_historicos(real, timeframe=temporalidad, n_velas=n)
+    if tabla_datos is None or tabla_datos.empty:
         raise SinDatos(real)
-    return df
+    return tabla_datos
 
 
-def serie(real: str, tf: int, n: int):
+# TITULO SERIE
+
+def serie(real: str, temporalidad: int, n: int):
     """Devuelve el DataFrame de velas del símbolo, o None si MT5 no entregó datos."""
     try:
-        return _serie_cache(real, tf, n)
+        return _serie_cache(real, temporalidad, n)
     except Exception:
         return None
 
+
+# TITULO FILA
 
 def fila(real: str, nombre: str):
     """Datos de una fila desde MT5, o None si no hay precio.
@@ -173,24 +209,24 @@ def fila(real: str, nombre: str):
     if info is None:
         return None
     # Precio: bid del tick; si no hay, bid/last de la info; si el mercado está cerrado, último cierre diario
-    last = float(getattr(tick, "bid", 0) or 0) if tick is not None else 0.0
-    if last <= 0:
-        last = float(leer_atributo(info, "bid") or leer_atributo(info, "last"))
-    if last <= 0:   # bolsa cerrada (acciones antes de la apertura): último cierre diario
+    ultimo = float(getattr(tick, "bid", 0) or 0) if tick is not None else 0.0
+    if ultimo <= 0:
+        ultimo = float(leer_atributo(info, "bid") or leer_atributo(info, "last"))
+    if ultimo <= 0:   # bolsa cerrada (acciones antes de la apertura): último cierre diario
         d1 = serie(real, mt5.TIMEFRAME_D1, 2)
-        last = float(d1["close"].iloc[-1]) if d1 is not None else 0.0
-    if last <= 0:
+        ultimo = float(d1["close"].iloc[-1]) if d1 is not None else 0.0
+    if ultimo <= 0:
         return None
-    dig = int(leer_atributo(info, "digits") or 2)
+    digitos = int(leer_atributo(info, "digits") or 2)
     # Rango del día (se corrige para que siempre contenga el precio actual)
-    hi = float(leer_atributo(info, "bidhigh") or last)
-    lo = float(leer_atributo(info, "bidlow") or last)
+    hi = float(leer_atributo(info, "bidhigh") or ultimo)
+    lo = float(leer_atributo(info, "bidlow") or ultimo)
     # Variación del día contra el cierre de la vela diaria anterior
-    prev = _cierre_previo(real)
-    ch = (last - prev) if prev else 0.0
-    pct = (ch / prev * 100) if prev else 0.0
-    return {"sym": real, "label": nombre, "last": last, "hi": max(hi, last), "lo": min(lo, last),
-            "ch": ch, "pct": pct, "dig": dig, "t": int(getattr(tick, "time", 0) or 0),
+    anterior = _cierre_previo(real)
+    ch = (ultimo - anterior) if anterior else 0.0
+    porcentaje = (ch / anterior * 100) if anterior else 0.0
+    return {"sym": real, "label": nombre, "last": ultimo, "hi": max(hi, ultimo), "lo": min(lo, ultimo),
+            "ch": ch, "pct": porcentaje, "dig": digitos, "t": int(getattr(tick, "time", 0) or 0),
             "desc": getattr(info, "description", "") or ""}
 
 

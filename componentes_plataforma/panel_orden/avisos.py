@@ -24,6 +24,8 @@ import json
 from .interfaz import leer_estatico
 
 
+# TITULO AVISO JS
+
 def aviso_js(mensaje: str, es_error: bool, nonce: str) -> str:
     """Devuelve el <script> listo para components.html(), con el mensaje/estado sustituidos.
 

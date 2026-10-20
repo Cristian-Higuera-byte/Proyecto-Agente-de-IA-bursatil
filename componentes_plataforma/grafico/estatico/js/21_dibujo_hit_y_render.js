@@ -13,15 +13,19 @@ Transportes y Servicios Ltda.
    ---------------------------- INICIO Piña y Jara 21_dibujo_hit_y_render .JS ----------------------------
    ------------------------------------------------------------------------------------------------------- */
 
+    // TITULO DIST SEG
+
 // [grafico] Dibujo: detección de clics y pintado de cada figura
     /** Calcula la distancia mínima en píxeles entre el punto (px, py) y el segmento (x1,y1)-(x2,y2), proyectando el punto sobre el segmento y limitando la proyección a los extremos. Se usa en la detección de clics sobre líneas. */
-    function distSeg(px, py, x1, y1, x2, y2){
+    function distanciaSegundos(px, py, x1, y1, x2, y2){
       var dx = x2 - x1, dy = y2 - y1;
       var l2 = dx * dx + dy * dy;
       var t = l2 ? ((px - x1) * dx + (py - y1) * dy) / l2 : 0;
       t = Math.max(0, Math.min(1, t));
       return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
     }
+
+    // TITULO OFFSET CANAL
 
     /** Calcula el desplazamiento (dx, dy) de la línea paralela de un canal respecto a la base: si hay tercer punto, es la distancia perpendicular de ese punto a la base; si no, solo el desnivel vertical. Recibe la geometría g. */
     function offsetCanal(g){
@@ -33,6 +37,8 @@ Transportes y Servicios Ltda.
       return { dx: nx * signed, dy: ny * signed };
     }
 
+    // TITULO EXTREMOS LINEA
+
     /** Calcula los extremos en pantalla de una línea prolongada: 'ray' sigue desde el punto 1 pasando por el 2 hasta salir de la pantalla; 'extended' se prolonga en ambos sentidos. Devuelve { ax, ay, bx, by }. */
     function extremosLinea(g, tipo){
       var dx = g.x2 - g.x1, dy = g.y2 - g.y1, len = Math.hypot(dx, dy);
@@ -43,8 +49,10 @@ Transportes y Servicios Ltda.
       return r;
     }
 
+    // TITULO HIT TEST
+
     /** Prueba si el punto (x, y) toca un dibujo. Devuelve 'p1', 'p2' o 'p3' si cae sobre un tirador (solo si está seleccionado), 'body' si cae sobre el cuerpo (con tolerancias de 6 a 8 px según la figura) o null si no toca nada. Recibe el dibujo, la posición del ratón y si está seleccionado. */
-    function hitTest(el, x, y, seleccionado){
+    function impactoPrueba(el, x, y, seleccionado){
       var g = geom(el);
       if (!g) return null;
       if (el.tipo === 'hline') return Math.abs(y - g.y) <= 6 ? 'body' : null;
@@ -61,11 +69,11 @@ Transportes y Servicios Ltda.
         if (ok(g.x3, g.y3) && Math.hypot(x - g.x3, y - g.y3) <= 10) return 'p3';
       }
       if (['trend','angle','arrow'].indexOf(el.tipo) >= 0){
-        return distSeg(x, y, g.x1, g.y1, g.x2, g.y2) <= 7 ? 'body' : null;
+        return distanciaSegundos(x, y, g.x1, g.y1, g.x2, g.y2) <= 7 ? 'body' : null;
       }
       if (el.tipo === 'ray' || el.tipo === 'extended'){
         var ex = extremosLinea(g, el.tipo);
-        return distSeg(x, y, ex.ax, ex.ay, ex.bx, ex.by) <= 7 ? 'body' : null;
+        return distanciaSegundos(x, y, ex.ax, ex.ay, ex.bx, ex.by) <= 7 ? 'body' : null;
       }
       if (el.tipo === 'hray'){
         if (x < g.x1 - 6) return null;
@@ -73,8 +81,8 @@ Transportes y Servicios Ltda.
       }
       if (el.tipo === 'channel'){
         var off = offsetCanal(g);
-        var d1 = distSeg(x, y, g.x1, g.y1, g.x2, g.y2);
-        var d2 = distSeg(x, y, g.x1 + off.dx, g.y1 + off.dy, g.x2 + off.dx, g.y2 + off.dy);
+        var d1 = distanciaSegundos(x, y, g.x1, g.y1, g.x2, g.y2);
+        var d2 = distanciaSegundos(x, y, g.x1 + off.dx, g.y1 + off.dy, g.x2 + off.dx, g.y2 + off.dy);
         return Math.min(d1, d2) <= 7 ? 'body' : null;
       }
       var xa = Math.min(g.x1, g.x2), xb = Math.max(g.x1, g.x2);
@@ -93,8 +101,8 @@ Transportes y Servicios Ltda.
       if (el.tipo === 'fib_extension'){
         var xe = [g.x1, g.x2].concat(ok(g.x3) ? [g.x3] : []);
         if (x < Math.min.apply(null, xe) - 8 || x > Math.max.apply(null, xe) + 8) return null;
-        if (distSeg(x, y, g.x1, g.y1, g.x2, g.y2) <= 6) return 'body';
-        if (ok(g.x3, g.y3) && distSeg(x, y, g.x2, g.y2, g.x3, g.y3) <= 6) return 'body';
+        if (distanciaSegundos(x, y, g.x1, g.y1, g.x2, g.y2) <= 6) return 'body';
+        if (ok(g.x3, g.y3) && distanciaSegundos(x, y, g.x2, g.y2, g.x3, g.y3) <= 6) return 'body';
         var pBase = (el.price3 !== undefined) ? el.price3 : el.price2;
         for (var j = 0; j < NIVELES_FIB_EXT.length; j++){
           var ye = yDePrecio(pBase + (el.price2 - el.price1) * NIVELES_FIB_EXT[j].val);
@@ -106,25 +114,29 @@ Transportes y Servicios Ltda.
         var offH = offsetCanal(g);
         for (var m = 0; m < NIVELES_FIB_CANAL.length; m++){
           var f = NIVELES_FIB_CANAL[m].val;
-          if (distSeg(x, y, g.x1 + offH.dx * f, g.y1 + offH.dy * f, g.x2 + offH.dx * f, g.y2 + offH.dy * f) <= 6) return 'body';
+          if (distanciaSegundos(x, y, g.x1 + offH.dx * f, g.y1 + offH.dy * f, g.x2 + offH.dx * f, g.y2 + offH.dy * f) <= 6) return 'body';
         }
         return null;
       }
       return null;
     }
 
+    // TITULO ELEMENTO BAJO
+
     /** Busca el dibujo bajo el cursor: primero comprueba el seleccionado (incluidos sus tiradores) y luego recorre los demás del último al primero (el de arriba gana). Devuelve { idx, parte } o null. */
     function elementoBajo(x, y){
       if (seleccionadoId !== null && elementosDibujados[seleccionadoId]){
-        var h = hitTest(elementosDibujados[seleccionadoId], x, y, true);
+        var h = impactoPrueba(elementosDibujados[seleccionadoId], x, y, true);
         if (h) return { idx: seleccionadoId, parte: h };
       }
       for (var i = elementosDibujados.length - 1; i >= 0; i--){
-        var h2 = hitTest(elementosDibujados[i], x, y, false);
+        var h2 = impactoPrueba(elementosDibujados[i], x, y, false);
         if (h2) return { idx: i, parte: h2 };
       }
       return null;
     }
+
+    // TITULO DIBUJAR HANDLE
 
     /** Pinta un tirador (círculo blanco con borde de color) en (x, y) para indicar un punto editable de un dibujo seleccionado. Recibe el contexto, la posición y el color del borde. */
     function dibujarHandle(c, x, y, col){
@@ -135,6 +147,8 @@ Transportes y Servicios Ltda.
 
     // Estilo de trazo temporal del dibujo que se está pintando: ancho y estilo propios del dibujo y sobreancho por hover; lo lee dibujarLinea.
     var trazoActual = { ancho: null, estilo: null, hover: 0 };
+    // TITULO DIBUJAR LINEA
+
     /** Traza una línea de (x1,y1) a (x2,y2) con el color dado, aplicando el ancho y el estilo (continua, rayas o puntos) del dibujo actual si los tiene, o el ancho y la discontinuidad indicados. Restablece la discontinuidad al terminar. */
     function dibujarLinea(c, x1, y1, x2, y2, col, width, dash){
       c.strokeStyle = col; c.lineCap = 'round';
@@ -148,60 +162,66 @@ Transportes y Servicios Ltda.
       if (d) c.setLineDash([]);
     }
 
+    // TITULO ALFA RELL
+
     // Relleno de las figuras: se puede apagar, cambiar de color y de opacidad desde la ventana de ajustes
     /** Devuelve la opacidad del relleno de una figura: 0 si el relleno está apagado, la opacidad propia si existe o la opacidad base indicada. */
-    function alfaRell(el, base){ return el.relleno === false ? 0 : (el.rellenoOp !== undefined ? el.rellenoOp : base); }
+    function alfaRelleno(el, base){ return el.relleno === false ? 0 : (el.rellenoOp !== undefined ? el.rellenoOp : base); }
+    // TITULO COL RELL
+
     /** Devuelve el color del relleno de una figura: el propio si lo definió el usuario o el color de la línea. */
-    function colRell(el, col){ return el.rellenoColor || col; }
+    function columnaRelleno(el, col){ return el.rellenoColor || col; }
+    // TITULO DIBUJAR ELEMENTO
+
     /** Pinta un dibujo completo en el lienzo según su tipo (tendencia, rayo, extendida, ángulo, líneas horizontal/vertical/cruz, canal, Fibonacci, rectángulo, elipse, triángulo, flecha, texto, medida). Recibe el contexto, el dibujo, si está seleccionado y si el cursor está encima; los seleccionados muestran tiradores y el hover engrosa el trazo. */
     function dibujarElemento(c, el, sel, hov){
       var g = geom(el); if (!g) return;
       c.save();
       trazoActual.ancho = el.ancho || null; trazoActual.estilo = el.estilo || null; trazoActual.hover = (hov && !sel) ? 1 : 0;
-      var hoverExtra = (hov && !sel) ? 1 : 0;
+      var encimaExtra = (hov && !sel) ? 1 : 0;
 
       // Línea de tendencia: segmento entre los dos puntos.
       if (el.tipo === 'trend'){
-        var col = el.color || '#2962ff'; dibujarLinea(c,g.x1,g.y1,g.x2,g.y2,col,(el.ancho||2)+hoverExtra);
+        var col = el.color || '#2962ff'; dibujarLinea(c,g.x1,g.y1,g.x2,g.y2,col,(el.ancho||2)+encimaExtra);
         if (sel){ dibujarHandle(c,g.x1,g.y1,col); dibujarHandle(c,g.x2,g.y2,col); }
       } else if (el.tipo === 'ray'){
         // Rayo: parte del punto 1, pasa por el 2 y sigue hasta el borde.
-        var colR = el.color || '#2962ff'; var exR = extremosLinea(g, 'ray');
-        dibujarLinea(c,exR.ax,exR.ay,exR.bx,exR.by,colR,(el.ancho||2)+hoverExtra);
-        if(sel){dibujarHandle(c,g.x1,g.y1,colR);dibujarHandle(c,g.x2,g.y2,colR);}
+        var columnaR = el.color || '#2962ff'; var exR = extremosLinea(g, 'ray');
+        dibujarLinea(c,exR.ax,exR.ay,exR.bx,exR.by,columnaR,(el.ancho||2)+encimaExtra);
+        if(sel){dibujarHandle(c,g.x1,g.y1,columnaR);dibujarHandle(c,g.x2,g.y2,columnaR);}
       } else if (el.tipo === 'extended'){
         // Línea extendida: se prolonga en ambos sentidos.
-        var colE = el.color || '#2962ff'; var exE = extremosLinea(g, 'extended');
-        dibujarLinea(c,exE.ax,exE.ay,exE.bx,exE.by,colE,(el.ancho||2)+hoverExtra);
-        if(sel){dibujarHandle(c,g.x1,g.y1,colE);dibujarHandle(c,g.x2,g.y2,colE);}
+        var columnaE = el.color || '#2962ff'; var exE = extremosLinea(g, 'extended');
+        dibujarLinea(c,exE.ax,exE.ay,exE.bx,exE.by,columnaE,(el.ancho||2)+encimaExtra);
+        if(sel){dibujarHandle(c,g.x1,g.y1,columnaE);dibujarHandle(c,g.x2,g.y2,columnaE);}
       } else if (el.tipo === 'angle'){
         // Ángulo: línea con la inclinación en grados junto al punto final.
-        var colA=el.color||'#a78bfa'; dibujarLinea(c,g.x1,g.y1,g.x2,g.y2,colA,(el.ancho||2)+hoverExtra);
+        var columnaA=el.color||'#a78bfa'; dibujarLinea(c,g.x1,g.y1,g.x2,g.y2,columnaA,(el.ancho||2)+encimaExtra);
         var ang=Math.atan2(-(g.y2-g.y1),g.x2-g.x1)*180/Math.PI;
-        c.font='11px sans-serif'; c.fillStyle=colA; c.fillText((ang>=0?'+':'')+ang.toFixed(1)+'°',g.x2+7,g.y2-7);
-        if(sel){dibujarHandle(c,g.x1,g.y1,colA);dibujarHandle(c,g.x2,g.y2,colA);}
+        c.font='11px sans-serif'; c.fillStyle=columnaA; c.fillText((ang>=0?'+':'')+ang.toFixed(1)+'°',g.x2+7,g.y2-7);
+        if(sel){dibujarHandle(c,g.x1,g.y1,columnaA);dibujarHandle(c,g.x2,g.y2,columnaA);}
       } else if (el.tipo === 'hline'){
         // Línea horizontal: recorre todo el ancho y se marca con un cuadro en el borde izquierdo si está seleccionada.
-        var colH=el.color||'#f5c518'; dibujarLinea(c,0,g.y,cssW,g.y,colH,(el.ancho||1.5)+hoverExtra,[6,4]);
-        if(sel){c.fillStyle=colH;c.fillRect(0,g.y-4,6,8);}
+        var columnaH=el.color||'#f5c518'; dibujarLinea(c,0,g.y,cssW,g.y,columnaH,(el.ancho||1.5)+encimaExtra,[6,4]);
+        if(sel){c.fillStyle=columnaH;c.fillRect(0,g.y-4,6,8);}
       } else if (el.tipo === 'hray'){
         // Rayo horizontal: desde el punto 1 hasta el borde derecho.
-        var colHR=el.color||'#f5c518'; dibujarLinea(c,g.x1,g.y1,cssW,g.y1,colHR,(el.ancho||1.5)+hoverExtra);
-        if(sel)dibujarHandle(c,g.x1,g.y1,colHR);
+        var columnaHR=el.color||'#f5c518'; dibujarLinea(c,g.x1,g.y1,cssW,g.y1,columnaHR,(el.ancho||1.5)+encimaExtra);
+        if(sel)dibujarHandle(c,g.x1,g.y1,columnaHR);
       } else if (el.tipo === 'vline'){
         // Línea vertical: recorre todo el alto.
-        var colV=el.color||'#58a6ff'; dibujarLinea(c,g.x,0,g.x,cssH,colV,1.5,[4,4]);
-        if(sel){c.fillStyle=colV;c.fillRect(g.x-4,0,8,6);}
+        var columnaV=el.color||'#58a6ff'; dibujarLinea(c,g.x,0,g.x,cssH,columnaV,1.5,[4,4]);
+        if(sel){c.fillStyle=columnaV;c.fillRect(g.x-4,0,8,6);}
       } else if (el.tipo === 'crossline'){
         // Cruz (línea horizontal y vertical a la vez).
-        var colX=el.color||'#8b949e'; dibujarLinea(c,g.x,0,g.x,cssH,colX,1,[4,4]); dibujarLinea(c,0,g.y,cssW,g.y,colX,1,[4,4]);
-        if(sel)dibujarHandle(c,g.x,g.y,colX);
+        var columnaX=el.color||'#8b949e'; dibujarLinea(c,g.x,0,g.x,cssH,columnaX,1,[4,4]); dibujarLinea(c,0,g.y,cssW,g.y,columnaX,1,[4,4]);
+        if(sel)dibujarHandle(c,g.x,g.y,columnaX);
       } else if (el.tipo === 'channel'){
         // Canal paralelo: zona rellena entre la base y su paralela más las dos líneas.
-        var colC=el.color||'#2962ff', oc=offsetCanal(g);
-        c.globalAlpha=alfaRell(el,.08);c.fillStyle=colRell(el,colC);c.beginPath();c.moveTo(g.x1,g.y1);c.lineTo(g.x2,g.y2);c.lineTo(g.x2+oc.dx,g.y2+oc.dy);c.lineTo(g.x1+oc.dx,g.y1+oc.dy);c.closePath();c.fill();c.globalAlpha=1;
-        dibujarLinea(c,g.x1,g.y1,g.x2,g.y2,colC,2+hoverExtra);dibujarLinea(c,g.x1+oc.dx,g.y1+oc.dy,g.x2+oc.dx,g.y2+oc.dy,colC,2+hoverExtra);
-        if(sel){dibujarHandle(c,g.x1,g.y1,colC);dibujarHandle(c,g.x2,g.y2,colC);dibujarHandle(c,g.x3,g.y3,colC);}
+        var columnaC=el.color||'#2962ff', oc=offsetCanal(g);
+        c.globalAlpha=alfaRelleno(el,.08);c.fillStyle=columnaRelleno(el,columnaC);c.beginPath();c.moveTo(g.x1,g.y1);c.lineTo(g.x2,g.y2);c.lineTo(g.x2+oc.dx,g.y2+oc.dy);c.lineTo(g.x1+oc.dx,g.y1+oc.dy);c.closePath();c.fill();c.globalAlpha=1;
+        dibujarLinea(c,g.x1,g.y1,g.x2,g.y2,columnaC,2+encimaExtra);dibujarLinea(c,g.x1+oc.dx,g.y1+oc.dy,g.x2+oc.dx,g.y2+oc.dy,columnaC,2+encimaExtra);
+        if(sel){dibujarHandle(c,g.x1,g.y1,columnaC);dibujarHandle(c,g.x2,g.y2,columnaC);dibujarHandle(c,g.x3,g.y3,columnaC);}
       } else if (el.tipo === 'fib'){
         // Retroceso de Fibonacci: franjas de color entre niveles, líneas con su valor y precio y diagonal de referencia.
         var xa=Math.min(g.x1,g.x2), xb=Math.max(g.x1,g.x2), dY=g.y2-g.y1, dP=el.price2-el.price1;
@@ -223,75 +243,85 @@ Transportes y Servicios Ltda.
       } else if (el.tipo === 'fib_channel'){
         // Canal de Fibonacci: paralelas a la base escaladas por cada nivel, con franjas entre ellas.
         var offC=offsetCanal(g), nvC=NIVELES_FIB_CANAL;
-        c.globalAlpha=.06; for(var fc=0;fc<nvC.length-1;fc++){var fa=nvC[fc].val,fb=nvC[fc+1].val;c.fillStyle=nvC[fc+1].color;c.beginPath();c.moveTo(g.x1+offC.dx*fa,g.y1+offC.dy*fa);c.lineTo(g.x2+offC.dx*fa,g.y2+offC.dy*fa);c.lineTo(g.x2+offC.dx*fb,g.y2+offC.dy*fb);c.lineTo(g.x1+offC.dx*fb,g.y1+offC.dy*fb);c.closePath();c.fill();} c.globalAlpha=1;
-        c.font='11px sans-serif'; nvC.forEach(function(n){var ox=offC.dx*n.val,oy=offC.dy*n.val;dibujarLinea(c,g.x1+ox,g.y1+oy,g.x2+ox,g.y2+oy,n.color,1.2+hoverExtra);c.fillStyle=n.color;c.fillText(String(+n.val.toFixed(3)),Math.max(g.x1,g.x2)+ox+6,g.y2+oy-3);});
+        c.globalAlpha=.06; for(var fc=0;fc<nvC.length-1;fc++){var fa=nvC[fc].val,retroalimentacion=nvC[fc+1].val;c.fillStyle=nvC[fc+1].color;c.beginPath();c.moveTo(g.x1+offC.dx*fa,g.y1+offC.dy*fa);c.lineTo(g.x2+offC.dx*fa,g.y2+offC.dy*fa);c.lineTo(g.x2+offC.dx*retroalimentacion,g.y2+offC.dy*retroalimentacion);c.lineTo(g.x1+offC.dx*retroalimentacion,g.y1+offC.dy*retroalimentacion);c.closePath();c.fill();} c.globalAlpha=1;
+        c.font='11px sans-serif'; nvC.forEach(function(n){var ox=offC.dx*n.val,oy=offC.dy*n.val;dibujarLinea(c,g.x1+ox,g.y1+oy,g.x2+ox,g.y2+oy,n.color,1.2+encimaExtra);c.fillStyle=n.color;c.fillText(String(+n.val.toFixed(3)),Math.max(g.x1,g.x2)+ox+6,g.y2+oy-3);});
         if(sel){dibujarHandle(c,g.x1,g.y1,'#a78bfa');dibujarHandle(c,g.x2,g.y2,'#a78bfa');if(ok(g.x3,g.y3))dibujarHandle(c,g.x3,g.y3,'#a78bfa');}
       } else if (el.tipo === 'rectangle'){
         // Rectángulo con relleno translúcido y borde.
-        var colG=el.color||'#58a6ff'; var rw=g.x2-g.x1,rh=g.y2-g.y1;
-        c.globalAlpha=alfaRell(el,.08);c.fillStyle=colRell(el,colG);c.fillRect(Math.min(g.x1,g.x2),Math.min(g.y1,g.y2),Math.abs(rw),Math.abs(rh));c.globalAlpha=1;
-        c.strokeStyle=colG;c.lineWidth=(el.ancho||2)+hoverExtra;c.strokeRect(Math.min(g.x1,g.x2),Math.min(g.y1,g.y2),Math.abs(rw),Math.abs(rh));
-        if(sel){dibujarHandle(c,g.x1,g.y1,colG);dibujarHandle(c,g.x2,g.y2,colG);}
+        var columnaG=el.color||'#58a6ff'; var rw=g.x2-g.x1,rh=g.y2-g.y1;
+        c.globalAlpha=alfaRelleno(el,.08);c.fillStyle=columnaRelleno(el,columnaG);c.fillRect(Math.min(g.x1,g.x2),Math.min(g.y1,g.y2),Math.abs(rw),Math.abs(rh));c.globalAlpha=1;
+        c.strokeStyle=columnaG;c.lineWidth=(el.ancho||2)+encimaExtra;c.strokeRect(Math.min(g.x1,g.x2),Math.min(g.y1,g.y2),Math.abs(rw),Math.abs(rh));
+        if(sel){dibujarHandle(c,g.x1,g.y1,columnaG);dibujarHandle(c,g.x2,g.y2,columnaG);}
       } else if (el.tipo === 'ellipse'){
         // Elipse inscrita en el rectángulo de los dos puntos.
-        var colEl=el.color||'#58a6ff'; var cx=(g.x1+g.x2)/2,cy=(g.y1+g.y2)/2,rx=Math.abs(g.x2-g.x1)/2,ry=Math.abs(g.y2-g.y1)/2;
-        c.globalAlpha=alfaRell(el,.08);c.fillStyle=colRell(el,colEl);c.beginPath();c.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);c.fill();c.globalAlpha=1;c.strokeStyle=colEl;c.lineWidth=(el.ancho||2)+hoverExtra;c.beginPath();c.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);c.stroke();
-        if(sel){dibujarHandle(c,g.x1,g.y1,colEl);dibujarHandle(c,g.x2,g.y2,colEl);}
+        var columnaEl=el.color||'#58a6ff'; var cx=(g.x1+g.x2)/2,cy=(g.y1+g.y2)/2,rx=Math.abs(g.x2-g.x1)/2,ry=Math.abs(g.y2-g.y1)/2;
+        c.globalAlpha=alfaRelleno(el,.08);c.fillStyle=columnaRelleno(el,columnaEl);c.beginPath();c.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);c.fill();c.globalAlpha=1;c.strokeStyle=columnaEl;c.lineWidth=(el.ancho||2)+encimaExtra;c.beginPath();c.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);c.stroke();
+        if(sel){dibujarHandle(c,g.x1,g.y1,columnaEl);dibujarHandle(c,g.x2,g.y2,columnaEl);}
       } else if (el.tipo === 'triangle'){
         // Triángulo rectángulo formado por los dos puntos.
-        var colT=el.color||'#58a6ff';
-        c.globalAlpha=alfaRell(el,.08);c.fillStyle=colRell(el,colT);c.beginPath();c.moveTo(g.x1,g.y1);c.lineTo(g.x2,g.y2);c.lineTo(g.x1,g.y2);c.closePath();c.fill();c.globalAlpha=1;c.strokeStyle=colT;c.lineWidth=(el.ancho||2)+hoverExtra;c.beginPath();c.moveTo(g.x1,g.y1);c.lineTo(g.x2,g.y2);c.lineTo(g.x1,g.y2);c.closePath();c.stroke();
-        if(sel){dibujarHandle(c,g.x1,g.y1,colT);dibujarHandle(c,g.x2,g.y2,colT);}
+        var columnaT=el.color||'#58a6ff';
+        c.globalAlpha=alfaRelleno(el,.08);c.fillStyle=columnaRelleno(el,columnaT);c.beginPath();c.moveTo(g.x1,g.y1);c.lineTo(g.x2,g.y2);c.lineTo(g.x1,g.y2);c.closePath();c.fill();c.globalAlpha=1;c.strokeStyle=columnaT;c.lineWidth=(el.ancho||2)+encimaExtra;c.beginPath();c.moveTo(g.x1,g.y1);c.lineTo(g.x2,g.y2);c.lineTo(g.x1,g.y2);c.closePath();c.stroke();
+        if(sel){dibujarHandle(c,g.x1,g.y1,columnaT);dibujarHandle(c,g.x2,g.y2,columnaT);}
       } else if (el.tipo === 'arrow'){
         // Flecha: línea con punta triangular en el segundo punto.
-        var colAr=el.color||'#3fb950';dibujarLinea(c,g.x1,g.y1,g.x2,g.y2,colAr,2+hoverExtra);var a=Math.atan2(g.y2-g.y1,g.x2-g.x1),hs=10;
-        c.fillStyle=colAr;c.beginPath();c.moveTo(g.x2,g.y2);c.lineTo(g.x2-hs*Math.cos(a-Math.PI/6),g.y2-hs*Math.sin(a-Math.PI/6));c.lineTo(g.x2-hs*Math.cos(a+Math.PI/6),g.y2-hs*Math.sin(a+Math.PI/6));c.closePath();c.fill();
-        if(sel){dibujarHandle(c,g.x1,g.y1,colAr);dibujarHandle(c,g.x2,g.y2,colAr);}
+        var columnaAr=el.color||'#3fb950';dibujarLinea(c,g.x1,g.y1,g.x2,g.y2,columnaAr,2+encimaExtra);var a=Math.atan2(g.y2-g.y1,g.x2-g.x1),hs=10;
+        c.fillStyle=columnaAr;c.beginPath();c.moveTo(g.x2,g.y2);c.lineTo(g.x2-hs*Math.cos(a-Math.PI/6),g.y2-hs*Math.sin(a-Math.PI/6));c.lineTo(g.x2-hs*Math.cos(a+Math.PI/6),g.y2-hs*Math.sin(a+Math.PI/6));c.closePath();c.fill();
+        if(sel){dibujarHandle(c,g.x1,g.y1,columnaAr);dibujarHandle(c,g.x2,g.y2,columnaAr);}
       } else if (el.tipo === 'text'){
         // Texto: se pinta con su fuente y, al seleccionarlo o pasar el cursor, se enmarca con borde punteado.
         c.font=fuenteTexto(el);c.fillStyle=el.color||'#ffffff';c.fillText(el.texto||'Texto',g.x,g.y);
         if(sel||hov){var tw=c.measureText(el.texto||'Texto').width,sz=el.tamano||13;c.strokeStyle='rgba(88,166,255,.8)';c.lineWidth=1;c.setLineDash([3,3]);c.strokeRect(g.x-4,g.y-sz-3,tw+8,sz+9);c.setLineDash([]);}
       } else if (el.tipo === 'measure'){
         // Medida: rectángulo azul (sube) o rojo (baja) con etiqueta de diferencia en pips o precio, porcentaje y número de barras.
-        var sube=el.price2>=el.price1,colM=sube?'#2962ff':'#f23645',mw=g.x2-g.x1,mh=g.y2-g.y1;
-        c.globalAlpha=.15;c.fillStyle=colM;c.fillRect(g.x1,g.y1,mw,mh);c.globalAlpha=1;c.strokeStyle=colM;c.lineWidth=1;c.strokeRect(g.x1,g.y1,mw,mh);
+        var sube=el.price2>=el.price1,columnaM=sube?'#2962ff':'#f23645',mw=g.x2-g.x1,mh=g.y2-g.y1;
+        c.globalAlpha=.15;c.fillStyle=columnaM;c.fillRect(g.x1,g.y1,mw,mh);c.globalAlpha=1;c.strokeStyle=columnaM;c.lineWidth=1;c.strokeRect(g.x1,g.y1,mw,mh);
         var l1=tiempoALogico(el.time1),l2=tiempoALogico(el.time2),barras=(l1===null||l2===null)?0:Math.abs(Math.round(l2-l1));
-        var dif=el.price2-el.price1,pct=el.price1?(dif/el.price1)*100:0,textoDif=PIP>0?(dif/PIP).toFixed(1)+' pips':dif.toFixed(DIGITS);
-        var txt=(dif>=0?'+':'')+textoDif+' ('+(pct>=0?'+':'')+pct.toFixed(2)+'%) · '+barras+' barras';c.font='12px sans-serif';var pw=c.measureText(txt).width+16,px0=(g.x1+g.x2)/2-pw/2,py0=sube?Math.min(g.y1,g.y2)-28:Math.max(g.y1,g.y2)+8;
-        c.fillStyle=colM;c.fillRect(px0,py0,pw,20);c.fillStyle='#fff';c.textBaseline='middle';c.fillText(txt,px0+8,py0+10);
-        if(sel){dibujarHandle(c,g.x1,g.y1,colM);dibujarHandle(c,g.x2,g.y2,colM);}
+        var diferencia=el.price2-el.price1,pct=el.price1?(diferencia/el.price1)*100:0,textoDiferencia=PIP>0?(diferencia/PIP).toFixed(1)+' pips':diferencia.toFixed(DIGITS);
+        var txt=(diferencia>=0?'+':'')+textoDiferencia+' ('+(pct>=0?'+':'')+pct.toFixed(2)+'%) · '+barras+' barras';c.font='12px sans-serif';var pw=c.measureText(txt).width+16,px0=(g.x1+g.x2)/2-pw/2,py0=sube?Math.min(g.y1,g.y2)-28:Math.max(g.y1,g.y2)+8;
+        c.fillStyle=columnaM;c.fillRect(px0,py0,pw,20);c.fillStyle='#fff';c.textBaseline='middle';c.fillText(txt,px0+8,py0+10);
+        if(sel){dibujarHandle(c,g.x1,g.y1,columnaM);dibujarHandle(c,g.x2,g.y2,columnaM);}
       }
       c.restore();
     }
 
+    // TITULO FMT TIEMPO
+
     /** Formatea un tiempo UNIX (segundos) como texto dd/mm hh:mm en UTC para las etiquetas del eje de tiempo. */
-    function fmtTiempo(t){
+    function formatoTiempo(t){
       // Auxiliar local p: rellena con un cero a la izquierda los números menores de 10.
       var d=new Date(t*1000); function p(n){return (n<10?'0':'')+n;}
       return p(d.getUTCDate())+'/'+p(d.getUTCMonth()+1)+' '+p(d.getUTCHours())+':'+p(d.getUTCMinutes());
     }
 
+    // TITULO BADGE PRECIO
+
     /** Pinta una etiqueta de precio en el eje derecho a la altura y (rectángulo de color con el precio). No pinta si y es inválida o queda fuera del área de trazado. Recibe contexto, y, precio, colores de fondo y texto y el área de trazado ap. */
-    function badgePrecio(c,y,precio,fondo,texto,ap){
+    function insigniaPrecio(c,y,precio,fondo,texto,ap){
       if(!ok(y)||y<0||y>ap.h)return;var w=cssW-ap.w;c.save();c.fillStyle=fondo;c.fillRect(ap.w,y-10,w,20);c.fillStyle=texto;c.font='11px sans-serif';c.textBaseline='middle';c.textAlign='left';c.fillText(precio.toFixed(DIGITS),ap.w+6,y);c.restore();
     }
+    // TITULO BADGE TIEMPO
+
     /** Pinta una etiqueta de tiempo en el eje inferior centrada en x (limitada al área de trazado). Recibe contexto, x, tiempo, color de fondo y el área ap. */
-    function badgeTiempo(c,x,t,fondo,ap){
-      var h=cssH-ap.h;if(!ok(x)||x<0||x>ap.w||h<10)return;var w=92,bx=Math.max(0,Math.min(ap.w-w,x-w/2));c.save();c.fillStyle=fondo;c.fillRect(bx,ap.h,w,h);c.fillStyle='#fff';c.font='11px sans-serif';c.textAlign='center';c.textBaseline='middle';c.fillText(fmtTiempo(t),bx+w/2,ap.h+h/2);c.restore();
+    function insigniaTiempo(c,x,t,fondo,ap){
+      var h=cssH-ap.h;if(!ok(x)||x<0||x>ap.w||h<10)return;var w=92,bx=Math.max(0,Math.min(ap.w-w,x-w/2));c.save();c.fillStyle=fondo;c.fillRect(bx,ap.h,w,h);c.fillStyle='#fff';c.font='11px sans-serif';c.textAlign='center';c.textBaseline='middle';c.fillText(formatoTiempo(t),bx+w/2,ap.h+h/2);c.restore();
     }
+    // TITULO ETIQUETAS EJE
+
     /** Pinta en los ejes las etiquetas de precio y tiempo asociadas a un dibujo (las de sus puntos 1 y 2, o la de la propia línea para horizontal, vertical, rayo horizontal y cruz); el texto no lleva etiquetas. */
     function etiquetasEje(c,el,ap){
-      if(el.tipo==='hline'){badgePrecio(c,yDePrecio(el.price),el.price,el.color||'#f5c518','#fff',ap);return;}
-      if(el.tipo==='vline'){badgeTiempo(c,xDeTiempo(el.time),el.time,el.color||'#58a6ff',ap);return;}
-      if(el.tipo==='hray'){badgePrecio(c,yDePrecio(el.price1),el.price1,el.color||'#f5c518','#fff',ap);return;}
-      if(el.tipo==='crossline'){badgePrecio(c,yDePrecio(el.price),el.price,el.color||'#8b949e','#fff',ap);badgeTiempo(c,xDeTiempo(el.time),el.time,el.color||'#8b949e',ap);return;}
+      if(el.tipo==='hline'){insigniaPrecio(c,yDePrecio(el.price),el.price,el.color||'#f5c518','#fff',ap);return;}
+      if(el.tipo==='vline'){insigniaTiempo(c,xDeTiempo(el.time),el.time,el.color||'#58a6ff',ap);return;}
+      if(el.tipo==='hray'){insigniaPrecio(c,yDePrecio(el.price1),el.price1,el.color||'#f5c518','#fff',ap);return;}
+      if(el.tipo==='crossline'){insigniaPrecio(c,yDePrecio(el.price),el.price,el.color||'#8b949e','#fff',ap);insigniaTiempo(c,xDeTiempo(el.time),el.time,el.color||'#8b949e',ap);return;}
       if(el.tipo==='text')return;
       var col=el.tipo.indexOf('fib')===0?'#7c5cd6':(el.tipo==='measure'?(el.price2>=el.price1?'#2962ff':'#f23645'):(el.color||'#2962ff'));
-      if(el.price1!==undefined)badgePrecio(c,yDePrecio(el.price1),el.price1,col,'#fff',ap);
-      if(el.price2!==undefined)badgePrecio(c,yDePrecio(el.price2),el.price2,col,'#fff',ap);
-      if(el.time1!==undefined)badgeTiempo(c,xDeTiempo(el.time1),el.time1,col,ap);
-      if(el.time2!==undefined)badgeTiempo(c,xDeTiempo(el.time2),el.time2,col,ap);
+      if(el.price1!==undefined)insigniaPrecio(c,yDePrecio(el.price1),el.price1,col,'#fff',ap);
+      if(el.price2!==undefined)insigniaPrecio(c,yDePrecio(el.price2),el.price2,col,'#fff',ap);
+      if(el.time1!==undefined)insigniaTiempo(c,xDeTiempo(el.time1),el.time1,col,ap);
+      if(el.time2!==undefined)insigniaTiempo(c,xDeTiempo(el.time2),el.time2,col,ap);
     }
+
+    // TITULO PINTAR
 
     /** Repinta todo el lienzo: lo limpia, recorta al área de trazado, dibuja todos los dibujos y el que está en curso, y luego (fuera del recorte) pinta las etiquetas de los ejes del seleccionado, de las líneas horizontales y verticales y del dibujo en curso. No hace nada sin serie o sin datos. */
     function pintar(){
@@ -303,7 +333,7 @@ Transportes y Servicios Ltda.
       ctx.rect(0, 0, ap.w, ap.h);
       ctx.clip();
       elementosDibujados.forEach(function(el, idx){
-        dibujarElemento(ctx, el, idx === seleccionadoId, idx === hoverId);
+        dibujarElemento(ctx, el, idx === seleccionadoId, idx === encimaId);
       });
       if (dibujoEnCurso) dibujarElemento(ctx, dibujoEnCurso, true, false);
       ctx.restore();
@@ -316,6 +346,8 @@ Transportes y Servicios Ltda.
 
     // Última firma de la vista; permite detectar movimientos del gráfico (escala vertical o zoom) que no avisan por evento.
     var ultimaFirma = '';
+    // TITULO FIRMA VISTA
+
     /** Genera una firma de texto de la vista actual (coordenadas de dos precios de referencia y de dos índices lógicos). Si cambia entre fotogramas, la escala de precio o de tiempo se movió y hay que repintar. Devuelve cadena vacía sin datos o serie. */
     function firmaVista(){
       if (!datosActuales.length || !serie) return '';
@@ -328,6 +360,8 @@ Transportes y Servicios Ltda.
         ts.logicalToCoordinate(100)
       ].join('|');
     }
+
+    // TITULO BUCLE REDIBUJO
 
     /** Bucle de renderizado con requestAnimationFrame: repinta solo si el lienzo está marcado como sucio o, cuando hay dibujos, si la firma de la vista cambió; así se evita pintar en vano. Se reprograma a sí mismo cada fotograma. */
     function bucleRedibujo(){

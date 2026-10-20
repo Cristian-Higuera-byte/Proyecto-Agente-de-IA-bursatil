@@ -26,12 +26,16 @@ from nucleo_agente.llm.respuesta import construir_respuesta
 from nucleo_agente.llm.tipos import EventoStream, RespuestaLLM
 
 
+# TITULO CLIENTE LLM
+
 class ClienteLLM:
     """Cliente del modelo de DeepSeek (API compatible con OpenAI) con llamada completa y streaming.
 
     Es el único punto del agente que habla con el proveedor: traduce errores a ErrorLLM y devuelve
     RespuestaLLM / EventoStream ya ensamblados.
     """
+
+    # TITULO INIT
 
     def __init__(self, perfil: str = configuracion.PERFIL_POR_DEFECTO):
         """Crea el cliente para un perfil de configuracion.PERFILES.
@@ -46,11 +50,13 @@ class ClienteLLM:
         self._cliente = OpenAI(
             api_key=configuracion.DEEPSEEK_API_KEY,
             base_url=configuracion.DEEPSEEK_BASE_URL,
-            timeout=configuracion.TIMEOUT_LLM_SEG,
+            timeout=configuracion.TIEMPO_ESPERA_LLM_SEGUNDOS,
             max_retries=configuracion.REINTENTOS_LLM,
         )
 
     # ── API pública ───────────────────────────────────────────
+
+    # TITULO CHAT
 
     def chat(
         self,
@@ -73,18 +79,20 @@ class ClienteLLM:
             raise traducir_error(e) from e
 
         # Se extrae el mensaje y se normalizan las llamadas a herramientas al formato interno.
-        msg = r.choices[0].message
+        mensaje = r.choices[0].message
         llamadas_raw = [
             {"id": tc.id, "nombre": tc.function.name, "args": tc.function.arguments or ""}
-            for tc in (msg.tool_calls or [])
+            for tc in (mensaje.tool_calls or [])
         ]
         return construir_respuesta(
             nombre,
-            contenido=msg.content or "",
-            razonamiento=getattr(msg, "reasoning_content", None),
+            contenido=mensaje.content or "",
+            razonamiento=getattr(mensaje, "reasoning_content", None),
             llamadas_raw=llamadas_raw,
             usage=r.usage,
         )
+
+    # TITULO CHAT STREAM
 
     def chat_stream(
         self,
@@ -154,6 +162,8 @@ class ClienteLLM:
         yield EventoStream("final", respuesta=respuesta)
 
     # ── Internos ──────────────────────────────────────────────
+
+    # TITULO TRADUCIR ERROR
 
     @staticmethod
     def _traducir_error(e: Exception):

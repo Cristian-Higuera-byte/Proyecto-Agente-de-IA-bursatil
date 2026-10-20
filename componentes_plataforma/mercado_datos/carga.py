@@ -37,23 +37,27 @@ _INDICES = datos_json(Path(__file__).parent / "indices_globales.json")
 _ESPERA_INDICES = 6.0
 
 
+# TITULO INDICE GLOBAL
+
 def _indice_global(par):
     """Último valor y variación de un índice global (par `(clave, símbolo de yfinance)`) o None si no hay datos."""
     import yfinance as yf  # type: ignore[import-untyped]
-    key, sym = par
-    hist = yf.Ticker(sym).history(period="3d")
-    if hist.empty or "Close" not in hist.columns:
+    key, simbolo = par
+    historial = yf.Ticker(simbolo).history(period="3d")
+    if historial.empty or "Close" not in historial.columns:
         return None
-    val = hist["Close"].iloc[-1]
-    if math.isnan(float(val)):
+    valor = historial["Close"].iloc[-1]
+    if math.isnan(float(valor)):
         return None
-    actual = float(val)
-    anterior_val = hist["Close"].iloc[-2] if len(hist) > 1 else actual
-    anterior = float(anterior_val) if not math.isnan(float(anterior_val)) else actual
+    actual = float(valor)
+    anterior_valor = historial["Close"].iloc[-2] if len(historial) > 1 else actual
+    anterior = float(anterior_valor) if not math.isnan(float(anterior_valor)) else actual
     cambio = actual - anterior
     porc = (cambio / anterior * 100) if anterior != 0 else 0.0
     return key, {"valor": actual, "var": f"{'+' if cambio >= 0 else ''}{porc:.2f}%", "sube": cambio >= 0}
 
+
+# TITULO CALENTAR SIMBOLO
 
 def _calentar_simbolo(simbolo: str):
     """Pide por adelantado (en un hilo) todo lo que luego necesita la entrada de un símbolo: su ficha, su precio, el cierre
@@ -61,6 +65,8 @@ def _calentar_simbolo(simbolo: str):
     construir_entrada(simbolo)
     historial_sparkline(simbolo)
 
+
+# TITULO CARGAR DATOS MERCADO
 
 def cargar_datos_mercado():
     """Carga (una sola vez por sesión) índices globales, watchlist del usuario y datos de cada símbolo.
@@ -95,11 +101,11 @@ def cargar_datos_mercado():
 
     # 2. Watchlist del USUARIO (desde Supabase; si es nuevo, se siembra el default)
     # El id puede faltar (sesión sin login completo): en ese caso uid es None y el gestor decide qué devolver
-    usuario = st.session_state.get("usuario_info", {})
+    usuario = st.session_state.get("usuario_informacion", {})
     uid = usuario.get("id") if isinstance(usuario, dict) else None
     simbolos = wl.obtener_watchlist(uid)
     if not simbolos:
-        simbolos = wl.sembrar_defaults(uid)
+        simbolos = wl.sembrar_por_defecto(uid)
     st.session_state.watchlist_simbolos = simbolos
     # Activo inicial = el primero de la lista del usuario (antes siempre arrancaba en EURUSD, aunque no estuviera).
     if simbolos and st.session_state.get("activo_seleccionado") in (None, ""):
@@ -112,10 +118,10 @@ def cargar_datos_mercado():
     # y la pasada de abajo, que arma la lista, las encuentra ya en caché (antes eran decenas de llamadas una tras otra).
     en_paralelo(_calentar_simbolo, simbolos)
     datos = {}
-    for sym in simbolos:
-        datos[sym] = construir_entrada(sym)
+    for simbolo in simbolos:
+        datos[simbolo] = construir_entrada(simbolo)
         # Sembrar el sparkline con histórico M1 (se reintenta si vino vacío)
-        asegurar_semilla(sym)
+        asegurar_semilla(simbolo)
     st.session_state.datos_mercado_real = datos
 
     # Marca la carga como hecha para que los siguientes reruns la omitan

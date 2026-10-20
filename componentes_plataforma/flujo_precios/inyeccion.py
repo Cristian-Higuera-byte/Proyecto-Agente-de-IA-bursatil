@@ -23,21 +23,23 @@ from componentes_plataforma.flujo_precios.ensamblador import script_flujo
 from componentes_plataforma.flujo_precios.servidor import API_URL, flujo_activo
 
 
+# TITULO INYECTAR FLUJO
+
 def inyectar_flujo():
     """Inserta (una vez por página) el script del feed en vivo. No ocupa espacio.
 
     Si el servidor de datos no responde no hace nada. En caso contrario crea un contenedor con clave
-    `pj_feed` y dentro un componente HTML de altura 0 con el script ensamblado. No recibe ni devuelve nada.
+    `pj_flujo` y dentro un componente HTML de altura 0 con el script ensamblado. No recibe ni devuelve nada.
     """
     # Sin servidor de datos no hay nada que transmitir: los fragmentos run_every siguen refrescando.
     if not flujo_activo():
         return
-    # OJO: el CSS que oculta este contenedor (.st-key-pj_feed) va en el bloque de
+    # OJO: el CSS que oculta este contenedor (.st-key-pj_flujo) va en el bloque de
     # estilos global de aplicacion.py. Un st.markdown(_CSS) propio aquí agregaba un
     # elemento más al flujo y Streamlit le sumaba ~1rem de separación (hueco
     # visible bajo la barra superior).
-    # La clave pj_feed permite ocultar el contenedor desde el CSS global.
-    with st.container(key="pj_feed"):
+    # La clave pj_flujo permite ocultar el contenedor desde el CSS global.
+    with st.container(key="pj_flujo"):
         components.html(script_flujo(API_URL), height=0)
 
 

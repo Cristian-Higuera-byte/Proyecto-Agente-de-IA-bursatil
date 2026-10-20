@@ -15,7 +15,7 @@
 Dos vistas: listado de estrategias (tarjetas) y ficha de detalle de una estrategia. No ejecuta operaciones.
 Referencias en referencias/copytrading/*.png.
 
-La estrategia abierta se guarda en st.session_state.ct_estrategia (None = listado). Los
+La estrategia abierta se guarda en st.session_state.copytrading_estrategia (None = listado). Los
 estilos están en estilos.css y las tarjetas son clicables mediante un botón invisible
 superpuesto (claves ctsel_ y ctrow_).
 """
@@ -24,13 +24,15 @@ from pathlib import Path
 import streamlit as st
 
 from componentes_plataforma import _estaticos
-from componentes_plataforma.copytrading.datos import CATEGORIAS, ESTRATEGIAS, ORDEN, TABS, por_id
+from componentes_plataforma.copytrading.datos import CATEGORIAS, ESTRATEGIAS, ORDEN, PESTANAS, por_id
 from componentes_plataforma.copytrading.ficha import ficha
 from componentes_plataforma.copytrading.tarjeta import tarjeta_html
 
 # Ruta de la hoja de estilos de la vista (estilos.css, junto a este archivo).
 _CSS = Path(__file__).parent / "estilos.css"
 
+
+# TITULO RENDERIZAR PANEL COPYTRADING
 
 def renderizar_panel_copytrading(main=None):
     """Dibuja la vista de Copy trading: ficha de una estrategia o listado de tarjetas.
@@ -43,41 +45,41 @@ def renderizar_panel_copytrading(main=None):
     # Estilos de la vista.
     st.html(_estaticos.estilos(_CSS))
     # Inicializa la estrategia seleccionada (None significa mostrar el listado).
-    if "ct_estrategia" not in st.session_state:
-        st.session_state.ct_estrategia = None
+    if "copytrading_estrategia" not in st.session_state:
+        st.session_state.copytrading_estrategia = None
 
-    # Contenedor con clave ct_wrap: limita el ancho máximo (ver estilos.css).
-    with st.container(key="ct_wrap"):
+    # Contenedor con clave copytrading_contenedor: limita el ancho máximo (ver estilos.css).
+    with st.container(key="copytrading_contenedor"):
         # --- Detalle ---
-        sel = st.session_state.get("ct_estrategia")
-        if sel:
-            e = por_id(sel)
+        seleccion = st.session_state.get("copytrading_estrategia")
+        if seleccion:
+            e = por_id(seleccion)
             if e:
                 ficha(e)
                 return
 
         # --- Listado ---
-        st.html("<div class='ct-title'>Copy trading</div>")
+        st.html("<div class='copytrading-titulo'>Copy trading</div>")
         # Controles de ordenación y filtro; si se deseleccionan, se usan los valores por defecto.
-        tab = st.segmented_control("Orden", TABS, default=TABS[0],
-                                   label_visibility="collapsed", key="ct_tab") or TABS[0]
-        cat = st.pills("Categoría", CATEGORIAS, default="Cualquiera",
-                       label_visibility="collapsed", key="ct_cat") or "Cualquiera"
+        pestana = st.segmented_control("Orden", PESTANAS, default=PESTANAS[0],
+                                   label_visibility="collapsed", key="copytrading_pestana") or PESTANAS[0]
+        categoria = st.pills("Categoría", CATEGORIAS, default="Cualquiera",
+                       label_visibility="collapsed", key="copytrading_categoria") or "Cualquiera"
 
         # Filtra por categoría y ordena según la pestaña elegida.
-        lista = [e for e in ESTRATEGIAS if cat == "Cualquiera" or e["cat"] == cat]
-        lista = sorted(lista, key=ORDEN.get(tab, ORDEN["Destacadas"]))
+        lista = [e for e in ESTRATEGIAS if categoria == "Cualquiera" or e["cat"] == categoria]
+        lista = sorted(lista, key=ORDEN.get(pestana, ORDEN["Destacadas"]))
         st.caption(f"{len(lista)} estrategias")
 
         # Cuadrícula de 3 columnas; cada tarjeta lleva un botón invisible encima para abrir su ficha.
         for fila in range(0, len(lista), 3):
-            cols = st.columns(3, gap="medium")
+            columnas = st.columns(3, gap="medium")
             for j, e in enumerate(lista[fila:fila + 3]):
-                with cols[j]:
+                with columnas[j]:
                     with st.container(key=f"ctrow_{e['id']}"):
                         st.html(tarjeta_html(e))
                         if st.button("ver", key=f"ctsel_{e['id']}"):
-                            st.session_state.ct_estrategia = e["id"]
+                            st.session_state.copytrading_estrategia = e["id"]
                             st.rerun()
 
 

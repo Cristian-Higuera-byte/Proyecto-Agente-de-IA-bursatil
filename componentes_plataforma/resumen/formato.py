@@ -14,6 +14,8 @@
 """Formateadores de texto y clases CSS de la vista Resumen (montos compactos y color según el signo)."""
 
 
+# TITULO COMPACTAR
+
 def compactar(x, moneda="", signo=False):
     """Formatea montos grandes de forma compacta (1.2M, 31.6K) y legible.
 
@@ -33,9 +35,11 @@ def compactar(x, moneda="", signo=False):
     return f"{s}{cuerpo}" + (f" {moneda}" if moneda else "")
 
 
+# TITULO CLASE VARIACION
+
 def clase_variacion(x):
-    """Devuelve la clase CSS según el signo de `x`: rs-up (positivo), rs-down (negativo) o rs-neu (cero)."""
-    return "rs-up" if x > 0 else ("rs-down" if x < 0 else "rs-neu")
+    """Devuelve la clase CSS según el signo de `x`: resumen-sube (positivo), resumen-baja (negativo) o resumen-neutro (cero)."""
+    return "resumen-sube" if x > 0 else ("resumen-baja" if x < 0 else "resumen-neutro")
 
 
 # -------------------------------------------------------------------------------------------------------

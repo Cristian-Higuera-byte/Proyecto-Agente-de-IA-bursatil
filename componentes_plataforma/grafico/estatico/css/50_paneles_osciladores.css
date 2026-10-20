@@ -14,14 +14,14 @@ Transportes y Servicios Ltda.
    ------------------------------------------------------------------------------------------------------- */
 
 /* [grafico] Paneles de osciladores (RSI, MACD, Estocástico, ATR) */
-    /* PANELES DE OSCILADORES */
+    /* TITULO PANELES DE OSCILADORES */
     /* Paneles de osciladores (RSI, MACD, Estocástico, ATR): cada uno con su propia escala */
-    /* Contenedor #osc-panes bajo el gráfico principal; oculto hasta agregar un oscilador y con scroll si pasa del 45 por ciento del alto. */
-    #osc-panes { display: none; flex-direction: column; flex-shrink: 0; max-height: 45vh; overflow-y: auto; border-top: 1px solid #1b2430; }
+    /* Contenedor #osc-paneles bajo el gráfico principal; oculto hasta agregar un oscilador y con scroll si pasa del 45 por ciento del alto. */
+    #osc-paneles { display: none; flex-direction: column; flex-shrink: 0; max-height: 45vh; overflow-y: auto; border-top: 1px solid #1b2430; }
     /* Un panel individual de oscilador de 110 px de alto. */
-    .osc-pane { position: relative; height: 110px; border-bottom: 1px solid #1b2430; }
+    .osc-panel { position: relative; height: 110px; border-bottom: 1px solid #1b2430; }
     /* El último panel no lleva línea inferior. */
-    .osc-pane:last-child { border-bottom: none; }
+    .osc-panel:last-child { border-bottom: none; }
     /* Area interior donde se dibuja la escala del oscilador (ocupa todo el panel). */
     .osc-cuerpo { position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
     /* Título del panel (nombre y valores) flotando arriba a la izquierda. */

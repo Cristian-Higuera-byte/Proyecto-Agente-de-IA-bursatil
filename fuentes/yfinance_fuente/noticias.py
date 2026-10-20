@@ -26,10 +26,12 @@ from fuentes.yfinance_fuente.cache import _cacheado
 from fuentes.yfinance_fuente.utiles import _entero, _formatear_fecha, _num, _simbolo, _sin_nulos
 
 
+# TITULO NORMALIZAR NOTICIA
+
 # ──────────────────────────────────────────────────────────────
 # Noticias
 # ──────────────────────────────────────────────────────────────
-def _normalizar_noticia(item: dict[str, Any] | None) -> dict[str, Any] | None:
+def _normalizar_noticia(elemento: dict[str, Any] | None) -> dict[str, Any] | None:
     """Yahoo ha cambiado el formato de las noticias; aquí se soportan el nuevo y el antiguo.
 
     Recibe un ítem crudo de noticia. Devuelve un diccionario con título,
@@ -37,11 +39,11 @@ def _normalizar_noticia(item: dict[str, Any] | None) -> dict[str, Any] | None:
     campos ausentes), o None si el ítem no es un diccionario o no tiene título.
     En el formato nuevo los datos están dentro de la clave 'content'; en el
     antiguo, en el nivel superior."""
-    if not isinstance(item, dict):
+    if not isinstance(elemento, dict):
         return None
 
     # Formato nuevo: los datos viven en item['content']; formato antiguo: en el propio item.
-    c = item.get("content") if isinstance(item.get("content"), dict) else item
+    c = elemento.get("content") if isinstance(elemento.get("content"), dict) else elemento
     if not isinstance(c, dict):
         return None
 
@@ -55,9 +57,9 @@ def _normalizar_noticia(item: dict[str, Any] | None) -> dict[str, Any] | None:
 
     # Fecha: texto ISO (nuevo) o timestamp en segundos (antiguo), convertido a ISO en UTC.
     fecha = c.get("pubDate") or c.get("displayTime")
-    provider_publish_time = c.get("providerPublishTime")
-    if not fecha and isinstance(provider_publish_time, (int, float)):
-        fecha = datetime.fromtimestamp(provider_publish_time, tz=timezone.utc).isoformat(timespec="seconds")
+    provider_publish_tiempo = c.get("providerPublishTime")
+    if not fecha and isinstance(provider_publish_tiempo, (int, float)):
+        fecha = datetime.fromtimestamp(provider_publish_tiempo, tz=timezone.utc).isoformat(timespec="seconds")
 
     # Enlace: primero los objetos de URL del formato nuevo, luego el campo 'link' del antiguo.
     url = None
@@ -75,6 +77,8 @@ def _normalizar_noticia(item: dict[str, Any] | None) -> dict[str, Any] | None:
 
     return _sin_nulos({"titulo": titulo, "resumen": resumen, "fuente": fuente, "fecha": fecha, "url": url})
 
+
+# TITULO NOTICIAS
 
 def noticias(simbolo: str, cantidad: int = 8) -> list[dict[str, Any]]:
     """Devuelve las últimas noticias de Yahoo Finance asociadas a un símbolo.
@@ -99,6 +103,8 @@ def noticias(simbolo: str, cantidad: int = 8) -> list[dict[str, Any]]:
 
     return _cacheado(f"noticias:{s}:{n}", 300, _fn)
 
+
+# TITULO CONSENSO ANALISTAS
 
 # ──────────────────────────────────────────────────────────────
 # Consenso de analistas
@@ -128,11 +134,11 @@ def consenso_analistas(simbolo: str) -> dict[str, Any]:
 
         # Bloque 2: conteo de recomendaciones por periodo; solo los dos más recientes.
         try:
-            df = ticker.recommendations_summary
-            if df is not None and not df.empty:
+            tabla_datos = ticker.recommendations_summary
+            if tabla_datos is not None and not tabla_datos.empty:
                 resultado["recomendaciones"] = [
                     {k: (v if isinstance(v, str) else _entero(v)) for k, v in fila.items()}
-                    for fila in df.head(2).to_dict("records")
+                    for fila in tabla_datos.head(2).to_dict("records")
                 ]
         except Exception:  # noqa: BLE001
             pass

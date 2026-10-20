@@ -19,13 +19,15 @@ reejecuciones automáticas.
 """
 
 
+# TITULO RENDERIZAR DIALOGOS
+
 def renderizar_dialogos() -> None:
     """
-    Dibuja, uno tras otro, los tres diálogos que pueden abrirse sobre la página.
+    Dibuja, uno tras otro, los cuatro diálogos que pueden abrirse sobre la página.
 
     Cada diálogo se abre solo cuando su bandera está activa en la sesión: el buscador de símbolos,
     la confirmación de cierre de una posición (Cartera) y los términos y condiciones de One-Click
-    Trading (la primera vez que se activa). Los componentes se importan en el momento de usarse.
+    Trading (la primera vez que se activa) y los de la autorización de una vigilancia automática del agente. Los componentes se importan en el momento de usarse.
     """
     # Diálogo del buscador (se abre con la bandera `mostrar_buscador`). Se dibuja aquí, en el
     # script principal, para que no choque con los fragmentos en vivo.
@@ -38,8 +40,12 @@ def renderizar_dialogos() -> None:
     renderizar_modal_cerrar()
 
     # Términos y condiciones de One-Click Trading (la primera vez que se activa).
-    from componentes_plataforma.un_clic import renderizar_modal_terminos
+    from componentes_plataforma.operacion_un_clic import renderizar_modal_terminos
     renderizar_modal_terminos()
+
+    # Términos y condiciones de la vigilancia automática del agente (al pulsar «Autorizar vigilancia»).
+    from componentes_plataforma.vigilancia_terminos import renderizar_modal_terminos_vigilancia
+    renderizar_modal_terminos_vigilancia()
 
 
 # -------------------------------------------------------------------------------------------------------

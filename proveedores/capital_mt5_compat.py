@@ -1,3 +1,16 @@
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.
+
+
+# -------------------------------------------------------------------------------------------------------
+# ------------------------------ INICIO Piña y Jara capital_mt5_compat .PY ------------------------------
+# -------------------------------------------------------------------------------------------------------
+
 """
 capital_mt5_compat.py  —  Shim "MetaTrader5" respaldado por Capital.com  —  16-10-2026
 ---------------------------------------------------------------------------------------
@@ -10,8 +23,11 @@ Los objetos devueltos imitan los de MT5 por ATRIBUTOS (p. ej. `info.digits`, `ti
 `p.ticket`), que es como los leen esos archivos.
 
 APROXIMACIONES (documentadas): order_calc_profit/margin se calculan con contractSize y
-marginFactor de Capital (asumen cotización en USD); no hay DOM; `swap`=0; el P/G del
-historial se lee de forma defensiva (validar con una operación cerrada real).
+marginFactor de Capital y se convierten a la moneda de la cuenta con el par de divisas
+correspondiente (EURUSD, USDJPY...); no hay DOM; `swap`=0; el P/G del historial se lee
+de forma defensiva (validar con una operación cerrada real). Las velas (`copy_rates_*`) se
+entregan como filas que se leen por nombre (`v["close"]`) o por posición (`v[4]`), como las de
+MT5, con el spread de cada vela en puntos.
 
 NOTA DE RENDIMIENTO: `symbol_info_tick` hace una llamada REST por símbolo. El motor de
 precios lo invoca seguido; para producción conviene mover el motor al streaming WebSocket
@@ -94,22 +110,34 @@ _TF_A_RES = {1: "MINUTE", 5: "MINUTE_5", 15: "MINUTE_15", 30: "MINUTE_30",
              16385: "HOUR", 16388: "HOUR_4", 16408: "DAY", 32769: "WEEK", 49153: "WEEK"}
 
 
+# TITULO INITIALIZE
+
 # ===========================================================================
 # Conexión / estado
 # ===========================================================================
 def initialize(*args: Any, **kwargs: Any) -> bool:
+    """Equivale a `mt5.initialize`: abre (o reutiliza) la sesión con Capital.com. Ignora los argumentos de MT5 y devuelve True si hay sesión."""
     return cap.inicializar_mt5()
 
 
+# TITULO SHUTDOWN
+
 def shutdown() -> None:
+    """Equivale a `mt5.shutdown`: cierra la sesión con Capital.com. No devuelve nada."""
     cap.cerrar_mt5()
 
 
+# TITULO LAST ERROR
+
 def last_error():
+    """Equivale a `mt5.last_error`: devuelve la tupla (código, mensaje) del último error de una orden enviada con `order_send`."""
     return _ultimo_error
 
 
+# TITULO TERMINAL INFO
+
 def terminal_info():
+    """Equivale a `mt5.terminal_info`: informa que el terminal está "conectado" y que el trading automático está permitido. Sirve para que el código que revisa MT5 no falle con Capital."""
     return SimpleNamespace(connected=True, community_account=False) if cap.inicializar_mt5() else None
 
 
@@ -124,12 +152,74 @@ _TTL_MERCADO = 30.0
 _refrescando_mercado: set = set()
 
 
-def _mercado(epic: str) -> dict:
-    """GET /markets/{epic} compartido y cacheado con el backend (ver capital.get_mercado)."""
-    return cap.get_mercado(epic)
+# TITULO MERCADO
 
+def _mercado(epic: str) -> dict:
+    """GET /markets/{epic} compartido y cacheado con el backend (ver capital.obtener_mercado)."""
+    return cap.obtener_mercado(epic)
+
+
+# TITULO MONEDA COTIZACION
+
+def _moneda_cotizacion(epic: str, inst: dict) -> str:
+    """Moneda en que cotiza el instrumento: las tres últimas letras en un par de divisas (EURJPY -> JPY); en el resto, la moneda
+    que informa Capital y, si no la informa, USD."""
+    if str(inst.get("type", "")).upper() == "CURRENCIES" and len(epic) == 6 and epic.isalpha():
+        return epic[3:].upper()
+    for c in inst.get("currencies") or []:
+        if isinstance(c, dict) and c.get("isDefault") and c.get("code"):
+            return str(c["code"]).upper()
+    return str(inst.get("currency") or "USD").upper()
+
+
+# TITULO HORA PRECIO
+
+def _hora_precio(snap: dict) -> int:
+    """Epoch (UTC) de la última actualización del precio según Capital (`updateTimeUTC` o `updateTime`); 0 si no la informa o no
+    se entiende (por ejemplo, solo la hora del día)."""
+    for campo in ("updateTimeUTC", "updateTime"):
+        texto = str(snap.get(campo) or "")
+        if len(texto) >= 16 and "T" in texto:
+            return cap._epoch_utc(texto)
+    return 0
+
+
+_tasas: dict = {}
+_TTL_TASA = 60.0
+
+
+# TITULO TASA A CUENTA
+
+def _tasa_a_cuenta(moneda: str) -> float:
+    """Cuántas unidades de la moneda de la cuenta vale 1 unidad de `moneda`; 1.0 si es la misma o no se puede saber.
+
+    Usa el par de divisas exacto (EURUSD para EUR, USDJPY para JPY, con su inverso) leído del mercado de Capital, y recuerda el
+    resultado 60 s. Sirve para que el riesgo y el margen salgan en la moneda de la cuenta y no en la de cotización."""
+    cuenta = str((cap.obtener_info_cuenta() or {}).get("currency") or "USD").upper()
+    if not moneda or moneda == cuenta:
+        return 1.0
+    clave = (moneda, cuenta)
+    guardada = _tasas.get(clave)
+    if guardada and time.time() - guardada[0] < _TTL_TASA:
+        return guardada[1]
+    tasa = 1.0
+    for epic, invertir in ((moneda + cuenta, False), (cuenta + moneda, True)):
+        snap = (cap.obtener_mercado(epic) or {}).get("snapshot", {}) or {}
+        precio = float(snap.get("bid") or 0.0)
+        if precio > 0:
+            tasa = 1.0 / precio if invertir else precio
+            break
+    _tasas[clave] = (time.time(), tasa)
+    return tasa
+
+
+# TITULO SPECS
 
 def _specs(epic: str) -> dict:
+    """Reúne las especificaciones de un instrumento (decimales, punto, contrato, margen, volumen mínimo/máximo/paso, distancia mínima de stops, tipo y nombre) leyéndolas del mercado de Capital.
+
+    Recibe el epic y devuelve un diccionario; si Capital no responde, los valores quedan en cero.
+    """
     d = _mercado(epic)
     inst = d.get("instrument", {}) or {}
     snap = d.get("snapshot", {}) or {}
@@ -162,23 +252,55 @@ def _specs(epic: str) -> dict:
         "high": float(snap.get("high", 0.0) or 0.0),
         "low": float(snap.get("low", 0.0) or 0.0),
         "session_open": float(snap.get("bid", 0.0) or 0.0),
-        "tipo": inst.get("type", ""),   # CURRENCIES / COMMODITIES / INDICES / CRYPTOCURRENCIES
+        "tipo": inst.get("type", ""),   # CURRENCIES / COMMODITIES / INDICES / CRYPTOCURRENCIES / SHARES
+        "nombre": inst.get("name", "") or "",
+        "moneda": _moneda_cotizacion(epic, inst),
+        "hora_precio": _hora_precio(snap),
     }
 
+
+# TITULO SYMBOL SELECT
 
 # ===========================================================================
 # Símbolos
 # ===========================================================================
 def symbol_select(symbol: str, enable: bool = True) -> bool:
+    """Equivale a `mt5.symbol_select`: en Capital no hay que seleccionar símbolos, así que siempre devuelve True."""
     return True
 
 
+_CARPETA_TIPO = {"SHARES": "Stocks", "CRYPTOCURRENCIES": "Cryptocurrencies", "ETFS": "ETF", "ETF": "ETF"}
+
+
+# TITULO RUTA
+
+def _ruta(symbol: str, s: dict) -> str:
+    """Ruta tipo MT5 (Stocks, AAPL): el primer nivel indica la clase de activo; la UI de iconos lo usa
+    para decidir si busca el logo de la empresa."""
+    return _CARPETA_TIPO.get(str(s.get("tipo", "")).upper(), "Capital") + chr(92) + symbol
+
+
+# TITULO DESCRIPCION
+
+def _descripcion(symbol: str, s: dict) -> str:
+    """"Apple Inc (AAPL)": en acciones el ticker va entre parentesis al final, como en las descripciones de MT5,
+    porque de ahi se saca el codigo para el logo."""
+    nombre = s.get("nombre") or symbol
+    return f"{nombre} ({symbol})" if str(s.get("tipo", "")).upper() in ("SHARES", "ETFS", "ETF") else symbol
+
+
+# TITULO SYMBOL INFO
+
 def symbol_info(symbol: str):
+    """Equivale a `mt5.symbol_info`: devuelve un objeto con los datos del instrumento (bid, ask, decimales, volumen, ruta, descripción, etc.) con los nombres de campo de MT5, o None si no hay precio.
+
+    La ruta y la descripción indican la clase de activo (Stocks, Cryptocurrencies, ETF) para que la interfaz decida el ícono.
+    """
     s = _specs(symbol)
     if not s or not (s["bid"] or s["ask"]):
         return None
     return SimpleNamespace(
-        name=symbol, description=symbol, path=f"Capital\\{symbol}",
+        name=symbol, description=_descripcion(symbol, s), path=_ruta(symbol, s),
         bid=s["bid"], ask=s["ask"], last=s["bid"] or s["ask"],
         digits=s["digitos"], point=s["point"],
         trade_tick_size=s["tick_size"], trade_tick_value=s["tick_value"],
@@ -191,13 +313,17 @@ def symbol_info(symbol: str):
     )
 
 
+# TITULO SYMBOL INFO TICK
+
 def symbol_info_tick(symbol: str):
+    """Equivale a `mt5.symbol_info_tick`: devuelve el último bid/ask del instrumento con la hora de su última actualización (la hora actual si Capital no la informa), o None si no hay precio."""
     s = _specs(symbol)
     if not s or not (s["bid"] or s["ask"]):
         return None
     ahora = time.time()
+    hora = s["hora_precio"] or int(ahora)    # la hora real del último precio permite saber si el mercado se movió
     return SimpleNamespace(bid=s["bid"], ask=s["ask"], last=s["bid"] or s["ask"],
-                           time=int(ahora), time_msc=int(ahora * 1000))
+                           time=hora, time_msc=hora * 1000)
 
 
 _CURADOS = ["GOLD", "SILVER", "US30", "US100", "US500", "BTCUSD", "ETHUSD",
@@ -216,7 +342,13 @@ _GRUPO_CAT = {
 }
 
 
+# TITULO NOMBRE GRUPO
+
 def _nombre_grupo(node_id: str, node_name: str) -> str:
+    """Traduce el nombre de un grupo de Capital (por ejemplo "Shares") a la carpeta equivalente de MT5 que usa la interfaz.
+
+    Recibe el id y el nombre del nodo del árbol de mercados y devuelve el nombre de carpeta.
+    """
     clave = (node_id or "").split(".")[-1]
     return _GRUPO_CAT.get(clave, node_name or "Otros")
 
@@ -227,11 +359,13 @@ _CAT_DISCO = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file
 _TTL_DISCO = 24 * 3600   # 24 h
 
 
+# TITULO NAV
+
 def _nav(node_id: str) -> dict:
     """GET /marketnavigation/{id} SIN el candado global, para poder paralelizar."""
     try:
         r = cap._HTTP.get(f"{cap.BASE}/marketnavigation/{node_id}",
-                          headers=cap._cabeceras(), timeout=cap._TIMEOUT)
+                          headers=cap._cabeceras(), timeout=cap._TIEMPO_ESPERA)
         if r.status_code == 200:
             return r.json()
     except Exception:
@@ -239,12 +373,17 @@ def _nav(node_id: str) -> dict:
     return {}
 
 
+# TITULO LISTA DESDE ITEMS
+
 def _lista_desde_items(items: dict) -> list:
+    """Convierte el catálogo guardado (diccionario de instrumentos por grupo) en la lista de símbolos con forma de objeto MT5 (`name`, `description`, `path`, `visible`)."""
     if not items:
         items = {e: (e, "Populares") for e in _CURADOS}
     return [SimpleNamespace(name=ep, visible=True, description=nombre, path=f"{cat}\\{ep}")
             for ep, (nombre, cat) in items.items()]
 
+
+# TITULO CATALOGO
 
 def _catalogo() -> list:
     """Catálogo real de instrumentos de Capital (cacheado en memoria 10 min y en disco 24 h).
@@ -314,16 +453,21 @@ def _catalogo() -> list:
     return lista
 
 
+# TITULO SYMBOLS GET
+
 def symbols_get(*args: Any, **kwargs: Any) -> list:
     """Catálogo real de instrumentos de Capital (cacheado). Objetos con name/visible/
     description/path, como los símbolos de MT5."""
     return _catalogo()
 
 
+# TITULO ACCOUNT INFO
+
 # ===========================================================================
 # Cuenta
 # ===========================================================================
 def account_info():
+    """Equivale a `mt5.account_info`: devuelve balance, equity, margen y moneda de la cuenta de Capital con los nombres de campo de MT5, o None si no hay conexión."""
     c = cap.obtener_info_cuenta()
     if not c or "error" in c:
         return None
@@ -333,14 +477,20 @@ def account_info():
         balance=c.get("balance", 0.0), equity=c.get("equity", 0.0), profit=c.get("profit", 0.0),
         margin=c.get("margin", 0.0), margin_free=c.get("margin_free", 0.0),
         margin_level=c.get("margin_level", 0.0), credit=c.get("credit", 0.0),
-        leverage=c.get("leverage", 0), currency=c.get("currency", "USD"),
+        leverage=c.get("leverage") or None, currency=c.get("currency", "USD"),
     )
 
+
+# TITULO POSITIONS GET
 
 # ===========================================================================
 # Posiciones / órdenes / historial
 # ===========================================================================
 def positions_get(ticket: Any = None, symbol: str = None, **kwargs: Any) -> list:
+    """Equivale a `mt5.positions_get`: devuelve las posiciones abiertas (ticket, símbolo, tipo, volumen en lotes, precios, SL/TP y hora), con filtro opcional por ticket o símbolo.
+
+    El ticket es el dealId de Capital (texto) y `identifier` guarda el id de la orden pendiente que la abrió (lo usa el OCO).
+    """
     datos = cap.leer_json("/positions")
     if datos is None:
         return []
@@ -363,9 +513,12 @@ def positions_get(ticket: Any = None, symbol: str = None, **kwargs: Any) -> list
             profit=float(p.get("upl", 0.0) or 0.0), swap=0.0,
             sl=float(p.get("stopLevel", 0.0) or 0.0), tp=float(p.get("profitLevel", 0.0) or 0.0),
             time=cap._epoch_utc(p.get("createdDateUTC", "") or p.get("createdDate", "")),
+            comment="", magic=0,    # Capital no guarda comentario ni magic: el agente enlaza sus posiciones por ticket
         ))
     return out
 
+
+# TITULO ORDERS GET
 
 def orders_get(ticket: Any = None, **kwargs: Any) -> list:
     """Órdenes pendientes. NOTA: los nombres de campo de /workingorders se leen de forma
@@ -391,15 +544,18 @@ def orders_get(ticket: Any = None, **kwargs: Any) -> list:
             ticket=dealId, symbol=m.get("epic", "") or w.get("epic", ""), type=tipo,
             volume=float(w.get("orderSize", 0.0) or 0.0) / cap.factor_lote_epic(w.get("epic") or m.get("epic", "")),
             volume_current=float(w.get("orderSize", 0.0) or 0.0) / cap.factor_lote_epic(w.get("epic") or m.get("epic", "")),
+            volume_initial=float(w.get("orderSize", 0.0) or 0.0) / cap.factor_lote_epic(w.get("epic") or m.get("epic", "")),
             price_open=float(w.get("orderLevel", 0.0) or 0.0),
             price_current=float(m.get("bid", 0.0) or 0.0),
             sl=float(w.get("stopLevel", 0.0) or 0.0), tp=float(w.get("profitLevel", 0.0) or 0.0),
             type_time=ORDER_TIME_GTC if not gtd else ORDER_TIME_SPECIFIED,
             time_expiration=cap._epoch_utc(gtd) if gtd else 0,
-            time=0,
+            time=0, comment="", magic=0,
         ))
     return out
 
+
+# TITULO HISTORY DEALS GET
 
 def history_deals_get(desde: Any = None, hasta: Any = None, **kwargs: Any) -> list:
     """Operaciones del historial. El campo de P/G realizado se lee de forma defensiva
@@ -428,28 +584,63 @@ def history_deals_get(desde: Any = None, hasta: Any = None, **kwargs: Any) -> li
             type=DEAL_TYPE_BUY, entry=DEAL_ENTRY_OUT, volume=0.0, price=0.0,
             profit=pg, swap=0.0, commission=0.0, fee=0.0,
             time=cap._epoch_utc(t.get("dateUtc", "") or t.get("date", "")),
+            position_id=t.get("dealId", ""),    # id de la posición: con él `cap.detalle_operacion` trae símbolo, lado, lotes y precio
         ))
+    out.sort(key=lambda d: d.time)    # MT5 las entrega de la más antigua a la más reciente
     return out
 
+
+# TITULO FILA VELA
+
+_CAMPOS_VELA = ("time", "open", "high", "low", "close", "tick_volume", "spread", "real_volume")
+
+
+class _FilaVela(dict):
+    """Vela que se lee por nombre (`v["close"]`) o por posición (`v[4]`), como una fila del arreglo de MetaTrader 5.
+
+    Las herramientas del agente leen las velas por posición (tiempo, apertura, máximo, mínimo, cierre, volumen); el resto del
+    proyecto, por nombre. Como es un `dict`, `pd.DataFrame(velas)` también funciona."""
+
+    def __getitem__(self, clave):
+        """Con un entero devuelve el campo en esa posición (0 = time ... 4 = close); con un texto, el campo por nombre."""
+        if isinstance(clave, int):
+            return dict.__getitem__(self, _CAMPOS_VELA[clave])
+        return dict.__getitem__(self, clave)
+
+
+# TITULO VELAS DICTS
 
 # ===========================================================================
 # Velas
 # ===========================================================================
 def _velas_dicts(epic: str, timeframe, maximo: int = None, desde=None, hasta=None) -> list:
+    """Pide velas a Capital y las devuelve como lista de filas (`_FilaVela`) con las claves de MT5 (`time`, `open`, `high`, `low`, `close`, `tick_volume`, `spread`).
+
+    Recibe el epic, la temporalidad y, opcionalmente, la cantidad máxima y el rango de fechas. El spread de cada vela sale del bid y el ask
+    de su cierre, en puntos. La temporalidad mensual se arma con velas semanales y diarias (Capital no tiene resolución mensual).
+    """
+    if int(timeframe if timeframe is not None else 16385) == TIMEFRAME_MN1:
+        filas = cap._datos_mensuales(epic, int(maximo or 100))
+        return [_FilaVela(time=f["time"], open=f["open"], high=f["high"], low=f["low"], close=f["close"],
+                          tick_volume=f["tick_volume"], spread=f["spread"], real_volume=0) for f in filas]
     res = _TF_A_RES.get(int(timeframe) if timeframe is not None else 16385, "HOUR")
     f = desde.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S") if isinstance(desde, datetime) else None
     h = hasta.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S") if isinstance(hasta, datetime) else None
     crudas = cap._velas_crudas(epic, res, maximo=maximo, desde=f, hasta=h)
+    punto = cap._punto_de(epic)
     out = []
     for v in crudas:
-        out.append({
-            "time": cap._epoch_utc(v.get("snapshotTimeUTC") or v.get("snapshotTime")),
-            "open": cap._mid(v.get("openPrice", {})), "high": cap._mid(v.get("highPrice", {})),
-            "low": cap._mid(v.get("lowPrice", {})), "close": cap._mid(v.get("closePrice", {})),
-            "tick_volume": v.get("lastTradedVolume", 0), "spread": 0, "real_volume": 0,
-        })
+        out.append(_FilaVela(
+            time=cap._epoch_utc(v.get("snapshotTimeUTC") or v.get("snapshotTime")),
+            open=cap._medio(v.get("openPrice", {})), high=cap._medio(v.get("highPrice", {})),
+            low=cap._medio(v.get("lowPrice", {})), close=cap._medio(v.get("closePrice", {})),
+            tick_volume=v.get("lastTradedVolume", 0), spread=cap._spread_puntos(v.get("closePrice", {}), punto),
+            real_volume=0,
+        ))
     return out
 
+
+# TITULO COPY RATES FROM POS
 
 def copy_rates_from_pos(symbol: str, timeframe, start: int, count: int) -> list:
     """Devuelve una lista de dicts indexables por nombre (rates[i]['close']), como el
@@ -457,28 +648,40 @@ def copy_rates_from_pos(symbol: str, timeframe, start: int, count: int) -> list:
     return _velas_dicts(symbol, timeframe, maximo=int(start) + int(count))[-int(count):]
 
 
+# TITULO COPY RATES RANGE
+
 def copy_rates_range(symbol: str, timeframe, date_from, date_to) -> list:
+    """Equivale a `mt5.copy_rates_range`: velas entre dos fechas (máximo 1000, el límite de Capital por consulta)."""
     return _velas_dicts(symbol, timeframe, maximo=1000, desde=date_from, hasta=date_to)
 
+
+# TITULO ORDER CALC PROFIT
 
 # ===========================================================================
 # Cálculos de riesgo (aproximados con contractSize / marginFactor de Capital)
 # ===========================================================================
 def order_calc_profit(action: int, symbol: str, volume: float, price_open: float, price_close: float):
+    """Equivale a `mt5.order_calc_profit`: calcula la ganancia o pérdida, en la moneda de la cuenta, de mover el precio de `price_open` a `price_close` con ese volumen en lotes. Devuelve None si no hay datos del instrumento."""
     s = _specs(symbol)
     if not s:
         return None
     signo = 1.0 if action == ORDER_TYPE_BUY else -1.0
-    return signo * float(volume) * s["contract"] * (float(price_close) - float(price_open))
+    bruto = signo * float(volume) * s["contract"] * (float(price_close) - float(price_open))
+    return bruto * _tasa_a_cuenta(s["moneda"])    # el resultado sale en la moneda de cotización: se pasa a la de la cuenta
 
+
+# TITULO ORDER CALC MARGIN
 
 def order_calc_margin(action: int, symbol: str, volume: float, price: float):
+    """Equivale a `mt5.order_calc_margin`: calcula el margen que exige abrir ese volumen (en lotes) a ese precio, con el factor de margen de Capital y en la moneda de la cuenta. Devuelve None si no hay datos."""
     s = _specs(symbol)
     if not s:
         return None
     mf = s["margin_factor"] or 0.0
-    return float(volume) * s["contract"] * float(price) * mf / 100.0
+    return float(volume) * s["contract"] * float(price) * mf / 100.0 * _tasa_a_cuenta(s["moneda"])
 
+
+# TITULO ORDER SEND
 
 # ===========================================================================
 # Envío de órdenes: enruta al backend Capital según la solicitud
@@ -494,8 +697,8 @@ def order_send(solicitud: dict):
     else:                                             # apertura a mercado
         tipo = "BUY" if solicitud.get("type") == ORDER_TYPE_BUY else "SELL"
         res = cap.ejecutar_orden_mercado(symbol, tipo, volume,
-                                         sl=float(solicitud.get("sl", 0.0) or 0.0),
-                                         tp=float(solicitud.get("tp", 0.0) or 0.0))
+                                         stop_loss=float(solicitud.get("sl", 0.0) or 0.0),
+                                         take_profit=float(solicitud.get("tp", 0.0) or 0.0))
     if "error" in res:
         _ultimo_error = (1, res["error"])
         return SimpleNamespace(retcode=10013, comment=res["error"], order=0, price=0.0)
@@ -504,47 +707,90 @@ def order_send(solicitud: dict):
                            price=float(res.get("price", solicitud.get("price", 0.0)) or 0.0))
 
 
+# TITULO VERSION
+
 # ===========================================================================
 # Totales / versión (los usa la capa del agente de solo lectura)
 # ===========================================================================
 def version():
+    """Equivale a `mt5.version`: devuelve una versión ficticia que identifica este adaptador."""
     return (500, 0, "Capital.com shim")
 
 
+# TITULO POSITIONS TOTAL
+
 def positions_total() -> int:
+    """Equivale a `mt5.positions_total`: cantidad de posiciones abiertas."""
     return len(positions_get())
 
 
+# TITULO ORDERS TOTAL
+
 def orders_total() -> int:
+    """Equivale a `mt5.orders_total`: cantidad de órdenes pendientes."""
     return len(orders_get())
 
 
+# TITULO SYMBOLS TOTAL
+
 def symbols_total() -> int:
+    """Equivale a `mt5.symbols_total`: cantidad de instrumentos del catálogo."""
     return len(symbols_get())
 
 
+# TITULO HISTORY DEALS TOTAL
+
 def history_deals_total(desde: Any = None, hasta: Any = None) -> int:
+    """Equivale a `mt5.history_deals_total`: cantidad de operaciones del historial en el rango pedido."""
     return len(history_deals_get(desde, hasta))
 
 
+# TITULO HISTORY ORDERS GET
+
 def history_orders_get(desde: Any = None, hasta: Any = None, **kwargs: Any) -> list:
+    """Equivale a `mt5.history_orders_get`: Capital no entrega el historial de órdenes, así que devuelve una lista vacía."""
     return []
 
 
+# TITULO HISTORY ORDERS TOTAL
+
 def history_orders_total(desde: Any = None, hasta: Any = None) -> int:
+    """Equivale a `mt5.history_orders_total`: siempre 0 (Capital no entrega el historial de órdenes)."""
     return 0
 
+
+# TITULO MARKET BOOK ADD
 
 # ===========================================================================
 # Profundidad de mercado (DOM): no disponible por REST
 # ===========================================================================
 def market_book_add(symbol: str) -> bool:
+    """Equivale a `mt5.market_book_add`: Capital no publica libro de órdenes, así que devuelve False."""
     return False
 
 
+# TITULO MARKET BOOK GET
+
 def market_book_get(symbol: str):
+    """Equivale a `mt5.market_book_get`: Capital no publica libro de órdenes, así que devuelve una lista vacía."""
     return []
 
 
+# TITULO MARKET BOOK RELEASE
+
 def market_book_release(symbol: str) -> bool:
+    """Equivale a `mt5.market_book_release`: no hay libro que liberar; devuelve True."""
     return True
+
+
+# -------------------------------------------------------------------------------------------------------
+# -------------------------------- FIN Piña y Jara capital_mt5_compat .PY -------------------------------
+# -------------------------------------------------------------------------------------------------------
+
+# Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+# Dirección: José Joaquín Prieto #5373 -
+# San Miguel - Santiago - Chile
+# contacto.pinayjara@gmail.com
+# https://www.pinayjara.cl
+# Creado, Programado y Diseñado por Piña y Jara
+# Transportes y Servicios Ltda.

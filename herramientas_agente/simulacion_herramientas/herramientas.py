@@ -35,6 +35,8 @@ from herramientas_agente.simulacion_herramientas.auxiliares import (
 _ESQ = cargar_json(Path(__file__).parent / "esquemas.json")
 
 
+# TITULO SIMULAR ESCENARIO CARTERA
+
 @herramienta(**_ESQ["simular_escenario_cartera"])
 def simular_escenario_cartera(
     variaciones_pct: str | dict[str, float],
@@ -76,67 +78,67 @@ def simular_escenario_cartera(
     balance_actual = cuenta.get("balance") or 0.0
     margen_usado = cuenta.get("margen_usado") or 0.0
     nivel_margen_actual = cuenta.get("nivel_margen_pct", cuenta.get("nivel_margen")) or 0.0
-    pnl_flotante_actual = cuenta.get("beneficio_flotante") or 0.0
+    ganancia_perdida_flotante_actual = cuenta.get("beneficio_flotante") or 0.0
 
     # Lista de posiciones y acumuladores del desglose y del PnL simulado.
     posiciones = posiciones_data.get("posiciones", [])
 
     desglose_posiciones = []
-    pnl_simulado_total = 0.0
+    ganancia_perdida_simulado_total = 0.0
 
     # Proyecta cada posición por separado.
-    for pos in posiciones:
-        ticket = pos["ticket"]
-        sym_raw = pos["simbolo"]
-        sym_norm = _normalizar_simbolo(sym_raw)
-        tipo = pos["tipo"]  # "COMPRA" o "VENTA"
-        lotes = pos["lotes"]
-        precio_act = pos["precio_actual"]
-        pnl_actual = pos["beneficio"]
+    for posicion in posiciones:
+        ticket = posicion["ticket"]
+        simbolo_raw = posicion["simbolo"]
+        simbolo_norm = _normalizar_simbolo(simbolo_raw)
+        tipo = posicion["tipo"]  # "COMPRA" o "VENTA"
+        lotes = posicion["lotes"]
+        precio_act = posicion["precio_actual"]
+        ganancia_perdida_actual = posicion["beneficio"]
 
         # Determinar la variación porcentual proyectada para este activo
-        var_pct_aplicada = 0.0
+        variacion_porcentaje_aplicada = 0.0
         tipo_impacto = "NINGUNO"
 
-        if sym_norm in variaciones_norm:
+        if simbolo_norm in variaciones_norm:
             # Impacto directo
-            var_pct_aplicada = variaciones_norm[sym_norm]
+            variacion_porcentaje_aplicada = variaciones_norm[simbolo_norm]
             tipo_impacto = "DIRECTO"
         else:
             # Impacto indirecto vía sensibilidad / correlación
-            for causa, var_causa in variaciones_norm.items():
-                if causa in ELASTICIDAD_CRUZADA and sym_norm in ELASTICIDAD_CRUZADA[causa]:
-                    beta = ELASTICIDAD_CRUZADA[causa][sym_norm]
-                    var_pct_aplicada = var_causa * beta
+            for causa, variacion_causa in variaciones_norm.items():
+                if causa in ELASTICIDAD_CRUZADA and simbolo_norm in ELASTICIDAD_CRUZADA[causa]:
+                    beta = ELASTICIDAD_CRUZADA[causa][simbolo_norm]
+                    variacion_porcentaje_aplicada = variacion_causa * beta
                     tipo_impacto = f"INDIRECTO (vía {causa}, Beta={beta})"
                     break
 
         # Cálculo del cambio de PnL (valor nocional x variación x signo según compra o venta)
-        contract_size = _estimar_tamano_contrato(sym_raw)
-        valor_nocional = precio_act * lotes * contract_size
+        contract_tamano = _estimar_tamano_contrato(simbolo_raw)
+        valor_nocional = precio_act * lotes * contract_tamano
         
         # En COMPRA: subida (+%) es ganancia. En VENTA: subida (+%) es pérdida.
         multiplicador_tipo = 1.0 if tipo == "COMPRA" else -1.0
-        delta_pnl = valor_nocional * (var_pct_aplicada / 100.0) * multiplicador_tipo
-        pnl_proyectado = pnl_actual + delta_pnl
-        pnl_simulado_total += delta_pnl
+        delta_ganancia_perdida = valor_nocional * (variacion_porcentaje_aplicada / 100.0) * multiplicador_tipo
+        ganancia_perdida_proyectado = ganancia_perdida_actual + delta_ganancia_perdida
+        ganancia_perdida_simulado_total += delta_ganancia_perdida
 
         desglose_posiciones.append({
             "ticket": ticket,
-            "simbolo": sym_raw,
+            "simbolo": simbolo_raw,
             "tipo": tipo,
             "lotes": lotes,
             "precio_actual": precio_act,
-            "variacion_simulada_pct": round(var_pct_aplicada, 2),
+            "variacion_simulada_pct": round(variacion_porcentaje_aplicada, 2),
             "tipo_impacto": tipo_impacto,
-            "pnl_flotante_actual_usd": round(pnl_actual, 2),
-            "impacto_estimado_usd": round(delta_pnl, 2),
-            "pnl_flotante_proyectado_usd": round(pnl_proyectado, 2),
+            "pnl_flotante_actual_usd": round(ganancia_perdida_actual, 2),
+            "impacto_estimado_usd": round(delta_ganancia_perdida, 2),
+            "pnl_flotante_proyectado_usd": round(ganancia_perdida_proyectado, 2),
         })
 
     # Recálculo de métricas de cuenta (equidad, nivel de margen = equidad / margen usado)
-    equidad_proyectada = equidad_actual + pnl_simulado_total
-    pnl_flotante_proyectado_total = pnl_flotante_actual + pnl_simulado_total
+    equidad_proyectada = equidad_actual + ganancia_perdida_simulado_total
+    ganancia_perdida_flotante_proyectado_total = ganancia_perdida_flotante_actual + ganancia_perdida_simulado_total
     
     nivel_margen_proyectado = (
         round((equidad_proyectada / margen_usado) * 100.0, 2)
@@ -144,7 +146,7 @@ def simular_escenario_cartera(
         else 999.0
     )
 
-    variacion_equidad_pct = (
+    variacion_equidad_porcentaje = (
         round(((equidad_proyectada - equidad_actual) / equidad_actual) * 100.0, 2)
         if equidad_actual > 0
         else 0.0
@@ -155,9 +157,9 @@ def simular_escenario_cartera(
         estado_riesgo = "CRÍTICO - STOP OUT (Riesgo inminente de liquidación forzosa)"
     elif nivel_margen_proyectado <= 100.0:
         estado_riesgo = "ALERTA - MARGIN CALL (Insuficiencia de margen libre)"
-    elif variacion_equidad_pct <= -15.0:
+    elif variacion_equidad_porcentaje <= -15.0:
         estado_riesgo = "ADVERTENCIA - DRAWDOWN ELEVADO (>15% de la equidad)"
-    elif variacion_equidad_pct < 0:
+    elif variacion_equidad_porcentaje < 0:
         estado_riesgo = "MODERADO - Impacto negativo controlado"
     else:
         estado_riesgo = "POSITIVO - Impacto favorable en cartera"
@@ -168,19 +170,19 @@ def simular_escenario_cartera(
         for causa in variaciones_norm.keys():
             try:
                 # Búsqueda de noticias relacionadas
-                res_noticias = inv_fuente.buscar_noticias(busqueda=causa, categoria="forex", cantidad=3)
-                noticias_contexto.extend(res_noticias.get("noticias", []))
+                resultado_noticias = inv_fuente.buscar_noticias(busqueda=causa, categoria="forex", cantidad=3)
+                noticias_contexto.extend(resultado_noticias.get("noticias", []))
             except Exception:
                 pass
 
     return {
-        "fuente": "Motor de Simulación Mt5 + Investing.com",
+        "fuente": f"Motor de Simulación {mt5_fuente.NOMBRE_FUENTE} + Investing.com",
         "escenario_simulado": variaciones_norm,
         "resumen_cartera": {
             "equidad_actual_usd": round(equidad_actual, 2),
             "equidad_proyectada_usd": round(equidad_proyectada, 2),
-            "variacion_equidad_usd": round(pnl_simulado_total, 2),
-            "variacion_equidad_pct": variacion_equidad_pct,
+            "variacion_equidad_usd": round(ganancia_perdida_simulado_total, 2),
+            "variacion_equidad_pct": variacion_equidad_porcentaje,
             "nivel_margen_actual_pct": round(nivel_margen_actual, 2),
             "nivel_margen_proyectado_pct": nivel_margen_proyectado,
             "estado_riesgo_cartera": estado_riesgo,

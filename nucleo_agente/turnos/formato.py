@@ -15,11 +15,15 @@
 from __future__ import annotations
 
 
+# TITULO FORMATEAR DURACION
+
 def formatear_duracion(segundos: float) -> str:
     """Formatea una duración en segundos como texto legible: '7 s', '1 min 12 s'... (los negativos cuentan como 0)."""
     s = max(0, int(segundos))
     return f"{s} s" if s < 60 else f"{s // 60} min {s % 60:02d} s"
 
+
+# TITULO FORMATEAR RELOJ
 
 def formatear_reloj(segundos: float) -> str:
     """Formatea segundos como reloj mm:ss: '00:07', '01:12' (para el cronómetro en vivo)."""

@@ -26,7 +26,7 @@ ESTRATEGIAS = _estaticos.datos_json(Path(__file__).parent / "estrategias.json")
 # Opciones del filtro de categoría; "Cualquiera" no filtra.
 CATEGORIAS = ["Cualquiera", "Forex", "Índices", "Criptomonedas", "Materias primas", "Algorítmico"]
 # Pestañas de ordenación del listado (cada una tiene su criterio en ORDEN).
-TABS = ["Destacadas", "Mejores resultados", "Ratio de victorias alto", "Fondos propios altos",
+PESTANAS = ["Destacadas", "Mejores resultados", "Ratio de victorias alto", "Fondos propios altos",
         "Riesgo bajo", "Drawdown bajo", "Comisiones bajas", "Más populares"]
 # Clave de ordenación (para sorted) por pestaña; el signo menos invierte para ordenar de mayor a menor.
 ORDEN = {
@@ -42,8 +42,10 @@ ORDEN = {
 # Clase CSS de la insignia de riesgo (ver estilos.css: rb, rm, ra).
 RIESGO_CLS = {"bajo": "rb", "medio": "rm", "alto": "ra"}
 # Texto visible de la insignia según el nivel de riesgo.
-RIESGO_TXT = {"bajo": "Riesgo bajo", "medio": "Riesgo medio", "alto": "Riesgo alto"}
+RIESGO_TEXTO = {"bajo": "Riesgo bajo", "medio": "Riesgo medio", "alto": "Riesgo alto"}
 
+
+# TITULO POR ID
 
 def por_id(eid):
     """Busca una estrategia por su id.

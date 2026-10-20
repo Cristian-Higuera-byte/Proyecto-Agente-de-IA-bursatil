@@ -23,6 +23,8 @@ from typing import Any, Callable
 from herramientas_agente.base.registro import REGISTRO, Herramienta, RegistroHerramientas
 
 
+# TITULO HERRAMIENTA
+
 def herramienta(
     descripcion: str,
     parametros: dict[str, Any] | None = None,

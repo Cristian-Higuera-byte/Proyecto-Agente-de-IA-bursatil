@@ -19,8 +19,10 @@ métricas de riesgo. Este módulo obtiene esos datos y los entrega al componente
 """
 import streamlit as st
 
-from componentes_plataforma.navegacion_superior import renderizar_barra_navegacion as renderizar_nav_superior
+from componentes_plataforma.barra_superior import renderizar_barra_navegacion as renderizar_nav_superior
 
+
+# TITULO DATOS CUENTA
 
 def datos_cuenta():
     """
@@ -39,7 +41,7 @@ def datos_cuenta():
     sin_error = "error" not in info_cuenta
     saldo = info_cuenta.get("equity") if sin_error else None
     moneda = info_cuenta.get("currency", "USD") if sin_error else "USD"
-    pl = info_cuenta.get("profit") if sin_error else None  # ganancia/pérdida flotante
+    ganancia_perdida = info_cuenta.get("profit") if sin_error else None  # ganancia/pérdida flotante
 
     # Métricas ligeras de la barra superior (Riesgo · Drawdown · Mercado). No lee el historial
     # de operaciones, así que es barata; el símbolo activo define el estado del mercado.
@@ -49,20 +51,22 @@ def datos_cuenta():
     except Exception:
         # La barra nunca debe romper la aplicación por culpa de estas métricas.
         metricas = None
-    return saldo, moneda, pl, metricas
+    return saldo, moneda, ganancia_perdida, metricas
 
+
+# TITULO RENDERIZAR BARRA SUPERIOR
 
 def renderizar_barra_superior(usuario: dict, saldo, moneda, pl, metricas) -> None:
     """
     Dibuja la barra superior fija con el usuario, el saldo, la ganancia/pérdida y las métricas.
 
     Recibe el diccionario del usuario autenticado (de él toma solo el nombre) y los datos que
-    devolvió `datos_cuenta()`. La barra va dentro de un contenedor con la clave `barra_nav_fija`,
+    devolvió `datos_cuenta()`. La barra va dentro de un contenedor con la clave `barra_navegacion_fija`,
     que el CSS global usa para fijarla arriba. El desplazamiento de la barra según el ancho de la
     barra lateral (70 px o 220 px) lo resuelve el CSS de `componentes_plataforma/barra_lateral`,
     sin necesidad de volver a ejecutar Python.
     """
-    with st.container(key="barra_nav_fija"):
+    with st.container(key="barra_navegacion_fija"):
         renderizar_nav_superior(
             usuario=usuario.get("nombre", "Usuario"),
             saldo=saldo,

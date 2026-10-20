@@ -20,24 +20,28 @@ Transportes y Servicios Ltda.
   var P = window.parent, D, H;
   // Si el navegador bloquea el acceso al documento padre (otro origen), no hay nada que hacer.
   try { D = P.document; H = D.documentElement; } catch(e) { return; }
+  // TITULO ESTADO
+
   /**
    * Lee qué panel está abierto según las clases del elemento html.
    * Devuelve 'dom', 'none' (todo oculto) u 'order' (Operar; es el estado por defecto, sin clase).
    */
   function estado(){
     if (H.classList.contains('pj-panel-dom')) return 'dom';
-    if (H.classList.contains('pj-panel-fav')) return 'fav';
+    if (H.classList.contains('pj-panel-favorito')) return 'fav';
     if (H.classList.contains('pj-panel-none')) return 'none';
     return 'order';   // sin clase = Operar abierto (default al entrar / F5)
   }
+  // TITULO PONER
+
   /**
    * Fija el estado de los paneles.
-   * Recibe s ('dom', 'fav', 'none' u 'order') y activa o quita las clases pj-panel-dom, pj-panel-fav y pj-panel-none en html; el CSS
+   * Recibe s ('dom', 'fav', 'none' u 'order') y activa o quita las clases pj-panel-dom, pj-panel-favorito y pj-panel-none en html; el CSS
    * desliza los paneles en consecuencia.
    */
   function poner(s){
     H.classList.toggle('pj-panel-dom', s === 'dom');
-    H.classList.toggle('pj-panel-fav', s === 'fav');
+    H.classList.toggle('pj-panel-favorito', s === 'fav');
     H.classList.toggle('pj-panel-none', s === 'none');
   }
   // Si el script se carga otra vez (rerun de Streamlit), se retira el oyente anterior para no duplicar clics.

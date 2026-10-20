@@ -48,6 +48,8 @@ from componentes_plataforma.agente_paneles.historial import renderizar_historial
 from componentes_plataforma.agente_paneles.propuestas import renderizar_ordenes_propuestas
 
 
+# TITULO INYECTAR ESTILOS AGENTE
+
 def inyectar_estilos_agente() -> None:
     """Inyecta en la página el CSS de los dos paneles del agente (historial y propuestas).
 

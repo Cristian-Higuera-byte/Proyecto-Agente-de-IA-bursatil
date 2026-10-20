@@ -23,10 +23,14 @@ from typing import Any
 from nucleo_agente import notificaciones, ordenes
 
 
+# TITULO ISO
+
 def _iso(dt: datetime) -> str:
     """Convierte una fecha a texto ISO sin fracciones, el formato que se guarda y compara en SQLite."""
     return dt.isoformat(timespec="seconds")
 
+
+# TITULO A NUMERO
 
 def _a_numero(valor: Any) -> float | None:
     """Convierte a float un valor que el modelo pudo enviar como texto ('1,25'); devuelve None si no es un número
@@ -39,10 +43,14 @@ def _a_numero(valor: Any) -> float | None:
         return None
 
 
+# TITULO CONSULTAR
+
 def _consultar(sql: str, params: tuple = ()) -> list[dict[str, Any]]:
     """Atajo a ordenes._consultar: ejecuta un SELECT y devuelve las filas como diccionarios."""
     return ordenes._consultar(sql, params)
 
+
+# TITULO ACTUALIZAR
 
 def _actualizar(vid: str, **campos: Any) -> None:
     """Actualiza columnas de una vigilancia por id con los campos recibidos por nombre (no hace nada si no hay).
@@ -54,11 +62,15 @@ def _actualizar(vid: str, **campos: Any) -> None:
     ordenes._ejecutar(f"UPDATE vigilancias SET {asignaciones} WHERE id = ?", (*campos.values(), vid))
 
 
+# TITULO OBTENER
+
 def obtener(vid: str) -> dict[str, Any] | None:
     """Devuelve la fila de la vigilancia con ese id como diccionario, o None si no existe."""
     filas = _consultar("SELECT * FROM vigilancias WHERE id = ?", (vid,))
     return filas[0] if filas else None
 
+
+# TITULO NOTIFICAR
 
 def _notificar(v: dict[str, Any], titulo: str, texto: str, tipo: str = "auto") -> None:
     """Agrega una notificación (campana) al usuario dueño de la vigilancia, referida a su id.
@@ -70,10 +82,14 @@ def _notificar(v: dict[str, Any], titulo: str, texto: str, tipo: str = "auto") -
         traceback.print_exc()
 
 
-def _lado_txt(lado: str) -> str:
+# TITULO LADO TEXTO
+
+def _lado_texto(lado: str) -> str:
     """Devuelve "Compra" o "Venta" con mayúscula inicial para los títulos de notificación."""
     return "Compra" if str(lado).lower() == "compra" else "Venta"
 
+
+# TITULO FINALIZAR
 
 def _finalizar(v: dict[str, Any], estado: str, titulo: str, texto: str, tipo: str = "auto") -> None:
     """Cierra una vigilancia: guarda el estado final y el detalle (máx. 300 caracteres) y notifica al usuario."""

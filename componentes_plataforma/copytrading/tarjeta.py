@@ -17,9 +17,11 @@ El HTML devuelto usa las clases ct-* definidas en estilos.css.
 """
 from html import escape
 
-from componentes_plataforma.copytrading.datos import RIESGO_CLS, RIESGO_TXT
+from componentes_plataforma.copytrading.datos import RIESGO_CLS, RIESGO_TEXTO
 from componentes_plataforma.copytrading.graficos import avatar, minilinea
 
+
+# TITULO TARJETA HTML
 
 def tarjeta_html(e: dict) -> str:
     """Construye el HTML de la tarjeta de una estrategia para el listado.
@@ -31,18 +33,18 @@ def tarjeta_html(e: dict) -> str:
     # Clase CSS de la insignia según el nivel de riesgo.
     rcls = RIESGO_CLS[e["riesgo"]]
     return (
-        "<div class='ct-card'>"
-        "<div class='ct-head'>"
-        f"<span class='ct-av'>{avatar(e['nombre'])}</span>"
-        f"<div><div class='ct-nm'>{escape(str(e['nombre']))}</div><div class='ct-gs'>@{escape(str(e['gestor']))}</div></div>"
-        f"<span class='ct-badge {rcls}'>{RIESGO_TXT[e['riesgo']]}</span>"
+        "<div class='copytrading-tarjeta'>"
+        "<div class='copytrading-cabecera'>"
+        f"<span class='copytrading-av'>{avatar(e['nombre'])}</span>"
+        f"<div><div class='copytrading-nombre'>{escape(str(e['nombre']))}</div><div class='copytrading-gestion'>@{escape(str(e['gestor']))}</div></div>"
+        f"<span class='copytrading-insignia {rcls}'>{RIESGO_TEXTO[e['riesgo']]}</span>"
         "</div>"
-        "<div class='ct-mid'>"
+        "<div class='copytrading-medio'>"
         f"{minilinea(e['id'])}"
-        f"<div style='text-align:right;'><div class='ct-rent-lbl'>Rentabilidad 1 mes</div>"
-        f"<div class='ct-rent'>{e['rent']:.2f}%</div></div>"
+        f"<div style='text-align:right;'><div class='copytrading-rentabilidad-etiqueta'>Rentabilidad 1 mes</div>"
+        f"<div class='copytrading-rentabilidad'>{e['rent']:.2f}%</div></div>"
         "</div>"
-        "<div class='ct-grid'>"
+        "<div class='copytrading-cuadricula'>"
         f"<div><div class='k'>Fondos propios</div><div class='v'>${e['fondos']:,}</div></div>"
         f"<div><div class='k'>Invertido</div><div class='v'>${e['invertido']:,}</div></div>"
         f"<div><div class='k'>Inversión mín.</div><div class='v'>${e['inv_min']:,}</div></div>"
