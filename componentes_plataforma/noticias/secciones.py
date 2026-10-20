@@ -23,7 +23,7 @@ import streamlit as st
 
 from componentes_plataforma.noticias.datos import MAX_CARRUSEL, MAX_EXTERNAS, POR_PAGINA
 from componentes_plataforma.noticias.estilos import CSS_CARRUSEL
-from componentes_plataforma.noticias.rss import cargar_mas_noticias, cargar_noticias
+from componentes_plataforma.noticias.rss import cargar_mas_noticias, cargar_noticias, hay_datos
 from componentes_plataforma.noticias.tarjetas import tarjeta_externa_html, tarjeta_html
 
 
@@ -125,7 +125,10 @@ def renderizar_contenido():
     No devuelve nada; se ejecuta dentro de un fragmento con auto-refresco."""
     todas_principal = cargar_noticias()
     if not todas_principal:
-        st.info("No se pudieron cargar las noticias en este momento. Reintenta en unos minutos.")
+        if hay_datos():
+            st.info("No se pudieron cargar las noticias en este momento. Reintenta en unos minutos.")
+        else:
+            st.info("Cargando noticias…")      # primera visita: las fuentes se están leyendo; la página se actualiza sola
         return
 
     st.markdown(CSS_CARRUSEL, unsafe_allow_html=True)

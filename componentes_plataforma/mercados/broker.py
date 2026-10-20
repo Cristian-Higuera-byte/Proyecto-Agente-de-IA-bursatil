@@ -145,6 +145,13 @@ def elementos(categoria: str):
         return []
 
 
+# TITULO ELEMENTOS EN CACHE
+
+def elementos_en_cache(categoria: str):
+    """Igual que `elementos`, pero solo si la categoría ya se resolvió: devuelve None (sin calcular ni esperar) si todavía no."""
+    return _elementos_cache.en_cache(categoria)
+
+
 # TITULO HORA SERVIDOR
 
 @st.cache_data(ttl=10, show_spinner=False)

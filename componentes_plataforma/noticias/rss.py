@@ -36,9 +36,14 @@ from componentes_plataforma.noticias.datos import (FUENTES, FUENTES_MAS, INTERVA
                                                    MAX_POR_FUENTE, MAX_VERIFICAR, PLACEHOLDER)
 
 _AGENTE = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36"
-# Segundos máximos de espera por una fuente y por el conjunto de fuentes que se refrescan a la vez.
+# Segundos máximos de espera por una fuente (la petición HTTP) y, antes de dibujar, por las fuentes que se refrescan a la vez:
+# con noticias ya cargadas casi no se espera (se dibuja lo que hay y el refresco sigue en segundo plano); la primera vez, sin
+# nada que mostrar, se espera lo justo para que salgan las fuentes más rápidas y el resto aparece en la siguiente revisión.
 _ESPERA_FUENTE = 8
-_ESPERA_TOTAL = 10
+_ESPERA_FRIA = 2.5
+_ESPERA_CALIENTE = 0.8
+# Hilos que revisan las fuentes, compartidos por todas las sesiones.
+_REFRESCADOR = ThreadPoolExecutor(max_workers=8)
 # Estado por dirección: {"items", "etag", "modificado", "ultima" (instante de la última revisión), "fallos"}.
 _ESTADO: dict = {}
 _CANDADO = threading.Lock()
@@ -46,8 +51,11 @@ _CANDADO = threading.Lock()
 _LECTURA: dict = {}
 _EN_CURSO: set = set()
 _VERIFICADOR = ThreadPoolExecutor(max_workers=4)
-# Segundos que se espera, como máximo, a que terminen las comprobaciones pendientes antes de dibujar.
-_ESPERA_VERIFICACION = 8
+# Segundos que se espera, como máximo, a que terminen las comprobaciones pendientes antes de dibujar (las que no alcancen se
+# resuelven en segundo plano y esas noticias aparecen en la siguiente revisión).
+_ESPERA_VERIFICACION = 1.0
+# Marca de que ya se lanzó la precarga de las fuentes (una vez por proceso).
+_PRECARGADO = threading.Event()
 
 
 # TITULO ETIQUETA
@@ -279,16 +287,16 @@ def _clasificar(n: dict):
 def _juntar(fuentes: list) -> list:
     """Noticias de varias fuentes, sin enlaces ni títulos repetidos y de la más nueva a la más vieja.
 
-    Revisa en paralelo las fuentes que lo necesitan (espera como máximo `_ESPERA_TOTAL` segundos; las que no alcancen
-    siguen en segundo plano y se verán en la próxima lectura), comprueba en segundo plano qué noticias entregan texto
-    (espera como máximo `_ESPERA_VERIFICACION` segundos) y reúne lo que hay en el estado de cada fuente. Cada noticia
-    sale con `lectura` verdadero solo si de verdad se puede leer aquí."""
+    Revisa en paralelo las fuentes que lo necesitan, sin hacer esperar la página: con noticias ya cargadas espera como máximo
+    `_ESPERA_CALIENTE` segundos y la primera vez (sin nada que mostrar) `_ESPERA_FRIA`; las fuentes que no alcancen siguen en
+    segundo plano y se verán en la próxima lectura. Comprueba en segundo plano qué noticias entregan texto (espera como máximo
+    `_ESPERA_VERIFICACION` segundos) y reúne lo que hay en el estado de cada fuente. Cada noticia sale con `lectura` verdadero
+    solo si de verdad se puede leer aquí."""
     pendientes = [f for f in fuentes if time.time() - _ESTADO.get(f["url"], {}).get("ultima", 0.0)
                   >= (INTERVALO_CONDICIONAL if f.get("condicional") else INTERVALO_NORMAL)]
     if pendientes:
-        pool = ThreadPoolExecutor(max_workers=min(8, len(pendientes)))
-        wait([pool.submit(_refrescar, f) for f in pendientes], timeout=_ESPERA_TOTAL)
-        pool.shutdown(wait=False)
+        con_datos = any(_ESTADO.get(f["url"], {}).get("items") for f in fuentes)
+        wait([_REFRESCADOR.submit(_refrescar, f) for f in pendientes], timeout=_ESPERA_CALIENTE if con_datos else _ESPERA_FRIA)
     with _CANDADO:
         listas = [list(_ESTADO.get(f["url"], {}).get("items", [])) for f in fuentes]
     tareas = _pedir_verificaciones(listas)
@@ -310,6 +318,35 @@ def _juntar(fuentes: list) -> list:
             todas.append(n)
     todas.sort(key=lambda n: n["_ts"], reverse=True)
     return todas
+
+
+# TITULO HAY DATOS
+
+def hay_datos() -> bool:
+    """¿Ya hay noticias cargadas de alguna fuente principal? Sirve para decidir si la página muestra un aviso de carga."""
+    with _CANDADO:
+        return any(_ESTADO.get(f["url"], {}).get("items") for f in FUENTES)
+
+
+# TITULO PRECARGAR
+
+def precargar() -> None:
+    """Empieza a leer todas las fuentes en segundo plano, una sola vez por proceso (las siguientes llamadas no hacen nada).
+
+    Se llama al iniciar la sesión del usuario: cuando abre la sección Noticias, las fuentes ya están leídas y las noticias que
+    necesitan comprobar su texto ya se están comprobando, así que la página se dibuja al instante. No espera ni devuelve nada."""
+    if _PRECARGADO.is_set():
+        return
+    _PRECARGADO.set()
+
+    def _tarea() -> None:
+        """Lee las fuentes y, cuando llegan, lanza la comprobación del texto de sus noticias."""
+        fuentes = FUENTES + FUENTES_MAS
+        wait([_REFRESCADOR.submit(_refrescar, f) for f in fuentes], timeout=_ESPERA_FUENTE + 2)
+        with _CANDADO:
+            listas = [list(_ESTADO.get(f["url"], {}).get("items", [])) for f in fuentes]
+        _pedir_verificaciones(listas)
+    threading.Thread(target=_tarea, name="pj-noticias-precarga", daemon=True).start()
 
 
 # TITULO CARGAR NOTICIAS

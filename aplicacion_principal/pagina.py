@@ -31,6 +31,7 @@ from .cabecera import datos_cuenta, renderizar_barra_superior
 from .dialogos import renderizar_dialogos
 from .estilos import css_global, html_pantalla_carga
 from .fragmentos import crear_fragmentos
+from .precarga import iniciar_precargas
 from .vistas import renderizar_vista
 
 
@@ -82,6 +83,9 @@ def ejecutar(consola) -> None:
 
     # Carga inicial de los datos de mercado.
     cargar_datos_mercado()
+
+    # Precarga en segundo plano de las secciones lentas (Noticias, Mercados y Diario), una vez por proceso.
+    iniciar_precargas()
 
     # Fragmentos con números en vivo (favoritos, watchlist y cartera).
     fragmentos = crear_fragmentos()

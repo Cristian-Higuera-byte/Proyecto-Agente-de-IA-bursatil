@@ -21,7 +21,7 @@ Uso:
     @cache_proceso(ttl=300)
     def serie(real, tf, n): ...
 
-Dentro de `ttl` devuelve el valor guardado; pasado el `ttl` (hasta 6 veces) lo devuelve igual al instante y lo
+La función decorada también ofrece `en_cache(*args)`, que mira lo guardado sin calcular ni esperar. Dentro de `ttl` devuelve el valor guardado; pasado el `ttl` (hasta 6 veces) lo devuelve igual al instante y lo
 refresca en un hilo aparte; más allá, vuelve a calcularlo bloqueando."""
 import functools
 import time
@@ -68,7 +68,13 @@ def cache_proceso(tiempo_vida: float):
                     return impacto[1]
             return _calcular_y_guardar(args, args)
 
+        def en_cache(*args):
+            """Devuelve el valor guardado para esos argumentos (aunque esté vencido) o None si nunca se calculó; no calcula nada ni espera."""
+            impacto = datos.get(args)
+            return impacto[1] if impacto else None
+
         envoltorio.limpiar = datos.clear
+        envoltorio.en_cache = en_cache
         return envoltorio
     return decorador
 
