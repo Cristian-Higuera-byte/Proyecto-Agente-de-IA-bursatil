@@ -30,6 +30,16 @@ Transportes y Servicios Ltda.
     /* Desplazamiento horizontal del brillo de la barra. */
     @keyframes pj-carga { from { background-position: -40% 0; } to { background-position: 140% 0; } }
 
+    /* TITULO AVISO DE CARGA */
+    /* Si la sección tarda más de 1 s, aparece al centro del área de contenido el texto «Cargando…» (con un fundido corto), para que la
+       pantalla vacía no parezca una falla. Con secciones rápidas nunca llega a verse. */
+    html.pj-navegando body::before {
+        content: "Cargando…"; position: fixed; left: 70px; right: 0; top: 42%; text-align: center; z-index: 100001;
+        color: #8b949e; font-size: 14px; opacity: 0; animation: pj-aparece .25s ease 1s forwards; pointer-events: none;
+    }
+    /* Aparición suave del aviso. */
+    @keyframes pj-aparece { from { opacity: 0; } to { opacity: 1; } }
+
     /* TITULO ENVOLTORIO DEL SCRIPT */
     /* El iframe del script no ocupa lugar: su envoltorio sale del flujo para no sumar separación entre elementos. */
     [data-testid="stLayoutWrapper"]:has(> .st-key-pj_transicionjs) { position: absolute !important; width: 0 !important; height: 0 !important; }

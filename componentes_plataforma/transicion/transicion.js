@@ -23,7 +23,7 @@ Transportes y Servicios Ltda.
   // Botones que cambian de sección: barra lateral y accesos rápidos de Inicio (se pulsan en la vista, no en la barra).
   var BOTONES = '[class*="st-key-navegacion_boton_"] button, [class*="st-key-accsel_"] button';
   // Tiempo máximo con la cortina puesta (ms): si Streamlit no termina, se retira igual para no dejar la pantalla vacía.
-  var TOPE = 8000;
+  var TOPE = 25000;
   // Pausa (ms) sin ejecución antes de dar la sección por lista; evita descubrirla entre dos pasadas seguidas.
   var REPOSO = 120;
   var reloj = null;

@@ -115,6 +115,12 @@ Transportes y Servicios Ltda.
   /* Flecha que indica que la fila es clicable */
   .mercados-flecha { color:#6e7681; font-size:18px; margin-left:6px; }
   /* Mensaje cuando no hay instrumentos que mostrar */
+  /* TITULO AVISO DE CARGA */
+  /* Aviso mientras se leen los datos de una categoría o del pulso del mercado: tarjeta oscura con un punto que late. */
+  .mercados-cargando { display:flex; align-items:center; justify-content:center; gap:10px; color:#8b949e; font-size:13px;
+      padding:34px 16px; background:#0f1620; border:1px solid #202a37; border-radius:14px; }
+  .mercados-cargando-punto { width:9px; height:9px; border-radius:50%; background:#3fb950; animation:mercados-latido 1s ease-in-out infinite; }
+  @keyframes mercados-latido { 0%,100% { opacity:.25; transform:scale(.8); } 50% { opacity:1; transform:scale(1.15); } }
   .mercados-vacio { color:#8b949e; padding:28px 16px; text-align:center; font-size:13px; }
   /* Pie de la tabla: conteo y hora de actualizacion */
   .mercados-pie { color:#8b949e; font-size:12px; margin-top:10px; }

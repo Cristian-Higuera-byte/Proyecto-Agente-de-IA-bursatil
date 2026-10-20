@@ -1023,6 +1023,7 @@ def obtener_historial(dias: int = 90, limite: int = 100) -> list:
 _RUTA_CIERRES = os.path.join(os.path.dirname(_RUTA_EPICS), "cierres_capital.json")
 _cierres: dict = {}
 _CANDADO_CIERRES = threading.Lock()
+_candados_cierre: dict = {}       # dealId -> candado, para no consultar dos veces la misma operación a la vez
 
 
 # TITULO CARGAR CIERRES
@@ -1059,6 +1060,20 @@ def detalle_cierre(deal_id: str, t_cierre: float) -> dict:
         return {}
     if deal_id in _cierres:
         return _cierres[deal_id]
+    # Dos hilos pidiendo la misma operación a la vez (la precarga del Diario y la página) no repiten las consultas: el segundo espera
+    # al primero y usa su resultado guardado.
+    with _CANDADO_CIERRES:
+        candado = _candados_cierre.setdefault(deal_id, threading.Lock())
+    with candado:
+        if deal_id in _cierres:
+            return _cierres[deal_id]
+        return _detalle_cierre_consultar(deal_id, t_cierre)
+
+
+# TITULO DETALLE CIERRE CONSULTAR
+
+def _detalle_cierre_consultar(deal_id: str, t_cierre: float) -> dict:
+    """Consulta a Capital la actividad de una operación cerrada, arma su detalle y lo guarda en disco; {} si Capital no lo entrega."""
     cierre = None
     for a in _actividad(deal_id, t_cierre - 3600, t_cierre + 3600):
         d = a.get("details", {}) or {}
