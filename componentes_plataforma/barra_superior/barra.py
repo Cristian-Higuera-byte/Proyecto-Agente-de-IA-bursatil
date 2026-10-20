@@ -63,7 +63,7 @@ def renderizar_barra_navegacion(usuario: str = "Emilio Fuentes",
     if saldo is not None:
         saldo_texto = f"${saldo:,.2f} {moneda}"
     else:
-        saldo_txt = "— sin conexión MT5"
+        saldo_texto = f"— sin conexión {NOMBRE_BROKER}"
 
     # P/G flotante (de posiciones abiertas) junto al saldo, estilo XM.
     # Siempre se dibuja el <span> (aunque esté vacío) para que el feed en vivo

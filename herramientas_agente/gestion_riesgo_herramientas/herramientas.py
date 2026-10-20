@@ -65,7 +65,7 @@ def calcular_tamano_posicion(
     if not valor_pip_lote or valor_pip_lote <= 0:
         return {
             "error": (
-                f"No se pudo obtener de MT5 el valor del pip de '{sym_upper}', así que no se calcula el lotaje "
+                f"No se pudo obtener de {mt5_fuente.NOMBRE_FUENTE} el valor del pip de '{simbolo_upper}', así que no se calcula el lotaje "
                 "(una estimación podría ser muy errónea). Verifica el símbolo con mt5_buscar_simbolos."
             ),
         }
@@ -84,8 +84,8 @@ def calcular_tamano_posicion(
     riesgo_real = round(lote_sugerido * distancia_sl_pips * valor_pip_lote, 2)
 
     resultado = {
-        "fuente": "Calculadora de Gestión de Riesgo y Lote (valor del pip calculado por MT5)",
-        "simbolo": esp.get("simbolo", sym_upper),
+        "fuente": f"Calculadora de Gestión de Riesgo y Lote (valor del pip calculado por {mt5_fuente.NOMBRE_FUENTE})",
+        "simbolo": esp.get("simbolo", simbolo_upper),
         "capital_evaluado_usd": capital,
         "porcentaje_riesgo_pct": porcentaje_riesgo,
         "monto_arriesgado_usd": round(monto_riesgo_usd, 2),

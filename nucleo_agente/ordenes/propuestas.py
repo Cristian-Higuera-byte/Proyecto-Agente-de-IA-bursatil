@@ -24,7 +24,7 @@ from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 from herramientas.tickets import ticket as _tk
 from nucleo_agente.ordenes.base_datos import _ahora, _consultar, _insertar, interruptor_emergencia_activo
 from nucleo_agente.ordenes.limites import LIMITES
-from nucleo_agente.ordenes.mt5_utiles import (_chequeos_globales, _con_lock, _perdida_del_dia, _preparar_mt5,
+from nucleo_agente.ordenes.mt5_utiles import (NOMBRE_BROKER, _chequeos_globales, _con_candado, _perdida_del_dia, _preparar_mt5,
                                      _resolver_simbolo, _riesgo_expuesto)
 from nucleo_agente.ordenes.validacion import _evaluar_apertura
 

@@ -111,8 +111,8 @@ def generar_grafico_financiero(
     # Obtener velas desde MT5 o YFinance
     # velas_data: lista de velas OHLC; tf_real: temporalidad realmente usada.
     velas_data: list[dict[str, Any]] = []
-    tf_real = timeframe
-    fuente_datos = "MetaTrader 5"
+    temporalidad_real = timeframe
+    fuente_datos = mt5_fuente.NOMBRE_FUENTE
     try:
         mt5_resultado = mt5_fuente.velas(simbolo=simbolo_clean, timeframe=timeframe, cantidad=n_velas, ultimas_velas=n_velas)
         velas_data = mt5_resultado.get("ultimas_velas", [])

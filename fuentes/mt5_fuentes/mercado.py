@@ -47,9 +47,9 @@ def precio(simbolo: str) -> dict[str, Any]:
             ask = tick.ask
             # Spread como diferencia de precios; 0 si falta alguno de los dos lados.
             spread = (ask - bid) if (ask and bid) else 0.0
-            # Se usa el punto del símbolo (con valor por defecto) para expresar el spread en puntos.
-            point = getattr(info, "point", 0.00001) or 0.00001
-            spread_pips = round(spread / point, 1) if point > 0 else 0.0
+            # El spread se expresa en pips (10 puntos en símbolos de 3 o 5 decimales), no en puntos.
+            pip = _tamano_pip(info) or 0.0001
+            spread_pips = round(spread / pip, 1) if pip > 0 else 0.0
 
             # Variación diaria respecto a la apertura de la sesión (o al bid si MT5 no la informa).
             open_precio = getattr(info, "session_open", 0.0) or bid

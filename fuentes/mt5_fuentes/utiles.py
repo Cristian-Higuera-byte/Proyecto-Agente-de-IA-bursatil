@@ -93,6 +93,27 @@ def _como_tupla(mt5: Any, resultado: Any, accion: str) -> Any:
     return resultado
 
 
+# TITULO NORMALIZAR ESCRITURA
+
+# Tickers de Yahoo Finance de materias primas, índices y criptomonedas -> epic de Capital.com.
+_YAHOO_A_EPIC = {
+    "GC=F": "GOLD", "SI=F": "SILVER", "CL=F": "OIL_CRUDE", "BZ=F": "OIL_BRENT", "NG=F": "NATURALGAS", "HG=F": "COPPER",
+    "^GSPC": "US500", "^DJI": "US30", "^IXIC": "US100", "^NDX": "US100", "^GDAXI": "DE40", "^FTSE": "UK100",
+    "^N225": "J225", "^VIX": "VIX", "BTC-USD": "BTCUSD", "ETH-USD": "ETHUSD",
+}
+
+
+def _normalizar_escritura(texto: str) -> str:
+    """Pasa a la forma de Capital.com los símbolos escritos al estilo de Yahoo (EURUSD=X, GC=F, ^GSPC, BTC-USD) o con barra (EUR/USD)."""
+    if texto in _YAHOO_A_EPIC:
+        return _YAHOO_A_EPIC[texto]
+    if texto.endswith("=X"):
+        texto = texto[:-2]
+    return texto.replace("/", "")
+
+
+# TITULO RESOLVER
+
 def _resolver(mt5: Any, texto: str) -> str:
     """Resuelve el nombre de un símbolo tal como lo llama el broker.
 

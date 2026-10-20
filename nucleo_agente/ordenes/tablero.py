@@ -102,7 +102,7 @@ def confirmar_orden(id_orden: str) -> dict[str, Any]:
     try:
         resultado = _enviar_apertura(o) if o["accion"] == "abrir" else _enviar_cierre(o)
     except Exception as e:  # noqa: BLE001
-        res = {"ok": False, "estado": "ERROR", "mensaje": f"Error inesperado (revisa MT5 por si la orden se envió): {e}"}
+        resultado = {"ok": False, "estado": "ERROR", "mensaje": f"Error inesperado (revisa {NOMBRE_BROKER} por si la orden se envió): {e}"}
 
     # Paso 3: se registra el resultado final (EJECUTADA u otro estado de fallo) y el ticket devuelto.
     _ejecutar(
