@@ -35,10 +35,11 @@ import threading
 
 from herramientas.tickets import ticket as _tk
 
-# Carpeta `data/` en la raíz del proyecto.
-_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+from herramientas.carpeta_usuario import carpeta_usuario, ruta_archivo
+
 # Archivo JSON compartido con las configuraciones de trailing por ticket.
-_RUTA = os.path.join(_DIR, "trailing.json")
+# Nombre del archivo; la carpeta depende del usuario y la cuenta (ver herramientas/carpeta_usuario.py)
+_NOMBRE_ARCHIVO = "trailing.json"
 # Candado que serializa las modificaciones dentro del proceso.
 _CANDADO = threading.Lock()
 
@@ -48,7 +49,7 @@ _CANDADO = threading.Lock()
 def _leer_crudo() -> dict:
     """Lee `trailing.json` tal cual (sin validar); devuelve {} si falta o está corrupto."""
     try:
-        with open(_RUTA, "r", encoding="utf-8") as f:
+        with open(ruta_archivo(_NOMBRE_ARCHIVO), "r", encoding="utf-8") as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         return {}
@@ -72,15 +73,15 @@ def leer() -> dict:
 
 def _guardar(d: dict) -> None:
     """Escribe las configuraciones en `trailing.json` de forma atómica (claves convertidas a texto)."""
-    os.makedirs(_DIR, exist_ok=True)
-    tmp = tempfile.NamedTemporaryFile("w", delete=False, dir=_DIR, encoding="utf-8")
+    os.makedirs(carpeta_usuario(), exist_ok=True)
+    tmp = tempfile.NamedTemporaryFile("w", delete=False, dir=carpeta_usuario(), encoding="utf-8")
     try:
         json.dump({str(k): v for k, v in d.items()}, tmp)
         tmp.flush()
         os.fsync(tmp.fileno())
     finally:
         tmp.close()
-    os.replace(tmp.name, _RUTA)   # atómico: el otro proceso nunca ve un archivo a medias
+    os.replace(tmp.name, ruta_archivo(_NOMBRE_ARCHIVO))   # atómico: el otro proceso nunca ve un archivo a medias
 
 
 # TITULO FIJAR
@@ -113,7 +114,7 @@ def quitar(ticket) -> None:
 def mtime() -> float:
     """Marca de tiempo del archivo (para recargar solo cuando cambió)."""
     try:
-        return os.path.getmtime(_RUTA)
+        return os.path.getmtime(ruta_archivo(_NOMBRE_ARCHIVO))
     except OSError:
         return 0.0
 

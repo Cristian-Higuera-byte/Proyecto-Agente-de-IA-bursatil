@@ -30,6 +30,7 @@ from componentes_plataforma.barra_superior.estilos import CSS
 from componentes_plataforma.barra_superior.notificaciones import campana, usuario_id as _usuario_id
 from componentes_plataforma.buscador import abrir_buscador
 from herramientas.puente_mt5 import NOMBRE_BROKER
+from componentes_plataforma.conectar_cuenta import entradas_menu, etiqueta_cuenta
 from nucleo_agente import vigilancia
 
 # Carpeta de este paquete (para localizar usuario_menu.html).
@@ -86,6 +87,8 @@ def renderizar_barra_navegacion(usuario: str = "Emilio Fuentes",
 
     # Chips de Riesgo, Drawdown y Mercado (cadena vacía si no hay métricas)
     chips_metricas = _calcular_chips(metricas)
+    # Etiqueta DEMO / REAL de la cuenta activa (vacía con el modo multiusuario apagado)
+    chips_metricas = etiqueta_cuenta() + chips_metricas
 
     # Estilos de la navbar + del botón buscador
     st.markdown(CSS, unsafe_allow_html=True)
@@ -101,7 +104,8 @@ def renderizar_barra_navegacion(usuario: str = "Emilio Fuentes",
     # Menú del usuario: plantilla HTML con marcadores sustituidos por las iniciales y el nombre
     html_usuario = (texto(_DIR / "usuario_menu.html")
                     .replace("__INICIALES__", html.escape(iniciales)).replace("__USUARIO__", html.escape(usuario))
-                    .replace("__TOKEN__", str(st.query_params.get("s", ""))))
+                    .replace("__TOKEN__", str(st.query_params.get("s", "")))
+                    .replace("__ENTRADAS_CUENTA__", entradas_menu()))
 
     # ☰ + buscador (corto, a la izquierda) + espacio + saldo/tema + campana + usuario
     c_interruptor, c_buscar, c_spacer, c_saldo, c_campana, c_usuario = st.columns(

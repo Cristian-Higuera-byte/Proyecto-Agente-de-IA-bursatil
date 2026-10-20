@@ -14,14 +14,15 @@
 """
 streaming_capital.py  —  Precios en vivo de Capital.com por WebSocket  —  16-10-2026
 ------------------------------------------------------------------------------------
-Mantiene UNA conexión WebSocket a Capital.com y guarda el último Bid/Ask de cada
-instrumento suscrito en una caché en memoria. El motor de precios
+Mantiene UNA conexión WebSocket a Capital.com POR USUARIO Y CUENTA (demo o real) y guarda el último Bid/Ask de cada
+instrumento suscrito en una caché en memoria. `stream_de(clave)` entrega el de cada cuenta; cada uno usa los tokens de
+su propia sesión (nunca los de otro) y se detiene con `detener_stream(clave)`. El motor de precios
 (servidor_precios/motor/base.py) lee de esa caché en vez de preguntar por REST en
 cada ciclo, lo que elimina decenas de llamadas por segundo y hace fluida la app.
 
 Diseño:
   - Corre en un hilo daemon con su propio bucle asyncio (websockets).
-  - Reutiliza la sesión REST del backend (herramientas/backends/capital.py) para los
+  - Reutiliza la sesión REST del usuario (copia del núcleo en herramientas/backends/sesiones_capital.py) para los
     tokens CST / X-SECURITY-TOKEN. El sondeo de cuenta del motor mantiene esa sesión
     viva, así que los tokens no caducan.
   - Reconecta solo ante errores/cierres, re-autenticando y re-suscribiendo.
@@ -40,7 +41,7 @@ import time
 from types import SimpleNamespace
 from typing import Optional
 
-from herramientas.backends import capital as cap
+from herramientas.backends import sesiones_capital
 
 _WS_URL = "wss://api-streaming-capital.backend-capital.com/connect"
 _MAX_EPICS = 40
@@ -57,8 +58,12 @@ class _StreamCapital:
     """
     # TITULO INIT
 
-    def __init__(self) -> None:
-        """Crea los diccionarios de cotizaciones y de cinta, los conjuntos de epics deseados/suscritos y el candado; el hilo se arranca al primer `suscribir`."""
+    def __init__(self, clave: tuple = ("legado",)) -> None:
+        """Crea los diccionarios de cotizaciones y de cinta, los conjuntos de epics deseados/suscritos y el candado; el hilo se arranca al primer `suscribir`.
+
+        `clave` es la cuenta a la que pertenece este stream: (usuario_id, es_demo), o ("legado",) para la cuenta del .env."""
+        self._clave = clave
+        self._parar = False
         self._cache: dict = {}          # epic -> {"bid","ask","t"(ms),"bq","aq"}
         self._cinta: dict = {}          # epic -> deque de las últimas cotizaciones (cinta del panel DOM)
         self._deseados: set = set()     # epics que queremos suscribir
@@ -67,6 +72,22 @@ class _StreamCapital:
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._ws = None
         self._hilo: Optional[threading.Thread] = None
+
+    # TITULO CUENTA
+
+    def _cuenta(self):
+        """Copia del núcleo de Capital de la cuenta de este stream (sesión, tokens y credenciales propios).
+
+        Se pide cada vez para que, si el usuario cambia sus credenciales, el stream use la sesión nueva."""
+        return sesiones_capital.modulo_de(self._clave)
+
+    # TITULO DETENER
+
+    def detener(self) -> None:
+        """Detiene el stream: cierra la conexión y evita que el hilo vuelva a reconectar."""
+        self._parar = True
+        if self._ws is not None and self._loop is not None:
+            asyncio.run_coroutine_threadsafe(self._ws.close(), self._loop)
 
     # TITULO SUSCRIBIR
 
@@ -115,7 +136,8 @@ class _StreamCapital:
         """Arranca el hilo del WebSocket si aún no está corriendo."""
         if self._hilo and self._hilo.is_alive():
             return
-        self._hilo = threading.Thread(target=self._run, name="capital-ws", daemon=True)
+        self._parar = False
+        self._hilo = threading.Thread(target=self._run, name=f"capital-ws-{'-'.join(map(str, self._clave))}", daemon=True)
         self._hilo.start()
 
     # TITULO RUN
@@ -134,9 +156,9 @@ class _StreamCapital:
     async def _principal(self) -> None:
         """Bucle de la conexión: se conecta, suscribe los epics pendientes, procesa los mensajes y mantiene el ping; si se corta, espera y reconecta."""
         import websockets  # import tardío: solo si se usa el streaming
-        while True:
+        while not self._parar:
             try:
-                if not cap.inicializar_mt5():
+                if not self._cuenta().inicializar_mt5():
                     await asyncio.sleep(5)
                     continue
                 # ping_interval=None: Capital usa ping de APLICACIÓN, no el del protocolo WS.
@@ -155,6 +177,8 @@ class _StreamCapital:
             except Exception as e:  # noqa: BLE001
                 print(f"[WS Capital] reconectando tras: {type(e).__name__}: {e}")
             self._ws = None
+            if self._parar:
+                return
             await asyncio.sleep(_BACKOFF_S)
 
     # TITULO SUSCRIBIR PENDIENTES
@@ -171,8 +195,8 @@ class _StreamCapital:
             await self._ws.send(json.dumps({
                 "destination": "marketData.subscribe",
                 "correlationId": str(int(time.time())),
-                "cst": cap._tokens["CST"],
-                "securityToken": cap._tokens["X-SECURITY-TOKEN"],
+                "cst": self._cuenta()._tokens["CST"],
+                "securityToken": self._cuenta()._tokens["X-SECURITY-TOKEN"],
                 "payload": {"epics": faltan[:_MAX_EPICS]},
             }))
             with self._lock:
@@ -190,8 +214,8 @@ class _StreamCapital:
                 await ws.send(json.dumps({
                     "destination": "ping",
                     "correlationId": str(int(time.time())),
-                    "cst": cap._tokens["CST"],
-                    "securityToken": cap._tokens["X-SECURITY-TOKEN"],
+                    "cst": self._cuenta()._tokens["CST"],
+                    "securityToken": self._cuenta()._tokens["X-SECURITY-TOKEN"],
                 }))
             except Exception:
                 return
@@ -229,7 +253,30 @@ class _StreamCapital:
                           "bq": nuevo["bq"], "aq": nuevo["aq"]})
 
 
-STREAM = _StreamCapital()
+# Streams ya creados, por cuenta (usuario_id, es_demo) o ("legado",)
+_STREAMS: dict = {}
+_CANDADO_STREAMS = threading.Lock()
+
+
+# TITULO STREAM DE UNA CUENTA
+
+def stream_de(clave: tuple) -> _StreamCapital:
+    """Devuelve el stream de precios de la cuenta `clave`, creándolo la primera vez (no abre conexión hasta el primer `suscribir`)."""
+    with _CANDADO_STREAMS:
+        stream = _STREAMS.get(clave)
+        if stream is None:
+            stream = _STREAMS[clave] = _StreamCapital(clave)
+        return stream
+
+
+# TITULO DETENER STREAM
+
+def detener_stream(clave: tuple) -> None:
+    """Detiene y olvida el stream de la cuenta `clave` (por ejemplo al quedar sin clientes ni vigilancias)."""
+    with _CANDADO_STREAMS:
+        stream = _STREAMS.pop(clave, None)
+    if stream is not None:
+        stream.detener()
 
 
 # -------------------------------------------------------------------------------------------------------

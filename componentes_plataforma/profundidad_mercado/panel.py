@@ -32,6 +32,7 @@ from componentes_plataforma.profundidad_mercado import escalera
 from componentes_plataforma.flujo_precios import intervalo
 import streamlit.components.v1 as components
 
+from componentes_plataforma.conectar_cuenta import url_servidor
 from componentes_plataforma.flujo_precios import API_URL
 from componentes_plataforma.profundidad_mercado.nivel1 import html_nivel1
 from herramientas.puente_mt5 import (MT5_LOCK, PROVEEDOR, inicializar_mt5, obtener_precio_actual,
@@ -101,7 +102,7 @@ def renderizar_panel_dom():
             except Exception:
                 pass
             digitos = int(getattr(info, "digits", 5) or 5) if info else 5
-            components.html(html_nivel1(API_URL, real, digitos), height=420)
+            components.html(html_nivel1(url_servidor(API_URL), real, digitos), height=420)
             return
         st.html(f"<div class='dom-h'>Profundidad · {visible}</div>"
                 f"<div class='dom-subtitulo'>Libro de órdenes (DOM)</div>")

@@ -38,3 +38,7 @@ data/*.db-shm
 
 # Copias de respaldo manuales
 *.bak
+
+# === Multiusuario: datos de cada usuario y sesiones de Capital.com (nunca se suben) ===
+data/usuarios/
+data/sesiones_capital/

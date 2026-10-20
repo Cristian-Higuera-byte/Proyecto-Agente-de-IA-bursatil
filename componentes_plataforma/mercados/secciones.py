@@ -22,6 +22,8 @@ import threading
 import streamlit as st
 
 from componentes_plataforma.paralelo import en_paralelo
+from herramientas.backends import sesiones_capital
+from herramientas.hilos import con_usuario, lanzar_hilo
 from componentes_plataforma.mercados.broker import fila, elementos, resolver, serie
 from herramientas.puente_mt5 import NOMBRE_PROVEEDOR
 from componentes_plataforma.mercados.constantes import CATALOGO, ORDENES, RESUMEN
@@ -101,7 +103,7 @@ def _precargar(reales: list, fondo: bool = False) -> None:
             pass
     if reales:
         with ThreadPoolExecutor(max_workers=6, initializer=_marcar_fondo if fondo else None) as ex:
-            list(ex.map(_una, reales))
+            list(ex.map(con_usuario(_una), reales))
 
 
 _precarga_lanzada = False
@@ -149,7 +151,7 @@ def _en_segundo_plano(funcion, nombre: str, *args, prioridad: bool = False) -> N
         finally:
             with _CANDADO:
                 _EN_CARGA.discard(nombre)
-    threading.Thread(target=_tarea, daemon=True, name=f"mercados-{nombre}").start()
+    lanzar_hilo(_tarea, nombre=f"mercados-{nombre}")
 
 
 # TITULO PULSO LISTO
@@ -203,7 +205,9 @@ def precargar_todas_las_categorias() -> None:
     por todas las sesiones). Se lanza al iniciar la app, así al abrir Mercados o cambiar de pestaña no hay espera.
     La lanza `aplicacion_principal/precarga.py` al iniciar la sesión del usuario (no al abrir Mercados). No bloquea ni propaga errores."""
     global _precarga_lanzada
-    if _precarga_lanzada:
+    if _precarga_lanzada or sesiones_capital.MULTIUSUARIO:
+        # En modo multiusuario no hay una cuenta "de la plataforma" que haga la precarga (gastaría el cupo de
+        # peticiones de un usuario cualquiera): cada pestaña se carga al abrirla y las cachés se comparten entre usuarios.
         return
     _precarga_lanzada = True
     import time

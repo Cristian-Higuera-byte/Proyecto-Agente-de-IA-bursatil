@@ -44,8 +44,12 @@ if _URL and _KEY:
     except Exception:
         _supabase = None
 
-# Watchlist por defecto para usuarios nuevos (nombres EXACTOS del broker)
-DEFAULTS = ["EURUSD...", "GBPUSD...", "USDJPY...", "XAUUSD...", "BTCUSD", "ETHUSD", "US30"]
+# Watchlist por defecto para usuarios nuevos (nombres EXACTOS del broker). Con Capital.com se usan sus nombres propios
+# (el oro es GOLD y no hay sufijo "..."); con MT5 los de ese terminal.
+if os.environ.get("PROVEEDOR", "mt5").strip().lower() == "capital":
+    DEFAULTS = ["EURUSD", "GBPUSD", "USDJPY", "GOLD", "BTCUSD", "ETHUSD", "US30"]
+else:
+    DEFAULTS = ["EURUSD...", "GBPUSD...", "USDJPY...", "XAUUSD...", "BTCUSD", "ETHUSD", "US30"]
 
 
 # TITULO NOMBRE VISIBLE
@@ -189,7 +193,7 @@ def sembrar_por_defecto(usuario_id) -> list[str]:
 # --- Favoritos (barra superior): subconjunto de la watchlist marcado con `favorito` ---
 # Símbolos marcados como favoritos al sembrar la watchlist de un usuario nuevo
 # (se define después de `sembrar_por_defecto`, pero se resuelve en tiempo de ejecución).
-FAVORITOS_DEFAULT = ["BTCUSD", "ETHUSD", "XAUUSD...", "EURUSD...", "US30"]
+FAVORITOS_DEFAULT = ["BTCUSD", "ETHUSD", "GOLD", "EURUSD", "US30"] if DEFAULTS[0] == "EURUSD" else ["BTCUSD", "ETHUSD", "XAUUSD...", "EURUSD...", "US30"]
 
 
 # TITULO OBTENER FAVORITOS

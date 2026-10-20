@@ -20,6 +20,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 from componentes_plataforma.flujo_precios.ensamblador import script_flujo
+from componentes_plataforma.conectar_cuenta import url_servidor
 from componentes_plataforma.flujo_precios.servidor import API_URL, flujo_activo
 
 
@@ -40,7 +41,7 @@ def inyectar_flujo():
     # visible bajo la barra superior).
     # La clave pj_flujo permite ocultar el contenedor desde el CSS global.
     with st.container(key="pj_flujo"):
-        components.html(script_flujo(API_URL), height=0)
+        components.html(script_flujo(url_servidor(API_URL)), height=0)
 
 
 # -------------------------------------------------------------------------------------------------------
