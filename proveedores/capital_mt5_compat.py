@@ -155,65 +155,9 @@ _refrescando_mercado: set = set()
 # TITULO MERCADO
 
 def _mercado(epic: str) -> dict:
-    """GET /markets/{epic} compartido y cacheado con el backend (ver capital.obtener_mercado)."""
-    return cap.obtener_mercado(epic)
+    """GET /markets/{epic} compartido y cacheado con el backend (ver capital.get_mercado)."""
+    return cap.get_mercado(epic)
 
-
-# TITULO MONEDA COTIZACION
-
-def _moneda_cotizacion(epic: str, inst: dict) -> str:
-    """Moneda en que cotiza el instrumento: las tres últimas letras en un par de divisas (EURJPY -> JPY); en el resto, la moneda
-    que informa Capital y, si no la informa, USD."""
-    if str(inst.get("type", "")).upper() == "CURRENCIES" and len(epic) == 6 and epic.isalpha():
-        return epic[3:].upper()
-    for c in inst.get("currencies") or []:
-        if isinstance(c, dict) and c.get("isDefault") and c.get("code"):
-            return str(c["code"]).upper()
-    return str(inst.get("currency") or "USD").upper()
-
-
-# TITULO HORA PRECIO
-
-def _hora_precio(snap: dict) -> int:
-    """Epoch (UTC) de la última actualización del precio según Capital (`updateTimeUTC` o `updateTime`); 0 si no la informa o no
-    se entiende (por ejemplo, solo la hora del día)."""
-    for campo in ("updateTimeUTC", "updateTime"):
-        texto = str(snap.get(campo) or "")
-        if len(texto) >= 16 and "T" in texto:
-            return cap._epoch_utc(texto)
-    return 0
-
-
-_tasas: dict = {}
-_TTL_TASA = 60.0
-
-
-# TITULO TASA A CUENTA
-
-def _tasa_a_cuenta(moneda: str) -> float:
-    """Cuántas unidades de la moneda de la cuenta vale 1 unidad de `moneda`; 1.0 si es la misma o no se puede saber.
-
-    Usa el par de divisas exacto (EURUSD para EUR, USDJPY para JPY, con su inverso) leído del mercado de Capital, y recuerda el
-    resultado 60 s. Sirve para que el riesgo y el margen salgan en la moneda de la cuenta y no en la de cotización."""
-    cuenta = str((cap.obtener_info_cuenta() or {}).get("currency") or "USD").upper()
-    if not moneda or moneda == cuenta:
-        return 1.0
-    clave = (moneda, cuenta)
-    guardada = _tasas.get(clave)
-    if guardada and time.time() - guardada[0] < _TTL_TASA:
-        return guardada[1]
-    tasa = 1.0
-    for epic, invertir in ((moneda + cuenta, False), (cuenta + moneda, True)):
-        snap = (cap.obtener_mercado(epic) or {}).get("snapshot", {}) or {}
-        precio = float(snap.get("bid") or 0.0)
-        if precio > 0:
-            tasa = 1.0 / precio if invertir else precio
-            break
-    _tasas[clave] = (time.time(), tasa)
-    return tasa
-
-
-# TITULO SPECS
 
 def _specs(epic: str) -> dict:
     """Reúne las especificaciones de un instrumento (decimales, punto, contrato, margen, volumen mínimo/máximo/paso, distancia mínima de stops, tipo y nombre) leyéndolas del mercado de Capital.
@@ -252,10 +196,7 @@ def _specs(epic: str) -> dict:
         "high": float(snap.get("high", 0.0) or 0.0),
         "low": float(snap.get("low", 0.0) or 0.0),
         "session_open": float(snap.get("bid", 0.0) or 0.0),
-        "tipo": inst.get("type", ""),   # CURRENCIES / COMMODITIES / INDICES / CRYPTOCURRENCIES / SHARES
-        "nombre": inst.get("name", "") or "",
-        "moneda": _moneda_cotizacion(epic, inst),
-        "hora_precio": _hora_precio(snap),
+        "tipo": inst.get("type", ""),   # CURRENCIES / COMMODITIES / INDICES / CRYPTOCURRENCIES
     }
 
 
@@ -316,7 +257,6 @@ def symbol_info(symbol: str):
 # TITULO SYMBOL INFO TICK
 
 def symbol_info_tick(symbol: str):
-    """Equivale a `mt5.symbol_info_tick`: devuelve el último bid/ask del instrumento con la hora de su última actualización (la hora actual si Capital no la informa), o None si no hay precio."""
     s = _specs(symbol)
     if not s or not (s["bid"] or s["ask"]):
         return None
@@ -590,39 +530,10 @@ def history_deals_get(desde: Any = None, hasta: Any = None, **kwargs: Any) -> li
     return out
 
 
-# TITULO FILA VELA
-
-_CAMPOS_VELA = ("time", "open", "high", "low", "close", "tick_volume", "spread", "real_volume")
-
-
-class _FilaVela(dict):
-    """Vela que se lee por nombre (`v["close"]`) o por posición (`v[4]`), como una fila del arreglo de MetaTrader 5.
-
-    Las herramientas del agente leen las velas por posición (tiempo, apertura, máximo, mínimo, cierre, volumen); el resto del
-    proyecto, por nombre. Como es un `dict`, `pd.DataFrame(velas)` también funciona."""
-
-    def __getitem__(self, clave):
-        """Con un entero devuelve el campo en esa posición (0 = time ... 4 = close); con un texto, el campo por nombre."""
-        if isinstance(clave, int):
-            return dict.__getitem__(self, _CAMPOS_VELA[clave])
-        return dict.__getitem__(self, clave)
-
-
-# TITULO VELAS DICTS
-
 # ===========================================================================
 # Velas
 # ===========================================================================
 def _velas_dicts(epic: str, timeframe, maximo: int = None, desde=None, hasta=None) -> list:
-    """Pide velas a Capital y las devuelve como lista de filas (`_FilaVela`) con las claves de MT5 (`time`, `open`, `high`, `low`, `close`, `tick_volume`, `spread`).
-
-    Recibe el epic, la temporalidad y, opcionalmente, la cantidad máxima y el rango de fechas. El spread de cada vela sale del bid y el ask
-    de su cierre, en puntos. La temporalidad mensual se arma con velas semanales y diarias (Capital no tiene resolución mensual).
-    """
-    if int(timeframe if timeframe is not None else 16385) == TIMEFRAME_MN1:
-        filas = cap._datos_mensuales(epic, int(maximo or 100))
-        return [_FilaVela(time=f["time"], open=f["open"], high=f["high"], low=f["low"], close=f["close"],
-                          tick_volume=f["tick_volume"], spread=f["spread"], real_volume=0) for f in filas]
     res = _TF_A_RES.get(int(timeframe) if timeframe is not None else 16385, "HOUR")
     f = desde.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S") if isinstance(desde, datetime) else None
     h = hasta.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S") if isinstance(hasta, datetime) else None
@@ -630,13 +541,12 @@ def _velas_dicts(epic: str, timeframe, maximo: int = None, desde=None, hasta=Non
     punto = cap._punto_de(epic)
     out = []
     for v in crudas:
-        out.append(_FilaVela(
-            time=cap._epoch_utc(v.get("snapshotTimeUTC") or v.get("snapshotTime")),
-            open=cap._medio(v.get("openPrice", {})), high=cap._medio(v.get("highPrice", {})),
-            low=cap._medio(v.get("lowPrice", {})), close=cap._medio(v.get("closePrice", {})),
-            tick_volume=v.get("lastTradedVolume", 0), spread=cap._spread_puntos(v.get("closePrice", {}), punto),
-            real_volume=0,
-        ))
+        out.append({
+            "time": cap._epoch_utc(v.get("snapshotTimeUTC") or v.get("snapshotTime")),
+            "open": cap._mid(v.get("openPrice", {})), "high": cap._mid(v.get("highPrice", {})),
+            "low": cap._mid(v.get("lowPrice", {})), "close": cap._mid(v.get("closePrice", {})),
+            "tick_volume": v.get("lastTradedVolume", 0), "spread": 0, "real_volume": 0,
+        })
     return out
 
 
@@ -661,7 +571,6 @@ def copy_rates_range(symbol: str, timeframe, date_from, date_to) -> list:
 # Cálculos de riesgo (aproximados con contractSize / marginFactor de Capital)
 # ===========================================================================
 def order_calc_profit(action: int, symbol: str, volume: float, price_open: float, price_close: float):
-    """Equivale a `mt5.order_calc_profit`: calcula la ganancia o pérdida, en la moneda de la cuenta, de mover el precio de `price_open` a `price_close` con ese volumen en lotes. Devuelve None si no hay datos del instrumento."""
     s = _specs(symbol)
     if not s:
         return None
@@ -673,7 +582,6 @@ def order_calc_profit(action: int, symbol: str, volume: float, price_open: float
 # TITULO ORDER CALC MARGIN
 
 def order_calc_margin(action: int, symbol: str, volume: float, price: float):
-    """Equivale a `mt5.order_calc_margin`: calcula el margen que exige abrir ese volumen (en lotes) a ese precio, con el factor de margen de Capital y en la moneda de la cuenta. Devuelve None si no hay datos."""
     s = _specs(symbol)
     if not s:
         return None

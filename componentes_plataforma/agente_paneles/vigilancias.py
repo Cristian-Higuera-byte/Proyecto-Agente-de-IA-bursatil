@@ -94,7 +94,8 @@ def seccion_vigilancias(uid: str) -> None:
             if v["estado"] == vigilancia.PENDIENTE:
                 if st.button("Autorizar vigilancia", key=f"agente_propuestas_aceptar_vig_{v['id']}", icon=":material/check:",
                              type="primary", width="stretch"):
-                    pedir_terminos(v["id"])     # no se activa al instante: primero la ventana de términos y condiciones
+                    res = vigilancia.autorizar(v["id"], uid)
+                    st.session_state[CLAVE_AVISO] = ("ok" if res["ok"] else "error", res["mensaje"])
                     st.rerun(scope="app")
                 if st.button("Rechazar", key=f"agente_propuestas_no_vig_{v['id']}", width="stretch"):
                     vigilancia.rechazar(v["id"], uid)

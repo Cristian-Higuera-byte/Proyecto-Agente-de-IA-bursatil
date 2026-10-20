@@ -21,7 +21,7 @@ from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
 from herramientas.tickets import ticket as _tk
 from nucleo_agente.ordenes.limites import MAGIC, TOLERANCIA_VS_PROPUESTA
-from nucleo_agente.ordenes.mt5_utiles import NOMBRE_BROKER, _chequeos_globales, _con_candado, _desviacion, _modo_llenado
+from nucleo_agente.ordenes.mt5_utiles import _chequeos_globales, _con_lock, _desviacion, _modo_llenado
 from nucleo_agente.ordenes.validacion import _evaluar_apertura
 
 

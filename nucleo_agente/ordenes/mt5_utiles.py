@@ -26,16 +26,6 @@ from nucleo_agente.ordenes.base_datos import _ahora, _consultar, interruptor_eme
 from nucleo_agente.ordenes.limites import LIMITES
 from herramientas.puente_mt5 import MT5_LOCK, NOMBRE_BROKER, PROVEEDOR, inicializar_mt5, resolver_simbolo
 
-# Candado que serializa las decisiones de riesgo y los envíos de órdenes. Con MetaTrader 5 es MT5_LOCK; con Capital.com ese candado no
-# bloquea (su API REST admite varias consultas a la vez), así que se usa el de órdenes del backend, que sí es real: dos
-# confirmaciones simultáneas (el usuario y una vigilancia) no pueden pasar a la vez los límites de riesgo.
-if PROVEEDOR == "capital":
-    from herramientas.backends.capital import _ORDEN_CANDADO as _CANDADO_DECISIONES
-else:
-    _CANDADO_DECISIONES = MT5_LOCK
-
-
-# TITULO NORMALIZAR
 
 def _normalizar(simbolo: str) -> str:
     """Limpia un símbolo escrito por el usuario o el modelo: quita puntos suspensivos, espacios y pasa a mayúsculas."""
@@ -75,10 +65,8 @@ def _desviacion(info: Any) -> int:
     return max(LIMITES.desviacion_puntos, int(getattr(info, "spread", 0) or 0) * 2)
 
 
-# TITULO CON CANDADO
-
-def _con_candado(funcion):
-    """Decorador que serializa las decisiones de riesgo y los envíos de órdenes (MT5_LOCK con MetaTrader 5; el candado de órdenes de Capital.com).
+def _con_lock(funcion):
+    """Decorador que serializa el acceso a MT5 con el MISMO candado del resto de la app (MT5_LOCK).
 
     La API de MetaTrader 5 no es segura entre hilos y servidor_datos.py / los fragmentos en
     vivo leen MT5 en paralelo. Como es un RLock, anidar llamadas con este decorador es seguro.

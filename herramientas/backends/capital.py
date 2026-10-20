@@ -1094,39 +1094,7 @@ def detalle_cierre(deal_id: str, t_cierre: float) -> dict:
             os.replace(tmp, _RUTA_CIERRES)
         except Exception:
             pass
-    return resultado
-
-
-_detalles_basicos: dict = {}
-
-
-# TITULO DETALLE OPERACION
-
-def detalle_operacion(deal_id: str, t_cierre: float, consultar: bool = True) -> dict:
-    """Detalle básico de una operación cerrada para el agente: {"epic","tipo","volumen"(lotes),"entrada","salida"}.
-
-    Es la versión rápida de `detalle_cierre`: no busca la hora de apertura (que exige hasta 15 consultas por operación) y solo hace
-    la consulta del cierre. Usa antes lo que ya se guardó en disco para el Diario. Con `consultar=False` solo responde lo que ya
-    se sabe. {} si Capital no lo entrega."""
-    if not deal_id or not t_cierre:
-        return {}
-    if deal_id in _cierres:
-        return _cierres[deal_id]
-    if deal_id in _detalles_basicos:
-        return _detalles_basicos[deal_id]
-    if not consultar:
-        return {}
-    for a in _actividad(deal_id, t_cierre - 3600, t_cierre + 3600):
-        d = a.get("details", {}) or {}
-        if a.get("type") == "POSITION" and d.get("openPrice") is not None:
-            epic = a.get("epic", "")
-            # El registro del cierre trae la dirección CONTRARIA a la de la operación (se cierra una compra vendiendo).
-            _detalles_basicos[deal_id] = {
-                "epic": epic, "tipo": "Venta" if str(d.get("direction", "")).upper() == "BUY" else "Compra",
-                "volumen": float(d.get("size", 0.0) or 0.0) / factor_lote_epic(epic),
-                "entrada": float(d.get("openPrice", 0.0) or 0.0), "salida": float(d.get("level", 0.0) or 0.0)}
-            return _detalles_basicos[deal_id]
-    return {}
+    return res
 
 
 _cargar_cierres()

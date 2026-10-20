@@ -134,36 +134,6 @@ def ordenes_pendientes(simbolo: str | None = None) -> dict[str, Any]:
         }
 
 
-# TITULO DETALLES CAPITAL
-
-# Consultas nuevas a Capital.com por llamada para completar operaciones cerradas (cada una cuesta una petición).
-_CONSULTAS_NUEVAS = 6
-
-
-def _detalles_capital(deals: Any, cuantas: int) -> dict[Any, dict[str, Any]]:
-    """Con Capital.com, completa las operaciones más recientes con símbolo, lado, lotes y precio de salida.
-
-    El historial de Capital solo trae el nombre del instrumento en texto y el resultado; el detalle sale de la actividad de cada
-    posición. Se completan las `cuantas` más recientes con el detalle ya guardado y, como mucho, `_CONSULTAS_NUEVAS` consultas nuevas por
-    llamada (el resto se completa en las siguientes). Devuelve {id de la posición: detalle}; vacío con MetaTrader 5."""
-    if not _ES_CAPITAL:
-        return {}
-    from herramientas.backends import capital as cap
-    detalles: dict[Any, dict[str, Any]] = {}
-    nuevas = 0
-    for d in reversed(list(deals)[-max(1, cuantas):]):
-        posicion, hora = getattr(d, "position_id", ""), getattr(d, "time", 0)
-        detalle = cap.detalle_operacion(posicion, hora, consultar=False)
-        if not detalle and nuevas < _CONSULTAS_NUEVAS:
-            nuevas += 1
-            detalle = cap.detalle_operacion(posicion, hora)
-        if detalle:
-            detalles[posicion] = detalle
-    return detalles
-
-
-# TITULO HISTORIAL OPERACIONES
-
 def historial_operaciones(dias: int = 30, simbolo: str | None = None, ultimas: int = 15) -> dict[str, Any]:
     """Resume el historial de operaciones cerradas de los últimos `dias` días.
 
@@ -191,10 +161,7 @@ def historial_operaciones(dias: int = 30, simbolo: str | None = None, ultimas: i
 
         for d in deals:
             entry = getattr(d, "entry", None)
-            deal_simbolo = getattr(d, "symbol", None)
-            detalle = detalles.get(getattr(d, "position_id", ""))
-            if detalle:
-                deal_simbolo = detalle["epic"]
+            deal_sym = getattr(d, "symbol", None)
             # entry 1 = salida (OUT) y 2 = inversión (INOUT): son los deals que cierran una posición.
             if entry in (1, 2):
                 if simbolo_filter and deal_simbolo != simbolo_filter:
@@ -219,11 +186,10 @@ def historial_operaciones(dias: int = 30, simbolo: str | None = None, ultimas: i
                     continue
                 operaciones.append({
                     "ticket": getattr(d, "ticket", None),
-                    "simbolo": deal_simbolo,
-                    "tipo": ("COMPRA" if detalle["tipo"] == "Compra" else "VENTA") if detalle
-                    else ("COMPRA" if getattr(d, "type", 0) == 0 else "VENTA"),
-                    "lotes": _num(detalle["volumen"] if detalle else getattr(d, "volume", None)),
-                    "precio": _num(detalle["salida"] if detalle else getattr(d, "price", None)),
+                    "simbolo": deal_sym,
+                    "tipo": "COMPRA" if getattr(d, "type", 0) == 0 else "VENTA",
+                    "lotes": _num(getattr(d, "volume", None)),
+                    "precio": _num(getattr(d, "price", None)),
                     "beneficio": profit,
                     "fecha_utc": _hora_utc(getattr(d, "time", 0), mt5),
                 })
