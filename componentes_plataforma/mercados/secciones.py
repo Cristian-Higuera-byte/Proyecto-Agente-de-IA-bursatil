@@ -20,6 +20,8 @@ son los que engancha `estilos.css`.
 import streamlit as st
 
 from componentes_plataforma.paralelo import en_paralelo
+from herramientas.backends import sesiones_capital
+from herramientas.hilos import con_usuario
 from componentes_plataforma.mercados.broker import fila, elementos, resolver, serie
 from herramientas.puente_mt5 import NOMBRE_PROVEEDOR
 from componentes_plataforma.mercados.constantes import CATALOGO, ORDENES, RESUMEN
@@ -93,7 +95,7 @@ def _precargar(reales: list) -> None:
             pass
     if reales:
         with ThreadPoolExecutor(max_workers=6) as ex:
-            list(ex.map(_una, reales))
+            list(ex.map(con_usuario(_una), reales))
 
 
 _precarga_lanzada = False
@@ -110,7 +112,9 @@ def precargar_todas_las_categorias() -> None:
     por todas las sesiones). Se lanza al iniciar la app, así al abrir Mercados o cambiar de pestaña no hay espera.
     No bloquea ni propaga errores."""
     global _precarga_lanzada
-    if _precarga_lanzada:
+    if _precarga_lanzada or sesiones_capital.MULTIUSUARIO:
+        # En modo multiusuario no hay una cuenta "de la plataforma" que haga la precarga (gastaría el cupo de
+        # peticiones de un usuario cualquiera): cada pestaña se carga al abrirla y las cachés se comparten entre usuarios.
         return
     _precarga_lanzada = True
     import threading

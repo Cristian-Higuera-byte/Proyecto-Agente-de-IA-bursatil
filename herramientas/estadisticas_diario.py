@@ -81,11 +81,12 @@ def _operaciones_capital(dias: int, limite: int) -> list:
     que se guarda en disco por operación. El pos_id es el dealId de la posición, el mismo con el que
     `almacen_diario` guarda el plan (SL/TP) y las notas, así que el R/R planificado y realizado también se calcula."""
     from concurrent.futures import ThreadPoolExecutor
+    from herramientas.hilos import con_usuario
     from herramientas.puente_mt5 import detalle_cierre
 
     historial = obtener_historial(dias=dias, limite=limite)
     with ThreadPoolExecutor(max_workers=6) as ex:
-        detalles = list(ex.map(lambda h: detalle_cierre(h.get("deal_id", ""), h.get("fecha", 0)), historial))
+        detalles = list(ex.map(con_usuario(lambda h: detalle_cierre(h.get("deal_id", ""), h.get("fecha", 0))), historial))
     notas = almacen_diario.leer()
     salida = []
     for h, d in zip(historial, detalles):

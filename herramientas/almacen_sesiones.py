@@ -30,6 +30,10 @@ import secrets
 # {token: {"id":..., "nombre":..., "email":...}}
 _sesiones: dict[str, dict] = {}
 
+# Datos que acompañan a cada sesión y deben sobrevivir a un F5 o a un enlace del menú (que recargan la página y vacían
+# `st.session_state`): por ejemplo la cuenta elegida, demo o real. Forma: {token: {clave: valor}}
+_datos: dict[str, dict] = {}
+
 
 # TITULO CREAR
 
@@ -52,12 +56,30 @@ def obtener(token: str) -> dict | None:
     return _sesiones.get(token)
 
 
+# TITULO GUARDAR DATO
+
+def guardar_dato(token: str, clave: str, valor) -> None:
+    """Guarda un dato junto a la sesión del token (no hace nada si el token no existe)."""
+    if token and token in _sesiones:
+        _datos.setdefault(token, {})[clave] = valor
+
+
+# TITULO LEER DATO
+
+def leer_dato(token: str, clave: str, defecto=None):
+    """Devuelve el dato guardado junto a la sesión del token, o `defecto` si no hay."""
+    if not token or token not in _sesiones:
+        return defecto
+    return _datos.get(token, {}).get(clave, defecto)
+
+
 # TITULO ELIMINAR
 
 def eliminar(token: str) -> None:
-    """Elimina el token (cerrar sesión)."""
+    """Elimina el token (cerrar sesión) y los datos que guardaba."""
     if token:
         _sesiones.pop(token, None)
+        _datos.pop(token, None)
 
 
 # -------------------------------------------------------------------------------------------------------

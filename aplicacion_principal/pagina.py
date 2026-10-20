@@ -22,6 +22,7 @@ import streamlit as st
 
 from componentes_plataforma.acceso import requerir_login
 from componentes_plataforma.barra_lateral import renderizar_barra_navegacion as renderizar_nav_lateral
+from componentes_plataforma.conectar_cuenta import registrar_resolvedor, requerir_cuenta
 from componentes_plataforma.mercado_datos import cargar_datos_mercado
 from componentes_plataforma.flujo_precios import inyectar_flujo
 from componentes_plataforma.transicion import inyectar_transicion
@@ -58,7 +59,9 @@ def ejecutar(consola) -> None:
     inyectar_transicion()
 
     # Login (Supabase): protege el acceso al dashboard y devuelve los datos del usuario.
+    registrar_resolvedor()   # el backend de Capital averigua el usuario y su modo (demo/real) desde la sesión
     usuario_actual = requerir_login()
+    requerir_cuenta(usuario_actual)   # sin cuenta de Capital conectada se muestra la pantalla para conectarla
     # Mercados precargado en segundo plano desde el arranque (una vez por proceso): sin esperas al abrir pestañas.
     from componentes_plataforma.mercados.secciones import precargar_todas_las_categorias
     precargar_todas_las_categorias()

@@ -24,8 +24,9 @@ Uso:
 Dentro de `ttl` devuelve el valor guardado; pasado el `ttl` (hasta 6 veces) lo devuelve igual al instante y lo
 refresca en un hilo aparte; más allá, vuelve a calcularlo bloqueando."""
 import functools
-import threading
 import time
+
+from herramientas.hilos import lanzar_hilo
 
 
 # TITULO CACHE PROCESO
@@ -63,7 +64,7 @@ def cache_proceso(tiempo_vida: float):
                                 pass
                             finally:
                                 refrescando.discard(args)
-                        threading.Thread(target=_bg, daemon=True).start()
+                        lanzar_hilo(_bg)
                     return impacto[1]
             return _calcular_y_guardar(args, args)
 

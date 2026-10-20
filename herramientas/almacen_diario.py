@@ -44,10 +44,11 @@ import tempfile
 import threading
 import time
 
-# Carpeta `data/` en la raíz del proyecto.
-_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+from herramientas.carpeta_usuario import carpeta_usuario, ruta_archivo
+
 # Archivo JSON del Trading Journal (notas y planes por position_id).
-_RUTA = os.path.join(_DIR, "journal.json")
+# Nombre del archivo; la carpeta depende del usuario y la cuenta (ver herramientas/carpeta_usuario.py)
+_NOMBRE_ARCHIVO = "journal.json"
 # Candado que serializa lecturas/escrituras dentro del proceso.
 _CANDADO = threading.Lock()
 
@@ -57,7 +58,7 @@ _CANDADO = threading.Lock()
 def leer() -> dict:
     """Devuelve todo el journal como {position_id(str): {...}}; vacío si el archivo falta o está corrupto."""
     try:
-        with _CANDADO, open(_RUTA, "r", encoding="utf-8") as f:
+        with _CANDADO, open(ruta_archivo(_NOMBRE_ARCHIVO), "r", encoding="utf-8") as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         return {}
@@ -82,11 +83,11 @@ def _escribir(datos: dict) -> bool:
     lo hace quien la llama (`_merge`).
     """
     try:
-        os.makedirs(_DIR, exist_ok=True)
-        fd, tmp = tempfile.mkstemp(dir=_DIR, suffix=".tmp")
+        os.makedirs(carpeta_usuario(), exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=carpeta_usuario(), suffix=".tmp")
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(datos, f, ensure_ascii=False)
-        os.replace(tmp, _RUTA)
+        os.replace(tmp, ruta_archivo(_NOMBRE_ARCHIVO))
         return True
     except OSError:
         return False
@@ -104,7 +105,7 @@ def _merge(posicion_id, campos: dict) -> bool:
         # Relectura bajo candado para no pisar cambios recientes.
         datos = {}
         try:
-            with open(_RUTA, "r", encoding="utf-8") as f:
+            with open(ruta_archivo(_NOMBRE_ARCHIVO), "r", encoding="utf-8") as f:
                 datos = json.load(f)
         except (FileNotFoundError, json.JSONDecodeError, OSError):
             datos = {}
@@ -142,7 +143,7 @@ def guardar_plan(posicion_id, entrada: float, stop_loss: float, take_profit: flo
 def mtime() -> float:
     """Devuelve la fecha de modificación (epoch) de `journal.json`, o -1.0 si no existe."""
     try:
-        return os.path.getmtime(_RUTA)
+        return os.path.getmtime(ruta_archivo(_NOMBRE_ARCHIVO))
     except OSError:
         return -1.0
 

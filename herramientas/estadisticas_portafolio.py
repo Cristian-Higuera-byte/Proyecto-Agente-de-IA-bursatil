@@ -42,6 +42,7 @@ Limitaciones honestas (ver bitácora):
 """
 from __future__ import annotations
 
+import os
 from datetime import datetime, timedelta
 
 from herramientas.puente_mt5 import (MT5_LOCK, inicializar_mt5, obtener_info_cuenta,
@@ -396,6 +397,15 @@ def _mercado_abierto(simbolo: str) -> bool | None:
         return None
     try:
         sym = resolver_simbolo(simbolo)
+        if os.getenv("PROVEEDOR", "mt5").strip().lower() == "capital":
+            # Capital.com informa el estado de sesión (marketStatus) y su tick siempre lleva la
+            # hora actual, así que el método por avance de tick no sirve: se lee el estado directo.
+            if not inicializar_mt5():
+                return None
+            info = mt5.symbol_info(sym)
+            if info is None:
+                return None
+            return info.trade_mode == mt5.SYMBOL_TRADE_MODE_FULL
         with MT5_LOCK:
             if not inicializar_mt5():
                 return None

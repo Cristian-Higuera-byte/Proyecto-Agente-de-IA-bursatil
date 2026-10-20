@@ -311,3 +311,119 @@ que usar el historial de movimientos real.
 5. Cobertura del catálogo del buscador (categorías) y set curado de respaldo.
 6. Rotar las credenciales de prueba por unas seguras antes de producción.
 7. Opcional: capturas del dashboard con Capital para el informe.
+
+
+## 19-10-2026 — Día 20: validación de operaciones en Capital.com, rendimiento, estándar de código y merge con Cristian
+
+### Operaciones sobre Capital.com (diferencias frente a MT5)
+- **Cancelar/modificar órdenes pendientes:** Capital identifica cada orden con un texto largo (dealId) y la interfaz lo
+  convertía a entero. Se creó `herramientas/tickets.py` (acepta ambos formatos) y se ajustó el JS que envía la cancelación.
+- **Lotes:** Capital mide en unidades (FX: 1 lote = 100.000). Se agregó el factor de lote por instrumento
+  (`factor_lote`, `factor_lote_epic`) y se aplica en cartera, ticket e historial (0,01 lote ya no aparece como 100).
+- **SL/TP:** cada PUT reemplaza ambos niveles; `modificar_sltp`/`modificar_orden` leen el nivel vigente y lo reenvían, así se
+  puede quitar solo uno. Validación del **stop dinámico** (distancia mínima del bróker) con mensaje claro.
+- **Capital/margen y hora:** el `balance` ya incluye el P/L abierto (no se cuenta dos veces); la hora se pasa a hora local.
+- **OCO:** se adaptó el identificador del par. **PENDIENTE:** el botón verde de OCO no responde en algunas pruebas.
+
+### Rendimiento y vistas
+- Se quitó el candado global de consultas (serializaba REST), caché con refresco en segundo plano (`_cache_con_refresco`),
+  caché de proceso (`herramientas/cache_proceso.py`) y **precarga** de todas las pestañas. Modal de cierre instantáneo y
+  cifras del modal en vivo; etiqueta de precio alineada con la línea del gráfico.
+- **Mercados:** logos de instrumentos (incluye acciones), arranca con el primer activo de la lista. **Diario:** reconstruido con
+  `/history/activity` (ventanas de 24 h): lotes, entrada, salida y duración. **DOM nivel 1** (mejor bid/ask, spread y cinta
+  de cotizaciones, `profundidad_mercado/nivel1.py`, ruta `/dom/<sym>`). Campo del Diario ya no editable.
+
+### Estándar de código de la empresa (referencia: menu.php + notas de la reunión)
+- Cabecera de créditos, banner INICIO/FIN y pie en cada archivo; `# TITULO` por función/clase (Python, JS y CSS); descripción
+  (docstring) en cada función; comentarios sobrantes retirados.
+- **Fachadas eliminadas** de `componentes_plataforma/` (19 archivos que solo reexportaban); imports reescritos.
+- **Nombres en español sin abreviar** (solo trading en inglés), por fases: A (~940 nombres compartidos Python/CSS/JS), B
+  (variables y parámetros), B2 (funciones y constantes) y C (JS, ~380 identificadores). Verificado con un banco de pruebas en el
+  navegador (reglas CSS, errores de consola, recorrido de vistas). Excepciones: API de MT5 (`capital_mt5_compat.py`),
+  herramientas del agente, claves de protocolo servidor↔JS y propiedades JS. Detalle en la memoria `nombres-en-espanol`.
+- **Bug por renombrado corregido:** las tarjetas de campo del ticket (volumen, SL, TP, calculadora de riesgo) perdieron su estilo
+  porque `ord_bx`/`ord_box` chocaron; el CSS apuntaba a `orden_zona_` en vez de `orden_caja_` (`ticket.css`). Reiniciar Streamlit
+  (el CSS se lee una vez con `lru_cache`).
+
+### Merge con los cambios de Cristian (`origin/main` = `05112ad`)
+- Su commit toca 22 archivos (noticias con lectura interna, serie de velas en memoria, sesión compartida y limitador de
+  peticiones en `capital.py`, `paralelo.py`, `velas.py`). Se guardó lo nuestro en un commit (`0d4568d`) y se fusionó: 28
+  conflictos en 9 archivos; en `capital.py`, `rss.py`, `velas.py` y `noticias/secciones.py` se tomó su versión y se le aplicaron
+  nuestros nombres (fases A/B/B2). Se unificaron `_ORDEN_CANDADO`, `_CANDADO_SESION` y `_medio`; se agregaron descripciones
+  a las funciones nuevas. Verificado: compila, sin nombres indefinidos, módulos principales se importan.
+- **Subido a `main`: `ab23724`** (merge). No probado corriendo en pantalla todavía.
+
+### Documentos de la práctica (carpeta `C:\Practica\Informe Practica Profesional\`)
+- Informe de práctica (14 páginas) y bitácora Duoc UC rellenados; datos tomados del formulario de validación. Informe del Día 20
+  generado en `OCTUBRE/19-10-2026/`.
+
+### Pendientes (al cierre del Día 20)
+1. **Probar en pantalla el código fusionado** (reiniciar Streamlit y servidor): Noticias, Mercados, gráfico (W1, backtest hasta
+   20.000 velas), cancelación de órdenes, ticket (campos).
+2. Botón verde de **OCO** sin respuesta (pedir detalle: ¿no pasa nada o hay error?).
+3. Renombrado restante: atributos de clase, propiedades JS, clases CSS de una palabra y JS embebido en cadenas de Python.
+4. Avisar a Cristian: al traer `main` recibirá cambios en casi todos los archivos (nombres nuevos).
+5. Los pendientes 1 a 6 del Día 19 siguen vigentes (etiquetas MT5, validar órdenes, aproximaciones, multicliente, catálogo,
+   credenciales). Idea evaluada: **copytrading** con copiador propio sobre la API de Capital (retraso de 1 a 2 s, tope de
+   peticiones, revisión CMF); prototipo con dos cuentas demo.
+
+## 20-10-2026 — Día 21: preparación multiusuario (cuentas Capital.com por usuario, real y demo) y nuevo proyecto Supabase
+
+### Indicador "Mercado" de la barra superior con Capital
+- **Hallazgo:** `_mercado_abierto` (herramientas/estadisticas_portafolio.py) decidía por avance del tick entre dos lecturas. Con Capital el tick del shim siempre lleva la hora actual y la primera lectura devuelve "sin dato"; como la barra solo se redibuja con un rerun, quedaba en "—".
+- **Solución:** con `PROVEEDOR=capital` se lee el estado de sesión que informa Capital (`marketStatus` → `symbol_info().trade_mode`). Con MT5 queda el método anterior.
+
+### Análisis: qué hay que revisar para lanzar a muchos usuarios (checklist en 6 bloques)
+- Arquitectura (cuenta por usuario, estado global, servidor de precios, almacenes locales), seguridad, fiabilidad/rendimiento, despliegue, funcional y legal/negocio. Se decidió cada usuario con SUS cuentas de Capital (real y demo) y elección tipo Capital.com, pensando en dinero real desde el diseño (no versión solo demo).
+- **Hallazgo:** el backend `capital.py` asumía una sola cuenta (credenciales del `.env` en constantes del módulo, tokens, cachés y límite de peticiones globales).
+
+### Nuevo proyecto Supabase `pyj-bursatil-plataforma` (separado de los otros proyectos)
+- Creado en plan Free, región Americas, con "Automatically expose new tables" desactivado y RLS automático activado. Tablas: `usuarios`, `watchlist_usuario`, `credenciales_bolsa` (SQL con el estándar P&J en `herramientas/sql/esquema_plataforma.sql`).
+- **Hallazgo:** al desactivar la exposición automática las tablas nacen sin permisos y el servidor falló con `42501 permission denied`; se agregó `GRANT ... TO service_role` (solo ese rol; `anon` y `authenticated` siguen sin acceso). Quedó en el SQL.
+- Los `.sql` siguen ahora el estándar P&J (créditos, banner INICIO/FIN, títulos y descripciones; referencia en `ORDENAMIENTO ARCHIVOS`).
+
+### Paso 1 — Credenciales cifradas (`herramientas/credenciales_bolsa.py`)
+- Cada dato (correo, API key y contraseña de la key) se cifra con Fernet antes de salir del servidor; clave maestra en `CREDENCIALES_CLAVES` (una o varias, la primera cifra y todas descifran → rotación con `recifrar_todas()`).
+- Una fila por usuario y modo: `PRIMARY KEY (usuario_id, es_demo)`. `estado_credenciales()` devuelve solo `{"demo": bool, "real": bool}`, nunca secretos.
+
+### Paso 2 — Sesión de Capital por usuario (sin reescribir el núcleo)
+- `capital.py` pasó a `capital_nucleo.py` (misma lógica; solo se quitaron del log fragmentos de la API key). `sesiones_capital.py` carga una COPIA independiente del núcleo por cada (usuario, modo) con `importlib`; cada copia tiene sus credenciales, tokens, cachés, límite de peticiones y archivo de sesión. `capital.py` es ahora una fachada (`__getattr__` de módulo) que enruta cada llamada a la copia del usuario actual → los ~45 archivos que lo usan no cambian.
+- Usuario actual: `con_clave()` (hilos/servidor) → resolvedor de la sesión de Streamlit → sin usuario: cuenta del `.env` si `CAPITAL_MULTIUSUARIO` está apagado, o copia SIN cuenta ("sin conexión") si está encendido.
+```python
+def clave_actual() -> tuple:
+    if not MULTIUSUARIO:
+        return _CLAVE_LEGADO       # un solo usuario: siempre la cuenta del .env
+    ...
+```
+- **Hallazgo (error propio):** con el modo apagado el resolvedor igual identificaba al usuario y el backend buscaba credenciales inexistentes → "sin conexión" aun con la sesión del `.env` viva. Corregido (con el modo apagado se ignora al usuario).
+
+### Paso 3 — Pantalla "Conectar mi cuenta" y selector real/demo
+- Paquete `componentes_plataforma/conectar_cuenta/` (`modo.py`, `pantalla.py`, `menu.py`): tras el login, sin cuenta conectada se muestra el formulario (tipo Demo/Real, correo, API key, contraseña de la key; la real exige confirmar que opera con dinero real); antes de guardar se verifica contra Capital (`probar_credenciales`, abre y cierra una sesión de prueba). Menú del usuario: "Cambiar a cuenta Real/Demo" y "Mis cuentas"; etiqueta DEMO (azul) / REAL (roja) siempre visible.
+- Seguridad por defecto: al entrar o recargar se parte SIEMPRE en demo.
+- **Hallazgo:** una marca de plantilla vacía en una línea propia de `usuario_menu.html` dejaba una línea en blanco; Markdown cortaba el bloque HTML y el menú se veía como código. La marca quedó pegada a la línea del separador.
+
+### Paso 4 — Servidor de precios y procesos por usuario
+- **Hallazgo de diseño:** el servidor de datos es otro proceso y no ve la sesión de Streamlit (vive en memoria) → token firmado. `herramientas/token_datos.py`: HMAC-SHA256 con `SERVIDOR_SECRETO`, vigencia 12 h, `{u, d, e}`; viaja dentro de la dirección base (`<servidor>/t/<token>`), así los más de 15 `fetch` de los scripts del navegador no cambian. Prueba: una firma con caracteres no ASCII lanzaba excepción en vez de rechazarse (corregido comparando bytes).
+- **Almacenes por usuario** (`herramientas/carpeta_usuario.py`): equity, cerradas, diario, OCO y stop dinámico pasan de `data/` a `data/usuarios/<id>/<demo|real>/` (en modo de un solo usuario siguen en `data/`). Cambio uniforme en los 5 almacenes (`_RUTA`/`_DIR` → `ruta_archivo()`/`carpeta_usuario()`).
+- **Un motor y un stream de precios por cuenta** (`servidor_precios/motor/registro.py`, `streaming_capital.stream_de()`): cada motor corre con la sesión de su usuario, se apaga a los 300 s sin clientes ni vigilancias, y un hilo (`descubrir()`) vuelve a encender el de toda cuenta con stop dinámico u OCO activos (deben seguir funcionando con el navegador cerrado).
+- **Manejador HTTP:** `_identificar()` valida el token (401 sin token válido; `/salud` pública) y ejecuta cada GET/POST dentro de `con_clave(...)`; orígenes permitidos configurables (`SERVIDOR_ORIGENES`).
+- **Hilos:** `herramientas/hilos.py` (`lanzar_hilo`, `enviar_al_pool`, `con_usuario`): un hilo o pool nuevo NO hereda al usuario. Aplicado en velas, caché de proceso, turnos del agente, mercados, diario y navegación del shim. Las vigilancias del agente corren con la cuenta DEMO de su dueño. Último error de orden del shim ahora por hilo. La precarga global de Mercados se omite en modo multiusuario.
+- **Verificación:** pruebas sin red de aislamiento de copias, token, almacenes, hilos y servidor HTTP real en puerto de prueba (sin token → 401, token inválido → 401, orden sin token → 401, un motor por cuenta); todo el proyecto compila. NO se probó en pantalla ni contra Capital con varios usuarios.
+
+### Pendientes para encender el modo multiusuario
+1. `.env` del servidor: `CAPITAL_MULTIUSUARIO=true`, `SERVIDOR_SECRETO` (≥ 32 caracteres), `CREDENCIALES_CLAVES`; después retirar las claves de Capital del `.env`.
+2. Probar en pantalla con dos usuarios (demo y real) y reiniciar servidor y Streamlit.
+3. Hosting: proxy HTTPS, dominio, `MT5_API_URL` público y `SERVIDOR_ORIGENES`; el token de datos viaja en la URL → solo por HTTPS.
+4. Sesiones de Streamlit (`almacen_sesiones`) son en memoria: no sobreviven a un reinicio ni a varios procesos.
+5. Datos aún globales: `consultas_guardadas.json`, `alertas_activas.json`, `one_click_aceptaciones.json`, `ordenes.db`, archivos de epics y cierres compartidos entre copias.
+6. Límites de seguridad por usuario en el servidor (tamaño máximo de orden, interruptor de corte) y registro de auditoría de operaciones.
+7. Revisión legal CMF antes de abrir al público con cuentas reales.
+
+### Merge con los cambios de Cristian (`origin/main` = `84db9fd`, 5 commits) sobre el trabajo multiusuario
+- **Método:** respaldo del trabajo (parche + archivos nuevos en el scratchpad), `git stash` de lo rastreado, `git merge --ff-only origin/main` (sin conflictos: 58 archivos de Cristian) y `git stash pop`. Tres conflictos, los tres resueltos conservando ambos lados.
+- **`capital.py` (conflicto de fondo):** Cristian agregó `detalle_operacion` (detalle rápido de una operación cerrada para el agente) al `capital.py` monolítico, que aquí ya es la fachada. Se dejó nuestra fachada y la función se pasó a `capital_nucleo.py`; la fachada la entrega por `__getattr__` (el agente la usa como `cap.detalle_operacion`).
+- **Barra superior y menú del usuario:** se conservaron los enlaces de Perfil y Configuración de Cristian (con `__TOKEN__` y escape HTML) y nuestras entradas de cuentas (`__ENTRADAS_CUENTA__`) y la etiqueta DEMO/REAL.
+- **Perfil de usuario (nuevo de Cristian):** tabla `perfiles_usuario` con datos personales (documento, teléfono, dirección). Se creó en el Supabase nuevo con RLS y permisos solo para `service_role` (comprobado: las 4 tablas con RLS activo, el servidor escribe, `anon` no lee). Registrado en `esquema_plataforma.sql`.
+- **Revisión de compatibilidad:** el resto de lo nuevo (accesos internos `cap._epoch_utc`, `cap._datos_mensuales`, aceptaciones de vigilancia por usuario en `data/vigilancia_aceptaciones.json`) funciona con la fachada sin cambios. `perfiles_locales.json` solo se usa sin Supabase.
+- **Hallazgo:** `data/usuarios/` y `data/sesiones_capital/` NO estaban en `.gitignore` (un `git add .` habría subido datos de usuarios y tokens de sesión); se agregaron.
+- **Verificación:** todo el proyecto compila, imports de la app y de `servidor_precios` correctos, y las pruebas sin red del multiusuario (aislamiento, token, hilos, servidor HTTP, verificación de ambas cuentas) siguen pasando. No se probó en pantalla. Nada de commit ni push (no se pidió).

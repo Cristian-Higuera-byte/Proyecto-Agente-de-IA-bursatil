@@ -45,6 +45,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from herramientas.backends import capital as cap
+from herramientas.hilos import con_usuario
 
 # ===========================================================================
 # CONSTANTES (mismos valores enteros que MetaTrader5, para comparaciones iguales)
@@ -103,7 +104,8 @@ ACCOUNT_TRADE_MODE_DEMO = 0
 ACCOUNT_TRADE_MODE_CONTEST = 1
 ACCOUNT_TRADE_MODE_REAL = 2
 
-_ultimo_error = (0, "ok")
+# Último error de orden, POR HILO: así el mensaje de un usuario nunca lo lee otro (cada petición corre en su propio hilo)
+_estado_error = threading.local()
 
 # TF entero -> resolución de Capital (reusa el mapa del backend)
 _TF_A_RES = {1: "MINUTE", 5: "MINUTE_5", 15: "MINUTE_15", 30: "MINUTE_30",
@@ -131,7 +133,7 @@ def shutdown() -> None:
 
 def last_error():
     """Equivale a `mt5.last_error`: devuelve la tupla (código, mensaje) del último error de una orden enviada con `order_send`."""
-    return _ultimo_error
+    return getattr(_estado_error, "valor", (0, "ok"))
 
 
 # TITULO TERMINAL INFO
@@ -411,7 +413,7 @@ def _catalogo() -> list:
         grupos = r.json().get("nodes", []) if (r is not None and r.status_code == 200) else []
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
             # Nivel 2: los grupos, en paralelo
-            datos_grupos = list(ex.map(lambda g: (g, _nav(g.get("id", ""))), grupos))
+            datos_grupos = list(ex.map(con_usuario(lambda g: (g, _nav(g.get("id", "")))), grupos))
             subnodos = []
             for g, d in datos_grupos:
                 cat = _nombre_grupo(g.get("id", ""), g.get("name", ""))
@@ -423,7 +425,7 @@ def _catalogo() -> list:
                     subnodos.append((sn, cat))
             subnodos = subnodos[:_MAX_NAV_REQS]
             # Nivel 3: los subnodos, en paralelo
-            datos_sub = list(ex.map(lambda sc: (sc[1], _nav(sc[0].get("id", ""))), subnodos))
+            datos_sub = list(ex.map(con_usuario(lambda sc: (sc[1], _nav(sc[0].get("id", "")))), subnodos))
             vacios = [(sn, cat) for (sn, cat), (_c, d) in zip(subnodos, datos_sub)
                       if not d.get("markets")]
             for cat, d in datos_sub:
@@ -433,7 +435,7 @@ def _catalogo() -> list:
                         items.setdefault(ep, (m.get("instrumentName", ep), cat))
             # Reintento EN PARALELO de los subnodos vacíos (fallos puntuales de concurrencia)
             if vacios and len(items) < _MAX_EPICS:
-                datos_r = list(ex.map(lambda sc: (sc[1], _nav(sc[0].get("id", ""))), vacios))
+                datos_r = list(ex.map(con_usuario(lambda sc: (sc[1], _nav(sc[0].get("id", "")))), vacios))
                 for cat, d in datos_r:
                     for m in d.get("markets", []):
                         ep = m.get("epic")
@@ -689,7 +691,6 @@ def order_calc_margin(action: int, symbol: str, volume: float, price: float):
 def order_send(solicitud: dict):
     """Interpreta la solicitud estilo MT5 y la enruta al backend Capital.
     Soporta las que arma el proyecto: DEAL de apertura y DEAL de cierre (con 'position')."""
-    global _ultimo_error
     symbol = solicitud.get("symbol", "")
     volume = float(solicitud.get("volume", 0.0) or 0.0)
     if solicitud.get("position"):                     # cierre de una posición existente
@@ -700,7 +701,7 @@ def order_send(solicitud: dict):
                                          stop_loss=float(solicitud.get("sl", 0.0) or 0.0),
                                          take_profit=float(solicitud.get("tp", 0.0) or 0.0))
     if "error" in res:
-        _ultimo_error = (1, res["error"])
+        _estado_error.valor = (1, res["error"])
         return SimpleNamespace(retcode=10013, comment=res["error"], order=0, price=0.0)
     return SimpleNamespace(retcode=TRADE_RETCODE_DONE, comment="Done",
                            order=res.get("order", solicitud.get("position", "")),
