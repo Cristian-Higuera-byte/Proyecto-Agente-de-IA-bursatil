@@ -30,7 +30,7 @@ import threading
 _CANDADO_PROPIO = threading.RLock()
 
 
-# TITULO RESOLVER LOCK COMPARTIDO
+# TITULO RESOLVER CANDADO COMPARTIDO
 
 def _resolver_candado_compartido() -> Any:
     """Intenta obtener el `MT5_LOCK` del puente MT5 del dashboard.

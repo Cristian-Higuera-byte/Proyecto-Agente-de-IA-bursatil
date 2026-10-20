@@ -13,20 +13,22 @@
 
 """Núcleo del motor: suscripciones, lectura de ticks y cuenta, bucle principal y lectura para los clientes.
 
-Define `MotorPrecios` (compuesta con los mixins de stop dinámico y OCO) y la instancia única
-`MOTOR`. Un solo hilo consulta MT5; los hilos HTTP (SSE) solo leen la última foto y esperan
-novedades en una Condition.
+Define `MotorPrecios` (compuesta con los mixins de stop dinámico y OCO). Hay UN motor por cuenta (usuario y modo
+demo o real), creado por `registro.MOTORES`: cada uno tiene su hilo, su stream de precios, su foto de la cuenta y
+sus vigilancias (stop dinámico y OCO), y trabaja siempre con la sesión de su usuario. Los hilos HTTP (SSE) solo leen
+la última foto de SU motor y esperan novedades en una Condition.
 """
 import threading
 import time
 
 from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 from herramientas import almacen_capital, almacen_oco, almacen_stop_dinamico
+from herramientas.backends import sesiones_capital
 from herramientas.puente_mt5 import PROVEEDOR, resolver_simbolo
 from herramientas.tickets import ticket as _tk
 
 from ..constantes import (CANDADO_MT5, INTERVALO_CUENTA, INTERVALO_EQUITY, INTERVALO_TICKS,
-                          TTL_REFERENCIA, TTL_SUSCRIPCION)
+                          INACTIVIDAD_MOTOR, TTL_REFERENCIA, TTL_SUSCRIPCION)
 from .oco import MixinOco
 from .stop_dinamico import MixinStopDinamico
 
@@ -49,8 +51,17 @@ class MotorPrecios(MixinStopDinamico, MixinOco):
 
     # TITULO INIT
 
-    def __init__(self):
-        """Crea el estado vacío del motor: condición de sincronización, cachés y configuración de trailing/OCO."""
+    def __init__(self, clave: tuple = ("legado",), registro=None):
+        """Crea el estado vacío del motor: condición de sincronización, cachés y configuración de trailing/OCO.
+
+        `clave` es la cuenta que atiende este motor: (usuario_id, es_demo), o ("legado",) para la cuenta del .env, que
+        nunca se apaga. `registro` es el RegistroMotores que lo creó (para retirarse cuando ya no hace falta)."""
+        self._clave = clave
+        self._registro = registro
+        self._detenido = False
+        self._ultimo_interes = time.time()   # último instante en que un cliente lo usó
+        self._siempre_activo = clave == ("legado",)
+        self._stream = _ws.stream_de(clave) if _ES_CAPITAL else None
         # Condition: protege el estado y despierta a los clientes SSE cuando hay cambios
         self._cond = threading.Condition()
         self._seq = 0                 # contador global de cambios
@@ -73,6 +84,7 @@ class MotorPrecios(MixinStopDinamico, MixinOco):
         """Registra (o renueva) el interés de un cliente en los símbolos indicados, marcando la hora actual."""
         ahora = time.time()
         with self._cond:
+            self._ultimo_interes = ahora
             for s in simbolos:
                 self._subs[s] = ahora
 
@@ -136,13 +148,13 @@ class MotorPrecios(MixinStopDinamico, MixinOco):
         activos = self._activos()
         # Con Capital: asegura que los epics activos estén suscritos al WebSocket.
         if _ES_CAPITAL and activos:
-            _ws.STREAM.suscribir([self._real(p) for p in activos])
+            self._stream.suscribir([self._real(p) for p in activos])
         # Recorre los símbolos con suscripción vigente
         for pedido in activos:
             try:
                 real = self._real(pedido)
                 if _ES_CAPITAL:
-                    tick = _ws.STREAM.tick(real)      # lectura instantánea de la caché del stream
+                    tick = self._stream.tick(real)      # lectura instantánea de la caché del stream
                 else:
                     with CANDADO_MT5:
                         tick = mt5.symbol_info_tick(real)
@@ -258,10 +270,36 @@ class MotorPrecios(MixinStopDinamico, MixinOco):
         los pasos de stop dinámico, OCO y registro de equity. Ante un error lo imprime y
         espera 1 s.
         """
+        # Todo lo que haga este hilo (lecturas, órdenes, archivos de datos) va con la sesión y las carpetas de SU cuenta
+        with sesiones_capital.con_clave(self._clave):
+            self._bucle()
+
+    # TITULO DEBE SEGUIR
+
+    def _debe_seguir(self) -> bool:
+        """True si el motor sigue haciendo falta: tiene un cliente reciente o vigilancias (stop dinámico u OCO) activas.
+
+        Los motores del .env (modo de un solo usuario) nunca se apagan."""
+        if self._siempre_activo or self._trailing or self._oco:
+            return True
+        return time.time() - self._ultimo_interes < INACTIVIDAD_MOTOR
+
+    # TITULO DETENER
+
+    def detener(self):
+        """Pide al hilo del motor que termine y despierta a los clientes que esperan (ya no habrá más novedades)."""
+        with self._cond:
+            self._detenido = True
+            self._cond.notify_all()
+
+    # TITULO BUCLE
+
+    def _bucle(self):
+        """Ciclo del motor: ticks, cuenta, stop dinámico, OCO y equity, hasta que se detenga o deje de hacer falta."""
         # Instante de la última lectura de cuenta (limita la frecuencia a INTERVALO_CUENTA)
         ultima_cuenta = 0.0
-        # Ciclo permanente del motor
-        while True:
+        # Ciclo del motor
+        while not self._detenido:
             inicio = time.time()
             try:
                 # 1) Ticks nuevos de los símbolos suscritos
@@ -287,6 +325,8 @@ class MotorPrecios(MixinStopDinamico, MixinOco):
                 self._paso_trailing()          # mueve los stops dinámicos activos
                 self._paso_oco()               # cancela la pata sobrante de los OCO ejecutados
                 self._paso_equity_log()        # snapshot de equity (drawdown real, Tanda 2)
+                if not self._debe_seguir() and self._registro is not None and self._registro.retirar_si_ocioso(self):
+                    return
             except Exception as e:
                 print(f"[motor] error leyendo MT5: {e}")
                 time.sleep(1)
@@ -319,8 +359,6 @@ class MotorPrecios(MixinStopDinamico, MixinOco):
             return self._seq
 
 
-# Instancia única compartida por ejecucion.py (hilo) y manejador.py (clientes)
-MOTOR = MotorPrecios()
 
 
 # -------------------------------------------------------------------------------------------------------

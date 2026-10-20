@@ -16,6 +16,7 @@
 Centraliza los valores compartidos por manejador.py, ejecucion.py, velas.py, simbolos.py
 y el paquete motor, para que se ajusten en un solo lugar.
 """
+import os
 import threading
 
 from herramientas.puente_mt5 import PROVEEDOR
@@ -89,6 +90,10 @@ INTERVALO_EQUITY = 60.0      # s entre snapshots de equity (para el drawdown rea
 TTL_REFERENCIA = 300         # s que se reutiliza el cierre del día anterior
 TTL_SUSCRIPCION = 60         # s sin clientes pidiendo un símbolo -> se deja de leer
 PING_SSE = 15                # s sin cambios -> comentario keep-alive
+INACTIVIDAD_MOTOR = 300      # s sin clientes ni vigilancias (stop dinámico, OCO) -> el motor de esa cuenta se apaga
+# Direcciones desde las que el navegador puede hablar con el servidor (cabecera Origin). Por defecto solo este equipo;
+# en producción se agregan los dominios de la plataforma en SERVIDOR_ORIGENES (separados por coma, solo el nombre del host).
+HOSTS_PERMITIDOS = {"localhost", "127.0.0.1"} | {h.strip().lower() for h in os.environ.get("SERVIDOR_ORIGENES", "").split(",") if h.strip()}
 
 TTL_SIMBOLOS = 300   # s que se reutiliza el catálogo de símbolos
 

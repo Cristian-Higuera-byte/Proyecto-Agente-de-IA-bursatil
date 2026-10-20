@@ -36,6 +36,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 
+from herramientas.hilos import enviar_al_pool
 from herramientas.puente_mt5 import PROVEEDOR, inicializar_mt5, obtener_datos_historicos
 from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
@@ -218,7 +219,7 @@ def _refrescar_en_fondo(simbolo: str, temporalidad: str) -> None:
         finally:
             with _CANDADO_TABLAS:
                 _EN_REFRESCO.discard(clave)
-    _FONDO.submit(_tarea)
+    enviar_al_pool(_FONDO, _tarea)
 
 
 # TITULO PROFUNDIZAR
@@ -271,7 +272,7 @@ def _profundizar_en_fondo(simbolo: str, temporalidad: str, n: int) -> None:
         finally:
             with _CANDADO_TABLAS:
                 _EN_REFRESCO.discard(clave)
-    _FONDO.submit(_tarea)
+    enviar_al_pool(_FONDO, _tarea)
 
 
 # TITULO SERIE CAPITAL
@@ -322,7 +323,7 @@ def _precalentar_temporalidades(simbolo: str, temporalidad_actual: str) -> None:
     posicion = orden.index(temporalidad_actual)
     for otro in sorted((t for t in orden if t != temporalidad_actual), key=lambda t: abs(orden.index(t) - posicion)):
         if (simbolo, otro) not in _SERIE_GUARDADAS:
-            _FONDO.submit(_serie_silenciosa, simbolo, otro)
+            enviar_al_pool(_FONDO, _serie_silenciosa, simbolo, otro)
 
 
 # TITULO SERIE SILENCIOSA
@@ -353,7 +354,7 @@ def precalentar(simbolos) -> None:
                 continue
             _PRECALENTADO[(temporalidad, simbolo)] = ahora
         if (simbolo, temporalidad) not in _SERIE_GUARDADAS:
-            _FONDO.submit(_serie_silenciosa, simbolo, temporalidad)
+            enviar_al_pool(_FONDO, _serie_silenciosa, simbolo, temporalidad)
 
 
 # TITULO OBTENER ULTIMA

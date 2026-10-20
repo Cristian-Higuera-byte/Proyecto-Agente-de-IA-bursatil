@@ -27,6 +27,7 @@ from typing import Optional
 import streamlit as st
 import streamlit.components.v1 as components
 
+from componentes_plataforma.conectar_cuenta import url_servidor
 from componentes_plataforma.grafico.cabecera_precio import renderizar_cabecera_precio
 from componentes_plataforma.grafico.ensamblador import html_grafico
 from componentes_plataforma.grafico.simbolo import info_simbolo, limpiar_simbolo
@@ -95,7 +96,7 @@ def renderizar_panel_central(main: Optional[ModuleType] = None) -> None:
 
     # HTML final del gráfico con símbolo, API, decimales, pip, posiciones y lista de activos ya sustituidos.
     activos_json = _lista_activos(activo_visible)
-    html_chart = html_grafico(activo_visible, API_URL, digits, pip, js_posiciones(activo_visible), activos_json)
+    html_chart = html_grafico(activo_visible, url_servidor(API_URL), digits, pip, js_posiciones(activo_visible), activos_json)
     # Iframe de 750 px de alto con el gráfico.
     components.html(html_chart, height=750)
     gatillos_cierre()   # ✕ de las líneas → modal de cierre

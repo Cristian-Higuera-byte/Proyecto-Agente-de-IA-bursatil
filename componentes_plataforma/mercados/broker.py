@@ -27,6 +27,7 @@ from componentes_plataforma.mercado_datos import cierre_previo as _cierre_previo
 from componentes_plataforma.mercado_datos.referencias import SinDatos
 from componentes_plataforma.mercados.constantes import CATALOGO
 from herramientas.cache_proceso import cache_proceso
+from herramientas.hilos import con_usuario
 from herramientas.puente_mt5 import MT5_LOCK, PROVEEDOR, obtener_datos_historicos, resolver_simbolo
 
 
@@ -125,7 +126,7 @@ def _elementos_cache(categoria: str):
     # Resolución en paralelo: cada candidato nuevo puede costar varias llamadas REST (~300 ms) y en serie
     # la vista Cotizaciones tardaba decenas de segundos la primera vez.
     with ThreadPoolExecutor(max_workers=8) as ex:
-        reales = list(ex.map(lambda it: resolver(it[1][0], indice), items))
+        reales = list(ex.map(con_usuario(lambda it: resolver(it[1][0], indice)), items))
     for (i, (candidatos, nombre)), real in zip(items, reales):
         if real:
             out.append((real, nombre, i))

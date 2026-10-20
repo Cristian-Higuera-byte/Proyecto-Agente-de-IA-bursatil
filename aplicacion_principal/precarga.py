@@ -13,6 +13,9 @@
 
 """Precarga en segundo plano de las secciones lentas, para que al abrirlas la primera vez se dibujen al instante.
 
+MULTIUSUARIO: Noticias y Mercados son datos públicos y se precargan una sola vez por proceso; el Diario es de cada cuenta,
+así que se precarga una vez por usuario y modo (demo o real), con la sesión de Capital de ESE usuario.
+
 Algunas secciones tardaban segundos (hasta decenas) en su primera visita porque ese era el momento en que empezaban a leer sus
 datos: las fuentes de noticias, los instrumentos y series de Mercados y el detalle de cada operación del Diario. Aquí se lanzan
 todas esas lecturas apenas el usuario inicia sesión, en hilos de fondo (con la mitad del cupo de peticiones de Capital.com, para
@@ -22,8 +25,12 @@ cada una muestra un aviso de carga en vez de bloquear la página.
 import threading
 import time
 
-# Marca de que ya se lanzó la precarga en este proceso (la comparten todas las sesiones).
-_LANZADA = threading.Event()
+from herramientas.backends import sesiones_capital
+from herramientas.hilos import lanzar_hilo
+
+# Cuentas para las que ya se lanzó la precarga en este proceso (la comparten todas las sesiones) y su candado.
+_LANZADAS: set = set()
+_CANDADO = threading.Lock()
 # Segundos de espera antes de empezar, para que la primera página se dibuje sin competir por la red.
 _RETRASO_S = 1.5
 
@@ -52,20 +59,21 @@ def _precargar_diario() -> None:
 
 # TITULO TAREA
 
-def _tarea() -> None:
+def _tarea(primera_del_proceso: bool) -> None:
     """Cuerpo del hilo de precarga: espera un momento y lanza, cada una a su ritmo y sin que un fallo detenga a las demás, la precarga
-    de Noticias, de Mercados y del Diario."""
+    de Noticias, de Mercados y del Diario. Noticias y Mercados solo si es la primera precarga del proceso (son datos públicos)."""
     time.sleep(_RETRASO_S)
-    try:
-        from componentes_plataforma.noticias.rss import precargar as precargar_noticias
-        precargar_noticias()
-    except Exception:  # noqa: BLE001
-        pass
-    try:
-        from componentes_plataforma.mercados.secciones import precargar_todas_las_categorias
-        precargar_todas_las_categorias()
-    except Exception:  # noqa: BLE001
-        pass
+    if primera_del_proceso:
+        try:
+            from componentes_plataforma.noticias.rss import precargar as precargar_noticias
+            precargar_noticias()
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            from componentes_plataforma.mercados.secciones import precargar_todas_las_categorias
+            precargar_todas_las_categorias()
+        except Exception:  # noqa: BLE001
+            pass
     try:
         _precargar_diario()
     except Exception:  # noqa: BLE001
@@ -75,11 +83,16 @@ def _tarea() -> None:
 # TITULO INICIAR PRECARGAS
 
 def iniciar_precargas() -> None:
-    """Lanza la precarga de las secciones lentas en un hilo de fondo, una sola vez por proceso. No espera ni devuelve nada."""
-    if _LANZADA.is_set():
-        return
-    _LANZADA.set()
-    threading.Thread(target=_tarea, name="pj-precarga-secciones", daemon=True).start()
+    """Lanza la precarga de las secciones lentas en un hilo de fondo, una sola vez por cuenta (usuario y modo). No espera ni devuelve nada.
+
+    El hilo atiende al usuario que lo lanzó: así el Diario se calcula con SU cuenta de Capital y no con la de otro."""
+    clave = sesiones_capital.clave_actual()
+    with _CANDADO:
+        if clave in _LANZADAS:
+            return
+        primera = not _LANZADAS
+        _LANZADAS.add(clave)
+    lanzar_hilo(_tarea, primera, nombre="pj-precarga-secciones")
 
 
 # -------------------------------------------------------------------------------------------------------

@@ -17,6 +17,7 @@ from __future__ import annotations
 import threading
 from typing import Any
 
+from herramientas.hilos import lanzar_hilo
 from nucleo_agente import notificaciones
 from nucleo_agente.turnos.hilo import _correr
 from nucleo_agente.turnos.turno import Turno
@@ -72,7 +73,7 @@ def iniciar(usuario_id: str, agente: Any, prompt: str) -> Turno | None:
         turno = Turno(usuario_id=usuario_id, prompt=prompt)
         _TURNOS[usuario_id] = turno
     # Hilo daemon: no impide cerrar el proceso y sobrevive a las re-ejecuciones del script de Streamlit.
-    threading.Thread(target=_correr, args=(turno, agente), name=f"turno-{turno.id}", daemon=True).start()
+    lanzar_hilo(_correr, turno, agente, nombre=f"turno-{turno.id}")
     return turno
 
 

@@ -56,10 +56,11 @@ import tempfile
 import threading
 import time
 
-# Carpeta `data/` en la raíz del proyecto (dos niveles arriba de este archivo).
-_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+from herramientas.carpeta_usuario import carpeta_usuario, ruta_archivo
+
 # Archivo JSON con la serie de snapshots de equity.
-_RUTA = os.path.join(_DIR, "equity.json")
+# Nombre del archivo; la carpeta depende del usuario y la cuenta (ver herramientas/carpeta_usuario.py)
+_NOMBRE_ARCHIVO = "equity.json"
 
 # Candado del proceso.
 _CANDADO = threading.Lock()         # serializa lecturas/escrituras dentro del proceso
@@ -80,7 +81,7 @@ def leer() -> list:
     """
     # Lectura protegida: cualquier fallo de archivo/JSON equivale a "sin histórico".
     try:
-        with _CANDADO, open(_RUTA, "r", encoding="utf-8") as f:
+        with _CANDADO, open(ruta_archivo(_NOMBRE_ARCHIVO), "r", encoding="utf-8") as f:
             datos = json.load(f)
         return list(datos.get("puntos", []))
     except (FileNotFoundError, json.JSONDecodeError, OSError):
@@ -130,7 +131,7 @@ def registrar(equity: float, balance: float, marca_tiempo: float | None = None,
         # Relee el archivo dentro del candado para no perder puntos de otro hilo.
         puntos = []
         try:
-            with open(_RUTA, "r", encoding="utf-8") as f:
+            with open(ruta_archivo(_NOMBRE_ARCHIVO), "r", encoding="utf-8") as f:
                 puntos = json.load(f).get("puntos", [])
         except (FileNotFoundError, json.JSONDecodeError, OSError):
             puntos = []
@@ -140,11 +141,11 @@ def registrar(equity: float, balance: float, marca_tiempo: float | None = None,
             puntos = puntos[-MAX_PUNTOS:]
         # Escritura atómica: archivo temporal en la misma carpeta y luego os.replace.
         try:
-            os.makedirs(_DIR, exist_ok=True)
-            fd, tmp = tempfile.mkstemp(dir=_DIR, suffix=".tmp")
+            os.makedirs(carpeta_usuario(), exist_ok=True)
+            fd, tmp = tempfile.mkstemp(dir=carpeta_usuario(), suffix=".tmp")
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 json.dump({"puntos": puntos}, f)
-            os.replace(tmp, _RUTA)          # atómico
+            os.replace(tmp, ruta_archivo(_NOMBRE_ARCHIVO))          # atómico
         except OSError:
             return False
     _ultimo_ts = ahora
@@ -159,7 +160,7 @@ def mtime() -> float:
     Permite a quien consulta recargar la serie solo cuando el archivo cambió.
     """
     try:
-        return os.path.getmtime(_RUTA)
+        return os.path.getmtime(ruta_archivo(_NOMBRE_ARCHIVO))
     except OSError:
         return -1.0
 
