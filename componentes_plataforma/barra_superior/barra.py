@@ -18,6 +18,7 @@ lateral mediante el JS de barra_lateral/estatico/barra_lateral.js), el botón qu
 métricas, la campana de notificaciones y el menú del usuario. aplicacion.py la dibuja dentro del contenedor fijo
 `barra_navegacion_fija`.
 """
+import html
 from pathlib import Path
 
 import streamlit as st
@@ -99,7 +100,8 @@ def renderizar_barra_navegacion(usuario: str = "Emilio Fuentes",
 
     # Menú del usuario: plantilla HTML con marcadores sustituidos por las iniciales y el nombre
     html_usuario = (texto(_DIR / "usuario_menu.html")
-                    .replace("__INICIALES__", iniciales).replace("__USUARIO__", usuario))
+                    .replace("__INICIALES__", html.escape(iniciales)).replace("__USUARIO__", html.escape(usuario))
+                    .replace("__TOKEN__", str(st.query_params.get("s", ""))))
 
     # ☰ + buscador (corto, a la izquierda) + espacio + saldo/tema + campana + usuario
     c_interruptor, c_buscar, c_spacer, c_saldo, c_campana, c_usuario = st.columns(

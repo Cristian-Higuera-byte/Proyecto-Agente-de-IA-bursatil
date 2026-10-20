@@ -14,7 +14,7 @@
 """
 gestor_autenticacion.py
 ---------------
-Gestión de autenticación de usuarios contra Supabase (tabla `usuarios`).
+Gestión de autenticación de usuarios contra Supabase (tabla `usuarios`): registro, inicio de sesión, cambio de contraseña y de nombre.
 
 Lo usa la pantalla de acceso (registro e inicio de sesión) de la aplicación.
 Las credenciales de Supabase se leen del archivo .env (SUPABASE_URL y
@@ -173,6 +173,52 @@ def autenticar_usuario(correo: str, contrasena: str) -> dict:
         return {"ok": False, "mensaje": "Email o contraseña incorrectos.", "usuario": None}
     except Exception as e:
         return {"ok": False, "mensaje": f"Error al iniciar sesión: {e}", "usuario": None}
+
+
+# TITULO CAMBIAR CONTRASENA
+
+def cambiar_contrasena(usuario_id, actual: str, nueva: str) -> dict:
+    """
+    Cambia la contraseña de un usuario. Retorna {"ok": bool, "mensaje": str}.
+
+    Lee el hash guardado del usuario (por id), exige que `actual` coincida con él y guarda el hash de `nueva`
+    (PBKDF2 con salt nuevo). La contraseña nueva se valida en el perfil (largo, letras y números); aquí solo se exige
+    que no esté vacía. Efecto secundario: una lectura y una actualización en la tabla `usuarios`.
+    """
+    if _supabase is None:
+        return {"ok": False, "mensaje": "Supabase no está configurado (revisa SUPABASE_URL / SUPABASE_KEY en .env)."}
+    if not actual or not nueva:
+        return {"ok": False, "mensaje": "Completa la contraseña actual y la nueva."}
+    try:
+        fila = _supabase.table("usuarios").select("password_hash").eq("id", usuario_id).limit(1).execute()
+        if not fila.data:
+            return {"ok": False, "mensaje": "No se encontró tu usuario."}
+        if not _verificar_contrasena(actual, cast(dict, fila.data[0]).get("password_hash", "")):
+            return {"ok": False, "mensaje": "La contraseña actual no es correcta."}
+        _supabase.table("usuarios").update({"password_hash": _cifrar_contrasena(nueva)}).eq("id", usuario_id).execute()
+        return {"ok": True, "mensaje": "Contraseña actualizada."}
+    except Exception as e:
+        return {"ok": False, "mensaje": f"Error al cambiar la contraseña: {e}"}
+
+
+# TITULO ACTUALIZAR NOMBRE
+
+def actualizar_nombre(usuario_id, nombre: str) -> dict:
+    """
+    Actualiza el nombre que se muestra del usuario (columna `nombre` de `usuarios`). Retorna {"ok": bool, "mensaje": str}.
+
+    Lo usa el perfil al guardar nombres y apellidos, para que la barra superior y el saludo muestren el nombre completo.
+    """
+    nombre = (nombre or "").strip()
+    if _supabase is None:
+        return {"ok": False, "mensaje": "Supabase no está configurado."}
+    if not nombre:
+        return {"ok": False, "mensaje": "El nombre no puede estar vacío."}
+    try:
+        _supabase.table("usuarios").update({"nombre": nombre}).eq("id", usuario_id).execute()
+        return {"ok": True, "mensaje": "Nombre actualizado."}
+    except Exception as e:
+        return {"ok": False, "mensaje": f"Error al actualizar el nombre: {e}"}
 
 
 # -------------------------------------------------------------------------------------------------------

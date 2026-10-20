@@ -42,7 +42,8 @@ _LOGO_HTML = (
 def requerir_login() -> dict:
     """Puerta de entrada de la app: exige que el usuario haya iniciado sesión.
 
-    Si el parámetro de URL `logout=1` está presente, cierra la sesión y limpia la URL. Si hay
+    Si el parámetro de URL `logout=1` está presente, cierra la sesión y limpia la URL. Si hay sesión y llega `perfil=...`, abre la
+    vista de perfil (en la sección indicada) y quita el parámetro conservando el token de sesión. Si hay
     sesión (o se restaura desde el token de la URL) devuelve el dict del usuario
     ({id, nombre, email}). Si no, dibuja la pantalla de login/registro centrada y detiene la
     ejecución con `st.stop()`, de modo que nada del dashboard se renderiza sin autenticar.
@@ -57,6 +58,13 @@ def requerir_login() -> dict:
     # Reutiliza la sesión de la pestaña o la restaurada desde el token de la URL
     usuario = usuario_en_sesion()
     if usuario is not None:
+        # Enlaces «Mi perfil» / «Configuración» del menú del usuario (?perfil=1 o ?perfil=<sección>): abren la vista de perfil.
+        destino = st.query_params.get("perfil")
+        if destino:
+            st.session_state.navegacion_activo = "perfil"
+            if destino != "1":
+                st.session_state.perfil_seccion = destino
+            del st.query_params["perfil"]
         return usuario
 
     # --- No autenticado: renderizar pantalla de login centrada ---

@@ -36,14 +36,16 @@ Transportes y Servicios Ltda.
                             background:#161b22; border:1px solid #30363d; border-radius:8px;
                             min-width:190px; padding:6px; z-index:3000;
                             box-shadow:0 8px 24px rgba(0,0,0,0.5);'>
-                    <!-- Opcion Mi perfil (sin accion por ahora) -->
-                    <div class='navegacion-menu-elemento' style='display:flex; align-items:center; gap:10px;
+                    <!-- Opcion Mi perfil: el parametro perfil=1 lo procesa acceso/pantalla.py (requerir_login); s conserva la sesion -->
+                    <a href='?perfil=1&s=__TOKEN__' target='_self' class='navegacion-menu-elemento'
+                       style='display:flex; align-items:center; gap:10px;
                          padding:9px 12px; border-radius:6px; color:#e6edf3; font-size:13px;
-                         cursor:pointer;'>👤 Mi perfil</div>
-                    <!-- Opcion Configuracion (sin accion por ahora) -->
-                    <div class='navegacion-menu-elemento' style='display:flex; align-items:center; gap:10px;
+                         cursor:pointer; text-decoration:none;'>👤 Mi perfil</a>
+                    <!-- Opcion Configuracion: abre el perfil en la seccion de preferencias -->
+                    <a href='?perfil=preferencias&s=__TOKEN__' target='_self' class='navegacion-menu-elemento'
+                       style='display:flex; align-items:center; gap:10px;
                          padding:9px 12px; border-radius:6px; color:#e6edf3; font-size:13px;
-                         cursor:pointer;'>⚙️ Configuración</div>
+                         cursor:pointer; text-decoration:none;'>⚙️ Configuración</a>
                     <!-- Linea separadora -->
                     <div style='height:1px; background:#30363d; margin:4px 6px;'></div>
                     <!-- Cerrar sesion: el parametro logout=1 lo procesa acceso/pantalla.py (requerir_login) -->

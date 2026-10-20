@@ -31,7 +31,7 @@ def renderizar_vista(fragmentos, consola) -> None:
     Dibuja en el área de contenido la vista que corresponde al botón activo de la barra lateral.
 
     Vistas disponibles: noticias, cotizaciones, copytrading, trading, portafolio (cartera),
-    resumen y journal (diario). Cualquier otro valor, o ninguno, muestra la vista de Inicio, de
+    resumen, journal (diario) y perfil (Mi perfil, desde el menú del usuario). Cualquier otro valor, o ninguno, muestra la vista de Inicio, de
     modo que los botones sin vista propia caen ahí. Los paneles menos usados se importan al
     momento de dibujarlos para que un problema en uno no impida abrir los demás.
     Recibe `fragmentos` (de `crear_fragmentos()`) y `consola` (módulo `consola_agente` o `None`).
@@ -67,6 +67,10 @@ def renderizar_vista(fragmentos, consola) -> None:
         # --- VISTA DIARIO (trading journal: operaciones + métricas + notas) ---
         from componentes_plataforma.diario import renderizar_panel_journal
         renderizar_panel_journal(consola)
+    elif vista_activa == "perfil":
+        # --- VISTA MI PERFIL (datos personales, documento, contacto, perfil de inversor, seguridad y cuenta) ---
+        from componentes_plataforma.perfil import renderizar_panel_perfil
+        renderizar_panel_perfil(consola)
     else:
         # --- VISTA INICIO (panel de cuenta estilo XM), también para botones sin vista propia ---
         from componentes_plataforma.inicio import renderizar_panel_inicio
