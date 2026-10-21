@@ -103,6 +103,8 @@ _YAHOO_A_EPIC = {
 }
 
 
+# TITULO NORMALIZAR ESCRITURA
+
 def _normalizar_escritura(texto: str) -> str:
     """Pasa a la forma de Capital.com los símbolos escritos al estilo de Yahoo (EURUSD=X, GC=F, ^GSPC, BTC-USD) o con barra (EUR/USD)."""
     if texto in _YAHOO_A_EPIC:

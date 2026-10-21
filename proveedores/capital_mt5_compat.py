@@ -279,7 +279,8 @@ _CARPETA_TIPO = {"SHARES": "Stocks", "CRYPTOCURRENCIES": "Cryptocurrencies", "ET
 def _ruta(symbol: str, s: dict) -> str:
     """Ruta tipo MT5 (Stocks, AAPL): el primer nivel indica la clase de activo; la UI de iconos lo usa
     para decidir si busca el logo de la empresa."""
-    return _CARPETA_TIPO.get(str(s.get("tipo", "")).upper(), "Capital") + chr(92) + symbol
+    tipo = str(s.get("tipo", "")).upper()
+    return (_CARPETA_TIPO.get(tipo) or _CARPETA_CATALOGO.get(tipo) or "Capital") + chr(92) + symbol
 
 
 # TITULO DESCRIPCION
@@ -330,10 +331,17 @@ def symbol_info_tick(symbol: str):
 
 _CURADOS = ["GOLD", "SILVER", "US30", "US100", "US500", "BTCUSD", "ETHUSD",
             "EURUSD", "GBPUSD", "USDJPY"]
-_catalogo_cache: dict = {"ts": 0.0, "items": []}
-_TTL_CATALOGO = 600          # 10 min
-_MAX_NAV_REQS = 60           # tope de llamadas de navegación por refresco
-_MAX_EPICS = 1500
+# Estado del catálogo, compartido por todo el proceso: instrumentos conocidos, marca de tiempo, si el recorrido terminó sin fallos
+# (`completo`), si hay un recorrido en curso (`cargando`), cuántos nodos del árbol van leídos (para mostrar avance) y desde
+# cuándo (`proximo`) toca rehacer el recorrido en segundo plano.
+_cat: dict = {"proximo": 0.0, "items": [], "completo": False, "cargando": False, "nodos": 0}
+_CAT_CANDADO = threading.Lock()
+_REINTENTO_CATALOGO_S = 60   # tras un recorrido con fallos se reintenta pronto
+_MAX_NODOS = 5000            # tope de seguridad del recorrido del árbol (un árbol normal tiene cientos)
+_MAX_EPICS = 60000           # tope de seguridad de instrumentos
+_TIEMPO_RECORRIDO_S = 300    # el recorrido se corta (y queda como incompleto) pasado este tiempo
+_HILOS_RECORRIDO = 6
+_FORMATO_DISCO = 2           # distingue el archivo nuevo del antiguo, que podía guardar solo 10 instrumentos por un fallo
 
 # Grupo de navegación -> categoría legible para el path (lo usa el buscador).
 _GRUPO_CAT = {
@@ -341,6 +349,14 @@ _GRUPO_CAT = {
     "oil_markets_group": "Materias primas", "crypto_currencies_group": "Cripto",
     "shares": "Acciones", "etf_group": "ETF", "bonds_group": "Bonos",
     "interest_rates_group": "Tasas", "commons_group": "Populares",
+}
+
+# Tipo de instrumento de Capital -> carpeta del path. Las tres primeras son las mismas que usa `_ruta` (de ellas depende
+# el ícono); el resto permite clasificar el instrumento sin depender de palabras sueltas.
+_CARPETA_CATALOGO = {
+    "SHARES": "Stocks", "CRYPTOCURRENCIES": "Cryptocurrencies", "ETFS": "ETF", "ETF": "ETF",
+    "CURRENCIES": "Forex", "INDICES": "Indices", "COMMODITIES": "Commodities",
+    "BONDS": "Bonds", "INTEREST_RATES": "Rates",
 }
 
 
@@ -358,100 +374,244 @@ def _nombre_grupo(node_id: str, node_name: str) -> str:
 # Caché en disco del catálogo: tras el primer arranque, el buscador abre al instante.
 _CAT_DISCO = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                           "data", "catalogo_capital.json")
-_TTL_DISCO = 24 * 3600   # 24 h
+_TTL_DISCO = 24 * 3600   # 24 h: pasado ese tiempo el catálogo se sigue usando mientras se rehace en segundo plano
 
 
 # TITULO NAV
 
-def _nav(node_id: str) -> dict:
-    """GET /marketnavigation/{id} SIN el candado global, para poder paralelizar."""
+def _nav(node_id: str):
+    """GET /marketnavigation/{id} con el límite de ritmo del backend. Devuelve el JSON del nodo, o None si no se pudo leer
+    (para distinguir un nodo realmente vacío de un fallo y no dar por completo un catálogo al que le faltan partes)."""
     try:
-        r = cap._HTTP.get(f"{cap.BASE}/marketnavigation/{node_id}",
-                          headers=cap._cabeceras(), timeout=cap._TIEMPO_ESPERA)
-        if r.status_code == 200:
+        r = cap._pedir("GET", f"/marketnavigation/{node_id}" if node_id else "/marketnavigation")
+    except Exception:  # noqa: BLE001
+        return None
+    if r is not None and r.status_code == 200:
+        try:
             return r.json()
-    except Exception:
-        pass
-    return {}
+        except ValueError:
+            return None
+    return None
+
+
+# TITULO CARPETA CATALOGO
+
+def _carpeta_catalogo(tipo: str, grupo: str) -> str:
+    """Carpeta (primer nivel del path) de un instrumento del catálogo: la que corresponde a su tipo en Capital y, si el tipo es
+    desconocido, el nombre del grupo del árbol en que apareció."""
+    return _CARPETA_CATALOGO.get(str(tipo or "").upper()) or grupo
 
 
 # TITULO LISTA DESDE ITEMS
 
 def _lista_desde_items(items: dict) -> list:
-    """Convierte el catálogo guardado (diccionario de instrumentos por grupo) en la lista de símbolos con forma de objeto MT5 (`name`, `description`, `path`, `visible`)."""
+    """Convierte el catálogo guardado (diccionario `epic -> (nombre, grupo, tipo)`) en la lista de símbolos con forma de objeto
+    MT5 (`name`, `description`, `path`, `visible`)."""
     if not items:
-        items = {e: (e, "Populares") for e in _CURADOS}
-    return [SimpleNamespace(name=ep, visible=True, description=nombre, path=f"{cat}\\{ep}")
-            for ep, (nombre, cat) in items.items()]
+        items = {e: (e, "Populares", "") for e in _CURADOS}
+    return [SimpleNamespace(name=ep, visible=True, description=nombre, path=f"{_carpeta_catalogo(tipo, grupo)}\\{ep}")
+            for ep, (nombre, grupo, tipo) in items.items()]
+
+
+# TITULO CATALOGO DESDE DISCO
+
+def _catalogo_desde_disco():
+    """Lee el catálogo guardado en disco. Devuelve `(lista, marca_de_tiempo)` o `([], 0.0)` si no existe, está dañado o es de un
+    formato antiguo (el anterior pudo guardar una lista de solo 10 instrumentos tras un fallo de red)."""
+    try:
+        with open(_CAT_DISCO, encoding="utf-8") as f:
+            datos = json.load(f)
+        if not isinstance(datos, dict) or datos.get("formato") != _FORMATO_DISCO:
+            return [], 0.0
+        lista = [SimpleNamespace(**d) for d in datos.get("items", [])]
+        return (lista, os.path.getmtime(_CAT_DISCO)) if lista else ([], 0.0)
+    except Exception:  # noqa: BLE001
+        return [], 0.0
+
+
+# TITULO GUARDAR CATALOGO EN DISCO
+
+def _guardar_catalogo_en_disco(lista: list) -> None:
+    """Guarda el catálogo completo en disco (se escribe a un archivo temporal y se renombra, para no dejar un archivo a medias)."""
+    try:
+        os.makedirs(os.path.dirname(_CAT_DISCO), exist_ok=True)
+        temporal = _CAT_DISCO + ".tmp"
+        with open(temporal, "w", encoding="utf-8") as f:
+            json.dump({"formato": _FORMATO_DISCO, "items": [vars(x) for x in lista]}, f, ensure_ascii=False)
+        os.replace(temporal, _CAT_DISCO)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+# TITULO RECORRER ARBOL
+
+def _recorrer_arbol(fondo: bool) -> None:
+    """Recorre TODO el árbol /marketnavigation de Capital, nivel por nivel y sin límite de profundidad, y va publicando los
+    instrumentos en `_cat` a medida que los encuentra (así el buscador ya puede usar lo leído mientras sigue el recorrido).
+
+    Antes solo se leían dos niveles y 60 nodos, y se cortaba a 1500 instrumentos: las acciones agotaban esos topes y quedaban
+    fuera instrumentos como SILVER. Si algún nodo no se puede leer, el catálogo queda marcado como incompleto (no se guarda
+    en disco y se reintenta pronto). `fondo` hace que las peticiones usen solo la mitad del cupo, para no frenar al usuario."""
+    items: dict = {}
+    fallos = 0
+    leidos = 0
+    inicio = time.time()
+    try:
+        if fondo:
+            cap.marcar_hilo_fondo()
+        raiz = _nav("")
+        if raiz is None:
+            fallos += 1
+            nivel = []
+        else:
+            nivel = [(n.get("id", ""), _nombre_grupo(n.get("id", ""), n.get("name", ""))) for n in raiz.get("nodes", []) if n.get("id")]
+        vistos = {nid for nid, _g in nivel}
+        def leer_nodo(ng):
+            """Lee un nodo en un hilo del grupo, marcándolo como de segundo plano (el marcado es por hilo y por cuenta)."""
+            if fondo:
+                cap.marcar_hilo_fondo()
+            return ng[1], _nav(ng[0])
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=_HILOS_RECORRIDO) as ex:
+            while nivel and leidos < _MAX_NODOS and (time.time() - inicio) < _TIEMPO_RECORRIDO_S:
+                resultados = list(ex.map(con_usuario(leer_nodo), nivel))
+                siguiente = []
+                for grupo, datos in resultados:
+                    leidos += 1
+                    if datos is None:
+                        fallos += 1
+                        continue
+                    for m in datos.get("markets", []) or []:
+                        ep = m.get("epic")
+                        if ep and len(items) < _MAX_EPICS:
+                            items.setdefault(ep, (m.get("instrumentName", ep), grupo, m.get("instrumentType", "")))
+                    for sn in datos.get("nodes", []) or []:
+                        sid = sn.get("id", "")
+                        if sid and sid not in vistos:
+                            vistos.add(sid)
+                            siguiente.append((sid, grupo))
+                nivel = siguiente
+                with _CAT_CANDADO:
+                    _cat.update(items=_lista_desde_items(items) if items else _cat["items"], nodos=leidos)
+            if nivel:
+                fallos += 1      # quedaron nodos sin leer por los topes
+    except Exception as e:  # noqa: BLE001
+        fallos += 1
+        print(f"[CAPITAL shim] no se pudo cargar el catálogo: {e}")
+    completo = fallos == 0 and len(items) > 0
+    with _CAT_CANDADO:
+        if items:
+            _cat.update(items=_lista_desde_items(items))
+        # Un recorrido fallido no pisa la marca de "catálogo completo" anterior y se reintenta pronto.
+        _cat.update(proximo=time.time() + (_TTL_DISCO if completo else _REINTENTO_CATALOGO_S),
+                    completo=completo or _cat["completo"], cargando=False, nodos=leidos)
+    if completo:
+        _guardar_catalogo_en_disco(_cat["items"])
+
+
+# TITULO ACTUALIZAR CATALOGO
+
+def _actualizar_catalogo(fondo: bool) -> None:
+    """Lanza el recorrido del árbol en un hilo aparte si no hay otro en curso. No espera ni devuelve nada."""
+    from herramientas.hilos import lanzar_hilo
+    with _CAT_CANDADO:
+        if _cat["cargando"]:
+            return
+        _cat["cargando"] = True
+    lanzar_hilo(_recorrer_arbol, fondo, nombre="pj-catalogo-capital")
+
+
+# TITULO CATALOGO ACTUAL
+
+def catalogo_actual() -> tuple:
+    """Devuelve `(lista, listo)` SIN esperar: `lista` es lo que se conoce del catálogo ahora mismo (puede estar incompleta
+    mientras se recorre el árbol) y `listo` indica si ya se conoce el catálogo completo.
+
+    La primera vez toma el archivo de disco (aunque tenga más de 24 h) y, si ya toca, rehace el recorrido en segundo plano.
+    Nunca bloquea un clic del usuario."""
+    with _CAT_CANDADO:
+        vacio = not _cat["items"]
+    if vacio:
+        lista, marca = _catalogo_desde_disco()
+        if lista:
+            with _CAT_CANDADO:
+                if not _cat["items"]:
+                    _cat.update(items=lista, completo=True, proximo=marca + _TTL_DISCO)
+    with _CAT_CANDADO:
+        hay = bool(_cat["items"])
+        toca = time.time() >= _cat["proximo"] and not _cat["cargando"]
+    if toca:
+        _actualizar_catalogo(fondo=hay)      # con catálogo previo es un refresco de fondo; sin él, es prioritario
+    with _CAT_CANDADO:
+        return list(_cat["items"]), bool(_cat["completo"])
 
 
 # TITULO CATALOGO
 
-def _catalogo() -> list:
-    """Catálogo real de instrumentos de Capital (cacheado en memoria 10 min y en disco 24 h).
-    La primera vez recorre /marketnavigation EN PARALELO (grupos + 1 nivel de subnodos)."""
-    ahora = time.time()
-    if _catalogo_cache["items"] and (ahora - _catalogo_cache["ts"]) < _TTL_CATALOGO:
-        return _catalogo_cache["items"]
-    # 1) caché en disco: instantáneo tras el primer arranque
+def _catalogo(esperar_s: float = 60.0) -> list:
+    """Catálogo de instrumentos de Capital para quien necesita la lista (Mercados, servidor de precios, agente).
+
+    Si ya se conoce algo del catálogo (del disco o de un recorrido en curso) lo devuelve al instante. Si no hay nada todavía,
+    espera (hasta `esperar_s`) a que el recorrido publique los primeros instrumentos, que llegan en pocos segundos. Si el
+    recorrido falla devuelve, en último caso, los instrumentos más populares."""
+    lista, _listo = catalogo_actual()
+    fin = time.time() + esperar_s
+    while not lista and time.time() < fin:
+        with _CAT_CANDADO:
+            en_curso = _cat["cargando"]
+        if not en_curso:
+            break
+        time.sleep(0.25)
+        lista, _listo = catalogo_actual()
+    return lista or _lista_desde_items({})
+
+
+# TITULO CATALOGO LISTO
+
+def catalogo_listo() -> bool:
+    """True si ya se conoce el catálogo completo de Capital (de disco o de un recorrido terminado)."""
+    return catalogo_actual()[1]
+
+
+# TITULO PROGRESO CATALOGO
+
+def progreso_catalogo() -> tuple:
+    """Devuelve `(instrumentos_conocidos, nodos_leidos)` del recorrido en curso, para mostrar avance mientras se carga."""
+    with _CAT_CANDADO:
+        return len(_cat["items"]), _cat["nodos"]
+
+
+# Búsquedas ya hechas al servidor de Capital: texto en mayúsculas -> (momento, resultados).
+_busquedas: dict = {}
+_TTL_BUSQUEDA = 300
+
+
+# TITULO BUSCAR SIMBOLOS
+
+def buscar_simbolos(texto: str) -> list:
+    """Busca instrumentos por texto DIRECTAMENTE en Capital (`GET /markets?searchTerm=`), con el mismo formato de objeto que
+    `symbols_get`. Sirve de respaldo del catálogo: encuentra cualquier instrumento aunque el catálogo aún esté cargándose o no
+    lo incluya. Guarda cada búsqueda 5 minutos y devuelve lista vacía si no hay conexión o el texto tiene menos de 2 letras."""
+    t = (texto or "").strip()
+    if len(t) < 2:
+        return []
+    clave = t.upper()
+    previo = _busquedas.get(clave)
+    if previo and (time.time() - previo[0]) < _TTL_BUSQUEDA:
+        return previo[1]
     try:
-        if os.path.exists(_CAT_DISCO) and (ahora - os.path.getmtime(_CAT_DISCO)) < _TTL_DISCO:
-            with open(_CAT_DISCO, encoding="utf-8") as f:
-                crudos = json.load(f)
-            lista = [SimpleNamespace(**d) for d in crudos]
-            if lista:
-                _catalogo_cache.update(ts=ahora, items=lista)
-                return lista
-    except Exception:
-        pass
-    # 2) traer de la API en paralelo
-    if not cap.inicializar_mt5():
-        return _lista_desde_items({})
-    items: dict = {}
-    try:
-        r = cap._pedir("GET", "/marketnavigation")
-        grupos = r.json().get("nodes", []) if (r is not None and r.status_code == 200) else []
-        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
-            # Nivel 2: los grupos, en paralelo
-            datos_grupos = list(ex.map(con_usuario(lambda g: (g, _nav(g.get("id", "")))), grupos))
-            subnodos = []
-            for g, d in datos_grupos:
-                cat = _nombre_grupo(g.get("id", ""), g.get("name", ""))
-                for m in d.get("markets", []):
-                    ep = m.get("epic")
-                    if ep:
-                        items.setdefault(ep, (m.get("instrumentName", ep), cat))
-                for sn in d.get("nodes", []):
-                    subnodos.append((sn, cat))
-            subnodos = subnodos[:_MAX_NAV_REQS]
-            # Nivel 3: los subnodos, en paralelo
-            datos_sub = list(ex.map(con_usuario(lambda sc: (sc[1], _nav(sc[0].get("id", "")))), subnodos))
-            vacios = [(sn, cat) for (sn, cat), (_c, d) in zip(subnodos, datos_sub)
-                      if not d.get("markets")]
-            for cat, d in datos_sub:
-                for m in d.get("markets", []):
-                    ep = m.get("epic")
-                    if ep and len(items) < _MAX_EPICS:
-                        items.setdefault(ep, (m.get("instrumentName", ep), cat))
-            # Reintento EN PARALELO de los subnodos vacíos (fallos puntuales de concurrencia)
-            if vacios and len(items) < _MAX_EPICS:
-                datos_r = list(ex.map(con_usuario(lambda sc: (sc[1], _nav(sc[0].get("id", "")))), vacios))
-                for cat, d in datos_r:
-                    for m in d.get("markets", []):
-                        ep = m.get("epic")
-                        if ep and len(items) < _MAX_EPICS:
-                            items.setdefault(ep, (m.get("instrumentName", ep), cat))
-    except Exception as e:  # noqa: BLE001
-        print(f"[CAPITAL shim] no se pudo cargar el catálogo: {e}")
-    lista = _lista_desde_items(items)
-    _catalogo_cache.update(ts=ahora, items=lista)
-    # Guardar a disco para la próxima vez
-    try:
-        os.makedirs(os.path.dirname(_CAT_DISCO), exist_ok=True)
-        with open(_CAT_DISCO, "w", encoding="utf-8") as f:
-            json.dump([vars(x) for x in lista], f, ensure_ascii=False)
-    except Exception:
-        pass
+        r = cap._pedir("GET", "/markets", parametros={"searchTerm": t})
+        datos = r.json().get("markets", []) if (r is not None and r.status_code == 200) else None
+    except Exception:  # noqa: BLE001
+        datos = None
+    if datos is None:
+        return []            # fallo de red: no se guarda, para reintentar en la próxima búsqueda
+    lista = [SimpleNamespace(name=m["epic"], visible=True, description=m.get("instrumentName") or m["epic"],
+                             path=f"{_carpeta_catalogo(m.get('instrumentType'), 'Otros')}\\{m['epic']}")
+             for m in datos if m.get("epic")]
+    if len(_busquedas) > 500:
+        _busquedas.clear()
+    _busquedas[clave] = (time.time(), lista)
     return lista
 
 

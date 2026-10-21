@@ -16,7 +16,6 @@
 La variación del día se calcula contra el cierre de la vela diaria anterior de MT5, la misma base que usan
 Favoritos, la lista de activos y el feed en vivo, para que todas las vistas muestren el mismo número.
 """
-import streamlit as st
 from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
 from herramientas.cache_proceso import cache_proceso

@@ -35,8 +35,8 @@ def quitar_de_lista(ticker: str):
     from herramientas import gestor_lista_activos as wl
     # Id del usuario actual (None si no hay sesión).
     uid = (st.session_state.get("usuario_informacion") or {}).get("id")
-    # Borra el símbolo de la watchlist persistida.
-    wl.quitar_simbolo(uid, ticker)
+    # Borra el símbolo de la watchlist persistida (sin esperar a la red: la sesión se actualiza justo abajo).
+    wl.en_segundo_plano(wl.quitar_simbolo, uid, ticker)
     st.session_state.get("datos_mercado_real", {}).pop(ticker, None)
     # Limpia la lista de símbolos en sesión.
     lst = st.session_state.get("watchlist_simbolos", [])

@@ -182,7 +182,12 @@ def requerir_cuenta(usuario: dict) -> None:
     if usuario_id is None:
         return
     restaurar_modo()   # tras un F5 o un enlace del menú, vuelve a la cuenta que había elegido en esta sesión
-    cuentas = cuentas_conectadas(refrescar=True)
+    # Se usa la copia guardada en la sesión (Supabase se consulta como máximo una vez por minuto y cada vez que se conecta o desconecta
+    # una cuenta, que invalidan la copia): antes se consultaba en CADA clic, y cada clic esperaba ese viaje a la base de datos.
+    # Si la copia dice que no hay cuenta se confirma con Supabase, porque ahí sí hay que mostrar la pantalla de conexión.
+    cuentas = cuentas_conectadas()
+    if not (cuentas.get("demo") or cuentas.get("real")):
+        cuentas = cuentas_conectadas(refrescar=True)
     _procesar_enlaces(cuentas)
     hay_cuenta = bool(cuentas.get("demo") or cuentas.get("real"))
     if hay_cuenta and not st.session_state.get(_CLAVE_GESTIONAR):

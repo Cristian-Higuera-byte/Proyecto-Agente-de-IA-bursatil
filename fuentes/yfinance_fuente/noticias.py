@@ -23,7 +23,7 @@ from typing import Any
 import yfinance as yf  # type: ignore[import-untyped]
 
 from fuentes.yfinance_fuente.cache import _cacheado
-from fuentes.yfinance_fuente.utiles import _entero, _formatear_fecha, _num, _simbolo, _sin_nulos
+from fuentes.yfinance_fuente.utiles import _entero, _num, _simbolo, _sin_nulos
 
 
 # TITULO NORMALIZAR NOTICIA
