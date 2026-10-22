@@ -17,7 +17,7 @@ MULTIUSUARIO: Noticias y Mercados son datos públicos y se precargan una sola ve
 así que se precarga una vez por usuario y modo (demo o real), con la sesión de Capital de ESE usuario.
 
 Algunas secciones tardaban segundos (hasta decenas) en su primera visita porque ese era el momento en que empezaban a leer sus
-datos: las fuentes de noticias, los instrumentos y series de Mercados y el detalle de cada operación del Diario. Aquí se lanzan
+datos: el catálogo de instrumentos del buscador, las fuentes de noticias, los instrumentos y series de Mercados y el detalle de cada operación del Diario. Aquí se lanzan
 todas esas lecturas apenas el usuario inicia sesión, en hilos de fondo (con la mitad del cupo de peticiones de Capital.com, para
 no quitarle velocidad a lo que está viendo). Se hace una sola vez por proceso; si el usuario abre la sección antes de que termine,
 cada una muestra un aviso de carga en vez de bloquear la página.
@@ -48,6 +48,18 @@ def _marcar_fondo() -> None:
         pass
 
 
+# TITULO PRECARGAR CATALOGO
+
+def _precargar_catalogo() -> None:
+    """Pone en marcha la lectura del catálogo completo de instrumentos del broker (la que usa el buscador de activos). Es
+    inmediata: el recorrido del árbol de Capital.com sigue en su propio hilo y deja el resultado en disco para los próximos
+    arranques. Con MT5, que no tiene ese catálogo en segundo plano, no hace nada."""
+    from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
+    leer = getattr(mt5, "catalogo_actual", None)
+    if leer is not None:
+        leer()
+
+
 # TITULO PRECARGAR DIARIO
 
 def _precargar_diario() -> None:
@@ -61,8 +73,13 @@ def _precargar_diario() -> None:
 
 def _tarea(primera_del_proceso: bool) -> None:
     """Cuerpo del hilo de precarga: espera un momento y lanza, cada una a su ritmo y sin que un fallo detenga a las demás, la precarga
-    de Noticias, de Mercados y del Diario. Noticias y Mercados solo si es la primera precarga del proceso (son datos públicos)."""
+    del catálogo de instrumentos (buscador), de Noticias, de Mercados y del Diario. Noticias y Mercados solo si es la primera precarga
+    del proceso (son datos públicos)."""
     time.sleep(_RETRASO_S)
+    try:
+        _precargar_catalogo()
+    except Exception:  # noqa: BLE001
+        pass
     if primera_del_proceso:
         try:
             from componentes_plataforma.noticias.rss import precargar as precargar_noticias

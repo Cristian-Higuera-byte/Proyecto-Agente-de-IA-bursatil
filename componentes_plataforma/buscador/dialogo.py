@@ -23,10 +23,10 @@ Los datos y el filtrado vienen de datos.py.
 """
 import streamlit as st
 
-from .datos import cargar_simbolos_broker, categorias, filtrar, _agregar_a_watchlist
+from .datos import buscar_en_vivo, categorias, estado_buscador, filtrar, _agregar_a_watchlist
 
 # Cantidad de resultados que se revelan al inicio y cada vez que se pulsa "Ver más".
-_PASO_RESULTADOS = 40  # cuántos se revelan al inicio y por cada "Ver más"
+_PASO_RESULTADOS = 30  # cuántos se revelan al inicio y por cada "Ver más"
 
 
 # TITULO ABRIR BUSCADOR
@@ -66,22 +66,36 @@ def _dialogo_buscador():
     Cada resultado tiene un botón "Abrir" (selecciona el activo, cierra el diálogo y
     reejecuta la app) y un botón de agregar a la watchlist (✓ si ya está). Los resultados se
     revelan por bloques con "Ver más". Dentro del diálogo los rerun son de ámbito fragmento
-    para no cerrarlo. Si MT5 no entrega símbolos, muestra una advertencia.
+    para no cerrarlo. El catálogo se lee sin esperar a la red: si aún se está cargando (la primera vez, en segundo plano) se avisa y
+    la búsqueda también consulta directamente al servidor del broker, así cualquier instrumento se encuentra igual.
     """
-    # Símbolos del broker (cacheados)
-    activos = cargar_simbolos_broker()
+    # Instrumentos del broker ya conocidos (nunca espera a la red) y si el catálogo está completo
+    activos, listo = estado_buscador()
     if not activos:
-        st.warning("No se pudieron cargar los símbolos de MT5. ¿Está abierto el terminal?")
-        return
+        # Primera carga del catálogo: se avisa y se ofrece volver a mirar (el clic reejecuta solo el diálogo, sin cerrarlo)
+        st.info("Cargando el catálogo de instrumentos de Capital.com… la primera vez puede tardar un poco. "
+                "Mientras tanto ya puedes buscar por nombre.")
+        st.button("Actualizar", key="buscar_actualizar")
 
-    # Campo de texto y filtro de categoría
-    q = st.text_input("Buscar", placeholder="Símbolo o nombre, ej. AAPL, EUR, Bitcoin…",
+    # Campo de texto
+    q = st.text_input("Buscar", placeholder="Símbolo o nombre, ej. AAPL, EUR, Silver, Bitcoin…",
                       label_visibility="collapsed", key="buscar_q")
-    categoria = st.segmented_control("Categoría", categorias(activos), default="Todo",
-                               label_visibility="collapsed", key="buscar_categoria")
+    texto = q.strip()
 
-    # Aplica ambos filtros
-    resultados = filtrar(activos, q, categoria or "Todo")
+    # Respaldo: si el catálogo aún no está completo, o está completo pero no hay ninguna coincidencia (por si el catálogo quedó
+    # atrás), se busca también en el servidor del broker. Con el catálogo completo y coincidencias no se espera a la red.
+    en_vivo: list[dict] = []
+    if len(texto) >= 2 and (not listo or not filtrar(activos, q, "Todo")):
+        with st.spinner("Buscando en Capital.com…"):
+            en_vivo = buscar_en_vivo(texto)
+        conocidos = {a["name"] for a in activos}
+        en_vivo = [a for a in en_vivo if a["name"] not in conocidos]
+    base = activos + en_vivo if en_vivo else activos
+
+    # Filtro de categoría y ambos filtros aplicados
+    categoria = st.segmented_control("Categoría", categorias(base), default="Todo",
+                               label_visibility="collapsed", key="buscar_categoria")
+    resultados = filtrar(base, q, categoria or "Todo")
 
     # Revelado progresivo: se reinicia al cambiar la búsqueda o la categoría.
     filtro_actual = (q.strip().upper(), categoria or "Todo")
@@ -92,8 +106,9 @@ def _dialogo_buscador():
     mostrados = min(limite, len(resultados))
 
     # Contador de resultados
-    st.caption(f"{len(resultados)} de {len(activos)} activos"
-               + (f" · mostrando {mostrados}" if len(resultados) > mostrados else ""))
+    st.caption(f"{len(resultados)} de {len(base)} activos"
+               + (f" · mostrando {mostrados}" if len(resultados) > mostrados else "")
+               + ("" if listo else " · el catálogo completo se sigue cargando en segundo plano"))
 
     # Símbolos ya agregados a la lista y usuario actual
     en_lista = set(st.session_state.get("watchlist_simbolos", []))

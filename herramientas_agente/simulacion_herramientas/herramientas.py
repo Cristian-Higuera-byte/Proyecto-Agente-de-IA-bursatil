@@ -75,10 +75,8 @@ def simular_escenario_cartera(
     posiciones_data = mt5_fuente.posiciones()
 
     equidad_actual = cuenta.get("equidad") or 0.0
-    balance_actual = cuenta.get("balance") or 0.0
     margen_usado = cuenta.get("margen_usado") or 0.0
     nivel_margen_actual = cuenta.get("nivel_margen_pct", cuenta.get("nivel_margen")) or 0.0
-    ganancia_perdida_flotante_actual = cuenta.get("beneficio_flotante") or 0.0
 
     # Lista de posiciones y acumuladores del desglose y del PnL simulado.
     posiciones = posiciones_data.get("posiciones", [])
@@ -138,7 +136,6 @@ def simular_escenario_cartera(
 
     # Recálculo de métricas de cuenta (equidad, nivel de margen = equidad / margen usado)
     equidad_proyectada = equidad_actual + ganancia_perdida_simulado_total
-    ganancia_perdida_flotante_proyectado_total = ganancia_perdida_flotante_actual + ganancia_perdida_simulado_total
     
     nivel_margen_proyectado = (
         round((equidad_proyectada / margen_usado) * 100.0, 2)

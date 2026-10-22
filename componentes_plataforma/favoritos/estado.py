@@ -64,9 +64,9 @@ def agregar_favorito(ticker: str):
     if len(st.session_state.favoritos) >= FAVORITOS_MAX:
         st.toast(f"⚠️ Máximo {FAVORITOS_MAX} favoritos. Quita uno primero.")
         return
-    # Añade en memoria y persiste en Supabase.
+    # Añade en memoria y persiste en Supabase sin esperar a la red.
     st.session_state.favoritos.append(ticker)
-    wl.marcar_favorito(_uid(), ticker, True)
+    wl.en_segundo_plano(wl.marcar_favorito, _uid(), ticker, True)
     st.toast(f"⭐ {limpio} agregado a favoritos")
 
 
@@ -77,7 +77,7 @@ def quitar_favorito(ticker: str):
     inicializar_favoritos()
     if ticker in st.session_state.favoritos:
         st.session_state.favoritos.remove(ticker)
-        wl.marcar_favorito(_uid(), ticker, False)
+        wl.en_segundo_plano(wl.marcar_favorito, _uid(), ticker, False)
 
 
 # -------------------------------------------------------------------------------------------------------

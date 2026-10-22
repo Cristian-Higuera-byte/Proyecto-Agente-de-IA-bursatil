@@ -25,7 +25,9 @@ Supabase no está configurado o la consulta falla. Las credenciales se leen de
 .env (SUPABASE_URL y SUPABASE_KEY).
 """
 import os
-from typing import Optional
+import unicodedata
+from concurrent.futures import ThreadPoolExecutor
+from typing import Callable, Optional
 
 from dotenv import load_dotenv
 from supabase import Client, create_client  # type: ignore[import-not-found]
@@ -52,6 +54,21 @@ else:
     DEFAULTS = ["EURUSD...", "GBPUSD...", "USDJPY...", "XAUUSD...", "BTCUSD", "ETHUSD", "US30"]
 
 
+# Cola de un solo hilo para las escrituras en Supabase que no necesitan esperarse: así se hacen en el orden en que se pidieron
+# (agregar y luego quitar el mismo símbolo no se cruzan) y sin que el clic del usuario espere la red.
+_ESCRITOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="pj-lista-activos")
+
+
+# TITULO EN SEGUNDO PLANO
+
+def en_segundo_plano(funcion: Callable, *argumentos) -> None:
+    """Ejecuta `funcion(*argumentos)` (una escritura en Supabase) en un hilo aparte, en orden y sin esperar el resultado.
+
+    La pantalla ya muestra el cambio (se hace sobre la sesión antes de persistir), así que el clic no espera a la base de datos.
+    Las funciones de este módulo no lanzan excepciones: ante un fallo devuelven False y el cambio queda solo en la sesión."""
+    _ESCRITOR.submit(funcion, *argumentos)
+
+
 # TITULO NOMBRE VISIBLE
 
 def nombre_visible(simbolo: str) -> str:
@@ -72,34 +89,62 @@ def nombre_visible(simbolo: str) -> str:
     return s
 
 
+# Instrumentos que Capital.com publica con nombre propio (no con el XAU/XAG de MT5) y que son metales o energía.
+_METALES = {"GOLD", "SILVER", "PLATINUM", "PALLADIUM", "COPPER", "ALUMINIUM", "ALUMINUM", "NICKEL", "ZINC", "LEAD", "TIN"}
+_ENERGIA = {"OIL_CRUDE", "OIL_BRENT", "CRUDEOIL", "BRENT", "NATURALGAS", "NATGAS", "GASOLINE", "HEATINGOIL", "GAS_OIL"}
+
+
+# TITULO SIN ACENTOS
+
+def _sin_acentos(texto: str) -> str:
+    """Devuelve `texto` en minúsculas y sin tildes, para comparar palabras clave sin que importe cómo estén escritas."""
+    return "".join(c for c in unicodedata.normalize("NFD", (texto or "").lower()) if unicodedata.category(c) != "Mn")
+
+
 # TITULO CATEGORIA SIMBOLO
 
 def categoria_simbolo(path: str, name: str) -> str:
     """
-    Clasifica un símbolo en una categoría legible (METALES, CRIPTO, FOREX,
-    ENERGÍA, ÍNDICE, ACCIONES, FUTUROS u OTROS).
+    Clasifica un símbolo en una categoría legible (METALES, CRIPTO, FOREX, ENERGÍA, ÍNDICE, ACCIONES, ETF, BONOS,
+    TASAS, MATERIAS PRIMAS, FUTUROS u OTROS).
 
-    Recibe el 'path' del símbolo en MT5 (carpeta del broker) y su nombre, y
-    busca palabras clave en ese orden de prioridad; el primer grupo que coincide
-    gana. Devuelve "OTROS" si nada coincide.
+    Recibe el 'path' del símbolo (carpeta del broker: la de MT5 o la que arma el catálogo de Capital.com) y su nombre, y
+    busca palabras clave en ese orden de prioridad; el primer grupo que coincide gana. Reconoce los nombres propios de
+    Capital.com (GOLD, SILVER, OIL_CRUDE…) y las carpetas en español o inglés, sin importar tildes ni mayúsculas.
+    Devuelve "OTROS" si nada coincide.
     """
-    # Normaliza: path en minúsculas, nombre en mayúsculas.
-    p = (path or "").lower()
+    # Normaliza: path en minúsculas y sin tildes, nombre en mayúsculas.
+    p = _sin_acentos(path)
     n = (name or "").upper()
-    if n.startswith("XAU") or n.startswith("XAG") or "metal" in p or "gold" in p:
+    carpeta = p.split("\\")[0]
+    directorio = p.rsplit("\\", 1)[0] if "\\" in p else ""    # el path sin el último tramo, que es el propio símbolo
+    base = n.split("_")[0]
+    # Las acciones y los ETF se reconocen por su carpeta antes que por el nombre: el ticker de una acción puede parecerse al de
+    # un metal o contener "gas" u "oil" sin serlo.
+    if carpeta in ("stocks", "acciones", "shares"):
+        return "ACCIONES"
+    if carpeta.startswith("etf"):
+        return "ETF"
+    if n.startswith("XAU") or n.startswith("XAG") or "metal" in p or "gold" in p or n in _METALES or base in _METALES:
         return "METALES"
     if "crypto" in p or "cripto" in p:
         return "CRIPTO"
-    if "forex" in p or "mb pro" in p or "currenc" in p:
+    if "forex" in p or "mb pro" in p or "currenc" in p or "divisa" in p:
         return "FOREX"
-    if "oil" in p or "energ" in p or "gas" in p:
+    if "oil" in directorio or "energ" in directorio or "gas" in directorio or n in _ENERGIA or n.startswith("OIL_"):
         return "ENERGÍA"
     if "indic" in p or "index" in p or "cash indices" in p:
         return "ÍNDICE"
-    if "shares" in p or "stock" in p or "equit" in p:
+    if "shares" in p or "stock" in p or "equit" in p or "accion" in p:
         return "ACCIONES"
     if "futures" in p or "futuro" in p:
         return "FUTUROS"
+    if carpeta.startswith(("bond", "bono")):
+        return "BONOS"
+    if carpeta.startswith(("rate", "tasa", "interest")):
+        return "TASAS"
+    if carpeta.startswith(("commodit", "materia")):
+        return "MATERIAS PRIMAS"
     return "OTROS"
 
 
