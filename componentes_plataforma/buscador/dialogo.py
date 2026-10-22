@@ -21,12 +21,27 @@ render en aplicacion.py (`abrir_buscador` marca, `renderizar_buscador` dibuja) p
 no choque con los fragmentos de auto-refresco y deje la pantalla en blanco.
 Los datos y el filtrado vienen de datos.py.
 """
+from html import escape
+
 import streamlit as st
 
 from .datos import buscar_en_vivo, categorias, estado_buscador, filtrar, _agregar_a_watchlist
 
 # Cantidad de resultados que se revelan al inicio y cada vez que se pulsa "Ver más".
 _PASO_RESULTADOS = 30  # cuántos se revelan al inicio y por cada "Ver más"
+
+
+# TITULO TITULO FILA
+
+def _titulo_fila(a: dict) -> tuple[str, str]:
+    """Devuelve (título, subtítulo) de la fila de un activo, ya escapados para HTML.
+
+    Normalmente el título es el símbolo y el subtítulo la descripción. Si el símbolo es solo números (como «0001» en las acciones de Hong Kong) no dice
+    qué activo es, así que el título pasa a ser el nombre y el número queda como subtítulo."""
+    simbolo, desc = a["visible"], a["desc"]
+    if simbolo and not any(c.isalpha() for c in simbolo) and desc and desc != simbolo:
+        return escape(desc), escape(simbolo)
+    return escape(simbolo), escape(desc)
 
 
 # TITULO ABRIR BUSCADOR
@@ -121,10 +136,11 @@ def _dialogo_buscador():
             c_info, c_abrir, c_agregar = st.columns([6, 1.2, 1.2], vertical_alignment="center")
             # Símbolo, categoría y descripción
             with c_info:
+                titulo, subtitulo = _titulo_fila(a)
                 st.markdown(
-                    f"**{a['visible']}** · <span style='color:#8b949e; font-size:11px;'>"
+                    f"**{titulo}** · <span style='color:#8b949e; font-size:11px;'>"
                     f"{a['cat']}</span><br>"
-                    f"<span style='color:#8b949e; font-size:12px;'>{a['desc']}</span>",
+                    f"<span style='color:#8b949e; font-size:12px;'>{subtitulo}</span>",
                     unsafe_allow_html=True,
                 )
             # Abrir el activo en el gráfico
