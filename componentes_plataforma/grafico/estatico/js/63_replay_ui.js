@@ -686,7 +686,9 @@ Transportes y Servicios Ltda.
     // Botón "Replay" de la barra superior: entra al modo replay o, si ya está activo, sale de él.
     (function(){
       var btn = document.getElementById('boton-repeticion-abrir');
-      if (btn) btn.addEventListener('click', function(e){ e.stopPropagation(); if (repeticionFase) repeticionSalir(false); else repeticionEntrar(); });
+      // Sin Replay en el plan: el botón lleva un candado y al pulsarlo sale el aviso con el acceso a Planes.
+      if (btn && !PLAN.replay) { btn.classList.add('bloqueado-plan'); btn.style.opacity = '.65'; var cand = document.createElement('i'); cand.textContent = '\uD83D\uDD12'; cand.style.cssText = 'position:absolute;right:2px;bottom:1px;font-size:10px;font-style:normal;line-height:1;pointer-events:none;'; btn.style.position = 'relative'; btn.appendChild(cand); }
+      if (btn) btn.addEventListener('click', function(e){ e.stopPropagation(); if (!PLAN.replay) { avisoPlan(PLAN.mensajes.replay); return; } if (repeticionFase) repeticionSalir(false); else repeticionEntrar(); });
       // Al acercar el ratón o enfocar el botón ya se va pidiendo el historial, para que al pulsar esté listo.
       if (btn){ btn.addEventListener('mouseenter', function(){ repeticionPrecargar(true); }); btn.addEventListener('focus', function(){ repeticionPrecargar(true); }); }
     })();

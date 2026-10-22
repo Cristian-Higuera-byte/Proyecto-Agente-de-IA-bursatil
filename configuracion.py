@@ -83,6 +83,35 @@ TIEMPO_ESPERA_LLM_SEGUNDOS = 120              # segundos máximos de espera por 
 REINTENTOS_LLM = 3                 # reintentos automáticos ante fallos de red o del servicio
 
 # ──────────────────────────────────────────────────────────────
+# Cuota de uso de la IA por plan (ver herramientas/cuota_ia.py)
+# ──────────────────────────────────────────────────────────────
+# Tokens mensuales de cada plan. Cuentan los tokens de entrada y de salida que informa la API, multiplicados por el peso del modelo
+# (más abajo). Una consulta típica gasta del orden de 25.000 tokens (la entrada incluye el prompt, las herramientas y el historial que
+# se reenvían en cada llamada): son cifras de partida para ajustar con el consumo real que muestra el Laboratorio.
+# `precios` son los precios mensuales (USD) que se muestran en la página de Planes para medir el interés (prueba de demanda): a cada usuario se
+# le asigna siempre el mismo, así se comparan las tasas de clic entre precios. Todavía no se cobra nada.
+PLANES_IA: dict[str, dict] = {
+    "gratis": {"nombre": "Gratis", "tokens_mes": 300_000, "precios": [0]},                         # ≈ 12 consultas: para probar el agente
+    "basico": {"nombre": "Básico", "tokens_mes": 3_000_000, "precios": [5, 9, 12]},               # ≈ 120 consultas
+    "pro": {"nombre": "Pro", "tokens_mes": 10_000_000, "precios": [12, 19, 29]},                  # ≈ 400 consultas
+    "avanzado": {"nombre": "Avanzado", "tokens_mes": 30_000_000, "precios": [29, 49, 69]},        # ≈ 1.200 consultas
+}
+# Plan de un usuario al que todavía no se le asignó ninguno (modo multiusuario) y plan del modo de un solo usuario (desarrollo: no se te
+# limita el agente en tu propio equipo; para probar el límite, cambia el plan en el Laboratorio).
+PLAN_POR_DEFECTO = "gratis"
+PLAN_MODO_LOCAL = "avanzado"
+# Billetera virtual de la plataforma (saldo de prueba sin valor monetario; sirve para pagar planes y queda lista para las cuentas reales).
+# moneda: moneda del saldo; bono_inicial: saldo con el que se abre la billetera; recargas: montos que ofrece el botón de recarga;
+# recarga_mensual_max: tope de recargas por mes; saldo_maximo: tope del saldo (evita acumular saldo de prueba sin límite).
+BILLETERA: dict = {"moneda": "USD", "bono_inicial": 100.0, "recargas": [50, 100, 500, 1000], "recarga_mensual_max": 5000.0, "saldo_maximo": 10000.0}
+# Cuánto pesa cada token según el modelo: el modelo «pro» cuesta unas 12 veces más que el «flash», así que gasta 12 veces más cuota.
+# Un modelo que no esté en la tabla pesa 1.
+PESO_MODELO: dict[str, float] = {"deepseek-flash": 1.0, "deepseek-v4-pro": 12.0}
+# Porcentaje de uso desde el cual la barra se pone en ámbar (aviso) y desde el que se pone en rojo.
+UMBRAL_AVISO_PCT = 70
+UMBRAL_CRITICO_PCT = 90
+
+# ──────────────────────────────────────────────────────────────
 # Rutas
 # ──────────────────────────────────────────────────────────────
 # Carpeta de datos del proyecto (bases de datos locales y archivos JSON).

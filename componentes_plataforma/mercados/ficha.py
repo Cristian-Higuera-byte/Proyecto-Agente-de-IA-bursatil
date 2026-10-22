@@ -265,8 +265,8 @@ def mostrar_ficha():
                 # Importación diferida para evitar dependencias circulares con el buscador
                 from componentes_plataforma.buscador import _agregar_a_watchlist
                 uid = (st.session_state.get("usuario_informacion") or {}).get("id")
-                _agregar_a_watchlist(uid, {"name": real, "visible": real, "desc": etiqueta, "cat": categoria})
-                st.toast(f"{etiqueta} agregado a tu lista.")
+                if _agregar_a_watchlist(uid, {"name": real, "visible": real, "desc": etiqueta, "cat": categoria}):
+                    st.toast(f"{etiqueta} agregado a tu lista.")
         with a3:
             if st.button("Agregar a favoritos", icon=":material/star:", width="stretch"):
                 # Importación diferida para evitar dependencias circulares con la barra de favoritos

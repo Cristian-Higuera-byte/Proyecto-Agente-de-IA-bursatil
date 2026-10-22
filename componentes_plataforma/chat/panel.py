@@ -13,8 +13,8 @@
 
 """Panel del chat del agente: tarjeta con selector de perfil, «Nueva conversación», historial y caja de texto.
 
-Compone los módulos hermanos: sesion (usuario y agente), historial (mensajes) y
-turno_vivo (burbuja en curso). Es lo que importa la fachada del paquete chat.
+Compone los módulos hermanos: sesion (usuario y agente), historial (mensajes),
+turno_vivo (burbuja en curso) y cuota (barra del uso mensual de tokens). Es lo que importa la fachada del paquete chat.
 """
 from __future__ import annotations
 
@@ -26,6 +26,9 @@ from componentes_plataforma.chat.historial import (iniciar_conversacion, pintar_
                                        sincronizar_turno)
 from componentes_plataforma.chat.sesion import cambiar_perfil, obtener_agente, usuario_id
 from componentes_plataforma.agente_paneles import cabecera_agente
+from componentes_plataforma.chat.cuota import barra_cuota
+from componentes_plataforma.planes.panel import dialogo_bloqueo
+from herramientas import cuota_ia, permisos_plan
 from nucleo_agente import turnos
 
 
@@ -59,14 +62,26 @@ def _controles(agente, en_curso: bool) -> None:
     with columna_perfil:
         # Perfiles disponibles definidos en configuracion.py.
         perfiles = list(getattr(configuracion, "PERFILES", []) or [])
+        # Solo los perfiles que incluye el plan del usuario (el «profundo» usa el modelo avanzado y viene desde el plan Pro).
+        permitidos = permisos_plan.valor("perfiles_ia")
+        # Los perfiles que el plan no incluye se muestran con candado; al elegirlos, `cambiar_perfil` los rechaza y se abre el aviso.
+        if permitidos:
+            perfiles = [p for p in perfiles if p in permitidos] + [p for p in perfiles if p not in permitidos]
+        validos = [p for p in perfiles if not permitidos or p in permitidos] or perfiles
+        if st.session_state.pop("bloqueo_pendiente", None):
+            dialogo_bloqueo("perfiles_ia")
         if agente is not None and perfiles:
             # Si el valor guardado no es válido, se parte del perfil del agente o del predeterminado.
-            if st.session_state.get("perfil_agente") not in perfiles:
+            if st.session_state.get("perfil_agente") not in validos:
                 actual = agente.perfil or getattr(configuracion, "PERFIL_POR_DEFECTO", None)
-                st.session_state["perfil_agente"] = actual if actual in perfiles else perfiles[0]
+                st.session_state["perfil_agente"] = actual if actual in validos else validos[0]
+            # Si el agente quedó con un perfil que el plan ya no incluye (por ejemplo tras bajar de plan), pasa al elegido.
+            if agente.perfil not in validos:
+                agente.perfil = st.session_state["perfil_agente"]
             # Al cambiar la selección se aplica al agente mediante sesion.cambiar_perfil.
             st.selectbox(
                 "Perfil", perfiles, key="perfil_agente", on_change=cambiar_perfil,
+                format_func=lambda p: p if p in validos else f"🔒 {p}",
                 label_visibility="collapsed", help="Perfil activo del agente", disabled=en_curso,
             )
     with columna_reiniciar:
@@ -80,20 +95,21 @@ def _controles(agente, en_curso: bool) -> None:
 
 # TITULO ENTRADA
 
-def _entrada(uid: str, agente, error_agente: str, en_curso: bool, vistos) -> None:
+def _entrada(uid: str, agente, error_agente: str, en_curso: bool, vistos, agotada: bool = False) -> None:
     """Caja de texto: lanza el turno en segundo plano (o muestra el error si no hay agente).
 
     Parámetros: uid (id del usuario), agente (o None), error_agente (mensaje a mostrar si
-    no hay agente), en_curso (deshabilita la caja) y vistos (conjunto de ids de turnos
-    conocidos por la sesión). Efectos: añade mensajes a la conversación, inicia el turno en
+    no hay agente), en_curso (deshabilita la caja), vistos (conjunto de ids de turnos
+    conocidos por la sesión) y agotada (la cuota de tokens del mes se acabó: la caja queda deshabilitada y lo dice). Efectos: añade mensajes a la conversación, inicia el turno en
     segundo plano con turnos.iniciar y relanza la app completa.
     """
     # Texto de ayuda de la caja según el estado.
     texto_guia = (
+        "Alcanzaste el límite de tokens de tu plan este mes" if agotada else
         "El agente está respondiendo… puedes moverte por la plataforma, te avisaremos"
         if en_curso else "Escribe tu consulta o pide un gráfico en imagen..."
     )
-    if prompt_usuario := st.chat_input(texto_guia, disabled=en_curso):
+    if prompt_usuario := st.chat_input(texto_guia, disabled=en_curso or agotada):
         # Sin agente: se muestra la pregunta y el motivo del fallo como respuesta.
         if agente is None:
             st.session_state.mensajes_ui.append({"role": "user", "content": prompt_usuario})
@@ -121,9 +137,11 @@ def _chat_agente() -> None:
     agente, error_agente = obtener_agente()
     # Trae a la conversación lo ocurrido en segundo plano y dibuja cada bloque.
     turno, en_curso, vistos = sincronizar_turno(uid)
+    cuota = cuota_ia.estado()      # tokens gastados este mes sobre el total del plan (se actualiza al terminar cada consulta)
+    barra_cuota(cuota)
     _controles(agente, en_curso)
     pintar_mensajes(uid, turno, en_curso)
-    _entrada(uid, agente, error_agente, en_curso, vistos)
+    _entrada(uid, agente, error_agente, en_curso, vistos, cuota["agotada"])
 
 
 # -------------------------------------------------------------------------------------------------------

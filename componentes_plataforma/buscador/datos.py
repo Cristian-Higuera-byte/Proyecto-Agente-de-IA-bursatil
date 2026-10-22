@@ -27,6 +27,7 @@ from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
 from herramientas.puente_mt5 import MT5_LOCK, inicializar_mt5
 from herramientas import gestor_lista_activos as wl
+from herramientas import permisos_plan
 
 # Resultado de convertir el catálogo del broker al formato del buscador, para no rehacerlo en cada interacción:
 # (huella del catálogo, lista de activos). La huella cambia cuando el catálogo cambia.
@@ -155,8 +156,9 @@ def ordenar_por_relevancia(resultados: list[dict], q: str) -> list[dict]:
 
 # TITULO AGREGAR A WATCHLIST
 
-def _agregar_a_watchlist(uid, a: dict):
-    """Agrega el activo `a` a la lista de seguimiento del usuario `uid`.
+def _agregar_a_watchlist(uid, a: dict) -> bool:
+    """Agrega el activo `a` a la lista de seguimiento del usuario `uid`. Devuelve True si lo agregó y False si el plan del usuario ya no deja
+    agregar más (en ese caso muestra el aviso con qué plan permite más y no cambia nada).
 
     No llama a MT5 (la API no es thread-safe y chocaría con los fragmentos de precios en
     vivo, dejando la pantalla en blanco): usa la información ya cacheada del buscador y el
@@ -164,8 +166,14 @@ def _agregar_a_watchlist(uid, a: dict):
     Efectos secundarios: persiste el símbolo con `gestor_lista_activos.agregar_simbolo` y
     actualiza `datos_mercado_real` y `watchlist_simbolos` en `st.session_state`.
     """
-    # Persiste el símbolo en la lista del usuario (en segundo plano: la fila se pinta de inmediato con datos de la sesión)
     name = a["name"]
+    # El plan limita cuántos activos puede tener el usuario en su lista (herramientas/permisos_plan.py)
+    tope = permisos_plan.limite("activos_en_lista")
+    lista_actual = st.session_state.get("watchlist_simbolos", [])
+    if tope is not None and name not in lista_actual and len(lista_actual) >= tope:
+        st.toast(permisos_plan.mensaje_bloqueo("activos_en_lista"), icon="⚠️")
+        return False
+    # Persiste el símbolo en la lista del usuario (en segundo plano: la fila se pinta de inmediato con datos de la sesión)
     wl.en_segundo_plano(wl.agregar_simbolo, uid, name)
     # Siembra datos provisionales en sesión para que la fila se pinte de inmediato
     datos = st.session_state.setdefault("datos_mercado_real", {})
@@ -181,6 +189,7 @@ def _agregar_a_watchlist(uid, a: dict):
     lista = st.session_state.setdefault("watchlist_simbolos", [])
     if name not in lista:
         lista.append(name)
+    return True
 
 
 # -------------------------------------------------------------------------------------------------------

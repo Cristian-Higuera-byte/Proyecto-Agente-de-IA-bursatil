@@ -142,11 +142,12 @@ def _dialogo_buscador():
                 else:
                     if st.button("➕", key=f"agregar_{a['name']}", width="stretch",
                                  help="Agregar a mi lista"):
-                        _agregar_a_watchlist(uid, a)
-                        # Rerun SOLO del diálogo (es un fragmento): refresca al instante
-                        # para que la fila pase a "✓" y se limpie el tooltip. No cierra
-                        # el modal ni reemplaza la app.
-                        st.rerun(scope="fragment")
+                        # Si el plan ya no deja agregar más, avisa y no cambia nada (no hace falta refrescar).
+                        if _agregar_a_watchlist(uid, a):
+                            # Rerun SOLO del diálogo (es un fragmento): refresca al instante
+                            # para que la fila pase a "✓" y se limpie el tooltip. No cierra
+                            # el modal ni reemplaza la app.
+                            st.rerun(scope="fragment")
 
         # "Ver más" al final del scroll: revela otro bloque sin cerrar el modal
         if mostrados < len(resultados):

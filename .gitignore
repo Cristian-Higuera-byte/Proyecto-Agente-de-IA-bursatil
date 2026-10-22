@@ -21,6 +21,7 @@ __pycache__/
 outputs/
 downloads/
 data/*.json
+data/*.jsonl
 
 # === Respaldos locales ===
 _backup_pre_mt5_*/

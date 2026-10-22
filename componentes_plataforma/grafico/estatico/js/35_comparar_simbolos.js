@@ -207,6 +207,7 @@ Transportes y Servicios Ltda.
       if (sym.toUpperCase() === SIMBOLO.toUpperCase()) return 'Ese ya es el símbolo principal del gráfico.';
       if (buscarComparar(sym)) return 'Ya está en la comparación.';
       if (comparados.length >= MAXIMO_COMPARAR) return 'Máximo ' + MAXIMO_COMPARAR + ' símbolos comparados.';
+      if (PLAN.comparar != null && comparados.length >= PLAN.comparar) { avisoPlan(PLAN.mensajes.comparar); return PLAN.mensajes.comparar; }   // límite del plan del usuario
       var color = colorLibreComparar();
       var serieC = chart.addLineSeries({
         color: color, lineWidth: 2, priceLineVisible: false, lastValueVisible: true, title: sym,

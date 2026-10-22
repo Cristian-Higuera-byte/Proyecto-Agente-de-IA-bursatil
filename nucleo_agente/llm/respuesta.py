@@ -34,7 +34,8 @@ def construir_respuesta(
 
     Recibe el perfil, el texto, el razonamiento (o None), las llamadas crudas (id, nombre, args como
     texto JSON) y el objeto de uso de tokens. Parsea los argumentos de cada llamada (guardando el error
-    si el JSON es inválido) y cuenta los tokens (0 si no hay datos).
+    si el JSON es inválido) y cuenta los tokens (0 si no hay datos). Además anota el consumo de la llamada en el registro de
+    la cuenta (`herramientas/consumo_ia.py`).
     """
     thinking = configuracion.PERFILES[nombre].thinking
     # Cada llamada cruda se convierte en LlamadaHerramienta con sus argumentos ya parseados.
@@ -50,6 +51,13 @@ def construir_respuesta(
                 error=error,
             )
         )
+    # El consumo de la llamada se anota por usuario y cuenta (herramientas/consumo_ia.py) para calcular el costo de la IA; nunca interrumpe
+    # la respuesta: si no se puede anotar, se ignora.
+    try:
+        from herramientas import consumo_ia
+        consumo_ia.registrar(nombre, configuracion.PERFILES[nombre].modelo, usage)
+    except Exception:  # noqa: BLE001
+        pass
     return RespuestaLLM(
         contenido=contenido,
         # En thinking siempre se reenvía el campo (aunque venga vacío).

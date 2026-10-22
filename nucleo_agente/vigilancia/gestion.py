@@ -18,6 +18,7 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Any
 
+from herramientas import permisos_plan
 from nucleo_agente import ordenes
 from nucleo_agente.vigilancia.caducidad import _caducar_autorizaciones
 from nucleo_agente.vigilancia.configuracion import (
@@ -109,9 +110,15 @@ def crear(
         if otra["simbolo"].upper() == sym.upper():
             estado = "pendiente de tu autorización" if otra["estado"] == PENDIENTE else "activa"
             return no(f"Ya hay una vigilancia {estado} para {sym}. Detenla o resuélvela antes de crear otra.")
-    if len(vigentes) >= MAX_VIGILANCIAS_POR_USUARIO:
-        return no(f"Ya hay {len(vigentes)} vigilancias vigentes (máximo {MAX_VIGILANCIAS_POR_USUARIO}). "
-                  "Detén alguna antes de crear otra.")
+    # El tope de vigilancias vigentes depende del plan del usuario (herramientas/plan_funciones.json); MAX_VIGILANCIAS_POR_USUARIO queda como tope
+    # general por si la tabla de planes no lo define.
+    tope = permisos_plan.limite("vigilancias_activas")
+    tope = MAX_VIGILANCIAS_POR_USUARIO if tope is None else int(tope)
+    if tope <= 0:
+        return no(permisos_plan.mensaje_bloqueo("vigilancias_activas"))
+    if len(vigentes) >= tope:
+        return no(f"Ya hay {len(vigentes)} vigilancias vigentes (máximo {tope} en tu plan). " + permisos_plan.mensaje_bloqueo("vigilancias_activas") +
+                  " Detén alguna antes de crear otra.")
 
     # Paso 5: se guarda PENDIENTE con plazo de autorización igual a la vigencia de una propuesta.
     ahora = datetime.now()

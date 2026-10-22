@@ -47,6 +47,9 @@ ITEMS = [
     (":material/newspaper:", "noticias", "Noticias"),
     (":material/dashboard:", "resumen", "Resumen"),           # dashboard del portafolio (F)
     (":material/menu_book:", "journal", "Diario"),            # trading journal (E)
+    (":material/science:", "laboratorio", "Laboratorio"),    # simulación de ingresos y del agente (cuenta demo)
+    (":material/workspace_premium:", "planes", "Planes"),     # planes y precios (prueba de demanda: aún no se cobra)
+    (":material/account_balance_wallet:", "billetera", "Billetera"),   # saldo virtual, recargas de prueba y pago de planes
 ]
 
 # Anchos (px) de la barra lateral: colapsada / expandida.
@@ -107,10 +110,14 @@ def _estilos() -> str:
 # TITULO IR A VISTA
 
 def _ir_a_vista(clave: str) -> None:
-    """Guarda en `st.session_state.navegacion_activo` la vista que se acaba de elegir.
+    """Guarda en `st.session_state.navegacion_activo` la vista que se acaba de elegir (la de Planes además anota que se llegó desde el menú).
 
     Se usa como `on_click` de los botones de la barra: Streamlit lo ejecuta antes de volver a correr el script, de modo
     que la vista nueva se dibuja en una sola pasada. Recibe la clave de la vista y no devuelve nada."""
+    if clave == "planes":      # la vista de Planes recuerda desde dónde se llegó (aquí, el menú) para la prueba de demanda
+        from componentes_plataforma.planes import ir_a_planes
+        ir_a_planes("menu")
+        return
     st.session_state.navegacion_activo = clave
 
 

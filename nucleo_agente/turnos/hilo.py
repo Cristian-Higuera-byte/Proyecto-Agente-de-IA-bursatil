@@ -17,6 +17,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
+from herramientas import cuota_ia, permisos_plan
 from nucleo_agente import contexto
 from nucleo_agente.turnos.avisos import _avisar
 from nucleo_agente.turnos.imagenes import imagenes_de_resultado
@@ -74,14 +75,21 @@ def _correr(turno: Turno, agente: Any) -> None:
                 turno.perfil = d.get("perfil", "?")
     except Exception as e:  # noqa: BLE001 - el error se muestra en el chat, no se pierde en el hilo
         if not turno.cancelar_solicitado:   # si el usuario ya lo había detenido, el fallo no importa
-            motivo = "Error del modelo" if type(e).__name__ == "ErrorLLM" else "Error al ejecutar el agente"
-            turno.error = f"{motivo}: {e}"
+            if isinstance(e, (cuota_ia.ErrorCuota, permisos_plan.ErrorPlan)):   # cuota agotada o función fuera del plan: el mensaje ya explica qué pasó
+                turno.error = str(e)
+            else:
+                motivo = "Error del modelo" if type(e).__name__ == "ErrorLLM" else "Error al ejecutar el agente"
+                turno.error = f"{motivo}: {e}"
     finally:
         try:
             gen.close()   # si se detuvo a medias, el agente descarta ese turno incompleto de su historial
         except Exception:  # noqa: BLE001
             pass
         turno.t_fin = time.time()
+        try:
+            turno.cuota = cuota_ia.texto_uso()     # cuánto lleva gastado el usuario este mes, para el pie del mensaje
+        except Exception:  # noqa: BLE001
+            pass
         try:
             if not turno.cancelado:   # lo detuvo el propio usuario: no hace falta avisarle
                 _avisar(turno)

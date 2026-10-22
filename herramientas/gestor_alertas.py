@@ -26,6 +26,8 @@ import os
 from datetime import datetime
 import yfinance as yf  # type: ignore[import-untyped]
 
+from herramientas import permisos_plan
+
 # Ruta (relativa a la carpeta de ejecución) del JSON donde se guardan las alertas.
 ARCHIVO_ALERTAS = "data/alertas_activas.json"
 
@@ -79,6 +81,11 @@ def crear_alerta(ticker: str, condicion: str, valor_objetivo: float) -> str:
     """
     # Carga las alertas existentes para calcular el siguiente id.
     alertas = _cargar_alertas()
+    # El plan del usuario limita cuántas alertas puede tener activas a la vez (herramientas/permisos_plan.py).
+    tope = permisos_plan.limite("alertas_precio_activas")
+    activas = sum(1 for a in alertas if a.get("activa", True))
+    if tope is not None and activas >= tope:
+        return "⚠️ " + permisos_plan.mensaje_bloqueo("alertas_precio_activas") + " Elimina o deja que se dispare alguna alerta antes de crear otra."
     # Arma el registro normalizando ticker (mayúsculas) y condición (minúsculas).
     nueva = {
         "id": max((int(a.get("id", 0)) for a in alertas), default=0) + 1,

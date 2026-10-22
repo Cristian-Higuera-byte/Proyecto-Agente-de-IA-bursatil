@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from herramientas import permisos_plan
 from nucleo_agente import turnos
 from nucleo_agente.agente import Agente  # type: ignore[import-untyped]
 
@@ -74,11 +75,19 @@ def obtener_agente():
 def cambiar_perfil():
     """Callback del selector de perfil: aplica al agente el perfil elegido en st.session_state.perfil_agente.
 
-    No hace nada si todavía no hay agente en la sesión.
+    Si el perfil elegido no lo incluye el plan del usuario, lo devuelve al anterior y deja en `bloqueo_pendiente` la función bloqueada para que
+    el panel abra el aviso con el acceso a Planes. No hace nada si todavía no hay agente en la sesión.
     """
     agente = st.session_state.get("agente_ia")
+    # Un perfil con candado (que el plan no incluye) no se aplica: se vuelve al anterior y se pide abrir el aviso del plan.
+    elegido = st.session_state["perfil_agente"]
+    permitidos = permisos_plan.valor("perfiles_ia")
+    if permitidos and elegido not in permitidos:
+        st.session_state["perfil_agente"] = agente.perfil if agente is not None and agente.perfil in permitidos else permitidos[0]
+        st.session_state["bloqueo_pendiente"] = "perfiles_ia"
+        return
     if agente is not None:
-        agente.perfil = st.session_state["perfil_agente"]
+        agente.perfil = elegido
 
 
 # -------------------------------------------------------------------------------------------------------

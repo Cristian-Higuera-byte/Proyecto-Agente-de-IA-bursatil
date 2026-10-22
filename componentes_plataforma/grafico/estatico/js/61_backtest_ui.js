@@ -81,7 +81,7 @@ Transportes y Servicios Ltda.
         var c = JSON.parse(localStorage.getItem(BACKTEST_KEY) || 'null');
         if (!c || !c.est || !c.est.largo || !c.est.corto || !c.est.tam || !c.cost) return;
         var d = backtestConfiguracionPorDefecto();
-        backtestConfiguracion = { est: Object.assign(d.est, c.est), cost: Object.assign(d.cost, c.cost), capital: Number(c.capital) > 0 ? Number(c.capital) : d.capital, n: Number(c.n) > 0 ? Math.min(Number(c.n), 20000) : d.n };
+        backtestConfiguracion = { est: Object.assign(d.est, c.est), cost: Object.assign(d.cost, c.cost), capital: Number(c.capital) > 0 ? Number(c.capital) : d.capital, n: Number(c.n) > 0 ? Math.min(Number(c.n), 20000, PLAN.backtest_velas || 20000) : d.n };
         ['largo', 'corto'].forEach(function(l){
           ['entrada', 'salida'].forEach(function(s){
             var b = backtestConfiguracion.est[l][s];
@@ -136,10 +136,15 @@ Transportes y Servicios Ltda.
     /**
      * Crea un desplegable con opciones [valor, texto] que llama a alCambiar y guarda al elegir. Devuelve el select.
      */
-    function selectorBacktest(opciones, actual, alCambiar){
+    function selectorBacktest(opciones, actual, alCambiar, bloqueada, mensajeBloqueo){
       var s = document.createElement('select');
-      opciones.forEach(function(o){ var op = el('option', '', o[1]); op.value = o[0]; if (String(o[0]) === String(actual)) op.selected = true; s.appendChild(op); });
-      s.addEventListener('change', function(){ alCambiar(s.value); backtestGuardar(); });
+      opciones.forEach(function(o){ var bl = bloqueada && bloqueada(o[0]); var op = el('option', '', (bl ? '\uD83D\uDD12 ' : '') + o[1]); op.value = o[0]; if (String(o[0]) === String(actual)) op.selected = true; s.appendChild(op); });
+      var previo = String(actual);
+      s.addEventListener('change', function(){
+        // Una opción con candado que el plan no incluye no se aplica: se vuelve a la anterior y se avisa.
+        if (bloqueada && bloqueada(s.value)) { s.value = previo; avisoPlan(mensajeBloqueo); return; }
+        previo = String(s.value); alCambiar(s.value); backtestGuardar();
+      });
       return s;
     }
 
@@ -270,8 +275,13 @@ Transportes y Servicios Ltda.
 
       sec('Datos');
       backtestFormulario.appendChild(filaFormulario('Símbolo y temporalidad', el('b', '', SIMBOLO + ' · ' + (temporalidadActual === 'MN1' ? 'MN' : temporalidadActual))));
-      backtestFormulario.appendChild(filaFormulario('Velas históricas', selectorBacktest([[2000, '2.000'], [5000, '5.000'], [10000, '10.000'], [20000, '20.000']], backtestConfiguracion.n, function(v){ backtestConfiguracion.n = Number(v); })));
-      backtestFormulario.appendChild(el('div', 'backtest-nota', 'Se descargan de MT5 al ejecutar. Más velas = resultado más fiable.'));
+      // Las cantidades que el plan no incluye se muestran con candado (al elegirlas sale el aviso); si lo guardado supera el tope, se baja al máximo permitido.
+      var opcionesVelas = [[2000, '2.000'], [5000, '5.000'], [10000, '10.000'], [20000, '20.000']];
+      var velasBloqueada = function(v){ return PLAN.backtest_velas != null && Number(v) > PLAN.backtest_velas; };
+      var velasPermitidas = opcionesVelas.filter(function(o){ return !velasBloqueada(o[0]); });
+      if (velasPermitidas.length && backtestConfiguracion.n > velasPermitidas[velasPermitidas.length - 1][0]) backtestConfiguracion.n = velasPermitidas[velasPermitidas.length - 1][0];
+      backtestFormulario.appendChild(filaFormulario('Velas históricas', selectorBacktest(opcionesVelas, backtestConfiguracion.n, function(v){ backtestConfiguracion.n = Number(v); }, velasBloqueada, PLAN.mensajes.backtest_velas)));
+      backtestFormulario.appendChild(el('div', 'backtest-nota', 'Se descargan de MT5 al ejecutar. Más velas = resultado más fiable.' + (PLAN.backtest_velas != null && PLAN.backtest_velas < 20000 ? ' ' + PLAN.mensajes.backtest_velas : '')));
 
       sec('Dirección');
       backtestFormulario.appendChild(filaFormulario('Operar', selectorBacktest([['largo', 'Solo compras'], ['corto', 'Solo ventas'], ['ambos', 'Compras y ventas']], e.dir, function(v){ e.dir = v; backtestPintarFormulario(); })));

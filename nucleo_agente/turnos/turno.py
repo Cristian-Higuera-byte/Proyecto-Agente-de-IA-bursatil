@@ -46,6 +46,7 @@ class Turno:
     tokens_entrada: Any = "?"
     tokens_salida: Any = "?"
     perfil: Any = "?"
+    cuota: str = ""                  # uso de tokens del mes al terminar el turno (para el pie del mensaje)
     t_inicio: float = field(default_factory=time.time)
     t_fin: float | None = None
     ui_viva: float = 0.0             # última vez que la interfaz estaba mostrando este turno
@@ -63,13 +64,12 @@ class Turno:
 
     @property
     def pie(self) -> str:
-        """Texto del pie del mensaje: duración, tokens y perfil, o aviso de consulta detenida."""
+        """Texto del pie del mensaje: duración, tokens, perfil y uso del mes, o aviso de consulta detenida."""
         if self.cancelado:
             return f"⏹ Detenida a los {formatear_duracion(self.duracion)}"
-        return (
-            f"⏱ {formatear_duracion(self.duracion)} · {self.tokens_entrada} entrada / "
-            f"{self.tokens_salida} salida | perfil: {self.perfil}"
-        )
+        base = (f"⏱ {formatear_duracion(self.duracion)} · {self.tokens_entrada} entrada / "
+                f"{self.tokens_salida} salida | perfil: {self.perfil}")
+        return f"{base} | {self.cuota}" if self.cuota else base
 
     # TITULO RESPUESTA FINAL
 

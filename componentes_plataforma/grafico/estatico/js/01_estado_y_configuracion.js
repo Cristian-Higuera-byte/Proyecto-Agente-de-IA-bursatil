@@ -24,6 +24,40 @@ Transportes y Servicios Ltda.
   var DIGITS = __DIGITS__;
   // Tamaño de un pip en unidades de precio (inyectado por Python).
   var PIP = __PIP__;
+  // Límites del plan del usuario (los inyecta Python con herramientas/permisos_plan.py): plan, indicadores por gráfico, símbolos comparados, velas
+  // del backtest (null = sin tope), si el plan incluye Replay y los textos de aviso ya escritos para cada límite.
+  var PLAN = __PLAN_JSON__;
+
+  /**
+   * Abre un cuadro centrado con el motivo del bloqueo (por ejemplo, que el plan no deja agregar más indicadores) y el botón
+   * «Ir al plan correspondiente», que lleva a la vista de Planes de Streamlit. Reutiliza el mismo cuadro si ya existe.
+   */
+  function avisoPlan(texto){
+    var vel = document.getElementById('aviso-plan');
+    if (!vel) {
+      vel = document.createElement('div');
+      vel.id = 'aviso-plan';
+      vel.style.cssText = 'position:fixed;left:0;top:0;right:0;bottom:0;z-index:99999;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.55);' +
+        'font:13px/1.45 system-ui,sans-serif;';
+      vel.innerHTML = '<div style="max-width:380px;width:84%;padding:20px 22px;background:#1b2634;color:#e6edf3;border:1px solid #30363d;border-top:3px solid #d29922;' +
+        'border-radius:10px;box-shadow:0 10px 36px rgba(0,0,0,.6);text-align:center;">' +
+        '<div style="font-size:30px;line-height:1;">\uD83D\uDD12</div>' +
+        '<div id="aviso-plan-texto" style="margin:10px 0 16px;"></div>' +
+        '<button id="aviso-plan-ir" style="background:#2ea043;color:#fff;border:0;border-radius:6px;padding:8px 16px;font:600 13px system-ui,sans-serif;cursor:pointer;margin-right:8px;">Ir al plan correspondiente</button>' +
+        '<button id="aviso-plan-cerrar" style="background:transparent;color:#9fb0c3;border:1px solid #30363d;border-radius:6px;padding:8px 14px;font:13px system-ui,sans-serif;cursor:pointer;">Cerrar</button></div>';
+      document.body.appendChild(vel);
+      var cerrar = function(){ vel.style.display = 'none'; };
+      vel.addEventListener('click', function(e){ if (e.target === vel) cerrar(); });
+      vel.querySelector('#aviso-plan-cerrar').addEventListener('click', cerrar);
+      vel.querySelector('#aviso-plan-ir').addEventListener('click', function(){
+        cerrar();
+        // El botón «Planes» de la barra lateral de Streamlit vive en el documento padre; al pulsarlo se abre la vista de Planes.
+        try { var b = window.parent.document.querySelector('.st-key-navegacion_boton_planes button'); if (b) b.click(); } catch (e) {}
+      });
+    }
+    vel.querySelector('#aviso-plan-texto').textContent = texto;
+    vel.style.display = 'flex';
+  }
 
   // Formato de precio de lightweight-charts: precisión según los decimales del símbolo y paso mínimo de 10^-DIGITS.
   var PF = { type: 'price', precision: DIGITS, minMove: Math.pow(10, -DIGITS) };

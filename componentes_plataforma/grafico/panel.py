@@ -32,6 +32,7 @@ from componentes_plataforma.grafico.cabecera_precio import renderizar_cabecera_p
 from componentes_plataforma.grafico.ensamblador import html_grafico
 from componentes_plataforma.grafico.simbolo import info_simbolo, limpiar_simbolo
 from componentes_plataforma.posiciones import gatillos_cierre, js_posiciones
+from herramientas import permisos_plan
 from herramientas.puente_mt5 import inicializar_mt5
 from herramientas.gestor_lista_activos import nombre_visible
 
@@ -96,7 +97,9 @@ def renderizar_panel_central(main: Optional[ModuleType] = None) -> None:
 
     # HTML final del gráfico con símbolo, API, decimales, pip, posiciones y lista de activos ya sustituidos.
     activos_json = _lista_activos(activo_visible)
-    html_chart = html_grafico(activo_visible, url_servidor(API_URL), digits, pip, js_posiciones(activo_visible), activos_json)
+    # Límites del plan del usuario para el gráfico (indicadores, símbolos comparados, velas del backtest y Replay)
+    html_chart = html_grafico(activo_visible, url_servidor(API_URL), digits, pip, js_posiciones(activo_visible), activos_json,
+                              json.dumps(permisos_plan.para_grafico()))
     # Iframe de 750 px de alto con el gráfico.
     components.html(html_chart, height=750)
     gatillos_cierre()   # ✕ de las líneas → modal de cierre

@@ -23,6 +23,7 @@ from typing import Any, Iterator
 
 import configuracion
 import herramientas_agente  # noqa: F401  (importarlo registra todas las herramientas)
+from herramientas import consumo_ia, cuota_ia, permisos_plan
 from nucleo_agente.agente.ciclo import _CicloMixin
 from nucleo_agente.agente.eventos import EventoAgente
 from nucleo_agente.agente.instrucciones import _prompt_sistema
@@ -134,8 +135,16 @@ class Agente(_CicloMixin):
         en el ciclo de herramientas y, al llegar el evento "fin", guarda el turno en la memoria. Si el turno
         se interrumpe (error o cierre del generador) elimina del historial lo añadido y relanza la excepción.
         """
+        # Sin cuota de tokens no se empieza: se avisa antes de tocar el historial (lanza ErrorCuota con el mensaje para el usuario).
+        cuota_ia.exigir()
+        # El perfil elegido tiene que estar incluido en el plan (el «profundo» usa el modelo avanzado, más caro): si no, se explica en vez de usarlo.
+        permitidos = permisos_plan.valor("perfiles_ia")
+        if permitidos and self.perfil not in permitidos:
+            raise permisos_plan.ErrorPlan(f"El perfil «{self.perfil}» no está incluido en tu plan {permisos_plan.nombre_plan(cuota_ia.plan_actual())}; "
+                                          f"usa «{permitidos[-1]}» o cambia a un plan superior.")
         # Se refresca el prompt (la fecha puede haber cambiado) y se marca dónde empieza este turno.
         self.historial[0]["content"] = self._prompt()
+        consumo_ia.nuevo_turno()    # las llamadas al modelo de este turno se anotan juntas (costo de IA por turno)
         punto_inicio = len(self.historial)
         self.historial.append({"role": "user", "content": texto})
 

@@ -18,6 +18,7 @@ Va en la fila de abajo de aplicacion.py, junto al historial y las órdenes propu
     sesion.py        id de usuario, creación/recuperación del agente, cambio de perfil, saludo inicial
     historial.py     sincroniza el turno en curso con la conversación y pinta los mensajes
     turno_vivo.py    burbuja de la respuesta que se está escribiendo (cronómetro + botón Detener)
+    cuota.py         barra con el % de la cuota mensual de tokens gastada (tokens usados / total del plan)
     panel.py         renderizar_chat_agente(): tarjeta con controles, historial y caja de texto
 
 Este archivo es la fachada del paquete: reexporta solo renderizar_chat_agente (definida

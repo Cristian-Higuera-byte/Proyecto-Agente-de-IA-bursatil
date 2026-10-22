@@ -368,6 +368,8 @@ Transportes y Servicios Ltda.
     function anadirIndicador(id){
       var tablaDatos = DEFS[id];
       if (!tablaDatos) return null;
+      // El plan limita cuántos indicadores puede haber a la vez en el gráfico
+      if (PLAN.indicadores != null && indicadorActivos.length >= PLAN.indicadores) { avisoPlan(PLAN.mensajes.indicadores); return null; }
       var inst = nuevaInstancia(id, null);
       var previos = indicadorActivos.filter(function(i){ return i.id === id; });
       if (tablaDatos.sug && previos.length) {   // la 2.ª SMA nace con otro periodo para que no se superponga con la 1.ª
