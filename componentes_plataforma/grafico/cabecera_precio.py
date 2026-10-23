@@ -74,11 +74,11 @@ def renderizar_cabecera_precio(activo_visible: str, digits: int) -> None:
         texto_estado = "Conectado" if conectado else "Sin conexión"
         
         # Barra HTML: izquierda símbolo, origen, precio y Bid/Ask; derecha estado de la conexión.
-        # En celular (hasta 768 px) los datos pasan a dos filas: símbolo, origen y precio arriba; Bid/Ask abajo, a todo el ancho.
+        # En celular (hasta 1024 px (celulares y tablets)) los datos pasan a dos filas: símbolo, origen y precio arriba; Bid/Ask abajo, a todo el ancho.
         # Los estilos en línea mandan sobre la hoja, por eso las reglas móviles llevan !important (llaves dobles por el f-string).
         st.markdown(f"""
             <style>
-            @media (max-width: 768px) {{
+            @media (max-width: 1024px) {{
                 .pj-cab-precio {{ position: relative; padding: 6px 12px !important; margin-bottom: 6px !important; flex-wrap: nowrap !important; }}
                 .pj-cab-precio-datos {{ flex-wrap: wrap; gap: 0 10px !important; }}
                 .pj-cab-bidask {{ flex: 0 0 100%; font-size: 12px !important; }}

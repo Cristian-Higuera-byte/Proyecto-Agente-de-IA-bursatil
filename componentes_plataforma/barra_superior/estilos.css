@@ -146,10 +146,10 @@ Transportes y Servicios Ltda.
     [class*="st-key-superior_interruptor"] button p,
     [class*="st-key-superior_interruptor"] button p *,
     [class*="st-key-superior_interruptor"] button span[data-testid="stIconMaterial"] { font-size:28px !important; }
-    /* TITULO MOVIL (pantallas de hasta 768 px): barra superior reducida */
+    /* TITULO MOVIL (pantallas de hasta 1024 px (celulares y tablets)): barra superior reducida */
     /* En celular queda: lupa, capital con la etiqueta de cuenta, campana y avatar. Se ocultan el boton del menu lateral, el
        espaciador, las tarjetas de riesgo, drawdown y mercado, el icono de tema, el P/G junto al capital y el nombre del usuario. */
-    @media (max-width: 768px) {
+    @media (max-width: 1024px) {
         /* La fila no salta de linea y sus columnas pueden encogerse. */
         .st-key-barra_navegacion_fija [data-testid="stHorizontalBlock"] { flex-wrap:nowrap !important; gap:8px !important; }
         /* Columna 3 (espaciador): oculta. */
@@ -182,7 +182,7 @@ Transportes y Servicios Ltda.
     /* TITULO MOVIL ANGOSTO (hasta 400 px): barra superior aun mas compacta */
     /* En un celular de 360 a 400 px el contenido (logo, lupa, capital con DEMO, campana y avatar) medido a 390 px ya llega a 382 px: se
        aprietan los espacios, la lupa y la etiqueta DEMO para que el avatar nunca se salga de la pantalla. */
-    @media (max-width: 400px) {
+    @media (max-width: 440px) {
         .st-key-barra_navegacion_fija [data-testid="stHorizontalBlock"] { gap:5px !important; }
         .st-key-barra_navegacion_fija [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(2) {
             flex:0 0 36px !important; width:36px !important; }

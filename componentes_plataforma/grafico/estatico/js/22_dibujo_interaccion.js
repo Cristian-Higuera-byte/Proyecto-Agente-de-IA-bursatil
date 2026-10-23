@@ -92,7 +92,22 @@ Transportes y Servicios Ltda.
       btn.addEventListener('click',function(){
         var tool=btn.getAttribute('data-tool');
         if(tool==='clear'){
-          if(elementosDibujados.length&&confirm('¿Deseas limpiar todos los dibujos de este gráfico?')){elementosDibujados=[];seleccionadoId=null;encimaId=null;confirmarCambio();}
+          if(!elementosDibujados.length)return;
+          /* Pantallas tactiles: confirm() lo bloquean muchos navegadores integrados dentro de un iframe (el boton no hacia nada); se pide un segundo toque en 3 s. */
+          var tactilLimpiar=false;try{tactilLimpiar=window.parent.innerWidth<=1024;}catch(er){}
+          if(tactilLimpiar){
+            if(!btn._armado){
+              btn._armado=true;btn.style.color='#f85149';btn.title='Toca de nuevo para limpiar todos los dibujos';
+              var aviso=document.createElement('div');aviso.textContent='Toca de nuevo para limpiar todos los dibujos';
+              aviso.style.cssText='position:fixed;left:52px;bottom:64px;z-index:5300;background:#161b22;color:#f0f6fc;border:1px solid #f85149;border-radius:8px;padding:8px 12px;font:600 12px -apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:220px;';
+              document.body.appendChild(aviso);
+              btn._t=setTimeout(function(){btn._armado=false;btn.style.color='';btn.title='Limpiar elementos';if(aviso.parentNode)aviso.parentNode.removeChild(aviso);},3000);
+              btn._aviso=aviso;return;
+            }
+            clearTimeout(btn._t);btn._armado=false;btn.style.color='';btn.title='Limpiar elementos';if(btn._aviso&&btn._aviso.parentNode)btn._aviso.parentNode.removeChild(btn._aviso);
+            elementosDibujados=[];seleccionadoId=null;encimaId=null;confirmarCambio();return;
+          }
+          if(confirm('¿Deseas limpiar todos los dibujos de este gráfico?')){elementosDibujados=[];seleccionadoId=null;encimaId=null;confirmarCambio();}
           return;
         }
         if(tool==='lock'){
@@ -262,6 +277,46 @@ Transportes y Servicios Ltda.
       if(e.ctrlKey||e.metaKey){var kl=(k||'').toLowerCase();if(kl==='z'&&!e.shiftKey){e.preventDefault();deshacer();}else if(kl==='y'||(kl==='z'&&e.shiftKey)){e.preventDefault();rehacer();}}
     };
     document.addEventListener('keydown',window._tvGlobalKeydown);
+
+    // TITULO DIBUJAR CON EL DEDO
+
+    /* Pantallas tactiles: el dibujo solo escucha el raton (mousedown/mousemove/mouseup) y el navegador no genera esos eventos al arrastrar un dedo (solo
+       tras un toque corto), asi que las herramientas se elegian pero no se podian colocar. Aqui un dedo se traduce a eventos de raton, solo cuando el toque
+       es del dibujo (hay una herramienta activa, un dibujo en curso o el dedo cae sobre un dibujo existente); si no, el grafico se desplaza como siempre. */
+    var tactilActivo = false, tactilUltimo = null;
+    /** Lanza un evento de raton sintetico en el punto del toque t (sobre el destino indicado o el elemento que haya bajo el dedo). */
+    function tactilEvento(tipo, t, destino){
+      var ev = new MouseEvent(tipo, { bubbles: true, cancelable: true, view: window, clientX: t.clientX, clientY: t.clientY, screenX: t.screenX, screenY: t.screenY, button: 0, buttons: tipo === 'mouseup' ? 0 : 1 });
+      (destino || document.elementFromPoint(t.clientX, t.clientY) || contenedorEl).dispatchEvent(ev);
+    }
+    contenedorEl.addEventListener('touchstart', function(e){
+      tactilActivo = false;
+      if (e.touches.length !== 1) return;
+      var t = e.touches[0], tg = e.target;
+      if (tg && tg.closest && tg.closest('.tradingview-ui,button,input,select,textarea,a')) return;
+      if (bloqueado || !serie) return;
+      var pos = posicionRaton(t), ap = areaTrazado();
+      if (pos.x > ap.w || pos.y > ap.h) return;
+      if (!(activoHerramienta !== 'cross' || dibujoEnCurso || esperandoSegundoClick || elementoBajo(pos.x, pos.y))) return;
+      tactilActivo = true; tactilUltimo = t;
+      e.preventDefault(); e.stopPropagation();
+      tactilEvento('mousedown', t, tg);
+    }, { capture: true, passive: false });
+    contenedorEl.addEventListener('touchmove', function(e){
+      if (!tactilActivo || !e.touches.length) return;
+      tactilUltimo = e.touches[0];
+      e.preventDefault(); e.stopPropagation();
+      tactilEvento('mousemove', tactilUltimo);
+    }, { capture: true, passive: false });
+    /** Cierra el gesto tactil: suelta el "raton" donde quedo el dedo. */
+    function tactilFin(e){
+      if (!tactilActivo) return;
+      tactilActivo = false;
+      e.preventDefault(); e.stopPropagation();
+      tactilEvento('mouseup', tactilUltimo);
+    }
+    contenedorEl.addEventListener('touchend', tactilFin, { capture: true, passive: false });
+    contenedorEl.addEventListener('touchcancel', tactilFin, { capture: true, passive: false });
 
 
 /* -------------------------------------------------------------------------------------------------------

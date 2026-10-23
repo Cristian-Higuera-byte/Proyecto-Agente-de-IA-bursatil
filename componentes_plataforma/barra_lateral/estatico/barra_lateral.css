@@ -192,10 +192,10 @@ __ETIQUETAS__
 /* Animacion de fundido de entrada usada por el logo y las etiquetas. */
 @keyframes pjFade { from { opacity: 0; } to { opacity: 1; } }
 
-/* ====== MOVIL (pantallas de hasta 768 px): la barra de navegacion pasa abajo ====== */
+/* ====== MOVIL (pantallas de hasta 1024 px (celulares y tablets)): la barra de navegacion pasa abajo ====== */
 /* En celular no hay lugar para una barra lateral: la misma columna se convierte en una franja inferior fija, con los botones en
    fila y desplazable hacia los lados. Las reglas del estado expandido se anulan (en celular la barra no se expande). */
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
     /* Contenido principal: sin relleno lateral grande y con espacio abajo para que la barra no tape el final. */
     /* El prefijo html sube la prioridad: otras hojas (como la del riel derecho, que reserva 378 px a la derecha) llegan despues. */
     html .block-container, __EXP__ .block-container {
@@ -203,11 +203,15 @@ __ETIQUETAS__
     }
     /* Barra superior fija: ocupa todo el ancho de la pantalla. */
     .st-key-barra_navegacion_fija, __EXP__ .st-key-barra_navegacion_fija {
-        left: 0 !important; width: 100% !important;
+        left: 0 !important; width: 100% !important; top: var(--pj-vv-top, 0px) !important;
     }
+    /* --pj-vv-top y --pj-vv-bottom las fija barra_lateral.js: desfase de la ventana visible en navegadores de iPhone (como el de WhatsApp), donde
+       los elementos fixed se pegan a la ventana de maquetacion y no a la visible. En escritorio valen 0. */
+    /* iPhone: sin ampliacion automatica del texto (hacia crecer las fuentes y ensanchaba las filas). */
+    html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
     /* Columna de navegacion: franja de 64 px pegada al borde inferior, con desplazamiento horizontal si no caben todos los botones. */
     __COL__, __EXP__ __COL__ {
-        top: auto !important; bottom: 0 !important; left: 0 !important;
+        top: auto !important; bottom: var(--pj-vv-bottom, 0px) !important; left: 0 !important;
         height: 64px !important; min-height: 0 !important; width: 100% !important; max-width: 100% !important;
         flex: 0 0 100% !important; padding: 0 8px !important;
         border-right: none !important; border-top: 1px solid #30363d;

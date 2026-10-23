@@ -240,10 +240,10 @@ Transportes y Servicios Ltda.
   /* Realce del boton Operar al pasar el raton */
   .st-key-ficha_operar button:hover { filter:brightness(1.08); }
 
-  /* TITULO MOVIL (pantallas de hasta 768 px): tabla de instrumentos reducida */
+  /* TITULO MOVIL (pantallas de hasta 1024 px (celulares y tablets)): tabla de instrumentos reducida */
   /* La tabla de 7 columnas mide unos 820 px y no cabe en el celular: se conservan instrumento, precio y cambio porcentual
      (columnas 1, 2 y 4) y se ocultan cambio, rango, 5 dias y estado, tanto en la cabecera como en las filas. */
-  @media (max-width: 768px) {
+  @media (max-width: 1024px) {
     .mercados-cabecera, .mercados-fila { grid-template-columns:minmax(0,1fr) 96px 88px; }
     .mercados-cabecera > div, .mercados-fila > div { padding:0 8px; }
     .mercados-cabecera > div:nth-child(3), .mercados-cabecera > div:nth-child(n+5),

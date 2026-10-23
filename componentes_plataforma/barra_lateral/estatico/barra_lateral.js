@@ -37,6 +37,24 @@ Transportes y Servicios Ltda.
    * @param {boolean} exp - true para expandir (añade pj-barra-lateral-expandido a html), false para colapsar.
    */
   function aplicar(exp){ H.classList.toggle('pj-barra-lateral-expandido', exp); }
+  /* Navegadores de iPhone (p. ej. el de WhatsApp): los elementos fixed se pegan a la ventana de maquetacion, que puede ser mas grande que la
+     visible cuando las barras del navegador estan desplegadas; asi la barra inferior quedaba tapada y la superior se iba al hacer scroll.
+     Se publica el desfase en dos variables CSS (--pj-vv-top y --pj-vv-bottom) que usan las barras fijas del celular. En escritorio valen 0. */
+  if (!P.__pjVV && P.visualViewport) {
+    P.__pjVV = true;
+    var vv = P.visualViewport;
+    var ajustarVentana = function(){
+      var movil = P.innerWidth <= 1024;
+      var arriba = movil ? Math.max(0, Math.round(vv.offsetTop)) : 0;
+      var abajo = movil ? Math.max(0, Math.round(D.documentElement.clientHeight - vv.height - vv.offsetTop)) : 0;
+      H.style.setProperty('--pj-vv-top', arriba + 'px');
+      H.style.setProperty('--pj-vv-bottom', abajo + 'px');
+    };
+    vv.addEventListener('resize', ajustarVentana);
+    vv.addEventListener('scroll', ajustarVentana);
+    P.addEventListener('resize', ajustarVentana);
+    ajustarVentana();
+  }
   // La bandera vive en la ventana: si Streamlit recrea este iframe al navegar
   // entre vistas, NO se vuelve a cerrar; se mantiene como el usuario la dejó.
   if (!P.__pjSbIniciada){

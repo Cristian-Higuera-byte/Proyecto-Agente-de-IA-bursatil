@@ -56,7 +56,13 @@ Transportes y Servicios Ltda.
       '.barra-lateral-boton.peligro:hover { color: #f85149; }',
       '.barra-lateral-boton svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }',
       '#tradingview-stylebar input[type=color] { width: 22px; height: 22px; border: none; padding: 0; background: none; cursor: pointer; }',
-      '#tradingview-actions .tvbtn[disabled] { opacity: 0.35; cursor: default; }'
+      '#tradingview-actions .tvbtn[disabled] { opacity: 0.35; cursor: default; }',
+      /* Pantallas tactiles (clase pj-tactil): la barra se ajusta al ancho del grafico (antes quedaba centrada y mas ancha: Duplicar y Eliminar salian por el borde)
+         y se desplaza si no cabe; las acciones pasan al principio para que Eliminar siempre se vea. */
+      'html.pj-tactil #tradingview-stylebar { left: 46px; right: 6px; transform: none; max-width: none; overflow-x: auto; }',
+      'html.pj-tactil #tradingview-stylebar > * { flex-shrink: 0; }',
+      'html.pj-tactil #tradingview-stylebar .barra-lateral-bloque.ultimo { order: -1; border-right: 1px solid #30363d; margin-right: 8px; padding-right: 8px; }',
+      'html.pj-tactil .barra-lateral-boton, html.pj-tactil .barra-lateral-ancho, html.pj-tactil .barra-lateral-estilo { width: 36px; height: 34px; }'
     ].join(' ');
     document.head.appendChild(estiloUI2);
 

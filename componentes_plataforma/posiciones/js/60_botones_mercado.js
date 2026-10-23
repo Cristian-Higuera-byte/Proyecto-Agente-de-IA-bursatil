@@ -59,8 +59,8 @@ Transportes y Servicios Ltda.
       }
       // Evita que el clic en los botones llegue al gráfico; luego se conecta cada botón con su lado.
       mercado.addEventListener('mousedown', function(e){ e.stopPropagation(); });
-      mercado.querySelector('.vend').onclick = function(){ ordenMercado('SELL'); };
-      mercado.querySelector('.comp').onclick = function(){ ordenMercado('BUY'); };
+      mercado.querySelector('.vend').onclick = function(){ if (window.__pjOperarDesdeGrafico && window.__pjOperarDesdeGrafico('SELL')) return; ordenMercado('SELL'); };
+      mercado.querySelector('.comp').onclick = function(){ if (window.__pjOperarDesdeGrafico && window.__pjOperarDesdeGrafico('BUY')) return; ordenMercado('BUY'); };
 
 
 /* -------------------------------------------------------------------------------------------------------
