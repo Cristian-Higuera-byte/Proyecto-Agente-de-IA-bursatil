@@ -120,6 +120,23 @@ Transportes y Servicios Ltda.
       b.click();
       return true;
     };
+    // TITULO MENUS DE LA BARRA SUPERIOR EN PANTALLAS TACTILES
+    /* En pantallas tactiles la barra superior se desplaza de lado (css/10_base_y_barra_superior.css) y un contenedor con desplazamiento recorta a sus hijos absolutos,
+       asi que al abrirse cada menu desplegable (clase show) se coloca con position:fixed bajo su boton, alineado a la derecha y sin salirse de la ventana; al
+       cerrarse o salir de pantalla tactil se restauran sus estilos, y desplazar la barra lo cierra. */
+    function colocarMenuFijo(m){
+      if (!esTactil() || !m.classList.contains('show')) { m.style.position = m.style.top = m.style.right = m.style.left = m.style.maxHeight = m.style.overflowY = ''; return; }
+      var boton = m.parentNode.querySelector('button'), r = (boton || m.parentNode).getBoundingClientRect();
+      m.style.position = 'fixed'; m.style.top = Math.round(r.bottom) + 'px'; m.style.left = 'auto';
+      m.style.right = Math.max(4, Math.round(window.innerWidth - r.right)) + 'px';
+      m.style.maxHeight = Math.max(120, window.innerHeight - Math.round(r.bottom) - 8) + 'px'; m.style.overflowY = 'auto';
+    }
+    var menusBarraSuperior = document.querySelectorAll('.tradingview-desplegable-contenido');
+    var observadorMenus = new MutationObserver(function(cambios){ cambios.forEach(function(c){ colocarMenuFijo(c.target); }); });
+    Array.prototype.forEach.call(menusBarraSuperior, function(m){ observadorMenus.observe(m, { attributes: true, attributeFilter: ['class'] }); });
+    var barraSuperiorEl = document.getElementById('tradingview-barra-superior');
+    if (barraSuperiorEl) barraSuperiorEl.addEventListener('scroll', function(){ Array.prototype.forEach.call(menusBarraSuperior, function(m){ m.classList.remove('show'); }); }, { passive: true });
+
     var botonExpandirMovil = document.getElementById('boton-expandir-movil');
     if (botonExpandirMovil) botonExpandirMovil.addEventListener('click', alternarPantallaCompleta);
 

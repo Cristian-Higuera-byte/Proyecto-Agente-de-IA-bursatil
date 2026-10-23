@@ -283,21 +283,21 @@ Transportes y Servicios Ltda.
     /* Pantallas tactiles: el dibujo solo escucha el raton (mousedown/mousemove/mouseup) y el navegador no genera esos eventos al arrastrar un dedo (solo
        tras un toque corto), asi que las herramientas se elegian pero no se podian colocar. Aqui un dedo se traduce a eventos de raton, solo cuando el toque
        es del dibujo (hay una herramienta activa, un dibujo en curso o el dedo cae sobre un dibujo existente); si no, el grafico se desplaza como siempre. */
-    var tactilActivo = false, tactilUltimo = null;
+    var tactilActivo = false, tactilUltimo = null, tactilToque = null;
     /** Lanza un evento de raton sintetico en el punto del toque t (sobre el destino indicado o el elemento que haya bajo el dedo). */
     function tactilEvento(tipo, t, destino){
       var ev = new MouseEvent(tipo, { bubbles: true, cancelable: true, view: window, clientX: t.clientX, clientY: t.clientY, screenX: t.screenX, screenY: t.screenY, button: 0, buttons: tipo === 'mouseup' ? 0 : 1 });
       (destino || document.elementFromPoint(t.clientX, t.clientY) || contenedorEl).dispatchEvent(ev);
     }
     contenedorEl.addEventListener('touchstart', function(e){
-      tactilActivo = false;
+      tactilActivo = false; tactilToque = null;
       if (e.touches.length !== 1) return;
       var t = e.touches[0], tg = e.target;
       if (tg && tg.closest && tg.closest('.tradingview-ui,button,input,select,textarea,a')) return;
       if (bloqueado || !serie) return;
       var pos = posicionRaton(t), ap = areaTrazado();
       if (pos.x > ap.w || pos.y > ap.h) return;
-      if (!(activoHerramienta !== 'cross' || dibujoEnCurso || esperandoSegundoClick || elementoBajo(pos.x, pos.y))) return;
+      if (!(activoHerramienta !== 'cross' || dibujoEnCurso || esperandoSegundoClick || elementoBajo(pos.x, pos.y))) { tactilToque = { x: t.clientX, y: t.clientY }; return; }
       tactilActivo = true; tactilUltimo = t;
       e.preventDefault(); e.stopPropagation();
       tactilEvento('mousedown', t, tg);
@@ -315,6 +315,13 @@ Transportes y Servicios Ltda.
       e.preventDefault(); e.stopPropagation();
       tactilEvento('mouseup', tactilUltimo);
     }
+    /* Un toque corto en un hueco del grafico (sin herramienta ni dibujo bajo el dedo) quita la seleccion y con ella la barra de estilos, como el clic en vacio del raton. */
+    contenedorEl.addEventListener('touchend', function(e){
+      if (!tactilToque || !e.changedTouches.length) return;
+      var t = e.changedTouches[0], movido = Math.hypot(t.clientX - tactilToque.x, t.clientY - tactilToque.y);
+      tactilToque = null;
+      if (movido < 10 && seleccionadoId !== null) { seleccionadoId = null; redibujarTodo(); }
+    }, { capture: true, passive: true });
     contenedorEl.addEventListener('touchend', tactilFin, { capture: true, passive: false });
     contenedorEl.addEventListener('touchcancel', tactilFin, { capture: true, passive: false });
 
