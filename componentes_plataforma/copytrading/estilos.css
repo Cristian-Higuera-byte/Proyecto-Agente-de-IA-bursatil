@@ -95,6 +95,36 @@ Transportes y Servicios Ltda.
   /* Etiqueta bajo el numero. */
   .don-centro .l { color:#8b949e; font-size:12px; }
 
+  /* TITULO REPARTO POR TIPO DE ACTIVO (ficha real) */
+  /* Fila con el tipo de activo, una barra proporcional y el porcentaje. */
+  .fic-rep { display:flex; align-items:center; gap:12px; margin:8px 0; }
+  .fic-rep .k { width:140px; color:#c9d1d9; font-size:13px; }
+  .fic-rep .b { flex:1; height:10px; background:#1b2330; border-radius:999px; overflow:hidden; }
+  .fic-rep .b i { display:block; height:100%; background:#e3b341; border-radius:999px; }
+  .fic-rep .v { width:56px; text-align:right; color:#e6edf3; font-size:13px; font-weight:700; }
+
+  /* TITULO AREA DE GESTOR */
+  /* Título de sección, lista de requisitos (✓ cumplido, ✗ pendiente) y nota final. */
+  .ges-seccion { font-size:16px; font-weight:800; color:#e6edf3; margin:14px 0 6px; }
+  .ges-req { display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid #1b2330; font-size:13px; }
+  .ges-req .ok { color:#3fb950; font-weight:800; width:16px; }
+  .ges-req .no { color:#f85149; font-weight:800; width:16px; }
+  .ges-req .t { color:#c9d1d9; flex:1; }
+  .ges-req .d { color:#8b949e; font-size:12px; }
+  .ges-nota { margin-top:8px; font-size:12.5px; color:#8b949e; }
+  .ges-nota.ok { color:#3fb950; }
+  /* Cabecera de una estrategia propia: nombre, insignia de estado, tipo y cifras. */
+  .ges-cab { display:flex; align-items:center; gap:10px; }
+  .ges-nombre { font-size:17px; font-weight:800; color:#e6edf3; }
+  .ges-estado { font-size:11px; font-weight:700; border-radius:999px; padding:2px 9px; }
+  .ges-estado.p { color:#3fb950; background:rgba(63,185,80,.14); }
+  .ges-estado.b { color:#8b949e; background:rgba(139,148,158,.16); }
+  .ges-estado.m { color:#e3b341; background:rgba(227,179,65,.14); }
+  .ges-estado.c { color:#f85149; background:rgba(248,81,73,.14); }
+  .ges-tipo { font-size:12px; color:#8b949e; }
+  .ges-cifras { font-size:12.5px; color:#8b949e; margin:4px 0 8px; }
+  .ges-cifras b { color:#e6edf3; }
+
 /* -------------------------------------------------------------------------------------------------------
    ------------------------------------- FIN Piña y Jara estilos .CSS ------------------------------------
    ------------------------------------------------------------------------------------------------------- */

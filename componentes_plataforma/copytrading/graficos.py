@@ -23,22 +23,27 @@ import random
 
 # TITULO MINILINEA
 
-def minilinea(seed: str, w=150, h=44):
+def minilinea(seed: str, w=150, h=44, serie=None):
     """Genera una mini línea (sparkline) simulada con área degradada.
 
     Parámetros: seed (texto que siembra el generador aleatorio, para que la misma
     estrategia dibuje siempre la misma curva), w y h (ancho y alto en píxeles). Devuelve
-    el HTML de una imagen SVG (data URI base64) con una serie de 30 puntos de sesgo alcista.
+    el HTML de una imagen SVG (data URI base64). Con `serie` (valores reales, por ejemplo la rentabilidad acumulada de los últimos días) dibuja esa serie
+    y, si tiene menos de dos puntos, una línea plana; sin `serie`, una serie simulada de 30 puntos de sesgo alcista.
     """
-    # Generador reproducible y número de puntos de la serie.
-    rnd = random.Random(seed)
-    n = 30
-    v = 100.0
-    puntos = []
-    # Paseo aleatorio con sesgo positivo.
-    for i in range(n):
-        v += rnd.uniform(-1.5, 2.6)  # sesgo alcista
-        puntos.append(v)
+    if serie is not None:
+        puntos = [float(x) for x in serie] if len(serie) >= 2 else [0.0, 0.0]
+        n = len(puntos)
+    else:
+        # Generador reproducible y número de puntos de la serie.
+        rnd = random.Random(seed)
+        n = 30
+        v = 100.0
+        puntos = []
+        # Paseo aleatorio con sesgo positivo.
+        for i in range(n):
+            v += rnd.uniform(-1.5, 2.6)  # sesgo alcista
+            puntos.append(v)
     # Escala la serie al alto disponible (con margen de 3 px) y la convierte en coordenadas x,y.
     lo, hi = min(puntos), max(puntos)
     rango = (hi - lo) or 1

@@ -94,6 +94,23 @@ def validar_telefono(numero: str, opcional: bool = False) -> tuple[bool, str, st
     return True, "", limpio
 
 
+# TITULO VALIDAR APODO
+
+def validar_apodo(texto: str) -> tuple[bool, str, str | None]:
+    """Valida el apodo (opcional): de 3 a 30 caracteres con letras (con tildes), números, espacios, punto, guion y guion bajo.
+
+    Quita los espacios de los extremos y junta los espacios repetidos. Devuelve (ok, mensaje, apodo normalizado); un apodo vacío es válido y
+    se devuelve como None para que la base lo guarde como vacío (así la unicidad no lo cuenta)."""
+    limpio = re.sub(r"\s+", " ", texto or "").strip()
+    if not limpio:
+        return True, "", None
+    if not 3 <= len(limpio) <= 30:
+        return False, "El apodo debe tener entre 3 y 30 caracteres.", None
+    if not re.fullmatch(r"[\w .-]+", limpio):
+        return False, "El apodo solo puede llevar letras, números, espacios, punto, guion y guion bajo.", None
+    return True, "", limpio
+
+
 # TITULO EDAD
 
 def edad(nacimiento: date, hoy: date | None = None) -> int:

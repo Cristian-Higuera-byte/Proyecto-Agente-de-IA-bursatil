@@ -19,6 +19,7 @@ from typing import Any
 
 from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
+from herramientas import registro_operaciones
 from herramientas.tickets import ticket as _tk
 from nucleo_agente.ordenes.limites import MAGIC, TOLERANCIA_VS_PROPUESTA
 from nucleo_agente.ordenes.mt5_utiles import NOMBRE_BROKER, _chequeos_globales, _con_candado, _desviacion, _modo_llenado
@@ -66,7 +67,12 @@ def _enviar_apertura(o: dict[str, Any]) -> dict[str, Any]:
     # El take profit es opcional: solo se incluye si existe.
     if d["tp"] is not None:
         solicitud["tp"] = d["tp"]
-    return _interpretar(mt5.order_send(solicitud), f"{d['lado']} {d['volumen']} {d['simbolo']}")
+    resultado = _interpretar(mt5.order_send(solicitud), f"{d['lado']} {d['volumen']} {d['simbolo']}")
+    if resultado.get("ok"):
+        # Se anota que esta posición la abrió el agente y se pide registrarla pronto (copy trading).
+        registro_operaciones.anotar_origen(resultado.get("ticket"), "agente")
+        registro_operaciones.sincronizar_en_segundo_plano(forzar=True)
+    return resultado
 
 
 # TITULO ENVIAR CIERRE

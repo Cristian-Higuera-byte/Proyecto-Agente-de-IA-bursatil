@@ -14,7 +14,7 @@
 """Billetera virtual del usuario: saldo de prueba (sin valor monetario) y libro de movimientos.
 
 Sirve para pagar planes dentro de la plataforma y deja armada la estructura para cuentas reales: cada movimiento tiene un tipo
-(bono, recarga_virtual, compra_plan, ajuste y, para el futuro, deposito_real, retiro_real y resultado_operacion) y un monto con signo.
+(bono, recarga_virtual, compra_plan, ajuste, comision_pagada y comision_cobrada del copy trading y, para el futuro, deposito_real, retiro_real y resultado_operacion) y un monto con signo.
 
 Dónde se guarda:
   - Modo multiusuario: en Supabase (tablas `billetera_cuentas` y `billetera_movimientos`, esquema en `herramientas/sql/billetera.sql`). Cada
@@ -42,7 +42,7 @@ _ARCHIVO = "billetera.json"
 # Candado de las escrituras locales dentro del proceso
 _CANDADO = threading.Lock()
 # Tipos de movimiento que entiende la billetera
-TIPOS = ("bono", "recarga_virtual", "compra_plan", "ajuste", "deposito_real", "retiro_real", "resultado_operacion")
+TIPOS = ("bono", "recarga_virtual", "compra_plan", "ajuste", "deposito_real", "retiro_real", "resultado_operacion", "comision_pagada", "comision_cobrada")
 
 
 # TITULO ERROR BILLETERA
@@ -212,6 +212,43 @@ def comprar_plan(plan: str, precio: float) -> float:
         _mover("ajuste", precio, f"Reembolso: no se pudo activar el plan {nombre}", referencia=plan)
         raise ErrorBilletera("No se pudo activar el plan; te devolvimos el saldo.")
     return nuevo
+
+
+# TITULO SALDO DE UN USUARIO
+
+def saldo_usuario(usuario_id) -> float:
+    """Saldo de la billetera del usuario `usuario_id` (cualquiera, no solo el actual); 0 si no tiene billetera o no se pudo consultar. Solo con Supabase."""
+    cliente = gestor_autenticacion._supabase
+    if cliente is None:
+        return 0.0
+    try:
+        filas = cliente.table("billetera_cuentas").select("saldo").eq("usuario_id", int(usuario_id)).limit(1).execute().data or []
+        return round(float(filas[0]["saldo"]), 2) if filas else 0.0
+    except Exception:  # noqa: BLE001
+        return 0.0
+
+
+# TITULO TRANSFERIR
+
+def transferir(origen_id, destino_id, monto: float, concepto_origen: str, concepto_destino: str, referencia: str | None = None, clave_unica: str | None = None) -> int:
+    """Pasa `monto` de la billetera de `origen_id` a la de `destino_id` en una sola operación y devuelve el id del movimiento del origen.
+
+    Se usa para pagar comisiones del copy trading (el origen registra `comision_pagada` y el destino `comision_cobrada`). Con `clave_unica` repetir la llamada no vuelve
+    a mover dinero. Solo funciona con Supabase (la función SQL `billetera_transferir`). Lanza `ErrorBilletera` si no hay saldo suficiente o no se pudo registrar."""
+    monto = round(float(monto), 2)
+    if monto <= 0:
+        raise ErrorBilletera("El monto debe ser mayor que cero.")
+    cliente = gestor_autenticacion._supabase
+    if cliente is None:
+        raise ErrorBilletera("Las transferencias necesitan la base de datos (Supabase).")
+    try:
+        filas = cliente.rpc("billetera_transferir", {"p_origen": int(origen_id), "p_destino": int(destino_id), "p_monto": monto, "p_concepto_origen": concepto_origen,
+                                                     "p_concepto_destino": concepto_destino, "p_referencia": referencia, "p_clave": clave_unica}).execute().data or []
+        return int(filas[0]["movimiento_origen_id"])
+    except Exception as e:  # noqa: BLE001
+        if "saldo_insuficiente" in str(e):
+            raise ErrorBilletera("Saldo insuficiente.") from None
+        raise ErrorBilletera("No se pudo registrar la transferencia. Inténtalo de nuevo.") from None
 
 
 # TITULO RESUMEN

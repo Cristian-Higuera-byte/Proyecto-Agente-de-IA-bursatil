@@ -40,7 +40,7 @@ def tarjeta_html(e: dict) -> str:
         f"<span class='copytrading-insignia {rcls}'>{RIESGO_TEXTO[e['riesgo']]}</span>"
         "</div>"
         "<div class='copytrading-medio'>"
-        f"{minilinea(e['id'])}"
+        f"{minilinea(e['id'], serie=e.get('spark'))}"
         f"<div style='text-align:right;'><div class='copytrading-rentabilidad-etiqueta'>Rentabilidad 1 mes</div>"
         f"<div class='copytrading-rentabilidad'>{e['rent']:.2f}%</div></div>"
         "</div>"

@@ -38,7 +38,8 @@ _CLAVE_ERROR = "planes_error"
 _CLAVE_RECARGA = "billetera_recarga"
 # Texto visible de cada tipo de movimiento
 _TIPOS = {"bono": "Saldo inicial", "recarga_virtual": "Recarga de prueba", "compra_plan": "Compra de plan", "ajuste": "Ajuste",
-          "deposito_real": "Depósito", "retiro_real": "Retiro", "resultado_operacion": "Resultado de operación"}
+          "deposito_real": "Depósito", "retiro_real": "Retiro", "resultado_operacion": "Resultado de operación",
+          "comision_pagada": "Comisión pagada (copy trading)", "comision_cobrada": "Comisión cobrada (copy trading)"}
 
 
 # TITULO MONEDA

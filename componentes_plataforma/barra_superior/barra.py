@@ -29,6 +29,7 @@ from componentes_plataforma.barra_superior.datos import ICONO_TEMA
 from componentes_plataforma.barra_superior.estilos import CSS
 from componentes_plataforma.barra_superior.notificaciones import campana, usuario_id as _usuario_id
 from componentes_plataforma.buscador import abrir_buscador
+from herramientas import copiador
 from herramientas.puente_mt5 import NOMBRE_BROKER
 from componentes_plataforma.conectar_cuenta import entradas_menu, etiqueta_cuenta
 from nucleo_agente import vigilancia
@@ -50,7 +51,7 @@ def renderizar_barra_navegacion(usuario: str = "Emilio Fuentes",
     Recibe `usuario` (nombre mostrado), `saldo` (equity de MT5 o None si no hay conexión),
     `moneda`, `pl` (ganancia/pérdida flotante), `usuario_id` (id para las notificaciones; si
     es None se toma de la sesión) y `metricas` (diccionario de métricas de la barra, o None).
-    Efectos secundarios: inicia el motor de vigilancias (idempotente), inyecta el CSS, y el
+    Efectos secundarios: inicia el motor de vigilancias y el del copy trading (idempotentes), inyecta el CSS, y el
     botón del buscador activa la bandera del diálogo y reejecuta la app.
     """
     # Iniciales para el avatar (hasta dos palabras)
@@ -59,6 +60,10 @@ def renderizar_barra_navegacion(usuario: str = "Emilio Fuentes",
     try:
         vigilancia.iniciar_motor()   # idempotente: retoma las vigilancias activas tras reiniciar la app
     except Exception:  # noqa: BLE001 - la barra nunca debe fallar por esto
+        pass
+    try:
+        copiador.iniciar_motor()     # idempotente: motor del copy trading (solo corre en modo multiusuario)
+    except Exception:  # noqa: BLE001
         pass
 
     # Chip de saldo total de MT5 (equity). Si no hay dato, se muestra "—".

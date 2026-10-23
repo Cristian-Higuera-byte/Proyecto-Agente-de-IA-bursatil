@@ -104,6 +104,14 @@ PLAN_MODO_LOCAL = "avanzado"
 # moneda: moneda del saldo; bono_inicial: saldo con el que se abre la billetera; recargas: montos que ofrece el botón de recarga;
 # recarga_mensual_max: tope de recargas por mes; saldo_maximo: tope del saldo (evita acumular saldo de prueba sin límite).
 BILLETERA: dict = {"moneda": "USD", "bono_inicial": 100.0, "recargas": [50, 100, 500, 1000], "recarga_mensual_max": 5000.0, "saldo_maximo": 10000.0}
+# Copy trading: requisitos para ser gestor y límites de una estrategia.
+# dias_minimos y operaciones_minimas: historial registrado que se pide para publicar; max_estrategias: estrategias vigentes por gestor (las cerradas
+# no cuentan); comision_max y comision_defecto: comisión de rendimiento (%) que el gestor cobra a quien copia; inversion_minima: mínimo (USD) para copiar;
+# max_copias_por_inversor: copias vigentes por inversor; espera_motor_s: cada cuántos segundos revisa el motor de copia; pendiente_vence_s: segundos tras los
+# cuales una copia que quedó a medias (sin confirmar) se da por interrumpida y no se reintenta; liquidacion_dias: cada cuántos días se liquida la comisión de rendimiento.
+COPYTRADING: dict = {"dias_minimos": 30, "operaciones_minimas": 20, "max_estrategias": 3, "comision_max": 30.0, "comision_defecto": 20.0, "inversion_minima": 50.0,
+                     "categorias": ["Forex", "Índices", "Criptomonedas", "Materias primas", "Metales", "Acciones", "Mixta"],
+                     "max_copias_por_inversor": 5, "espera_motor_s": 15, "pendiente_vence_s": 120, "liquidacion_dias": 30}
 # Cuánto pesa cada token según el modelo: el modelo «pro» cuesta unas 12 veces más que el «flash», así que gasta 12 veces más cuota.
 # Un modelo que no esté en la tabla pesa 1.
 PESO_MODELO: dict[str, float] = {"deepseek-flash": 1.0, "deepseek-v4-pro": 12.0}

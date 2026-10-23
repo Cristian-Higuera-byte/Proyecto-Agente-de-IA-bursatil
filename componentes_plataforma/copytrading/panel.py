@@ -11,7 +11,8 @@
 # ------------------------------------- INICIO Piña y Jara panel .PY ------------------------------------
 # -------------------------------------------------------------------------------------------------------
 
-"""Vista "Copy trading" estilo XM (MVP con datos SIMULADOS/mock mientras se define la fuente de datos real).
+"""Vista "Copy trading" estilo XM. Muestra las estrategias reales publicadas por los gestores (métricas calculadas con sus operaciones registradas) y,
+mientras no haya ninguna, estrategias de ejemplo. La sección «Cartera» (cartera.py) muestra las copias del usuario y «Área de gestor» (gestor.py) permite crear, publicar y administrar las propias.
 Dos vistas: listado de estrategias (tarjetas) y ficha de detalle de una estrategia. No ejecuta operaciones.
 Referencias en referencias/copytrading/*.png.
 
@@ -24,8 +25,11 @@ from pathlib import Path
 import streamlit as st
 
 from componentes_plataforma import _estaticos
-from componentes_plataforma.copytrading.datos import CATEGORIAS, ESTRATEGIAS, ORDEN, PESTANAS, por_id
+from componentes_plataforma.copytrading.cartera import renderizar_cartera_copias
+from componentes_plataforma.copytrading.datos import CATEGORIAS, ORDEN, PESTANAS, estrategias, por_id
 from componentes_plataforma.copytrading.ficha import ficha
+from componentes_plataforma.copytrading.ficha_real import ficha_real
+from componentes_plataforma.copytrading.gestor import renderizar_area_gestor
 from componentes_plataforma.copytrading.tarjeta import tarjeta_html
 
 # Ruta de la hoja de estilos de la vista (estilos.css, junto a este archivo).
@@ -55,19 +59,37 @@ def renderizar_panel_copytrading(main=None):
         if seleccion:
             e = por_id(seleccion)
             if e:
-                ficha(e)
+                (ficha_real if e.get("real") else ficha)(e)
                 return
+            st.session_state.copytrading_estrategia = None     # la estrategia ya no está publicada: se vuelve al listado
 
         # --- Listado ---
         st.html("<div class='copytrading-titulo'>Copy trading</div>")
+        # Secciones de la vista: el listado de estrategias y el área del gestor (solo se dibuja la elegida).
+        seccion = st.segmented_control("Sección", ["Estrategias", "Cartera", "Área de gestor"], default="Estrategias", key="copytrading_seccion",
+                                       label_visibility="collapsed") or "Estrategias"
+        aviso = st.session_state.pop("copytrading_aviso", None)
+        if aviso:
+            st.success(aviso)
+        if seccion == "Cartera":
+            renderizar_cartera_copias()
+            return
+        if seccion == "Área de gestor":
+            renderizar_area_gestor()
+            return
         # Controles de ordenación y filtro; si se deseleccionan, se usan los valores por defecto.
+        lista_total, es_ejemplo = estrategias()
+        if es_ejemplo:
+            st.info("Todavía no hay estrategias publicadas por gestores: estas son estrategias de ejemplo.")
         pestana = st.segmented_control("Orden", PESTANAS, default=PESTANAS[0],
                                    label_visibility="collapsed", key="copytrading_pestana") or PESTANAS[0]
-        categoria = st.pills("Categoría", CATEGORIAS, default="Cualquiera",
+        # Las estrategias reales traen sus propias categorías; las de ejemplo usan la lista fija.
+        opciones = CATEGORIAS if es_ejemplo else ["Cualquiera"] + sorted({e["cat"] for e in lista_total})
+        categoria = st.pills("Categoría", opciones, default="Cualquiera",
                        label_visibility="collapsed", key="copytrading_categoria") or "Cualquiera"
 
         # Filtra por categoría y ordena según la pestaña elegida.
-        lista = [e for e in ESTRATEGIAS if categoria == "Cualquiera" or e["cat"] == categoria]
+        lista = [e for e in lista_total if categoria == "Cualquiera" or e["cat"] == categoria]
         lista = sorted(lista, key=ORDEN.get(pestana, ORDEN["Destacadas"]))
         st.caption(f"{len(lista)} estrategias")
 

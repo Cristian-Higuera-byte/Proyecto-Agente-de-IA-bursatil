@@ -16,12 +16,19 @@
 Define también las constantes de la vista: categorías del filtro, pestañas de orden, la
 función de ordenación de cada pestaña y los textos/clases CSS del nivel de riesgo.
 """
+import threading
+import time
 from pathlib import Path
 
 from componentes_plataforma import _estaticos
+from herramientas import gestor_autenticacion, metricas_estrategia
 
-# Lista de estrategias (diccionarios) leída de estrategias.json junto a este archivo.
+# Estrategias de ejemplo (diccionarios) leídas de estrategias.json junto a este archivo; se muestran solo si todavía no hay estrategias reales publicadas.
 ESTRATEGIAS = _estaticos.datos_json(Path(__file__).parent / "estrategias.json")
+# Segundos que se recuerda la lista de estrategias reales antes de volver a consultarla, y su caché: (hora de la consulta, lista)
+_VIDA_LISTA_S = 30.0
+_CACHE_LISTA: list = [0.0, []]
+_CANDADO = threading.Lock()
 
 # Opciones del filtro de categoría; "Cualquiera" no filtra.
 CATEGORIAS = ["Cualquiera", "Forex", "Índices", "Criptomonedas", "Materias primas", "Algorítmico"]
@@ -45,15 +52,33 @@ RIESGO_CLS = {"bajo": "rb", "medio": "rm", "alto": "ra"}
 RIESGO_TEXTO = {"bajo": "Riesgo bajo", "medio": "Riesgo medio", "alto": "Riesgo alto"}
 
 
+# TITULO ESTRATEGIAS DISPONIBLES
+
+def estrategias() -> tuple:
+    """Devuelve (lista de estrategias, es_ejemplo).
+
+    Si hay estrategias reales publicadas en Supabase (`metricas_estrategia.listar_publicadas`), devuelve esas con `es_ejemplo` en False; la consulta se
+    recuerda 30 segundos. Si no hay ninguna, o no hay Supabase, devuelve las de ejemplo de estrategias.json con `es_ejemplo` en True."""
+    cliente = gestor_autenticacion._supabase
+    if cliente is not None:
+        with _CANDADO:
+            if time.time() - _CACHE_LISTA[0] >= _VIDA_LISTA_S:
+                _CACHE_LISTA[0], _CACHE_LISTA[1] = time.time(), metricas_estrategia.listar_publicadas(cliente)
+            reales = list(_CACHE_LISTA[1])
+        if reales:
+            return reales, False
+    return ESTRATEGIAS, True
+
+
 # TITULO POR ID
 
 def por_id(eid):
-    """Busca una estrategia por su id.
+    """Busca una estrategia por su id entre las que muestra la vista (reales o de ejemplo).
 
     Recibe `eid` (identificador de la estrategia) y devuelve su diccionario, o None si
     no existe ninguna con ese id.
     """
-    return next((e for e in ESTRATEGIAS if e["id"] == eid), None)
+    return next((e for e in estrategias()[0] if e["id"] == eid), None)
 
 
 # -------------------------------------------------------------------------------------------------------

@@ -1576,7 +1576,7 @@ def cerrar_posicion(ticket) -> dict:
     if "error" in configuracion:
         return configuracion
     _invalidar()
-    return {"status": "success", "profit": profit, "symbol": symbol}
+    return {"status": "success", "profit": profit, "symbol": symbol, "level": configuracion.get("level")}
 
 
 # TITULO NIVELES ACTUALES

@@ -25,7 +25,7 @@ import streamlit as st
 
 from herramientas.puente_mt5 import (colocar_orden_pendiente, ejecutar_orden_mercado,
                               eliminar_orden)
-from herramientas import almacen_oco
+from herramientas import almacen_oco, registro_operaciones
 from herramientas.tickets import ticket as _tk
 
 
@@ -64,6 +64,7 @@ def ejecutar(real, visible, tipo, volumen, stop_loss, take_profit, pendiente=Non
         registrar_resultado("error", resultado["error"])
     else:
         registrar_resultado("ok", correcto)
+        registro_operaciones.sincronizar_en_segundo_plano(forzar=True)    # registra la operación enseguida (copy trading)
     st.session_state.orden_confirmacion = None
 
 

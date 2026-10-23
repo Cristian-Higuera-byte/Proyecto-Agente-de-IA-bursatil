@@ -20,6 +20,7 @@ create table if not exists perfiles_usuario (
     -- Datos personales
     nombres text,
     apellidos text,
+    apodo text,                              -- opcional; único sin distinguir mayúsculas (índice más abajo)
     fecha_nacimiento date,
     nacionalidad text,                       -- código de país (CL, AR...)
     genero text,
@@ -58,6 +59,13 @@ create table if not exists perfiles_usuario (
     creado_en timestamptz not null default now(),
     actualizado_en timestamptz not null default now()
 );
+
+-- Apodo (para bases creadas antes de agregarlo) y su unicidad: dos usuarios no pueden tener el mismo apodo (sin distinguir mayúsculas).
+-- Los apodos vacíos se guardan como NULL y no cuentan.
+alter table perfiles_usuario add column if not exists apodo text;
+create unique index if not exists perfiles_usuario_apodo_unico
+    on perfiles_usuario (lower(apodo))
+    where apodo is not null;
 
 -- Un mismo documento no puede estar en dos cuentas distintas.
 create unique index if not exists perfiles_usuario_documento_unico

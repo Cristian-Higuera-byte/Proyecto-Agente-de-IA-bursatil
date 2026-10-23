@@ -25,7 +25,7 @@ from componentes_plataforma.agente_paneles.formato import escapar_html
 from componentes_plataforma.perfil import almacen
 from componentes_plataforma.perfil.datos import PREFIJOS, opciones, seccion as _seccion
 from componentes_plataforma.perfil.validacion import (mascara, validar_contrasena_nueva, validar_documento,
-                                                       validar_nacimiento, validar_telefono)
+                                                       validar_apodo, validar_nacimiento, validar_telefono)
 from herramientas import gestor_autenticacion
 from herramientas.puente_mt5 import NOMBRE_BROKER, obtener_info_cuenta
 
@@ -126,7 +126,7 @@ def _opciones_notificaciones() -> list[dict[str, Any]]:
 def _validar(seccion: dict[str, Any], valores: dict[str, Any], perfil: dict[str, Any]) -> tuple[list[str], dict[str, Any]]:
     """Valida lo ingresado en una sección y devuelve (errores, valores normalizados listos para guardar).
 
-    Revisa campos requeridos, mayoría de edad, documento (con RUT módulo 11) y teléfonos. En el documento, un valor vacío
+    Revisa campos requeridos, mayoría de edad, apodo, documento (con RUT módulo 11) y teléfonos. En el documento, un valor vacío
     conserva el guardado salvo que haya cambiado el tipo de documento."""
     errores: list[str] = []
     salida = dict(valores)
@@ -147,6 +147,9 @@ def _validar(seccion: dict[str, Any], valores: dict[str, Any], perfil: dict[str,
         else:
             ok, msg, normal = validar_documento(valores.get("tipo_documento") or "", numero)
             errores.append(msg) if not ok else salida.__setitem__("numero_documento", normal)
+    if "apodo" in valores:
+        ok, msg, normal = validar_apodo(valores["apodo"])
+        errores.append(msg) if not ok else salida.__setitem__("apodo", normal)
     if "telefono_movil" in valores:
         ok, msg, normal = validar_telefono(valores["telefono_movil"])
         errores.append(msg) if not ok else salida.__setitem__("telefono_movil", normal)

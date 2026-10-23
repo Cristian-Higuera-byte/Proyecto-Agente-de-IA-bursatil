@@ -31,7 +31,7 @@ TABLA = "perfiles_usuario"
 
 # Columnas que el usuario puede escribir desde el perfil (la verificación de identidad la fija el equipo, no el formulario).
 CAMPOS = (
-    "nombres", "apellidos", "fecha_nacimiento", "nacionalidad", "genero",
+    "nombres", "apellidos", "apodo", "fecha_nacimiento", "nacionalidad", "genero",
     "tipo_documento", "numero_documento", "pais_documento", "vencimiento_documento",
     "telefono_prefijo", "telefono_movil", "telefono_alterno",
     "pais", "region", "ciudad", "direccion", "codigo_postal",
@@ -109,6 +109,8 @@ def guardar(usuario_id: Any, campos: dict[str, Any]) -> dict[str, Any]:
     except Exception as e:  # noqa: BLE001 - se informa al usuario con el motivo
         texto = str(e)
         if "duplicate" in texto.lower() or "unique" in texto.lower():
+            if "apodo" in texto.lower():
+                return {"ok": False, "mensaje": "Ese apodo ya está en uso. Elige otro."}
             return {"ok": False, "mensaje": "Ese documento ya está registrado en otra cuenta."}
         return {"ok": False, "mensaje": f"No se pudieron guardar los datos: {texto}"}
     return {"ok": True, "mensaje": "Datos guardados."}

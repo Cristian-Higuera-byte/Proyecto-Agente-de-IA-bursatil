@@ -16,11 +16,12 @@
 Hay dos familias: `grafico_cerrar_<ticket>` (uno por posición abierta; la ✕ de la etiqueta del gráfico lo pulsa y se abre el
 modal de cierre de Cartera) y `grafico_cerrar_sel_<i>` (uno por activo de la lista; el selector de activo del gráfico en
 pantalla completa lo pulsa para cambiar el activo seleccionado). Se dibujan dentro de un fragmento que se refresca
-solo y escriben en `st.session_state`.
+solo y escriben en `st.session_state`. Ese mismo refresco pide a `herramientas/registro_operaciones.py` que registre las operaciones del usuario.
 """
 import streamlit as st
 
 from componentes_plataforma.flujo_precios import intervalo
+from herramientas import registro_operaciones
 from herramientas.puente_mt5 import obtener_posiciones
 
 
@@ -44,6 +45,8 @@ def gatillos_cierre():
     (ticket, símbolo, resultado neto, tipo y volumen), borra `cartera_resultado` y relanza la app para abrir el modal de
     cierre. Al pulsarse un botón de activo guarda `activo_seleccionado` y relanza la app. Si MT5 falla, no
     dibuja botones de posición."""
+    # Registro de las operaciones del usuario en Supabase (copy trading): en segundo plano y como mucho una vez por minuto.
+    registro_operaciones.sincronizar_en_segundo_plano()
     # Posiciones abiertas actuales; ante cualquier error se asume lista vacía.
     try:
         posiciones = obtener_posiciones() or []
