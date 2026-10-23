@@ -16,7 +16,8 @@ acceso/sesion.py
 ---------------
 Mecánica de la sesión de usuario (sin UI): iniciar, cerrar y restaurar la sesión a
 partir del token que vive en la URL (?s=...). El token lo guarda almacen_sesiones en el
-servidor, así la sesión sobrevive a un F5 mientras la consola esté encendida.
+servidor, así la sesión sobrevive a un F5 mientras la consola esté encendida. Además, una cookie de larga duración (herramientas/sesion_persistente.py y
+acceso/cookie.py) la mantiene abierta al cerrar el navegador y al reiniciar el servidor (30 días, hasta que el usuario cierre sesión).
 
 Estado de sesión de Streamlit que maneja este módulo:
   * `usuario_autenticado` (bool): indica que esta pestaña ya inició sesión.
@@ -25,7 +26,9 @@ Lo consume acceso/pantalla.py (requerir_login) y, a través de él, aplicacion.p
 """
 import streamlit as st
 
-from herramientas import almacen_sesiones
+from herramientas import almacen_sesiones, sesion_persistente
+
+from . import cookie
 
 
 # TITULO CERRAR SESION
@@ -35,10 +38,13 @@ def cerrar_sesion() -> None:
 
     Efectos secundarios: elimina del almacén de sesiones del servidor el token que viaja en
     el parámetro `s` de la URL y borra de `st.session_state` las claves `usuario_autenticado`
-    y `usuario_informacion`. No devuelve nada; el llamador decide si limpia la URL y reejecuta.
+    y `usuario_informacion`, revoca la sesión persistente de la cookie y programa borrar esa cookie. No devuelve nada; el llamador decide si limpia la URL y reejecuta.
     """
     # Invalida el token en el servidor para que un F5 ya no restaure la sesión
     almacen_sesiones.eliminar(st.query_params.get("s", ""))
+    # Invalida también la sesión de larga duración (cookie) y deja pendiente borrarla del navegador
+    sesion_persistente.revocar(cookie.leer())
+    cookie.programar_borrado()
     # Olvida el estado local de la pestaña
     for clave in ("usuario_autenticado", "usuario_informacion"):
         st.session_state.pop(clave, None)
@@ -59,6 +65,10 @@ def iniciar_sesion(usuario: dict) -> None:
     st.session_state.usuario_autenticado = True
     st.session_state.usuario_informacion = usuario
     st.query_params["s"] = almacen_sesiones.crear(usuario)  # persiste tras F5
+    # «Mantener sesión iniciada»: token de larga duración guardado en Supabase y en una cookie del navegador (se escribe en la próxima pasada)
+    token_larga = sesion_persistente.crear(usuario.get("id"), st.context.headers.get("User-Agent", ""), reemplaza_token=cookie.leer())
+    if token_larga:
+        cookie.programar_guardado(token_larga)
     st.rerun()
 
 
@@ -68,7 +78,7 @@ def usuario_en_sesion() -> dict | None:
     """Devuelve el usuario autenticado de esta pestaña, o None si no hay sesión.
 
     Primero consulta `st.session_state`; si está vacío (por ejemplo tras un F5) intenta
-    restaurar la sesión con el token `s` de la URL consultando almacen_sesiones. Al
+    restaurar la sesión con el token `s` de la URL consultando almacen_sesiones y, si no hay, con la cookie de larga duración. Al
     restaurar, vuelve a poblar `usuario_autenticado` y `usuario_informacion` en el estado de sesión.
     """
     # Caso normal: la pestaña ya está autenticada
@@ -84,6 +94,15 @@ def usuario_en_sesion() -> dict | None:
             st.session_state.usuario_autenticado = True
             st.session_state.usuario_informacion = usuario
             return usuario
+
+    # Sin token en la URL (navegador cerrado y abierto de nuevo, o servidor reiniciado): se prueba la cookie de «mantener sesión iniciada».
+    # Si es válida se restaura la sesión y se crea un token `?s=` nuevo para esta pestaña.
+    usuario = sesion_persistente.validar(cookie.leer())
+    if usuario:
+        st.session_state.usuario_autenticado = True
+        st.session_state.usuario_informacion = usuario
+        st.query_params["s"] = almacen_sesiones.crear(usuario)
+        return usuario
     return None
 
 

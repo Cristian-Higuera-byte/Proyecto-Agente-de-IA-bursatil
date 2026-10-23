@@ -56,7 +56,15 @@ Transportes y Servicios Ltda.
       '.barra-lateral-boton.peligro:hover { color: #f85149; }',
       '.barra-lateral-boton svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }',
       '#tradingview-stylebar input[type=color] { width: 22px; height: 22px; border: none; padding: 0; background: none; cursor: pointer; }',
-      '#tradingview-actions .tvbtn[disabled] { opacity: 0.35; cursor: default; }'
+      '#tradingview-actions .tvbtn[disabled] { opacity: 0.35; cursor: default; }',
+      /* Pantallas tactiles (clase pj-tactil): la barra se ajusta al ancho del grafico (antes quedaba centrada y mas ancha: Duplicar y Eliminar salian por el borde)
+         y se desplaza si no cabe; las acciones pasan al principio para que Eliminar siempre se vea. */
+      'html.pj-tactil #tradingview-stylebar { left: 46px; right: 6px; transform: none; max-width: none; overflow-x: auto; }',
+      'html.pj-tactil #tradingview-stylebar > * { flex-shrink: 0; }',
+      'html.pj-tactil #tradingview-stylebar .barra-lateral-bloque.ultimo { order: -1; border-right: 1px solid #30363d; margin-right: 8px; padding-right: 8px; }',
+      'html.pj-tactil .barra-lateral-boton, html.pj-tactil .barra-lateral-ancho, html.pj-tactil .barra-lateral-estilo { width: 36px; height: 34px; }',
+      '.barra-lateral-boton[data-accion="cerrar"] { display: none; }',
+      'html.pj-tactil .barra-lateral-boton[data-accion="cerrar"] { display: flex; }'
     ].join(' ');
     document.head.appendChild(estiloUI2);
 
@@ -115,6 +123,11 @@ Transportes y Servicios Ltda.
     bDel.className = 'barra-lateral-boton peligro'; bDel.title = 'Eliminar'; bDel.setAttribute('data-accion', 'borrar');
     bDel.innerHTML = '<svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>';
     bloqueCuenta.appendChild(bDup); bloqueCuenta.appendChild(bDel);
+    // Botón «Ocultar barra» (solo pantallas táctiles, ver la hoja de estilos): quita la selección del dibujo y con ello esta barra; en táctil no hay clic en vacío fiable.
+    var bCerrar = document.createElement('button');
+    bCerrar.className = 'barra-lateral-boton'; bCerrar.title = 'Ocultar barra'; bCerrar.setAttribute('data-accion', 'cerrar');
+    bCerrar.innerHTML = '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+    bloqueCuenta.appendChild(bCerrar);
 
     // Se arma la barra con los cuatro bloques y se inserta en el área del gráfico.
     barraEl.appendChild(bloqueColor); barraEl.appendChild(bloqueAncho);
@@ -170,6 +183,7 @@ Transportes y Servicios Ltda.
       else if (btn.hasAttribute('data-estilo')) { el.estilo = btn.getAttribute('data-estilo'); }
       else if (btn.getAttribute('data-accion') === 'borrar') { borrarSeleccionado(); return; }
       else if (btn.getAttribute('data-accion') === 'duplicar') { copiarSeleccionado(); pegar(); return; }
+      else if (btn.getAttribute('data-accion') === 'cerrar') { seleccionadoId = null; redibujarTodo(); return; }
       else return;
       confirmarCambio();
       refrescarBarra(el);
@@ -254,6 +268,19 @@ Transportes y Servicios Ltda.
     // Se colocan al inicio de la barra de acciones (Deshacer primero, luego Rehacer).
     accionesEl.insertBefore(botonRehacer, accionesEl.firstChild);
     accionesEl.insertBefore(botonDeshacer, botonRehacer);
+    // Pantallas táctiles: la barra superior se desplaza hacia los lados y Deshacer/Rehacer quedaban escondidos a la derecha; se pasan a la barra de rangos,
+    // junto al botón de ampliar (los tres quedan fijos a la derecha, ver css/60_barra_rangos.css), y vuelven a la barra de acciones en escritorio.
+    botonDeshacer.id = 'boton-deshacer'; botonRehacer.id = 'boton-rehacer';
+    function ubicarDeshacerRehacer(){
+      var rangos = document.getElementById('tradingview-rangebar'), ampliar = document.getElementById('boton-expandir-movil');
+      if (!rangos || !ampliar) return;
+      var tactil = false; try { tactil = window.parent.innerWidth <= 1024; } catch (e) {}
+      var enRangos = botonDeshacer.parentNode === rangos;
+      if (tactil && !enRangos) { rangos.insertBefore(botonDeshacer, ampliar); rangos.insertBefore(botonRehacer, ampliar); }
+      else if (!tactil && enRangos) { accionesEl.insertBefore(botonRehacer, accionesEl.firstChild); accionesEl.insertBefore(botonDeshacer, botonRehacer); }
+    }
+    setInterval(ubicarDeshacerRehacer, 400);
+    ubicarDeshacerRehacer();
 
     // Reasignación redundante del estado de visibilidad (conserva el mismo valor inicial true).
     var dibujosVisibles = true;

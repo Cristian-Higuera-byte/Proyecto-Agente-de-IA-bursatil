@@ -240,6 +240,18 @@ Transportes y Servicios Ltda.
   /* Realce del boton Operar al pasar el raton */
   .st-key-ficha_operar button:hover { filter:brightness(1.08); }
 
+  /* TITULO MOVIL (pantallas de hasta 1024 px (celulares y tablets)): tabla de instrumentos reducida */
+  /* La tabla de 7 columnas mide unos 820 px y no cabe en el celular: se conservan instrumento, precio y cambio porcentual
+     (columnas 1, 2 y 4) y se ocultan cambio, rango, 5 dias y estado, tanto en la cabecera como en las filas. */
+  @media (max-width: 1024px) {
+    .mercados-cabecera, .mercados-fila { grid-template-columns:minmax(0,1fr) 96px 88px; }
+    .mercados-cabecera > div, .mercados-fila > div { padding:0 8px; }
+    .mercados-cabecera > div:nth-child(3), .mercados-cabecera > div:nth-child(n+5),
+    .mercados-fila > div:nth-child(3), .mercados-fila > div:nth-child(n+5) { display:none !important; }
+    /* Ficha del instrumento: los 6 rendimientos (1 dia a 1 año) miden ~480 px en una fila y se salen del dialogo; van en 2 filas de 3. */
+    .ficha-rendimiento { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  }
+
 /* -------------------------------------------------------------------------------------------------------
    ------------------------------------- FIN Piña y Jara estilos .CSS ------------------------------------
    ------------------------------------------------------------------------------------------------------- */

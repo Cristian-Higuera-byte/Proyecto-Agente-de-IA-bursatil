@@ -59,7 +59,8 @@ def renderizar_vista_operativa(renderizar_lista_izquierda, fragmentos, consola) 
     # columnas, para que el gráfico se mida con el espacio reservado a la derecha y para que el panel de favoritos
     # nazca ya en su sitio. Los favoritos se dibujan antes que la lista de activos porque su fragmento también
     # refresca los precios de mercado que esa lista usa.
-    from componentes_plataforma.riel import inyectar_css_riel, renderizar_panel_favoritos, renderizar_riel_y_paneles
+    from componentes_plataforma.riel import (inyectar_css_riel, renderizar_barra_operar, renderizar_panel_favoritos,
+                                             renderizar_riel_y_paneles)
     inyectar_css_riel()
     renderizar_panel_favoritos(fragmentos.favoritos)
 
@@ -71,6 +72,8 @@ def renderizar_vista_operativa(renderizar_lista_izquierda, fragmentos, consola) 
     with columna_centro:
         renderizar_panel_central(consola)
     renderizar_riel_y_paneles(consola)
+    # Solo celular: barra fija Vender/Comprar sobre el rail; abre el ticket de órdenes.
+    renderizar_barra_operar()
 
     # Separador fino entre las dos filas (con st.markdown("---") quedaba una franja alta de ~50px).
     st.html("<div class='pj-separador'></div>")

@@ -44,6 +44,17 @@ Transportes y Servicios Ltda.
     .tvtf:hover { background:rgba(255,255,255,0.08); color:#ffffff; }
     /* Temporalidad seleccionada, en azul. */
     .tvtf.active { background:rgba(88,166,255,0.18); color:#58a6ff; border-color:rgba(88,166,255,0.3); }
+    /* Boton para ampliar el grafico (solo pantallas tactiles): fijo a la derecha de la barra de rangos, que se desplaza por debajo. */
+    #boton-expandir-movil { display:none; position:sticky; right:0; margin-left:auto; flex-shrink:0; background:#0d1117; }
+    html.pj-tactil #boton-expandir-movil { display:flex; }
+    #boton-expandir-movil .ic-contraer { display:none; }
+    /* Deshacer y Rehacer pasan a esta barra en pantallas tactiles (js/23_dibujo_barra_estilos.js) y quedan fijos a la derecha junto al boton de ampliar. */
+    #tradingview-rangebar #boton-deshacer, #tradingview-rangebar #boton-rehacer { position:sticky; flex-shrink:0; background:#0d1117; }
+    #tradingview-rangebar #boton-deshacer { right:78px; margin-left:auto; }
+    #tradingview-rangebar #boton-rehacer { right:39px; }
+    #tradingview-rangebar #boton-rehacer + #boton-expandir-movil { margin-left:0; }
+    #tradingview-contenedor.pj-fs #boton-expandir-movil .ic-expandir { display:none; }
+    #tradingview-contenedor.pj-fs #boton-expandir-movil .ic-contraer { display:block; }
     /* Etiqueta de texto que rotula cada grupo de la barra. */
     .tradingview-rangelabel { color:#6e7681; font-size:12px; font-weight:600; padding:0 8px 0 2px; white-space:nowrap; }
 

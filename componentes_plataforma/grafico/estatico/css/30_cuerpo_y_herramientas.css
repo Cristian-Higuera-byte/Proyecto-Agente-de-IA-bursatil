@@ -28,6 +28,13 @@ Transportes y Servicios Ltda.
         padding:8px 4px; border-right:1px solid #1b2430; background:#0d1117;
         flex-shrink: 0; z-index: 20; /* queda sobre el lienzo para que los menús flotantes no se tapen */
     }
+    /* En celular (hasta 768 px de ancho del iframe) la barra de dibujo se oculta: dibujar con el dedo no es práctico y le quita 43 px de
+       ancho al gráfico (las apps de brokers como XM tampoco la muestran). Va aquí, tras la regla base, para ganarle por orden. */
+    @media (max-width: 768px) {
+        #tradingview-barra-herramientas-izquierda { display:none; }
+    /* Ampliado (celular o tablet, clase pj-tactil): vuelven las herramientas de dibujo, como en la pantalla ampliada de XM. */
+    html.pj-tactil #tradingview-contenedor.pj-fs #tradingview-barra-herramientas-izquierda { display:flex; }
+    }
     /* Botón cuadrado de herramienta de dibujo. */
     .tvtool {
         width:34px; height:34px; display:flex; align-items:center; justify-content:center;

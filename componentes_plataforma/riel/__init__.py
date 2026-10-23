@@ -46,9 +46,12 @@ botones.json, riel.js (alterna los paneles sin reejecutar Python).
 from componentes_plataforma.riel.datos import BOTONES, PANEL, RAIL, TOP
 # Funciones que inyectan el CSS y dibujan el rail con sus paneles.
 from componentes_plataforma.riel.panel import inyectar_css_riel, renderizar_panel_favoritos, renderizar_riel_y_paneles
+# Pieza que solo se ve en el celular: barra fija Vender/Comprar.
+from componentes_plataforma.riel.movil import renderizar_barra_operar
 
 # API pública del paquete.
-__all__ = ["RAIL", "PANEL", "TOP", "BOTONES", "inyectar_css_riel", "renderizar_panel_favoritos", "renderizar_riel_y_paneles"]
+__all__ = ["RAIL", "PANEL", "TOP", "BOTONES", "inyectar_css_riel", "renderizar_panel_favoritos", "renderizar_riel_y_paneles",
+           "renderizar_barra_operar"]
 
 
 # -------------------------------------------------------------------------------------------------------

@@ -74,15 +74,32 @@ def renderizar_cabecera_precio(activo_visible: str, digits: int) -> None:
         texto_estado = "Conectado" if conectado else "Sin conexión"
         
         # Barra HTML: izquierda símbolo, origen, precio y Bid/Ask; derecha estado de la conexión.
+        # En celular (hasta 1024 px (celulares y tablets)) los datos pasan a dos filas: símbolo, origen y precio arriba; Bid/Ask abajo, a todo el ancho.
+        # Los estilos en línea mandan sobre la hoja, por eso las reglas móviles llevan !important (llaves dobles por el f-string).
         st.markdown(f"""
-            <div style='background-color: #161b22; padding: 10px 16px; border-radius: 8px; border: 1px solid #30363d; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;'>
-                <div style='display: flex; align-items: center; gap: 14px;'>
-                    <span style='font-size: 20px; font-weight: bold; color: #ffffff;'>{escape(activo_visible)}</span>
-                    <span style='background: #30363d; color: #8b949e; padding: 2px 8px; border-radius: 4px; font-size: 11px;'>{NOMBRE_PROVEEDOR}</span>
+            <style>
+            @media (max-width: 1024px) {{
+                .pj-cab-precio {{ position: relative; padding: 6px 12px !important; margin-bottom: 6px !important; flex-wrap: nowrap !important; }}
+                .pj-cab-precio-datos {{ flex-wrap: wrap; gap: 0 10px !important; }}
+                .pj-cab-bidask {{ flex: 0 0 100%; font-size: 12px !important; }}
+                .pj-cab-estado {{ position: absolute; top: 8px; right: 12px; font-size: 0 !important; }}
+                .pj-cab-precio {{ padding: 4px 10px !important; margin: 6px 0 4px !important; }}
+                .pj-cab-precio-datos {{ gap: 0 10px !important; }}
+                .pj-cab-simbolo {{ font-size: 17px !important; }}
+                .pj-cab-precio-datos > span[data-pj-f="px"] {{ font-size: 18px !important; }}
+                .pj-cab-bidask {{ font-size: 11px !important; }}
+                .pj-cab-simbolo {{ cursor: pointer; }}
+                .pj-cab-simbolo::after {{ content: " \\25BE"; color: #8b949e; font-size: 14px; }}
+            }}
+            </style>
+            <div class='pj-cab-precio' style='background-color: #161b22; padding: 10px 16px; border-radius: 8px; border: 1px solid #30363d; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;'>
+                <div class='pj-cab-precio-datos' style='display: flex; align-items: center; gap: 14px;'>
+                    <span class='pj-cab-simbolo' style='font-size: 20px; font-weight: bold; color: #ffffff;'>{escape(activo_visible)}</span>
+                    <span class='pj-cab-origen' style='background: #30363d; color: #8b949e; padding: 2px 8px; border-radius: 4px; font-size: 11px;'>{NOMBRE_PROVEEDOR}</span>
                     <span {_en_vivo(activo_visible, 'px', d=digits, flash=1)} style='font-size: 22px; font-weight: bold; font-family: monospace; color: {color_variacion_activo};'>{precio_actual:,.{digits}f}</span>
-                    <span style='font-size: 14px; font-weight: 600; color: {color_variacion_activo};'>Bid: <span {_en_vivo(activo_visible, 'bid', d=digits)}>{bid:,.{digits}f}</span> | Ask: <span {_en_vivo(activo_visible, 'ask', d=digits)}>{ask:,.{digits}f}</span></span>
+                    <span class='pj-cab-bidask' style='font-size: 14px; font-weight: 600; color: {color_variacion_activo};'>Bid:<span {_en_vivo(activo_visible, 'bid', d=digits)}>{bid:,.{digits}f}</span> | Ask: <span {_en_vivo(activo_visible, 'ask', d=digits)}>{ask:,.{digits}f}</span></span>
                 </div>
-                <div style='font-size: 13px; color: #8b949e; font-weight: 600; display: flex; align-items: center; gap: 6px;'>
+                <div class='pj-cab-estado' style='font-size: 13px; color: #8b949e; font-weight: 600; display: flex; align-items: center; gap: 6px;'>
                     {texto_estado} <span style='color: {color_estado}; font-size: 16px;'>●</span>
                 </div>
             </div>

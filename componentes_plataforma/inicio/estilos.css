@@ -82,6 +82,9 @@ Transportes y Servicios Ltda.
   .destacado-ganancia-perdida .t { color:#8b949e; font-weight:500; }
   /* Cuadrícula de 3 columnas iguales con los indicadores (saldo, margen libre y usado). */
   .kpis { display:grid; grid-template-columns:repeat(3,1fr); /* 3 columnas iguales */ gap:12px; margin-top:18px; }
+  /* En celular las tres tarjetas (saldo, margen libre y margen usado) no caben en una fila: 3 columnas de 1fr miden al menos su contenido
+     (~120 px cada una) y se salen de la tarjeta; con auto-fit pasan a 2 columnas y la tercera baja a la fila siguiente. */
+  @media (max-width: 1024px) { .kpis { grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:8px; } }
   /* Cada indicador: caja con fondo y borde sutiles. */
   .kpi { background:#151c27; border:1px solid #252f3d; border-radius:12px; padding:12px 14px; }
   /* Etiqueta del indicador. */

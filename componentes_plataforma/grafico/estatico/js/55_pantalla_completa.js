@@ -26,6 +26,54 @@ Transportes y Servicios Ltda.
     var docPadre = null;
     try { docPadre = window.parent.document; } catch (e) {}
 
+    // TITULO PANTALLA COMPLETA SIMULADA (pantallas tactiles)
+    // fsFalso: el iframe esta ampliado con position:fixed sobre toda la ventana. Se recuerda en el propio iframe (data-pj-fs) porque Streamlit puede
+    // recargar el contenido sin cambiar el elemento iframe y este script arrancaria de nuevo sin saber que ya esta ampliado.
+    var fsFalso = false;
+    var marcoFs = window.frameElement;
+    /** Indica si la ventana padre es de celular o tablet (hasta 1024 px, el mismo corte que el CSS de la plataforma). */
+    function esTactil(){ try { return window.parent.innerWidth <= 1024; } catch (e) { return false; } }
+    /** Amplia el iframe a toda la ventana (position:fixed con !important para ganar a la regla de alto de la plataforma). Devuelve false si no se puede. */
+    function entrarFsFalso(){
+      if (!marcoFs || !docPadre) return false;
+      marcoFs.setAttribute('data-pj-estilo', marcoFs.getAttribute('style') || '');
+      marcoFs.setAttribute('data-pj-fs', '1');
+      /* Boton Atras del telefono: se agrega una entrada al historial al ampliar; Atras la consume y cierra la ampliacion (en vez de salir de la pagina). */
+      try {
+        var P = window.parent;
+        P.history.pushState({ pjFs: 1 }, '');
+        if (P.__pjFsAtras) P.removeEventListener('popstate', P.__pjFsAtras);
+        P.__pjFsAtras = function(){ if (fsFalso) salirFsFalso(true); };
+        P.addEventListener('popstate', P.__pjFsAtras);
+      } catch (e) {}
+      aplicarFsFalso(true);
+      return true;
+    }
+    /** Quita la ampliacion y devuelve al iframe su estilo anterior. */
+    function salirFsFalso(desdeAtras){
+      aplicarFsFalso(false);
+      // Se retira la entrada de historial que se agrego al ampliar (si el cierre no vino ya del boton Atras).
+      if (!desdeAtras) { try { var P = window.parent; if (P.history.state && P.history.state.pjFs) P.history.back(); } catch (e) {} }
+    }
+    /** Pone o quita los estilos de la ampliacion y la clase del documento padre (que la CSS usa para fijar el desplazamiento de la pagina). */
+    function aplicarFsFalso(on){
+      fsFalso = on;
+      if (on) {
+        /* La tarjeta de precio de la pagina (simbolo, precio, Bid/Ask) se queda fija sobre el grafico para abrir la lista de activos sin salir; el
+           iframe se baja lo que mide la tarjeta (CSS de riel/estilos.css: html.pj-grafico-expandido .pj-cab-precio). */
+        var cab = docPadre.querySelector('.pj-cab-precio');
+        var desplazo = cab ? Math.round(cab.getBoundingClientRect().height) + 14 : 0;
+        [['position','fixed'],['top',desplazo + 'px'],['left','0'],['width','100%'],['height','calc(100% - ' + desplazo + 'px)'],['max-width','none'],['min-height','0'],['z-index','100010'],['border','0'],['background','#0d1117']]
+          .forEach(function(p){ marcoFs.style.setProperty(p[0], p[1], 'important'); });
+      } else {
+        var previo = marcoFs.getAttribute('data-pj-estilo') || '';
+        if (previo) marcoFs.setAttribute('style', previo); else marcoFs.removeAttribute('style');
+        marcoFs.removeAttribute('data-pj-fs'); marcoFs.removeAttribute('data-pj-estilo');
+      }
+      docPadre.documentElement.classList.toggle('pj-grafico-expandido', on);
+    }
+    // Si el iframe ya estaba ampliado antes de cargar este script, se retoma ese estado.
+    if (marcoFs && marcoFs.getAttribute('data-pj-fs') === '1') { fsFalso = true; }
     // TITULO EN PANTALLA COMPLETA
 
     /**
@@ -33,6 +81,7 @@ Transportes y Servicios Ltda.
      * también el documento padre de Streamlit.
      */
     function enPantallaCompleta(){
+      if (fsFalso) return true;
       var fe = docPadre ? docPadre.fullscreenElement : document.fullscreenElement;
       if (!fe && document.fullscreenElement) fe = document.fullscreenElement;
       return !!fe && (fe === window.frameElement || fe === contenedorFs);
@@ -44,6 +93,9 @@ Transportes y Servicios Ltda.
      * y sale usando el documento que la tiene.
      */
     function alternarPantallaCompleta(){
+      if (fsFalso) { salirFsFalso(false); return; }
+      /* Pantallas tactiles: la API de pantalla completa no existe en el iPhone y en Android quita las barras propias; se amplia el iframe a toda la ventana. */
+      if (esTactil() && entrarFsFalso()) return;
       if (enPantallaCompleta()) {
         var d = (docPadre && docPadre.fullscreenElement) ? docPadre : document;
         if (d.exitFullscreen) d.exitFullscreen();
@@ -59,6 +111,34 @@ Transportes y Servicios Ltda.
       } else { respaldo(); }
     }
     if (botonCompletoEl) botonCompletoEl.addEventListener('click', alternarPantallaCompleta);
+    /* Con el grafico ampliado en pantalla tactil, VENDER/COMPRAR del grafico abren el panel Operar (con el lado elegido) en vez de operar a mercado:
+       se pulsa el boton de la barra Vender/Comprar de la pagina (riel.js), cuyas hojas se muestran sobre el grafico. Devuelve true si lo atendio. */
+    window.__pjOperarDesdeGrafico = function(lado){
+      if (!fsFalso || !docPadre) return false;
+      var b = docPadre.querySelector(lado === 'SELL' ? '.pj-op-vender' : '.pj-op-comprar');
+      if (!b) return false;
+      b.click();
+      return true;
+    };
+    // TITULO MENUS DE LA BARRA SUPERIOR EN PANTALLAS TACTILES
+    /* En pantallas tactiles la barra superior se desplaza de lado (css/10_base_y_barra_superior.css) y un contenedor con desplazamiento recorta a sus hijos absolutos,
+       asi que al abrirse cada menu desplegable (clase show) se coloca con position:fixed bajo su boton, alineado a la derecha y sin salirse de la ventana; al
+       cerrarse o salir de pantalla tactil se restauran sus estilos, y desplazar la barra lo cierra. */
+    function colocarMenuFijo(m){
+      if (!esTactil() || !m.classList.contains('show')) { m.style.position = m.style.top = m.style.right = m.style.left = m.style.maxHeight = m.style.overflowY = ''; return; }
+      var boton = m.parentNode.querySelector('button'), r = (boton || m.parentNode).getBoundingClientRect();
+      m.style.position = 'fixed'; m.style.top = Math.round(r.bottom) + 'px'; m.style.left = 'auto';
+      m.style.right = Math.max(4, Math.round(window.innerWidth - r.right)) + 'px';
+      m.style.maxHeight = Math.max(120, window.innerHeight - Math.round(r.bottom) - 8) + 'px'; m.style.overflowY = 'auto';
+    }
+    var menusBarraSuperior = document.querySelectorAll('.tradingview-desplegable-contenido');
+    var observadorMenus = new MutationObserver(function(cambios){ cambios.forEach(function(c){ colocarMenuFijo(c.target); }); });
+    Array.prototype.forEach.call(menusBarraSuperior, function(m){ observadorMenus.observe(m, { attributes: true, attributeFilter: ['class'] }); });
+    var barraSuperiorEl = document.getElementById('tradingview-barra-superior');
+    if (barraSuperiorEl) barraSuperiorEl.addEventListener('scroll', function(){ Array.prototype.forEach.call(menusBarraSuperior, function(m){ m.classList.remove('show'); }); }, { passive: true });
+
+    var botonExpandirMovil = document.getElementById('boton-expandir-movil');
+    if (botonExpandirMovil) botonExpandirMovil.addEventListener('click', alternarPantallaCompleta);
 
     // --- Selector de activo ---
     // Elementos del selector de activo
@@ -127,7 +207,7 @@ Transportes y Servicios Ltda.
     document.addEventListener('mousedown', function(e){
       if (panelSeleccion.classList.contains('abierto') && !panelSeleccion.contains(e.target) && e.target !== simboloEl) cerrarSelectorActivo();
     });
-    document.addEventListener('keydown', function(e){ if (e.key === 'Escape') cerrarSelectorActivo(); });
+    document.addEventListener('keydown', function(e){ if (e.key === 'Escape') { cerrarSelectorActivo(); if (fsFalso) salirFsFalso(false); } });
 
     // --- Modo pantalla completa (clase pj-fs): se revisa a menudo porque el evento llega al documento padre ---
     // fsPrevio: último estado de pantalla completa visto, para detectar cambios
@@ -139,6 +219,7 @@ Transportes y Servicios Ltda.
      * redibuja los dibujos.
      */
     function sincronizarPantalla(){
+      document.documentElement.classList.toggle('pj-tactil', esTactil());
       var fs = enPantallaCompleta();
       if (fs === fsPrevio) return;
       fsPrevio = fs;

@@ -69,7 +69,7 @@ __TIPS__
        Operar está activo salvo que haya DOM o todo oculto. */
     /* TITULO ÍCONO DEL PANEL ABIERTO */
     /* Operar activo (verde) cuando el elemento html no tiene ni pj-panel-dom, ni pj-panel-favorito, ni pj-panel-none. */
-    html:not(.pj-panel-dom):not(.pj-panel-favorito):not(.pj-panel-none) .st-key-rail_order button {
+    html:not(.pj-panel-dom):not(.pj-panel-favorito):not(.pj-panel-activos):not(.pj-panel-none) .st-key-rail_order button {
         background: rgba(34,197,94,0.12) !important; color: #22c55e !important;
     }
     /* DOM activo (verde) cuando html tiene la clase pj-panel-dom. */
@@ -109,6 +109,7 @@ __TIPS__
     /* Fondo transparente del envoltorio interno de Streamlit para que se vea el fondo del panel. */
     .st-key-pj_panel_orden [data-testid="stVerticalBlockBorderWrapper"],
     .st-key-pj_panel_dom [data-testid="stVerticalBlockBorderWrapper"],
+    .pj-nav-hoja { display: none; }
     .st-key-pj_panel_favorito [data-testid="stVerticalBlockBorderWrapper"] { background: transparent; }
     /* El panel Favoritos ya trae su propio recuadro (favorito_panel): se le quita el margen inferior para que no sobre espacio. */
     .st-key-pj_panel_favorito .st-key-favorito_panel { margin-bottom: 0 !important; }
@@ -128,6 +129,99 @@ __TIPS__
     /* Contenedor pj_railjs que aloja el iframe de riel.js: se saca del flujo y se reduce a cero para que no ocupe espacio. */
     .st-key-pj_railjs { position: absolute !important; width: 0 !important;
         height: 0 !important; overflow: hidden !important; }
+
+    /* TITULO PIEZA SOLO MOVIL (movil.py) */
+    /* La barra Vender/Comprar se oculta en escritorio y su envoltorio sale del flujo, como los demas contenedores fijos. */
+    .st-key-pj_barra_operar { display: none; }
+    [data-testid="stLayoutWrapper"]:has(> .st-key-pj_barra_operar) { position: absolute !important; width: 0 !important; height: 0 !important; }
+
+    /* TITULO MOVIL (pantallas de hasta 1024 px (celulares y tablets)): pantalla de trading a alto completo y paneles que suben desde abajo */
+    /* Como en las apps de brokers (XM): el grafico ocupa todo el alto libre entre la cabecera de precio y la barra Vender/Comprar, que
+       queda siempre a la vista sobre la barra de navegacion. El rail derecho no se usa en celular: el ticket se abre desde Vender/Comprar
+       y los favoritos desde el simbolo de la cabecera (riel.js abre el panel Favoritos); el panel DOM no tiene acceso en celular.
+       Los paneles son hojas inferiores a todo el ancho. Operar arranca cerrado (lo decide riel.js al cargar). */
+    @media (max-width: 1024px) {
+        /* El contenido ya no reserva sitio a la derecha y deja espacio abajo para la barra Vender/Comprar (64) y la de navegacion (64). */
+        html .block-container, html.pj-panel-none .block-container {
+            padding-right: 12px !important; padding-bottom: 144px !important; }
+        /* Espacio perdido arriba: el CSS inyectado y el envoltorio del panel Favoritos miden 0 px pero, al ser hijos de pj_vista (separacion de 16 px),
+           sumaban 32 px vacios sobre la cabecera de precio. Se sacan del flujo, como los demas contenedores fijos. */
+        .st-key-pj_vista > [data-testid="stElementContainer"]:first-child,
+        [data-testid="stLayoutWrapper"]:has(> .st-key-pj_panel_favorito) { position: absolute !important; width: 0 !important; height: 0 !important; }
+        /* El rail derecho no se usa en celular. */
+        .st-key-pj_rail { display: none !important; }
+        /* Paneles: hojas inferiores de ancho completo, justo sobre la barra de navegacion (64 px); tapan la barra Vender/Comprar. */
+        .st-key-pj_panel_orden, .st-key-pj_panel_dom, .st-key-pj_panel_favorito {
+            top: auto !important; bottom: calc(64px + var(--pj-vv-bottom, 0px)) !important; left: 0 !important; right: 0 !important;
+            width: 100% !important; height: 65vh !important;
+            border-left: none; border-top: 1px solid #30363d; border-radius: 16px 16px 0 0; }
+        /* Ocultos: abajo, fuera de la pantalla. Visible solo el que corresponde al estado de html. */
+        .st-key-pj_panel_orden, .st-key-pj_panel_dom, .st-key-pj_panel_favorito { transform: translateY(110%) !important; }
+        html:not(.pj-panel-dom):not(.pj-panel-favorito):not(.pj-panel-activos):not(.pj-panel-none) .st-key-pj_panel_orden,
+        html.pj-panel-dom .st-key-pj_panel_dom,
+        html.pj-panel-favorito .st-key-pj_panel_favorito { transform: none !important; }
+        /* Abiertos: transform:none (no translateY(0)). Un transform, aunque sea la identidad, hace de la hoja el bloque contenedor de sus hijos con
+           position:fixed: la tarjeta «Confirmar orden» (panel_orden/confirmacion.py) quedaba recortada dentro de la hoja. */
+        /* La tarjeta de confirmacion ocupa el ancho de la pantalla, sobre las barras Vender/Comprar y de navegacion. */
+        .st-key-orden_confirmacion_tarjeta { left: 12px !important; right: 12px !important; width: auto !important; max-width: none !important;
+            bottom: calc(148px + var(--pj-vv-bottom, 0px)) !important; }
+        /* Al tocar el simbolo se abre la hoja Lista de activos (sola, 65vh). Desde su cabecera «Favoritos» se pasa a la hoja Favoritos y desde
+           esta, «Lista de activos» vuelve; nunca se ven juntas. La columna de la lista (solo existe en Trading) sale del flujo y se oculta con
+           display:none (visibility dejaba hijos visibles; transform atraparia los position:fixed). El :not(:has(grafico_cerrar_wrap)) evita
+           tomar la columna exterior, que contiene tambien el grafico. */
+        div[data-testid="stColumn"]:has(.st-key-lista_activos_panel):not(:has(.st-key-grafico_cerrar_wrap)) {
+            position: fixed !important; left: 0; right: 0; bottom: calc(64px + var(--pj-vv-bottom, 0px)); width: 100% !important; height: 65vh; z-index: 99997;
+            background: #0d1117; border-top: 1px solid #30363d; border-radius: 16px 16px 0 0; overflow: hidden; display: none !important; }
+        html.pj-panel-activos div[data-testid="stColumn"]:has(.st-key-lista_activos_panel):not(:has(.st-key-grafico_cerrar_wrap)) { display: block !important; }
+        html div[data-testid="stColumn"] [data-testid="stLayoutWrapper"]:has(> .st-key-lista_activos_desplazamiento) {
+            height: calc(65vh - 150px) !important; flex: 0 0 calc(65vh - 150px) !important; }
+        html .st-key-lista_activos_desplazamiento { height: calc(65vh - 150px) !important; }
+        /* Tocar fuera cierra la hoja: mientras hay una hoja abierta, un velo oscuro cubre la pagina (el clic cae en html, ver riel.js). */
+        html:not(.pj-panel-none)::after { content: ''; position: fixed; inset: 0; z-index: 99990; background: rgba(1, 4, 9, .55); }
+        /* Botones de texto de las cabeceras de las hojas (pasan de una a otra). */
+        .pj-nav-hoja { display: inline-flex; align-items: center; margin-left: auto; padding: 6px 12px; border: 1px solid #30363d; border-radius: 16px;
+            background: #161b22; color: #c9d1d9; font-size: 12px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+        html:not(:has(.st-key-lista_activos_panel)) .pj-ir-lista { display: none; }
+        /* Cartera en celular: solo la lista de posiciones, sin grafico ni cabecera de precio. Cartera es la vista sin Lista de activos (esa solo
+           existe en Trading); se oculta la columna interior del grafico (la exterior contiene toda la vista y no debe tocarse). */
+        html:not(:has(.st-key-lista_activos_panel)) div[data-testid="stColumn"]:has(.st-key-grafico_cerrar_wrap):not(:has([data-testid="stColumn"])) { display: none !important; }
+        /* Con las columnas apiladas, el grafico va primero y la lista de activos debajo. */
+        div[data-testid="stColumn"]:has(.st-key-grafico_cerrar_wrap) { order: -1; }
+        /* Grafico a alto completo: el iframe (y su contenedor, que trae 750 px propios) miden el alto de la pantalla menos lo que hay
+           arriba (barra superior y cabecera de precio) y abajo (barra Vender/Comprar y barra de navegacion). El grafico se reajusta
+           solo al tamano del iframe. Primero vh y despues dvh, para los navegadores que no conocen dvh. */
+        div[data-testid="stColumn"]:has(.st-key-grafico_cerrar_wrap) [data-testid="stElementContainer"]:has(> [data-testid="stIFrame"]),
+        div[data-testid="stColumn"]:has(.st-key-grafico_cerrar_wrap) [data-testid="stIFrame"] {
+            height: calc(100vh - 258px) !important; height: calc(100dvh - 258px) !important; min-height: 300px; }
+        /* El contenedor del iframe viene con flex-basis de 750 px dentro de una columna flex: la altura sola no basta (el iframe se salia de su contenedor y la
+           fila de abajo se montaba sobre el grafico en tablet, o dejaba un hueco en celular). Se fija tambien la base flex. */
+        div[data-testid="stColumn"]:has(.st-key-grafico_cerrar_wrap) [data-testid="stElementContainer"]:has(> [data-testid="stIFrame"]) {
+            flex: 0 0 calc(100vh - 258px) !important; flex: 0 0 calc(100dvh - 258px) !important; }
+        /* Barra Vender/Comprar: fija sobre la barra de navegacion (64 px), bajo los paneles; mide 64 px (el markdown de Streamlit trae
+           margen inferior negativo, que se anula) con botones de dos lineas (etiqueta y precio en vivo). */
+        .st-key-pj_barra_operar { display: block; position: fixed !important; left: 0; right: 0; bottom: calc(64px + var(--pj-vv-bottom, 0px)); height: 64px; z-index: 99998;
+            padding: 8px 12px; background: #0d1117; border-top: 1px solid #30363d; box-sizing: border-box; }
+        .st-key-pj_barra_operar [data-testid="stMarkdownContainer"] { margin-bottom: 0 !important; }
+        /* Grafico ampliado: la tarjeta de precio queda fija sobre el grafico (el iframe se baja su alto) y las hojas (lista, favoritos, Operar), el velo y la
+           tarjeta de confirmacion suben por encima del iframe (z-index 100010) para operar y cambiar de activo sin salir. */
+        html.pj-grafico-expandido .pj-cab-precio { position: fixed !important; top: 6px; left: 8px; right: 8px; margin: 0 !important; z-index: 100015; box-sizing: border-box; }
+        html.pj-grafico-expandido .st-key-pj_panel_orden, html.pj-grafico-expandido .st-key-pj_panel_dom, html.pj-grafico-expandido .st-key-pj_panel_favorito,
+        html.pj-grafico-expandido div[data-testid="stColumn"]:has(.st-key-lista_activos_panel):not(:has(.st-key-grafico_cerrar_wrap)) { z-index: 100030 !important; }
+        html.pj-grafico-expandido:not(.pj-panel-none)::after { z-index: 100020; }
+        html.pj-grafico-expandido .st-key-orden_confirmacion_tarjeta { z-index: 100040 !important; }
+        /* Grafico ampliado (boton de la barra de rangos, 55_pantalla_completa.js): el iframe cubre la ventana; la pagina no debe desplazarse debajo. */
+        html.pj-grafico-expandido [data-testid="stMain"], html.pj-grafico-expandido [data-testid="stAppViewContainer"] { overflow: hidden !important; }
+        /* Cartera (vista sin Lista de activos): sin barra Vender/Comprar, solo la lista de posiciones. */
+        html:not(:has(.st-key-lista_activos_panel)) .st-key-pj_barra_operar { display: none !important; }
+        html:not(:has(.st-key-lista_activos_panel)) .block-container { padding-bottom: 88px !important; }
+        .pj-barra-op { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .pj-barra-op button { height: 48px; border: 0; border-radius: 12px; color: #fff; font-family: inherit;
+            display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; }
+        .pj-op-vender { background: #da3633; }
+        .pj-op-comprar { background: #2ea043; }
+        .pj-barra-op span { font-size: 11px; font-weight: 700; letter-spacing: .5px; }
+        .pj-barra-op b { font-size: 15px; font-family: ui-monospace, Consolas, monospace; }
+    }
 
 /* -------------------------------------------------------------------------------------------------------
    ------------------------------------- FIN Piña y Jara estilos .CSS ------------------------------------
