@@ -275,6 +275,7 @@ def refrescar_en_segundo_plano(cliente, estrategias: list, metricas: dict) -> in
             _EN_CURSO.add(e["id"])
 
         def trabajo(estrategia=e):
+            """Recalcula las métricas de una estrategia en el hilo y la quita de las que están en curso al terminar."""
             try:
                 recalcular(cliente, estrategia)
             finally:
@@ -347,6 +348,7 @@ def detalle(cliente, estrategia_id) -> dict:
             return vacio
         columnas = "simbolo,tipo_activo,lado,volumen,tamano_contrato,precio_apertura,abierta_en,precio_cierre,cerrada_en,resultado"
         def operaciones(estado, orden):
+            """Las 30 operaciones más recientes del gestor en el `estado` dado, ordenadas por la columna `orden`."""
             return (cliente.table("operaciones").select(columnas).eq("usuario_id", e["gestor_id"]).eq("cuenta_tipo", e.get("cuenta_tipo", "demo"))
                     .eq("estado", estado).order(orden, desc=True).limit(30).execute().data or [])
         return {"metricas": (cliente.table("estrategias_metricas").select("*").eq("estrategia_id", e["id"]).limit(1).execute().data or [{}])[0],

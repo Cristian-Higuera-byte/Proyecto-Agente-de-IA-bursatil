@@ -151,8 +151,14 @@
         -- Descripción: la tabla del perfil (datos personales: documento, teléfono, dirección) se crea ejecutando
         -- componentes_plataforma/perfil/esquema.sql y, en este proyecto, se le agrega lo mismo que a las demás:
         -- RLS sin políticas y permisos solo para el rol del servidor.
-        ALTER TABLE perfiles_usuario ENABLE ROW LEVEL SECURITY;
-        GRANT ALL ON TABLE public.perfiles_usuario TO service_role;
+        -- Si la tabla todavía no existe (primera vez), este paso se omite: el script del perfil lo repite al terminar.
+        DO $$
+        BEGIN
+            IF to_regclass('public.perfiles_usuario') IS NOT NULL THEN
+                ALTER TABLE perfiles_usuario ENABLE ROW LEVEL SECURITY;
+                GRANT ALL ON TABLE public.perfiles_usuario TO service_role;
+            END IF;
+        END $$;
 
 
 -- -------------------------------------------------------------------------------------------------------

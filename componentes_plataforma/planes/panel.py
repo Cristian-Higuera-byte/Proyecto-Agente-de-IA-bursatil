@@ -86,8 +86,10 @@ def _lineas_plan(clave: str) -> list:
     """Frases cortas con lo más importante de cada plan, armadas con los valores de `herramientas/plan_funciones.json` (así la tarjeta y el
     cuadro comparativo nunca se contradicen)."""
     def v(f):
+        """Valor de la función `f` en el plan `clave`."""
         return permisos_plan.valor(f, clave)
     def n(x):
+        """Número con puntos de miles."""
         return f"{x:,.0f}".replace(",", ".")
     lineas = [f"{n(v('tokens_mes'))} tokens de IA al mes"]
     lineas.append("Modelo avanzado del agente (perfil profundo)" if "profundo" in (v("perfiles_ia") or []) else "Agente rápido y de análisis")
