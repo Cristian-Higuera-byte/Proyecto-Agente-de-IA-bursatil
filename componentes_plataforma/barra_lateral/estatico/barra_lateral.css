@@ -81,6 +81,8 @@ div[data-testid="column"]:has(.pj-navegacion) > div {
     gap: 4px;
     height: 100%;
 }
+/* El boton «Mas» solo existe en celular (ver el bloque movil al final): en escritorio se oculta. */
+.st-key-navegacion_mas { display: none !important; }
 /* Soporte pegado al fondo */
 [class*="st-key-navegacion_soporte"] { margin-top: auto !important; } /* el margen automatico lo empuja al fondo de la columna */
 
@@ -189,6 +191,94 @@ __EXP__ __COL__ button::after {
 __ETIQUETAS__
 /* Animacion de fundido de entrada usada por el logo y las etiquetas. */
 @keyframes pjFade { from { opacity: 0; } to { opacity: 1; } }
+
+/* ====== MOVIL (pantallas de hasta 768 px): la barra de navegacion pasa abajo ====== */
+/* En celular no hay lugar para una barra lateral: la misma columna se convierte en una franja inferior fija, con los botones en
+   fila y desplazable hacia los lados. Las reglas del estado expandido se anulan (en celular la barra no se expande). */
+@media (max-width: 768px) {
+    /* Contenido principal: sin relleno lateral grande y con espacio abajo para que la barra no tape el final. */
+    /* El prefijo html sube la prioridad: otras hojas (como la del riel derecho, que reserva 378 px a la derecha) llegan despues. */
+    html .block-container, __EXP__ .block-container {
+        padding-left: 12px !important; padding-right: 12px !important; padding-bottom: 88px !important;
+    }
+    /* Barra superior fija: ocupa todo el ancho de la pantalla. */
+    .st-key-barra_navegacion_fija, __EXP__ .st-key-barra_navegacion_fija {
+        left: 0 !important; width: 100% !important;
+    }
+    /* Columna de navegacion: franja de 64 px pegada al borde inferior, con desplazamiento horizontal si no caben todos los botones. */
+    __COL__, __EXP__ __COL__ {
+        top: auto !important; bottom: 0 !important; left: 0 !important;
+        height: 64px !important; min-height: 0 !important; width: 100% !important; max-width: 100% !important;
+        flex: 0 0 100% !important; padding: 0 8px !important;
+        border-right: none !important; border-top: 1px solid #30363d;
+        overflow-x: auto !important; overflow-y: hidden !important;
+        align-items: center !important;
+    }
+    /* Bloque interno: los botones van en fila en vez de apilados. */
+    __COL__ > div, __EXP__ __COL__ > div {
+        flex-direction: row !important; align-items: center !important;
+        height: 100% !important; gap: 2px; width: max-content; min-width: 100%;
+    }
+    /* Contenedores de los botones: ancho segun su contenido. */
+    __COL__ [data-testid="stElementContainer"], __EXP__ __COL__ [data-testid="stElementContainer"]:has(button),
+    __EXP__ __COL__ .stButton { width: auto !important; flex: 0 0 auto !important; }
+    /* Botones de 64 x 56 px (objetivo tactil comodo): el icono arriba y su etiqueta de texto debajo, como en la maqueta. */
+    __COL__ button, __EXP__ __COL__ button {
+        width: 64px !important; height: 56px !important; min-height: 56px !important;
+        flex-direction: column !important; gap: 3px !important; justify-content: center !important; padding: 0 !important;
+    }
+    __COL__ button::after { font-size: 11px; font-weight: 600; line-height: 1; white-space: nowrap; }
+    /* Texto de cada boton de la barra inferior (reglas generadas en barra.py desde ITEMS). */
+    __ETIQUETAS_MOVIL__
+    /* El estado expandido de escritorio no aplica en celular; el logo grande de la barra lateral tampoco. */
+    __EXP__ __COL__ button::after { display: none !important; }
+    .pj-logo { display: none !important; }
+    /* Soporte al final de la fila (a la derecha) en vez de al fondo de la columna. */
+    [class*="st-key-navegacion_soporte"] { margin-top: 0 !important; margin-left: auto !important; }
+
+    /* Ritmo comun de las vistas: todos los titulos de pagina miden 22 px (Resumen, Diario, Laboratorio, Planes, Billetera y Copy trading ya
+       lo hacian; Inicio traia 26 px, Mercados 24 px y Noticias lo fija en linea, de ahi el !important). */
+    .inicio-titulo, .mercados-titulo, .copytrading-titulo, .noticias-titulo, .resumen-titulo, .diario-titulo, .lab-titulo,
+    .planes-titulo, .bil-titulo { font-size: 22px !important; line-height: 1.2; }
+
+    /* Barra inferior: solo los cuatro destinos principales y «Más»; el resto de secciones va en la hoja que abre ese botón. */
+    .st-key-navegacion_boton_copytrading, .st-key-navegacion_boton_noticias, .st-key-navegacion_boton_resumen,
+    .st-key-navegacion_boton_journal, .st-key-navegacion_boton_laboratorio, .st-key-navegacion_boton_planes,
+    .st-key-navegacion_boton_billetera, .st-key-navegacion_soporte { display: none !important; }
+    .st-key-navegacion_mas { display: block !important; }
+    /* Los cinco botones se reparten el ancho de la barra. Los contenedores sin boton (estilos y logo) y el envoltorio del script (pj_sbjs)
+       se quitan del flujo: si no, space-around tambien les reservaria espacio y los botones quedarian pegados a la derecha. */
+    __COL__ > div, __EXP__ __COL__ > div { justify-content: space-around; }
+    __COL__ [data-testid="stElementContainer"]:not(:has(button)):not([class*="st-key-pj_sbjs"]) { display: none !important; }
+    __COL__ > div > [data-testid="stLayoutWrapper"] { position: absolute !important; width: 0 !important; height: 0 !important; }
+
+    /* Hoja «Más»: con la clase pj-mas-abierto (la alterna barra_lateral.js) la barra crece hacia arriba y muestra todas las
+       secciones en una cuadricula de 4 columnas, con su etiqueta bajo cada icono (las etiquetas las genera barra.py). */
+    html.pj-mas-abierto __COL__ {
+        height: auto !important; max-height: 72vh; overflow-y: auto !important; overflow-x: hidden !important;
+        padding: 14px 12px 10px !important; border-radius: 16px 16px 0 0; box-shadow: 0 -16px 40px rgba(0,0,0,.55);
+    }
+    html.pj-mas-abierto __COL__ > div {
+        display: grid !important; grid-template-columns: repeat(4, 1fr) !important; width: 100% !important;
+        height: auto !important; gap: 8px !important;
+    }
+    html.pj-mas-abierto .st-key-navegacion_boton_copytrading, html.pj-mas-abierto .st-key-navegacion_boton_noticias,
+    html.pj-mas-abierto .st-key-navegacion_boton_resumen, html.pj-mas-abierto .st-key-navegacion_boton_journal,
+    html.pj-mas-abierto .st-key-navegacion_boton_laboratorio, html.pj-mas-abierto .st-key-navegacion_boton_planes,
+    html.pj-mas-abierto .st-key-navegacion_boton_billetera, html.pj-mas-abierto .st-key-navegacion_soporte { display: block !important; }
+    /* Los contenedores sin boton (el estilo y el logo) ocuparian celdas vacias de la cuadricula; el del script (pj_sbjs) ya es absoluto. */
+    html.pj-mas-abierto __COL__ [data-testid="stElementContainer"]:not(:has(button)):not([class*="st-key-pj_sbjs"]) { display: none !important; }
+    html.pj-mas-abierto [class*="st-key-navegacion_soporte"] { margin-left: 0 !important; }
+    /* El envoltorio del script de la barra (pj_sbjs) tambien ocuparia una celda: se saca del flujo. */
+    html.pj-mas-abierto __COL__ > div > [data-testid="stLayoutWrapper"] { position: absolute !important; width: 0 !important; height: 0 !important; }
+    html.pj-mas-abierto __COL__ button {
+        width: 100% !important; height: 78px !important; min-height: 78px !important; flex-direction: column !important;
+        gap: 6px; background: #151c27 !important; border: 1px solid #202a37 !important; border-radius: 12px !important;
+    }
+    html.pj-mas-abierto __COL__ button::after {
+        display: block !important; font-size: 11px; font-weight: 600; line-height: 1; color: #c9d1d9; animation: none;
+    }
+}
 
 /* -------------------------------------------------------------------------------------------------------
    ---------------------------------- FIN Piña y Jara barra_lateral .CSS ---------------------------------

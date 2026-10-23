@@ -29,6 +29,7 @@ Transportes y Servicios Ltda.
   function estado(){
     if (H.classList.contains('pj-panel-dom')) return 'dom';
     if (H.classList.contains('pj-panel-favorito')) return 'fav';
+    if (H.classList.contains('pj-panel-activos')) return 'activos';
     if (H.classList.contains('pj-panel-none')) return 'none';
     return 'order';   // sin clase = Operar abierto (default al entrar / F5)
   }
@@ -42,6 +43,7 @@ Transportes y Servicios Ltda.
   function poner(s){
     H.classList.toggle('pj-panel-dom', s === 'dom');
     H.classList.toggle('pj-panel-favorito', s === 'fav');
+    H.classList.toggle('pj-panel-activos', s === 'activos');
     H.classList.toggle('pj-panel-none', s === 'none');
   }
   // Si el script se carga otra vez (rerun de Streamlit), se retira el oyente anterior para no duplicar clics.
@@ -53,6 +55,23 @@ Transportes y Servicios Ltda.
    */
   P.__pjRailFn = function(e){
     if (!(e.target && e.target.closest)) return;
+    /* Barra fija Vender/Comprar del celular: abre el panel Operar (la orden se confirma en el ticket, no aquí). */
+    if (e.target.closest('.pj-barra-op button')) { e.stopPropagation(); e.preventDefault(); poner('order'); return; }
+    /* Celular: tocar el símbolo de la cabecera de precio abre la hoja Lista de activos (o Favoritos si la vista no tiene lista) para cambiar de activo; al elegir un favorito el
+       panel se cierra y el clic sigue su curso para que Streamlit cambie el activo. */
+    if (P.innerWidth <= 768 && e.target.closest('.pj-cab-simbolo')) { e.stopPropagation(); e.preventDefault(); poner(estado() === 'none' ? (D.querySelector('.st-key-lista_activos_panel') ? 'activos' : 'fav') : 'none'); return; }
+    /* Celular: la hoja abierta se cierra tocando fuera de ella. No depende solo del velo oscuro (clic en html): cualquier clic que no caiga
+       dentro de la hoja abierta, ni en la barra de navegacion, la barra Vender/Comprar o el simbolo, la cierra sin llegar a Streamlit. */
+    if (P.innerWidth <= 768 && estado() !== 'none') {
+      var abierta = estado() === 'order' ? '.st-key-pj_panel_orden' : estado() === 'dom' ? '.st-key-pj_panel_dom'
+        : estado() === 'fav' ? '.st-key-pj_panel_favorito' : '[data-testid="stColumn"]:has(.st-key-lista_activos_panel):not(:has(.st-key-grafico_cerrar_wrap))';
+      if (!e.target.closest(abierta + ', .st-key-barra_navegacion_fija, [data-testid=\"stColumn\"]:has(.pj-navegacion), .st-key-pj_barra_operar, .pj-cab-simbolo, .st-key-pj_sbjs, [data-testid="stDialog"], [data-baseweb="popover"]')) {
+        e.stopPropagation(); e.preventDefault(); poner('none'); return; }
+    }
+    /* Cabeceras de las hojas: «Favoritos» (en la lista) y «Lista de activos» (en favoritos) pasan de una hoja a la otra. */
+    if (e.target.closest('.pj-ir-fav')) { e.stopPropagation(); e.preventDefault(); poner('fav'); return; }
+    if (e.target.closest('.pj-ir-lista')) { e.stopPropagation(); e.preventDefault(); poner('activos'); return; }
+    if (P.innerWidth <= 768 && e.target.closest('[class*="st-key-favsel_"] button, [class*="st-key-wlsel_"] button')) { poner('none'); return; }
     // Botones del rail identificados por la clave que les da Streamlit (clases st-key-rail_order y st-key-rail_dom).
     var bo = e.target.closest('.st-key-rail_order button');
     var bd = e.target.closest('.st-key-rail_dom button');
@@ -67,6 +86,11 @@ Transportes y Servicios Ltda.
   };
   // Captura (true) para adelantarse a los manejadores de Streamlit.
   D.addEventListener('click', P.__pjRailFn, true);
+  /* En celular el panel Operar arranca cerrado (taparía la pantalla): solo la primera vez que carga la página y si no hay otro panel abierto. */
+  if (!P.__pjRielMovil && P.innerWidth <= 768) {
+    P.__pjRielMovil = true;
+    if (estado() === 'order') poner('none');
+  }
 })();
 /* -------------------------------------------------------------------------------------------------------
    --------------------------------------- FIN Piña y Jara riel .JS --------------------------------------

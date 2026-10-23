@@ -61,6 +61,8 @@ _ANIM = ".22s ease"
 _COL = 'div[data-testid="stColumn"]:has(.pj-navegacion)'
 # Selector del estado expandido: el JS alterna la clase pj-barra-lateral-expandido en el elemento html.
 _EXP = "html.pj-barra-lateral-expandido"
+# Selector de la hoja «Más» del celular: barra_lateral.js alterna la clase pj-mas-abierto en el elemento html.
+_MAS = "html.pj-mas-abierto"
 
 
 # TITULO LEER ESTATICO
@@ -93,9 +95,22 @@ def _estilos() -> str:
         f'    {_EXP} .st-key-navegacion_boton_{clave} button::after {{ content: {json.dumps(texto)}; }}'
         for _, clave, texto in ITEMS
     ) + f'\n    {_EXP} .st-key-navegacion_soporte button::after {{ content: "Soporte"; }}'
+    # Etiquetas de la hoja «Más» del celular (clase pj-mas-abierto en html): las mismas secciones más «Soporte» y el botón que la cierra.
+    etiquetas += "\n" + "\n".join(
+        f'    {_MAS} .st-key-navegacion_boton_{clave} button::after {{ content: {json.dumps(texto)}; }}'
+        for _, clave, texto in ITEMS
+    ) + (f'\n    {_MAS} .st-key-navegacion_soporte button::after {{ content: "Soporte"; }}'
+         f'\n    {_MAS} .st-key-navegacion_mas button::after {{ content: "Cerrar"; }}')
+
+    # Texto bajo cada icono de la barra inferior del celular (siempre visible, sin clase en html): una regla por sección y «Más».
+    etiquetas_movil = "\n".join(
+        f'    .st-key-navegacion_boton_{clave} button::after {{ content: {json.dumps(texto)}; }}'
+        for _, clave, texto in ITEMS
+    ) + '\n    .st-key-navegacion_mas button::after { content: "Más"; }'
 
     # Sustituye cada marcador del CSS por su valor real (anchos, selectores, animación, etiquetas)
     css = (_leer_estatico("barra_lateral.css")
+           .replace("__ETIQUETAS_MOVIL__", etiquetas_movil)
            .replace("__PAD_COL__", str(ANCHO_COLAPSADO + 20))
            .replace("__PAD_EXP__", str(ANCHO_EXPANDIDO + 20))
            .replace("__ANCHO_COL__", str(ANCHO_COLAPSADO))
@@ -162,6 +177,10 @@ def renderizar_barra_navegacion():
     # Soporte: se empuja al fondo con margin-top:auto (ver CSS), sin espaciador fijo.
     if st.button(":material/headset_mic:", key="navegacion_soporte"):
         st.toast("Soporte técnico de Piña & Jara activo.")
+
+    # «Más» (solo celular; el CSS lo oculta en escritorio): abre y cierra la hoja con todas las secciones. El clic lo atiende
+    # barra_lateral.js alternando una clase en html, sin reejecutar Python.
+    st.button(":material/more_horiz:", key="navegacion_mas")
 
 
 # -------------------------------------------------------------------------------------------------------

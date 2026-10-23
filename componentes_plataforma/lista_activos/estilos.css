@@ -98,6 +98,14 @@ Transportes y Servicios Ltda.
     /* Pista transparente de las barras internas. */
     .st-key-lista_activos_desplazamiento ::-webkit-scrollbar-track { background: transparent; }
 
+    /* TITULO MOVIL (pantallas de hasta 768 px): lista de activos mas baja */
+    /* En el celular la lista queda bajo el grafico: la altura fija de escritorio (640 px) se reduce para no alargar la pagina. */
+    @media (max-width: 768px) {
+        /* La altura la fija el envoltorio (flex-basis y height inline de st.container); el contenedor con scroll solo lo llena. */
+        [data-testid="stLayoutWrapper"]:has(> .st-key-lista_activos_desplazamiento) { height: 360px !important; flex: 0 0 360px !important; }
+        .st-key-lista_activos_desplazamiento { height: 360px !important; }
+    }
+
     /* TITULO FILA DE ACTIVO */
     /* Fila de activo */
     /* Contenedor de cada fila (clave wlrow_SLUG de fila.py): relativo para superponer los botones. */

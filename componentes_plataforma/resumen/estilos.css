@@ -41,6 +41,8 @@ Transportes y Servicios Ltda.
   .resumen-cuadricula { display:grid; grid-template-columns:repeat(4,1fr); column-gap:18px; row-gap:14px; }
   /* En pantallas de hasta 1100px la rejilla pasa a 2 columnas. */
   @media (max-width:1100px){ .resumen-cuadricula { grid-template-columns:repeat(2,1fr); column-gap:16px; row-gap:14px; } }
+  /* En celular las tarjetas van una bajo otra: en dos columnas la segunda se sale de la pantalla. */
+  @media (max-width:640px){ .resumen-cuadricula { grid-template-columns:1fr; } }
   /* Tarjeta KPI (tarjetas.py): fondo degradado, borde y animación de elevación al pasar el cursor. */
   .resumen-tarjeta { background:linear-gradient(180deg,#111926,#0d131d); border:1px solid #202a37;
       border-radius:16px; padding:15px 17px 16px; position:relative; overflow:hidden;

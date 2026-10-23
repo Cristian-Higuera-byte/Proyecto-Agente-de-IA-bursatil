@@ -101,6 +101,16 @@ Transportes y Servicios Ltda.
     @media (max-width: 880px) {
         #boton-type-seleccionar span { display:none; }
     }
+    /* En celular (hasta 768 px de ancho del iframe) la leyenda se reduce a una línea de valores OHLC de 10 px: el símbolo, la temporalidad y el
+       origen ya están en la cabecera de precio y en la barra de temporalidades, y los 12 px de escritorio tapaban las velas. */
+    @media (max-width: 768px) {
+        #tradingview-leyenda { top:4px; left:8px; gap:1px; }
+        #tradingview-leyenda .leyenda-simbolo, #tradingview-leyenda .leyenda-dot,
+        #tradingview-leyenda .leyenda-temporalidad, #tradingview-leyenda .leyenda-flujo { display:none; }
+        #tradingview-leyenda .leyenda-linea { gap:4px; font-size:10px; }
+        #tradingview-leyenda .tradingview-ohlc, #tradingview-leyenda .tradingview-volumen { font-size:10px; }
+        #tradingview-leyenda .tradingview-ohlc b { margin-right:3px; }
+    }
 
 /* -------------------------------------------------------------------------------------------------------
    ---------------------------- FIN Piña y Jara 10_base_y_barra_superior .CSS ----------------------------

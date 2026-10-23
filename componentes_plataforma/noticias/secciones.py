@@ -138,7 +138,7 @@ def renderizar_contenido():
     with c_titulo:
         st.markdown(
             "<div style='border-top:1px solid #1f2937; padding-top:12px; margin:-22px 0 14px;'>"
-            "<span style='font-size:24px; font-weight:800; color:#e6edf3;'>Noticias</span>"
+            "<span class='noticias-titulo' style='font-size:24px; font-weight:800; color:#e6edf3;'>Noticias</span>"
             "<span style='color:#8b949e; font-size:13px; margin-left:8px;'>"
             "· Bolsa, divisas y economía de varias fuentes</span></div>",
             unsafe_allow_html=True,

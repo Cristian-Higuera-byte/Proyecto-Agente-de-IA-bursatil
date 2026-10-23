@@ -146,6 +146,55 @@ Transportes y Servicios Ltda.
     [class*="st-key-superior_interruptor"] button p,
     [class*="st-key-superior_interruptor"] button p *,
     [class*="st-key-superior_interruptor"] button span[data-testid="stIconMaterial"] { font-size:28px !important; }
+    /* TITULO MOVIL (pantallas de hasta 768 px): barra superior reducida */
+    /* En celular queda: lupa, capital con la etiqueta de cuenta, campana y avatar. Se ocultan el boton del menu lateral, el
+       espaciador, las tarjetas de riesgo, drawdown y mercado, el icono de tema, el P/G junto al capital y el nombre del usuario. */
+    @media (max-width: 768px) {
+        /* La fila no salta de linea y sus columnas pueden encogerse. */
+        .st-key-barra_navegacion_fija [data-testid="stHorizontalBlock"] { flex-wrap:nowrap !important; gap:8px !important; }
+        /* Columna 3 (espaciador): oculta. */
+        .st-key-barra_navegacion_fija [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(3) { display:none !important; }
+        /* Columna 1: en lugar del boton del menu lateral muestra el logo P&J (texto con degradado de marca, como en la barra lateral). */
+        [class*="st-key-superior_interruptor"] button { display:none !important; }
+        .st-key-barra_navegacion_fija [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(1) {
+            flex:0 0 auto !important; width:auto !important; min-width:0 !important; }
+        .st-key-barra_navegacion_fija [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(1)::before {
+            content:"P\26 J"; font-weight:900; font-size:22px; letter-spacing:-1px; line-height:1;
+            background:linear-gradient(135deg,#ff4b4b 0%,#ff8f00 100%); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+        /* Columna 2 (buscador): solo la lupa, cuadrada de 44 px. */
+        .st-key-barra_navegacion_fija [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(2) {
+            flex:0 0 40px !important; width:40px !important; min-width:0 !important; margin-right:auto; }
+        [class*="st-key-boton_abrir_buscador"] button { width:40px !important; height:40px; min-height:40px !important;
+            padding:0 !important; justify-content:center !important; }
+        [class*="st-key-boton_abrir_buscador"] button p { display:none !important; }
+        /* Columna del saldo: se conservan las dos primeras tarjetas (capital y etiqueta de cuenta). */
+        .st-key-barra_navegacion_fija [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(4) [data-testid="stMarkdownContainer"] > div > :nth-child(n+3) { display:none !important; }
+        /* Capital en dos lineas: el equity arriba y la ganancia o perdida flotante debajo (11 px, con su color verde o rojo). Se oculta la
+           etiqueta CAPITAL para ganar alto y ancho: el recuadro mide ~120 px en vez de ~185 y todo cabe en la barra. */
+        .st-key-barra_navegacion_fija span:has(> [data-pj-acc="profit"]) { flex-direction:column !important; align-items:flex-end !important; gap:1px !important; }
+        .st-key-barra_navegacion_fija [data-pj-acc="profit"] { font-size:11px !important; line-height:1.1; }
+        .st-key-barra_navegacion_fija div:has(> span > [data-pj-acc="equity"]) > span:first-child { display:none !important; }
+        /* Menu del usuario: solo el avatar. */
+        .navegacion-usuario > summary > span { display:none !important; }
+        /* Desplegables a lo ancho de la pantalla, sin ancho minimo de escritorio. */
+        [data-testid="stPopoverBody"] { min-width:0 !important; width:calc(100vw - 24px) !important; }
+    }
+    /* TITULO MOVIL ANGOSTO (hasta 400 px): barra superior aun mas compacta */
+    /* En un celular de 360 a 400 px el contenido (logo, lupa, capital con DEMO, campana y avatar) medido a 390 px ya llega a 382 px: se
+       aprietan los espacios, la lupa y la etiqueta DEMO para que el avatar nunca se salga de la pantalla. */
+    @media (max-width: 400px) {
+        .st-key-barra_navegacion_fija [data-testid="stHorizontalBlock"] { gap:5px !important; }
+        .st-key-barra_navegacion_fija [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(2) {
+            flex:0 0 36px !important; width:36px !important; }
+        [class*="st-key-boton_abrir_buscador"] button { width:36px !important; height:36px; min-height:36px !important; }
+        .st-key-barra_navegacion_fija [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(1)::before { font-size:20px; }
+        .st-key-barra_navegacion_fija [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(4) [data-testid="stMarkdownContainer"] > div { gap:5px !important; }
+        .st-key-barra_navegacion_fija [title^="Cuenta con la que"] { font-size:9px !important; padding:1px 5px !important; }
+    }
+    /* En pantallas de hasta 340 px la campana se oculta (el avatar y el capital pasan primero). */
+    @media (max-width: 340px) {
+        .st-key-barra_navegacion_fija [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(5) { display:none !important; }
+    }
 
 /* -------------------------------------------------------------------------------------------------------
    ------------------------------------- FIN Piña y Jara estilos .CSS ------------------------------------

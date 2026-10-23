@@ -59,7 +59,16 @@ Transportes y Servicios Ltda.
    */
   P.__pjSbFn = function(e){
     // Busca el botón del menú entre el objetivo del clic y sus ancestros
-    var b = e.target && e.target.closest && e.target.closest('.st-key-superior_interruptor button');
+    if (!(e.target && e.target.closest)) return;
+    /* Celular: el botón «Más» abre y cierra la hoja con todas las secciones (clase pj-mas-abierto en html), sin reejecutar Python. */
+    if (e.target.closest('.st-key-navegacion_mas button')) {
+      e.stopPropagation(); e.preventDefault();
+      H.classList.toggle('pj-mas-abierto');
+      return;
+    }
+    /* Cualquier otro botón de la barra de navegación cierra la hoja y deja pasar el clic para que cambie la vista. */
+    if (e.target.closest('div[data-testid="stColumn"]:has(.pj-navegacion) button')) H.classList.remove('pj-mas-abierto');
+    var b = e.target.closest('.st-key-superior_interruptor button');
     if (!b) return;
     // Evita que Streamlit procese el clic como un rerun
     e.stopPropagation(); e.preventDefault();

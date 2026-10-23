@@ -118,7 +118,8 @@ def renderizar_barra_favoritos(vertical: bool = False):
             "<div class='favorito-cabecera'>"
             "<span class='favorito-chip'><span class='favorito-icono-material'>star</span></span>"
             "<span class='favorito-titulo'>Mis favoritos</span>"
-            f"<span class='favorito-insignia'>{total}</span></div>"
+            f"<span class='favorito-insignia'>{total}</span>"
+            "<span class='pj-nav-hoja pj-ir-lista' role='button'>‹ Lista de activos</span></div>"
         )
 
         # --- 6 slots: favorito (con ✕), '+' en el primer hueco libre, o vacío ---

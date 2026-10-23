@@ -56,6 +56,7 @@ def renderizar_watchlist():
                     <div class='lista-activos-titulo'>Lista de activos</div>
                     <div class='lista-activos-subtitulo'>Precios de activos en tiempo real</div>
                 </div>
+                <span class='pj-nav-hoja pj-ir-fav' role='button'>★ Favoritos</span>
             </div>
             """,
             unsafe_allow_html=True,
