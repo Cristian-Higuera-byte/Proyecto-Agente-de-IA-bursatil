@@ -302,8 +302,8 @@ def _escenarios(posiciones: list[dict[str, Any]], vol: dict[str, Any], riesgo: d
 def _alertas(cuenta: dict[str, Any], riesgo: dict[str, Any], expo: dict[str, Any], corr: dict[str, Any], noticias: dict[str, Any]) -> list[str]:
     """Genera la lista de avisos de texto a partir de las demás secciones del informe.
 
-    Avisa de: posiciones sin Stop Loss, riesgo total por encima del límite del
-    agente (``nucleo_agente.ordenes.LIMITES``), exposición alta a una divisa,
+    Avisa de: posiciones sin Stop Loss, riesgo total por encima del límite que
+    definió el usuario para el agente (``nucleo_agente.ordenes.limites_actuales``, si lo hay), exposición alta a una divisa,
     pares correlacionados que se refuerzan, nivel de margen bajo y titulares
     macro de alto impacto. Devuelve una lista (vacía si no hay alertas).
     """
@@ -313,8 +313,8 @@ def _alertas(cuenta: dict[str, Any], riesgo: dict[str, Any], expo: dict[str, Any
     # Importación diferida: si el límite no se puede leer, solo se omite ese aviso.
     try:
         from nucleo_agente import ordenes
-        tope = ordenes.LIMITES.riesgo_max_total_pct
-        if (riesgo.get("riesgo_total_equidad_pct") or 0) > tope:
+        tope = ordenes.limites_actuales().riesgo_max_total_pct
+        if tope is not None and (riesgo.get("riesgo_total_equidad_pct") or 0) > tope:
             a.append(f"El riesgo total ({riesgo['riesgo_total_equidad_pct']}% de la equidad) supera el límite del agente ({tope}%).")
     except Exception:  # noqa: BLE001
         pass

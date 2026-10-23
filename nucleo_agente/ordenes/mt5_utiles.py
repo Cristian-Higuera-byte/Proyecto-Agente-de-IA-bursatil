@@ -23,7 +23,7 @@ from typing import Any
 from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
 from nucleo_agente.ordenes.base_datos import _ahora, _consultar, interruptor_emergencia_activo
-from nucleo_agente.ordenes.limites import LIMITES
+from nucleo_agente.ordenes.limites import LIMITES, limites_actuales
 from herramientas.puente_mt5 import MT5_LOCK, NOMBRE_BROKER, PROVEEDOR, inicializar_mt5, resolver_simbolo
 
 # Candado que serializa las decisiones de riesgo y los envíos de órdenes. Con MetaTrader 5 es MT5_LOCK; con Capital.com ese candado no
@@ -152,8 +152,8 @@ def _riesgo_expuesto(cuenta: Any, incluir_pendientes: bool) -> float:
         if p.sl:
             resultado = mt5.order_calc_profit(p.type, p.symbol, p.volume, p.price_open, p.sl)
             total += max(0.0, -resultado) if resultado is not None else 0.0
-        else:  # sin stop loss el riesgo es desconocido: se asume el máximo por operación
-            total += cuenta.equity * LIMITES.riesgo_max_por_operacion_pct / 100
+        elif limites_actuales().riesgo_max_por_operacion_pct is not None:  # sin stop loss el riesgo es desconocido: se asume el máximo por operación que definió el usuario
+            total += cuenta.equity * limites_actuales().riesgo_max_por_operacion_pct / 100
     # Opcionalmente suma el riesgo de propuestas de apertura aún vigentes que el usuario no ha resuelto.
     if incluir_pendientes:
         filas = _consultar(
@@ -162,6 +162,20 @@ def _riesgo_expuesto(cuenta: Any, incluir_pendientes: bool) -> float:
             (_ahora(),),
         )
         total += float(filas[0]["total"] or 0)
+    return total
+
+
+# TITULO EXPOSICION NOCIONAL
+
+def _exposicion_nocional() -> float:
+    """Valor total (en la moneda de la cuenta, aproximado) de las posiciones abiertas: volumen × precio actual × tamaño del contrato. Sirve para medir el apalancamiento.
+
+    Una posición cuyos datos no se pueden leer no suma (se ignora, no se rechaza)."""
+    total = 0.0
+    for p in mt5.positions_get() or []:
+        info = mt5.symbol_info(p.symbol)
+        contrato = float(getattr(info, "trade_contract_size", 1.0) or 1.0) if info is not None else 1.0
+        total += abs(float(p.volume) * float(getattr(p, "price_current", 0.0) or p.price_open) * contrato)
     return total
 
 
@@ -199,18 +213,20 @@ def _chequeos_globales(para_abrir: bool) -> tuple[Any, str | None]:
     if para_abrir:
         if interruptor_emergencia_activo():
             return cuenta, "Las nuevas aperturas están bloqueadas (interruptor de emergencia activado por el usuario)."
-        # Pérdida diaria acumulada frente al tope (% del balance).
-        perdida = _perdida_del_dia(cuenta)
-        tope = cuenta.balance * LIMITES.perdida_max_diaria_pct / 100
-        if perdida >= tope:
-            return cuenta, (
-                f"Se alcanzó la pérdida máxima diaria ({perdida:.2f} de {tope:.2f} "
-                f"{cuenta.currency}). No se abren más operaciones hoy."
-            )
-        # Tope de posiciones simultáneas (solo si LIMITES lo define; por defecto no hay tope).
+        # Pérdida diaria acumulada frente al tope que definió el usuario (si lo hay; % del balance).
+        limites = limites_actuales()
+        if limites.perdida_max_diaria_pct is not None:
+            perdida = _perdida_del_dia(cuenta)
+            tope = cuenta.balance * limites.perdida_max_diaria_pct / 100
+            if perdida >= tope:
+                return cuenta, (
+                    f"Se alcanzó la pérdida máxima diaria que definiste ({perdida:.2f} de {tope:.2f} "
+                    f"{cuenta.currency}). No se abren más operaciones hoy."
+                )
+        # Tope de posiciones simultáneas (solo si el usuario lo definió; por defecto no hay tope).
         abiertas = len(mt5.positions_get() or [])
-        if LIMITES.max_posiciones_abiertas is not None and abiertas >= LIMITES.max_posiciones_abiertas:
-            return cuenta, f"Ya hay {abiertas} posiciones abiertas (máximo {LIMITES.max_posiciones_abiertas})."
+        if limites.max_posiciones_abiertas is not None and abiertas >= limites.max_posiciones_abiertas:
+            return cuenta, f"Ya hay {abiertas} posiciones abiertas (máximo que definiste: {limites.max_posiciones_abiertas})."
     return cuenta, None
 
 

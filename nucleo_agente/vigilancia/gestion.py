@@ -77,13 +77,14 @@ def crear(
     for error in (e1, e2, e3, e4):
         if error:
             return no(error)
-    # Paso 2: validar rangos (el riesgo nunca puede superar el máximo global por operación).
+    # Paso 2: validar rangos (el riesgo no puede superar el máximo por operación que definió el usuario, si lo hay).
     n_operaciones, cada = int(n_operaciones), int(cada)
     if riesgo <= 0:
         return no("El riesgo por operación debe ser mayor que 0.")
-    if riesgo > ordenes.LIMITES.riesgo_max_por_operacion_pct:
-        return no(f"El riesgo por operación ({riesgo}%) supera el máximo permitido "
-                  f"({ordenes.LIMITES.riesgo_max_por_operacion_pct}%).")
+    tope_riesgo = ordenes.limites_actuales().riesgo_max_por_operacion_pct
+    if tope_riesgo is not None and riesgo > tope_riesgo:
+        return no(f"El riesgo por operación ({riesgo}%) supera el máximo por operación que definiste "
+                  f"({tope_riesgo}%).")
     if not 1 <= n_operaciones <= MAX_OPERACIONES_TOPE:
         return no(f"El máximo de operaciones debe estar entre 1 y {MAX_OPERACIONES_TOPE}.")
     if not DURACION_MIN_H <= horas <= DURACION_MAX_H:
