@@ -64,7 +64,7 @@
     "nombre": "ver_posiciones"
   },
   "ver_limites_riesgo": {
-    "descripcion": "Consulta los límites de riesgo vigentes (riesgo máximo por operación, pérdida diaria máxima, restricciones de símbolos: por defecto ninguna, se puede operar cualquier activo del broker) y el estado actual (pérdida del día, posiciones abiertas, interruptor de emergencia). Úsala antes de proponer una operación si dudas de qué está permitido.",
+    "descripcion": "Consulta los límites de riesgo que el USUARIO definió para ti (riesgo máximo por operación y total, pérdida diaria máxima, volumen y apalancamiento máximos, posiciones abiertas máximas; un valor null significa sin límite) y las restricciones de símbolos (por defecto ninguna, se puede operar cualquier activo del broker) y el estado actual (pérdida del día, posiciones abiertas, interruptor de emergencia). Úsala antes de proponer una operación si dudas de qué está permitido.",
     "parametros": {},
     "requeridos": [],
     "nombre": "ver_limites_riesgo"

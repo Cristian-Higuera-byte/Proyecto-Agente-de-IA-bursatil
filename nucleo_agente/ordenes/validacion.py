@@ -20,8 +20,9 @@ from typing import Any
 
 from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
-from nucleo_agente.ordenes.limites import LIMITES, TOLERANCIA_RIESGO
-from nucleo_agente.ordenes.mt5_utiles import (NOMBRE_BROKER, _con_candado, _normalizar, _preparar_mt5, _resolver_simbolo, _riesgo_expuesto)
+from nucleo_agente.ordenes.limites import TOLERANCIA_RIESGO, limites_actuales
+from nucleo_agente.ordenes.mt5_utiles import (NOMBRE_BROKER, _con_candado, _exposicion_nocional, _normalizar, _preparar_mt5, _resolver_simbolo,
+                                               _riesgo_expuesto)
 
 
 # TITULO EVALUAR APERTURA
@@ -49,11 +50,12 @@ def _evaluar_apertura(
         return {"ok": False, "motivo": motivo}
 
     # Paso 1: traducir el símbolo al nombre del bróker y comprobar lista blanca / lista negra.
+    limites = limites_actuales()
     sym = _resolver_simbolo(simbolo)
     pedido = {sym.upper(), _normalizar(simbolo)}
-    if LIMITES.simbolos_permitidos is not None and not (pedido & {s.upper() for s in LIMITES.simbolos_permitidos}):
-        return no(f"'{sym}' no está entre los símbolos permitidos: {', '.join(LIMITES.simbolos_permitidos)}.")
-    if pedido & {s.upper() for s in LIMITES.simbolos_bloqueados}:
+    if limites.simbolos_permitidos is not None and not (pedido & {s.upper() for s in limites.simbolos_permitidos}):
+        return no(f"'{sym}' no está entre los símbolos permitidos: {', '.join(limites.simbolos_permitidos)}.")
+    if pedido & {s.upper() for s in limites.simbolos_bloqueados}:
         return no(f"'{sym}' está bloqueado para operar con el agente.")
 
     # Paso 2: normalizar el lado.
@@ -116,44 +118,52 @@ def _evaluar_apertura(
     if volumen_fijo is None:
         if riesgo_pct is None or riesgo_pct <= 0:
             return no("'riesgo_pct' debe ser mayor que 0.")
-        if riesgo_pct > LIMITES.riesgo_max_por_operacion_pct:
+        if limites.riesgo_max_por_operacion_pct is not None and riesgo_pct > limites.riesgo_max_por_operacion_pct:
             return no(
-                f"El riesgo pedido ({riesgo_pct}%) supera el máximo permitido por operación "
-                f"({LIMITES.riesgo_max_por_operacion_pct}%)."
+                f"El riesgo pedido ({riesgo_pct}%) supera el máximo por operación que definiste "
+                f"({limites.riesgo_max_por_operacion_pct}%). Puedes cambiarlo en los límites del agente."
             )
-        # Se redondea hacia abajo al paso de volumen y se limita al máximo del bróker y de LIMITES.
+        # Se redondea hacia abajo al paso de volumen y se limita al máximo del bróker y al que definió el usuario (si lo hay).
         paso = info.volume_step or 0.01
         decimales = max(0, int(round(-math.log10(paso))))
         volumen = (cuenta.equity * riesgo_pct / 100) / perdida_1_lote
         volumen = math.floor(volumen / paso + 1e-9) * paso
-        volumen = round(min(volumen, info.volume_max, LIMITES.volumen_max), decimales)
+        volumen = round(min(volumen, info.volume_max, limites.volumen_max or float("inf")), decimales)
         if volumen < info.volume_min:
             return no(
                 f"Con {riesgo_pct}% de riesgo y ese stop loss no alcanza ni el lote mínimo "
-                f"({info.volume_min}). Acerca el stop loss o sube el riesgo (máx. "
-                f"{LIMITES.riesgo_max_por_operacion_pct}%)."
+                f"({info.volume_min}). Acerca el stop loss o sube el riesgo."
             )
     else:
         volumen = float(volumen_fijo)
 
-    # Paso 7: riesgo real de esta operación frente al máximo por operación (con tolerancia por movimiento de precio).
+    # Paso 7: riesgo real de esta operación frente al máximo por operación del usuario, si lo definió (con tolerancia por movimiento de precio).
     riesgo_dinero = volumen * perdida_1_lote
     riesgo_porcentaje_real = riesgo_dinero / cuenta.equity * 100
-    if riesgo_porcentaje_real > LIMITES.riesgo_max_por_operacion_pct * TOLERANCIA_RIESGO:
+    if limites.riesgo_max_por_operacion_pct is not None and riesgo_porcentaje_real > limites.riesgo_max_por_operacion_pct * TOLERANCIA_RIESGO:
         return no(
-            f"Con el precio actual el riesgo sería {riesgo_porcentaje_real:.2f}%, sobre el máximo permitido "
-            f"({LIMITES.riesgo_max_por_operacion_pct}%)."
+            f"Con el precio actual el riesgo sería {riesgo_porcentaje_real:.2f}%, sobre el máximo por operación que definiste "
+            f"({limites.riesgo_max_por_operacion_pct}%)."
         )
 
-    # Paso 8: riesgo total en juego (abiertas + pendientes + esta) frente al máximo total.
+    # Paso 8: riesgo total en juego (abiertas + pendientes + esta) frente al máximo total del usuario, si lo definió.
     expuesto = _riesgo_expuesto(cuenta, incluir_pendientes)
     total_porcentaje = (expuesto + riesgo_dinero) / cuenta.equity * 100
-    if total_porcentaje > LIMITES.riesgo_max_total_pct * TOLERANCIA_RIESGO:
+    if limites.riesgo_max_total_pct is not None and total_porcentaje > limites.riesgo_max_total_pct * TOLERANCIA_RIESGO:
         return no(
             f"Riesgo total demasiado alto: con esta operación quedaría {total_porcentaje:.2f}% del equity en riesgo "
-            f"(posiciones abiertas y propuestas pendientes incluidas; máximo {LIMITES.riesgo_max_total_pct}%). "
+            f"(posiciones abiertas y propuestas pendientes incluidas; máximo que definiste: {limites.riesgo_max_total_pct}%). "
             "Cierra posiciones, rechaza propuestas pendientes o reduce el riesgo."
         )
+
+    # Paso 8 bis: apalancamiento (valor de todas las posiciones ÷ equity) frente al máximo del usuario, si lo definió.
+    if limites.apalancamiento_max is not None:
+        apalancamiento = (_exposicion_nocional() + volumen * precio * float(getattr(info, "trade_contract_size", 1.0) or 1.0)) / cuenta.equity
+        if apalancamiento > limites.apalancamiento_max:
+            return no(
+                f"Con esta operación el apalancamiento sería {apalancamiento:.2f}x, sobre el máximo que definiste "
+                f"({limites.apalancamiento_max:g}x). Reduce el riesgo o cierra posiciones."
+            )
 
     # Paso 9: margen libre suficiente.
     margen = mt5.order_calc_margin(tipo, sym, volumen, precio)
@@ -181,9 +191,10 @@ def validar_simbolo(simbolo: str) -> dict[str, Any]:
     pedido = {sym.upper(), _normalizar(simbolo)}
     if not sym:
         return {"ok": False, "motivo": "Indica el símbolo del activo."}
-    if LIMITES.simbolos_permitidos is not None and not (pedido & {s.upper() for s in LIMITES.simbolos_permitidos}):
-        return {"ok": False, "motivo": f"'{sym}' no está entre los símbolos permitidos: {', '.join(LIMITES.simbolos_permitidos)}."}
-    if pedido & {s.upper() for s in LIMITES.simbolos_bloqueados}:
+    limites = limites_actuales()
+    if limites.simbolos_permitidos is not None and not (pedido & {s.upper() for s in limites.simbolos_permitidos}):
+        return {"ok": False, "motivo": f"'{sym}' no está entre los símbolos permitidos: {', '.join(limites.simbolos_permitidos)}."}
+    if pedido & {s.upper() for s in limites.simbolos_bloqueados}:
         return {"ok": False, "motivo": f"'{sym}' está bloqueado para operar con el agente."}
     mt5.symbol_select(sym, True)
     info = mt5.symbol_info(sym)
@@ -200,7 +211,7 @@ def validar_simbolo(simbolo: str) -> dict[str, Any]:
 @_con_candado
 def cuenta_demo() -> tuple[Any, str | None]:
     """Devuelve (cuenta, motivo). motivo es None solo si MT5 responde Y la cuenta es DEMO. La operación automática
-    exige demo SIEMPRE, aunque LIMITES.solo_demo se relaje para las propuestas manuales."""
+    exige demo SIEMPRE, aunque `solo_demo` se relaje para las propuestas manuales."""
     error = _preparar_mt5()
     if error:
         return None, error

@@ -21,7 +21,7 @@ Garantías de diseño:
     validan contra LIMITES y guardan una propuesta PENDIENTE.
   * La única función que envía algo a MetaTrader 5 es confirmar_orden(), y solo la
     llama el botón "Confirmar" del dashboard (componentes_plataforma/agente_paneles/).
-  * Los límites de riesgo están en código (LIMITES), no en el prompt: el modelo no
+  * Los límites de riesgo los define el usuario (limites.py: `limites_actuales`, sin límites por defecto) y se aplican en código, no en el prompt: el modelo no
     puede saltárselos ni cambiarlos.
   * Cada propuesta queda registrada en SQLite (data/ordenes.db) con su justificación:
     es el registro de auditoría de todo lo que el agente decidió.
@@ -37,11 +37,14 @@ privados que usan el paquete vigilancia y las herramientas del agente) para que
 en un único módulo. Cada bloque de importación de abajo agrupa lo que sale de un submódulo."""
 # Límites de riesgo y constantes de MT5 (limites.py).
 from nucleo_agente.ordenes.limites import (
+    CAMPOS_EDITABLES,
     LIMITES,
     LimitesRiesgo,
     MAGIC,
     TOLERANCIA_RIESGO,
     TOLERANCIA_VS_PROPUESTA,
+    guardar_limites,
+    limites_actuales,
 )  # noqa: F401
 # Acceso a SQLite, esquema y interruptor de emergencia (base_datos.py).
 from nucleo_agente.ordenes.base_datos import (

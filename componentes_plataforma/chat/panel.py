@@ -11,7 +11,7 @@
 # ------------------------------------- INICIO Piña y Jara panel .PY ------------------------------------
 # -------------------------------------------------------------------------------------------------------
 
-"""Panel del chat del agente: tarjeta con selector de perfil, «Nueva conversación», historial y caja de texto.
+"""Panel del chat del agente: tarjeta con selector de perfil, «Nueva conversación», límites del agente, historial y caja de texto.
 
 Compone los módulos hermanos: sesion (usuario y agente), historial (mensajes),
 turno_vivo (burbuja en curso) y cuota (barra del uso mensual de tokens). Es lo que importa la fachada del paquete chat.
@@ -27,6 +27,7 @@ from componentes_plataforma.chat.historial import (iniciar_conversacion, pintar_
 from componentes_plataforma.chat.sesion import cambiar_perfil, obtener_agente, usuario_id
 from componentes_plataforma.agente_paneles import cabecera_agente
 from componentes_plataforma.chat.cuota import barra_cuota
+from componentes_plataforma.chat.limites import limites_agente
 from componentes_plataforma.planes.panel import dialogo_bloqueo
 from herramientas import cuota_ia, permisos_plan
 from nucleo_agente import turnos
@@ -57,8 +58,8 @@ def _controles(agente, en_curso: bool) -> None:
     controles mientras el agente responde. Al reiniciar, limpia la memoria del agente y
     la conversación visible, y relanza la app.
     """
-    # Tres columnas: perfil, reinicio y un relleno que mantiene los controles compactos.
-    columna_perfil, columna_reiniciar, _relleno = st.columns([2, 2, 4])
+    # Cuatro columnas: perfil, reinicio, límites del agente y un relleno que mantiene los controles compactos.
+    columna_perfil, columna_reiniciar, columna_limites, _relleno = st.columns([2, 2, 2, 2])
     with columna_perfil:
         # Perfiles disponibles definidos en configuracion.py.
         perfiles = list(getattr(configuracion, "PERFILES", []) or [])
@@ -84,6 +85,8 @@ def _controles(agente, en_curso: bool) -> None:
                 format_func=lambda p: p if p in validos else f"🔒 {p}",
                 label_visibility="collapsed", help="Perfil activo del agente", disabled=en_curso,
             )
+    with columna_limites:
+        limites_agente()
     with columna_reiniciar:
         if st.button("Nueva conversación", icon=":material/refresh:", key="agente_chat_nueva", width="stretch",
                      disabled=en_curso):

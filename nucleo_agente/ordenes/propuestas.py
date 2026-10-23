@@ -23,7 +23,7 @@ from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
 from herramientas.tickets import ticket as _tk
 from nucleo_agente.ordenes.base_datos import _ahora, _consultar, _insertar, interruptor_emergencia_activo
-from nucleo_agente.ordenes.limites import LIMITES
+from nucleo_agente.ordenes.limites import LIMITES, limites_actuales
 from nucleo_agente.ordenes.mt5_utiles import (NOMBRE_BROKER, _chequeos_globales, _con_candado, _perdida_del_dia, _preparar_mt5,
                                      _resolver_simbolo, _riesgo_expuesto)
 from nucleo_agente.ordenes.validacion import _evaluar_apertura
@@ -210,9 +210,10 @@ def resumen_posiciones() -> dict[str, Any]:
 
 @_con_candado
 def estado_riesgo() -> dict[str, Any]:
-    """Devuelve los límites de riesgo vigentes, el interruptor de emergencia y, si MT5 responde, la pérdida del día,
+    """Devuelve los límites de riesgo vigentes del usuario (null = sin límite), el interruptor de emergencia y, si MT5 responde, la pérdida del día,
     el número de posiciones abiertas, el riesgo en juego (abiertas + pendientes) y la moneda."""
-    out: dict[str, Any] = {"limites": asdict(LIMITES), "interruptor_emergencia": interruptor_emergencia_activo()}
+    out: dict[str, Any] = {"limites": asdict(limites_actuales()), "interruptor_emergencia": interruptor_emergencia_activo(),
+                           "nota_limites": "Los límites los define el usuario; un valor null significa SIN límite."}
     error = _preparar_mt5()
     cuenta = None if error else mt5.account_info()
     if cuenta is not None:
