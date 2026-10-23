@@ -28,6 +28,7 @@ import streamlit as st
 
 from herramientas.gestor_autenticacion import autenticar_usuario, registrar_usuario
 
+from .cookie import aplicar_pendiente
 from .sesion import cerrar_sesion, iniciar_sesion, usuario_en_sesion
 
 # Logo "P&J" en HTML en línea (color naranja de la marca); se inserta en la cabecera del login.
@@ -57,6 +58,8 @@ def requerir_login() -> dict:
 
     # Reutiliza la sesión de la pestaña o la restaurada desde el token de la URL
     usuario = usuario_en_sesion()
+    # Escribe o borra en el navegador la cookie de «mantener sesión» que dejó pendiente iniciar_sesion o cerrar_sesion
+    aplicar_pendiente()
     if usuario is not None:
         # Enlaces «Mi perfil» / «Configuración» del menú del usuario (?perfil=1 o ?perfil=<sección>): abren la vista de perfil.
         destino = st.query_params.get("perfil")
