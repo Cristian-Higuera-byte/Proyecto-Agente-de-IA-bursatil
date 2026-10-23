@@ -193,6 +193,10 @@ __TIPS__
         div[data-testid="stColumn"]:has(.st-key-grafico_cerrar_wrap) [data-testid="stElementContainer"]:has(> [data-testid="stIFrame"]),
         div[data-testid="stColumn"]:has(.st-key-grafico_cerrar_wrap) [data-testid="stIFrame"] {
             height: calc(100vh - 258px) !important; height: calc(100dvh - 258px) !important; min-height: 300px; }
+        /* El contenedor del iframe viene con flex-basis de 750 px dentro de una columna flex: la altura sola no basta (el iframe se salia de su contenedor y la
+           fila de abajo se montaba sobre el grafico en tablet, o dejaba un hueco en celular). Se fija tambien la base flex. */
+        div[data-testid="stColumn"]:has(.st-key-grafico_cerrar_wrap) [data-testid="stElementContainer"]:has(> [data-testid="stIFrame"]) {
+            flex: 0 0 calc(100vh - 258px) !important; flex: 0 0 calc(100dvh - 258px) !important; }
         /* Barra Vender/Comprar: fija sobre la barra de navegacion (64 px), bajo los paneles; mide 64 px (el markdown de Streamlit trae
            margen inferior negativo, que se anula) con botones de dos lineas (etiqueta y precio en vivo). */
         .st-key-pj_barra_operar { display: block; position: fixed !important; left: 0; right: 0; bottom: calc(64px + var(--pj-vv-bottom, 0px)); height: 64px; z-index: 99998;
