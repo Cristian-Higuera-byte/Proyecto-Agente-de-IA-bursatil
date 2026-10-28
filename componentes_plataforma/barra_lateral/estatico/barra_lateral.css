@@ -309,6 +309,15 @@ __ETIQUETAS__
         __COL__ button::after { font-size: 9px; }
         __COL__ button span[data-testid="stIconMaterial"], __COL__ button [data-testid="stIconMaterial"] { font-size: 20px !important; }
     }
+
+    /* TITULO HORIZONTAL MUY BAJO (hasta 340 px de alto): barra de navegación solo con íconos */
+    @media (orientation: landscape) and (max-height: 340px) {
+        __COL__ button, __EXP__ __COL__ button { height: calc(var(--pj-nav-h, 64px) - 4px) !important; }
+        __COL__ button::after { display: none !important; }
+        __COL__ button span[data-testid="stIconMaterial"], __COL__ button [data-testid="stIconMaterial"] { font-size: 18px !important; }
+        /* La hoja «Más» sigue mostrando la etiqueta de cada sección. */
+        html.pj-mas-abierto __COL__ button::after { display: block !important; }
+    }
 }
 
 /* tablets verticales (iPad clásico, tablets Android estándar) */

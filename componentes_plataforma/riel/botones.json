@@ -18,5 +18,10 @@
     ":material/pending_actions:",
     "ordenes",
     "Órdenes del agente"
+  ],
+  [
+    ":material/smart_toy:",
+    "agente",
+    "Agente IA"
   ]
 ]

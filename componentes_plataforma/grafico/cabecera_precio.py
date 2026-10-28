@@ -98,6 +98,14 @@ def renderizar_cabecera_precio(activo_visible: str, digits: int) -> None:
                     .pj-cab-bidask {{ flex: 0 0 auto !important; }}
                     .pj-cab-estado {{ top: 50% !important; transform: translateY(-50%); }}
                 }}
+                /* Horizontal muy bajo (hasta 340 px de alto): letras más chicas y sin la insignia del origen. */
+                @media (orientation: landscape) and (max-height: 340px) {{
+                    .pj-cab-precio {{ padding: 1px 10px !important; margin: 2px 0 2px !important; }}
+                    .pj-cab-simbolo {{ font-size: 14px !important; }}
+                    .pj-cab-precio-datos > span[data-pj-f="px"] {{ font-size: 15px !important; }}
+                    .pj-cab-bidask {{ font-size: 10px !important; }}
+                    .pj-cab-origen {{ display: none !important; }}
+                }}
             }}
             </style>
             <div class='pj-cab-precio' style='background-color: #161b22; padding: 10px 16px; border-radius: 8px; border: 1px solid #30363d; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;'>

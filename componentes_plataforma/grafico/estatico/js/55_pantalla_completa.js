@@ -47,11 +47,40 @@ Transportes y Servicios Ltda.
         P.addEventListener('popstate', P.__pjFsAtras);
       } catch (e) {}
       aplicarFsFalso(true);
+      pedirPantallaCompletaNavegador();
+      /* Si el usuario sale de la pantalla completa del navegador por su cuenta (gesto del sistema), se quita también la ampliación. */
+      try {
+        var D = docPadre, P2 = window.parent;
+        P2.__pjFsSalir = function(){ if (fsFalso) salirFsFalso(true); };
+        if (!P2.__pjFsCambio) {
+          P2.__pjFsCambio = true;
+          D.addEventListener('fullscreenchange', function(){ if (!D.fullscreenElement && P2.__pjFsSalir) P2.__pjFsSalir(); });
+        }
+      } catch (e) {}
       return true;
+    }
+    // TITULO PANTALLA COMPLETA DEL NAVEGADOR (Android)
+    /**
+     * Pide al navegador la pantalla completa real de la página (Chrome de Android: esconde la barra de direcciones y la de estado, que en horizontal le quitaban ~90 px de alto
+     * a la página). Se llama dentro del clic del usuario, como exige la API. El iPhone no la tiene para páginas: ahí no hace nada y queda solo la ampliación simulada.
+     */
+    function pedirPantallaCompletaNavegador(){
+      try {
+        var raiz = docPadre && docPadre.documentElement;
+        if (raiz && raiz.requestFullscreen && !docPadre.fullscreenElement) {
+          var p = raiz.requestFullscreen({ navigationUI: 'hide' });
+          if (p && p.catch) p.catch(function(){});
+        }
+      } catch (e) {}
+    }
+    /** Sale de la pantalla completa del navegador si la pedimos nosotros (la del gráfico a pantalla completa de escritorio no pasa por aquí). */
+    function salirPantallaCompletaNavegador(){
+      try { if (docPadre && docPadre.fullscreenElement && docPadre.exitFullscreen) docPadre.exitFullscreen(); } catch (e) {}
     }
     /** Quita la ampliacion y devuelve al iframe su estilo anterior. */
     function salirFsFalso(desdeAtras){
       aplicarFsFalso(false);
+      salirPantallaCompletaNavegador();
       // Se retira la entrada de historial que se agrego al ampliar (si el cierre no vino ya del boton Atras).
       if (!desdeAtras) { try { var P = window.parent; if (P.history.state && P.history.state.pjFs) P.history.back(); } catch (e) {} }
     }

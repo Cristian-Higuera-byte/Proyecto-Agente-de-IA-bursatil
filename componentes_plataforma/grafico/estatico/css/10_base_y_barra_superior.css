@@ -130,6 +130,14 @@ Transportes y Servicios Ltda.
         .tvbtn.icon { padding: 3px 6px; }
         .tvtf { padding: 3px 8px; font-size: 12px; }
     }
+
+    /* TITULO ALTO MUY BAJO (iframe de hasta 230 px de alto): barra superior del gráfico de ~30 px */
+    @media (max-height: 230px) {
+        #tradingview-barra-superior { padding: 2px 8px; }
+        .tvbtn { padding: 2px 7px; }
+        .tvbtn.icon { padding: 2px 5px; }
+        .tvtf { padding: 2px 7px; }
+    }
 }
 
 /* tablets verticales (iPad clásico, tablets Android estándar) */

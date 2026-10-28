@@ -28,6 +28,7 @@ Estados (clase en <html>):
   - (sin clase)      → Operar abierto (DEFAULT: al entrar o F5 el ticket está visible)
   - pj-panel-dom     → DOM abierto (Operar oculto)
   - pj-panel-favorito     → Favoritos abierto (Operar oculto)
+  - pj-panel-agente  → Chat del agente acoplado al rail (Operar oculto); es el panel de chat_flotante/, que sin esta clase flota abajo a la derecha
   - pj-panel-none    → todo oculto (gráfico a pantalla completa)
 Así, tras un F5 (ventana nueva, sin clases) el ticket queda desplegado; el usuario
 lo oculta con su botón. El estado se mantiene al navegar entre vistas (la clase

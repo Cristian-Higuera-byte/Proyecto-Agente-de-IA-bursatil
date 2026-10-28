@@ -149,6 +149,12 @@ div[data-testid="column"]:has(.pj-navegacion) {
         .st-key-barra_navegacion_fija { padding: 3px 12px !important; }
         .st-key-pj_vista { margin-top: calc(var(--pj-top-h) - 62px + 4px); }
     }
+
+    /* TITULO HORIZONTAL MUY BAJO (hasta 340 px de alto): con la barra del navegador a la vista un teléfono deja ~265 px de página */
+    /* Segundo nivel: las barras bajan a 38 y 32 px, la barra de navegación queda solo con íconos y el alto mínimo del gráfico a 100 px. */
+    @media (orientation: landscape) and (max-height: 340px) {
+        :root { --pj-top-h: 38px; --pj-nav-h: 32px; --pj-cab-h: 36px; --pj-graf-min: 100px; }
+    }
 }
 
 /* tablets verticales (iPad clásico, tablets Android estándar) */

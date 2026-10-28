@@ -81,6 +81,15 @@ Transportes y Servicios Ltda.
         #tradingview-rangebar { padding: 3px 10px; }
         .tvrange { padding: 3px 10px; font-size: 12px; }
     }
+
+    /* TITULO ALTO MUY BAJO (iframe de hasta 230 px de alto): la barra de rangos deja de ocupar una fila */
+    /* Los rangos de tiempo (1D, 5D, 1 mes...) se ocultan y deshacer, rehacer y ampliar quedan flotando abajo a la derecha del lienzo: el gráfico gana toda esa fila. */
+    @media (max-height: 230px) {
+        #tradingview-contenedor { position: relative; }
+        #tradingview-rangebar { position: absolute; right: 6px; bottom: 4px; width: auto; padding: 0; border: 0; background: transparent; overflow: visible; gap: 4px; }
+        #tradingview-rangebar .tvrange, #tradingview-rangebar .tradingview-rangelabel { display: none; }
+        #tradingview-rangebar #boton-deshacer, #tradingview-rangebar #boton-rehacer, #tradingview-rangebar #boton-expandir-movil { position: static; margin: 0; }
+    }
 }
 
 /* tablets verticales (iPad clásico, tablets Android estándar) */

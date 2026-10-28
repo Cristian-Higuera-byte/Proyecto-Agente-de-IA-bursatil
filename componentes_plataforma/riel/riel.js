@@ -24,11 +24,12 @@ Transportes y Servicios Ltda.
 
   /**
    * Lee qué panel está abierto según las clases del elemento html.
-   * Devuelve 'dom', 'fav', 'activos', 'ordenes' (cajón de Órdenes propuestas, solo en celular y tablet en horizontal), 'none' (todo oculto) u 'order' (Operar; es el
+   * Devuelve 'dom', 'fav', 'agente' (chat del agente acoplado al rail), 'activos', 'ordenes' (cajón de Órdenes propuestas, solo en celular y tablet en horizontal), 'none' (todo oculto) u 'order' (Operar; es el
    * estado por defecto, sin clase).
    */
   function estado(){
     if (H.classList.contains('pj-panel-ordenes')) return 'ordenes';
+    if (H.classList.contains('pj-panel-agente')) return 'agente';
     if (H.classList.contains('pj-panel-dom')) return 'dom';
     if (H.classList.contains('pj-panel-favorito')) return 'fav';
     if (H.classList.contains('pj-panel-activos')) return 'activos';
@@ -39,11 +40,13 @@ Transportes y Servicios Ltda.
 
   /**
    * Fija el estado de los paneles.
-   * Recibe s ('dom', 'fav', 'activos', 'ordenes', 'none' u 'order') y activa o quita las clases pj-panel-dom, pj-panel-favorito, pj-panel-activos,
-   * pj-panel-ordenes y pj-panel-none en html; el CSS desliza los paneles en consecuencia.
+   * Recibe s ('dom', 'fav', 'agente', 'activos', 'ordenes', 'none' u 'order') y activa o quita las clases pj-panel-dom, pj-panel-favorito, pj-panel-agente, pj-panel-activos,
+   * pj-panel-ordenes y pj-panel-none en html (al acoplar el chat del agente también se cierra su ventana flotante); el CSS desliza los paneles en consecuencia.
    */
   function poner(s){
     H.classList.toggle('pj-panel-ordenes', s === 'ordenes');
+    H.classList.toggle('pj-panel-agente', s === 'agente');
+    if (s === 'agente') H.classList.remove('pj-chat-abierto');
     H.classList.toggle('pj-panel-dom', s === 'dom');
     H.classList.toggle('pj-panel-favorito', s === 'fav');
     H.classList.toggle('pj-panel-activos', s === 'activos');
@@ -83,10 +86,10 @@ Transportes y Servicios Ltda.
        dentro de la hoja abierta, ni en la barra de navegacion, la barra Vender/Comprar o el simbolo, la cierra sin llegar a Streamlit. */
     if (P.innerWidth <= 992 && estado() !== 'none') {
       var abierta = estado() === 'order' ? '.st-key-pj_panel_orden' : estado() === 'dom' ? '.st-key-pj_panel_dom'
-        : estado() === 'fav' ? '.st-key-pj_panel_favorito' : estado() === 'ordenes' ? '.st-key-agente_propuestas_panel'
+        : estado() === 'fav' ? '.st-key-pj_panel_favorito' : estado() === 'agente' ? '.st-key-pj_chat_flotante' : estado() === 'ordenes' ? '.st-key-agente_propuestas_panel'
         : '[data-testid="stColumn"]:has(.st-key-lista_activos_panel):not(:has(.st-key-grafico_cerrar_wrap))';
       /* En celular y tablet en horizontal el rail (con sus botones) y la pestaña de la lista también cuentan como «dentro»: sus clics los atiende más abajo. */
-      if (!e.target.closest(abierta + ', .st-key-pj_rail, .pj-pestana-activos, .st-key-barra_navegacion_fija, [data-testid=\"stColumn\"]:has(.pj-navegacion), .st-key-pj_barra_operar, .pj-cab-simbolo, .st-key-pj_sbjs, [data-testid="stDialog"], [data-baseweb="popover"]')) {
+      if (!e.target.closest(abierta + ', .st-key-pj_rail, .st-key-pj_chat_burbuja, .pj-pestana-activos, .st-key-barra_navegacion_fija, [data-testid=\"stColumn\"]:has(.pj-navegacion), .st-key-pj_barra_operar, .pj-cab-simbolo, .st-key-pj_sbjs, [data-testid="stDialog"], [data-baseweb="popover"]')) {
         e.stopPropagation(); e.preventDefault(); poner('none'); return; }
     }
     /* Cabeceras de las hojas: «Favoritos» (en la lista) y «Lista de activos» (en favoritos) pasan de una hoja a la otra. */
@@ -98,20 +101,26 @@ Transportes y Servicios Ltda.
     var bd = e.target.closest('.st-key-rail_dom button');
     var bf = e.target.closest('.st-key-rail_fav button');
     var bn = e.target.closest('.st-key-rail_ordenes button');
+    var ba = e.target.closest('.st-key-rail_agente button');
     // Pestaña de la lista de activos (celular y tablet en horizontal, solo en Trading): abre y cierra el cajón izquierdo.
     var bl = e.target.closest('.pj-pestana-activos');
     // Cualquier otro clic sigue su curso normal.
-    if (!bo && !bd && !bf && !bn && !bl) return;
+    if (!bo && !bd && !bf && !bn && !ba && !bl) return;
     e.stopPropagation(); e.preventDefault();
     var c = estado();
     if (bo) poner(c === 'order' ? 'none' : 'order');
     else if (bd) poner(c === 'dom' ? 'none' : 'dom');
     else if (bn) poner(c === 'ordenes' ? 'none' : 'ordenes');
+    else if (ba) poner(c === 'agente' ? 'none' : 'agente');
     else if (bl) poner(c === 'activos' ? 'none' : 'activos');
     else    poner(c === 'fav' ? 'none' : 'fav');
   };
   // Captura (true) para adelantarse a los manejadores de Streamlit.
   D.addEventListener('click', P.__pjRailFn, true);
+  /* En vertical (celular) no hay rail: si al girar el teléfono quedó acoplado el chat del agente, se cierra (la burbuja lo abre como ventana). */
+  if (P.__pjRailGiro) P.removeEventListener('resize', P.__pjRailGiro);
+  P.__pjRailGiro = function(){ if (estado() === 'agente' && P.innerWidth <= 768 && P.innerHeight > P.innerWidth) poner('none'); };
+  P.addEventListener('resize', P.__pjRailGiro);
   /* En celular el panel Operar arranca cerrado (taparía la pantalla): solo la primera vez que carga la página y si no hay otro panel abierto. */
   if (!P.__pjRielMovil && P.innerWidth <= 992) {
     P.__pjRielMovil = true;

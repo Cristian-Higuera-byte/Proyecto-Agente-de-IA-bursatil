@@ -29,11 +29,12 @@ from nucleo_agente import turnos
 # TITULO BURBUJA EN VIVO
 
 @st.fragment(run_every="1s")
-def burbuja_en_vivo(usuario_id: str, turno_id: str) -> None:
+def burbuja_en_vivo(usuario_id: str, turno_id: str, sufijo: str = "") -> None:
     """Respuesta que se está escribiendo, con cronómetro. Se refresca sola cada segundo (solo este
     bloque, no la página). Cuando el turno termina, refresca la app entera para incorporar la respuesta.
 
-    Parámetros: usuario_id (clave del turno) y turno_id (turno que debe mostrar). Dibuja la
+    Parámetros: usuario_id (clave del turno), turno_id (turno que debe mostrar) y sufijo (texto que se suma a la clave del botón Detener para que cada copia
+    del chat —fila de abajo, lateral y flotante— tenga la suya). Dibuja la
     fase actual, el reloj, el botón Detener (o "Deteniendo…" si ya se solicitó) y el texto
     parcial con un cursor. Efectos: marca el turno como visible (ui_viva), puede cancelarlo
     con turnos.cancelar y relanza la app o el fragmento. No devuelve nada.
@@ -51,8 +52,8 @@ def burbuja_en_vivo(usuario_id: str, turno_id: str) -> None:
         )
         # Detener: avisa al agente y se detiene en cuanto emita su siguiente evento (ver nucleo_agente/turnos.py).
         if t.cancelar_solicitado:
-            st.button("Deteniendo…", key=f"agente_chat_stop_{turno_id}", icon=":material/hourglass_top:", disabled=True)
-        elif st.button("Detener", key=f"agente_chat_stop_{turno_id}", icon=":material/stop_circle:",
+            st.button("Deteniendo…", key=f"agente_chat_stop_{turno_id}{sufijo}", icon=":material/hourglass_top:", disabled=True)
+        elif st.button("Detener", key=f"agente_chat_stop_{turno_id}{sufijo}", icon=":material/stop_circle:",
                        help="Detiene la consulta en curso"):
             turnos.cancelar(usuario_id)
             st.rerun(scope="fragment")

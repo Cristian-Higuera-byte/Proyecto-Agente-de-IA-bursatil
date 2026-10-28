@@ -72,18 +72,21 @@ def obtener_agente():
 
 # TITULO CAMBIAR PERFIL
 
-def cambiar_perfil():
-    """Callback del selector de perfil: aplica al agente el perfil elegido en st.session_state.perfil_agente.
+def cambiar_perfil(clave: str = "perfil_agente"):
+    """Callback del selector de perfil: aplica al agente el perfil elegido en st.session_state[clave].
+
+    `clave` es la clave del selector que cambió (cada copia del chat tiene el suyo: «perfil_agente» en el chat de la fila de abajo y «perfil_agente_flot» en el
+    chat lateral y flotante); todas las copias leen el perfil del mismo agente.
 
     Si el perfil elegido no lo incluye el plan del usuario, lo devuelve al anterior y deja en `bloqueo_pendiente` la función bloqueada para que
     el panel abra el aviso con el acceso a Planes. No hace nada si todavía no hay agente en la sesión.
     """
     agente = st.session_state.get("agente_ia")
     # Un perfil con candado (que el plan no incluye) no se aplica: se vuelve al anterior y se pide abrir el aviso del plan.
-    elegido = st.session_state["perfil_agente"]
+    elegido = st.session_state[clave]
     permitidos = permisos_plan.valor("perfiles_ia")
     if permitidos and elegido not in permitidos:
-        st.session_state["perfil_agente"] = agente.perfil if agente is not None and agente.perfil in permitidos else permitidos[0]
+        st.session_state[clave] = agente.perfil if agente is not None and agente.perfil in permitidos else permitidos[0]
         st.session_state["bloqueo_pendiente"] = "perfiles_ia"
         return
     if agente is not None:

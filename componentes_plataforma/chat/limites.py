@@ -38,9 +38,9 @@ _AYUDAS = {
 
 # TITULO GUARDAR
 
-def _guardar() -> None:
-    """Guarda los valores de la ventana en los límites del usuario y deja el aviso. Sirve de `on_click`."""
-    valores = {c: st.session_state.get(f"agente_limite_{c}") for c in ordenes.CAMPOS_EDITABLES}
+def _guardar(sufijo: str = "") -> None:
+    """Guarda los valores de la ventana en los límites del usuario y deja el aviso. Sirve de `on_click`; recibe el sufijo de la copia del chat que lo llama."""
+    valores = {c: st.session_state.get(f"agente_limite_{c}{sufijo}") for c in ordenes.CAMPOS_EDITABLES}
     try:
         ordenes.guardar_limites(valores)
         st.session_state[_CLAVE_AVISO] = ("ok", "Límites guardados. El agente los respeta desde ahora.")
@@ -52,13 +52,15 @@ def _guardar() -> None:
 
 # TITULO LIMITES DEL AGENTE
 
-def limites_agente() -> None:
+def limites_agente(sufijo: str = "") -> None:
     """Dibuja el botón «Límites» con la ventana para definir los límites del agente (0 = sin límite). No devuelve nada.
+
+    `sufijo` se suma a las claves de los campos y botones, para poder tener este botón en más de una copia del chat a la vez.
 
     Definir límites viene desde el plan Básico: con el plan Gratis el botón se muestra con candado y, al pulsarlo, abre el aviso que dice desde qué plan
     está disponible (igual que los perfiles del agente que el plan no incluye)."""
     if not permisos_plan.permite("limites_agente"):
-        if st.button("Límites", icon=":material/lock:", key="agente_limites_bloqueado", width="stretch",
+        if st.button("Límites", icon=":material/lock:", key=f"agente_limites_bloqueado{sufijo}", width="stretch",
                      help=permisos_plan.mensaje_bloqueo("limites_agente")):
             dialogo_bloqueo("limites_agente")
         return
@@ -73,8 +75,8 @@ def limites_agente() -> None:
         for campo, (texto, unidad, tipo) in ordenes.CAMPOS_EDITABLES.items():
             valor = getattr(actuales, campo)
             st.number_input(f"{texto} ({unidad}; 0 = sin límite)", min_value=0 if tipo is int else 0.0, value=int(valor or 0) if tipo is int else float(valor or 0.0), step=1 if tipo is int else 0.5,
-                            key=f"agente_limite_{campo}", help=_AYUDAS.get(campo))
-        st.button("Guardar límites", type="primary", width="stretch", key="agente_limites_guardar", on_click=_guardar)
+                            key=f"agente_limite_{campo}{sufijo}", help=_AYUDAS.get(campo))
+        st.button("Guardar límites", type="primary", width="stretch", key=f"agente_limites_guardar{sufijo}", on_click=_guardar, args=(sufijo,))
 
 
 

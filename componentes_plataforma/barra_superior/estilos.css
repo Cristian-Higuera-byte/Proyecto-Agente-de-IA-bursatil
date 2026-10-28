@@ -205,6 +205,18 @@ Transportes y Servicios Ltda.
         [class*="st-key-boton_abrir_buscador"] button { width: 32px !important; height: 32px; min-height: 32px !important; }
         .st-key-barra_navegacion_fija div[style*="padding:4px 11px"] { padding: 2px 9px !important; }
     }
+
+    /* La lupa nunca se deforma: cuadrada por proporción, sin encogerse y con el borde redondo del todo. */
+    [class*="st-key-boton_abrir_buscador"] button { aspect-ratio: 1 / 1; min-width: 0 !important; flex: 0 0 auto !important; border-radius: 50% !important; }
+
+    /* TITULO HORIZONTAL MUY BAJO (hasta 340 px de alto): barra superior de ~38 px */
+    /* El P/G flotante pasa al lado de la cifra de capital (en vez de debajo) y la lupa baja a 28 px. */
+    @media (orientation: landscape) and (max-height: 340px) {
+        .st-key-barra_navegacion_fija span:has(> [data-pj-acc="profit"]) { flex-direction: row !important; align-items: baseline !important; gap: 6px !important; }
+        .st-key-barra_navegacion_fija [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(2) { flex: 0 0 28px !important; width: 28px !important; }
+        [class*="st-key-boton_abrir_buscador"] button { width: 28px !important; height: 28px; min-height: 28px !important; }
+        .st-key-barra_navegacion_fija div[style*="padding:4px 11px"], .st-key-barra_navegacion_fija div[style*="padding:2px 9px"] { padding: 1px 8px !important; }
+    }
 }
 
 /* tablets verticales (iPad clásico, tablets Android estándar) */
@@ -214,7 +226,7 @@ Transportes y Servicios Ltda.
 
 /* móviles grandes (iPhone 11, iPhone Plus/Max, Android grandes) */
 @media (max-width: 414px) {
-    /* TITULO MOVIL ANGOSTO (hasta 400 px): barra superior aun mas compacta */
+    /* TITULO MOVIL ANGOSTO (hasta 414 px): barra superior aun mas compacta */
     /* En un celular de 360 a 400 px el contenido (logo, lupa, capital con DEMO, campana y avatar) medido a 390 px ya llega a 382 px: se
        aprietan los espacios, la lupa y la etiqueta DEMO para que el avatar nunca se salga de la pantalla. */
         .st-key-barra_navegacion_fija [data-testid="stHorizontalBlock"] { gap:5px !important; }
@@ -224,11 +236,17 @@ Transportes y Servicios Ltda.
         .st-key-barra_navegacion_fija [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(1)::before { font-size:20px; }
         .st-key-barra_navegacion_fija [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(4) [data-testid="stMarkdownContainer"] > div { gap:5px !important; }
         .st-key-barra_navegacion_fija [title^="Cuenta con la que"] { font-size:9px !important; padding:1px 5px !important; }
+
+    /* Relleno lateral de la barra: de 24 a 12 px (ganan 24 px de ancho útil), que es lo que le faltaba al avatar en pantallas de 360 a 375 px. */
+    .st-key-barra_navegacion_fija { padding-left: 12px !important; padding-right: 12px !important; }
 }
 
 /* móviles medianos (iPhone 12/13/14, Android gama media) */
 @media (max-width: 390px) {
-    /* Sin media */
+    /* TITULO MOVIL MEDIANO (hasta 390 px): tarjeta de capital más compacta */
+    /* Con la etiqueta DEMO la tarjeta de capital mide ~185 px y empujaba el avatar fuera de la pantalla en 360 px: la cifra y el relleno de la tarjeta bajan un poco. */
+    .st-key-barra_navegacion_fija [data-pj-acc="equity"], .st-key-barra_navegacion_fija [data-pj-acc="profit"] { font-size: 12.5px !important; }
+    .st-key-barra_navegacion_fija div[style*="padding:4px 11px"] { padding: 3px 8px !important; }
 }
 
 /* móviles pequeños (Android estándar, iPhone SE) */
