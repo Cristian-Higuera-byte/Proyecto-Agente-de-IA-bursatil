@@ -72,20 +72,21 @@ def dibujar_historial():
             fecha = _dt.datetime.fromtimestamp(h["fecha"]).strftime("%d-%m %H:%M")
             filas += (
                 "<tr>"
-                f"<td class='historial-fecha'>{fecha}</td>"
+                f"<td class='historial-fecha' data-etiqueta='Fecha'>{fecha}</td>"
                 f"<td><div class='posicion-simbolo'>{icono_activo(h['symbol'], 26)}{simbolo}</div></td>"
                 f"<td><span class='posicion-lado {'buy' if compra else 'sell'}'>{h['tipo']}</span></td>"
-                f"<td class='r'>{h['volumen']:,.2f}</td>"
-                f"<td class='r'>{h['precio_cierre']:,.5f}</td>"
-                f"<td class='r {'car-sube' if h['pg'] >= 0 else 'car-baja'}'>{h['pg']:+,.2f}</td>"
+                f"<td class='r' data-etiqueta='Volumen'>{h['volumen']:,.2f}</td>"
+                f"<td class='r' data-etiqueta='Cierre'>{h['precio_cierre']:,.5f}</td>"
+                f"<td class='r {'car-sube' if h['pg'] >= 0 else 'car-baja'}' data-etiqueta='P/G'>{h['pg']:+,.2f}</td>"
                 "</tr>"
             )
-        # Tabla completa con las filas acumuladas.
+        # Tabla completa con las filas acumuladas. El envoltorio contiene a la tabla dentro de la tarjeta (en pantallas angostas se desplaza o se
+        # apila por filas, ver estilos.css) y `data-etiqueta` da el rótulo de cada dato en ese modo apilado.
         st.html(
-            "<table class='pos'><thead><tr>"
+            "<div class='pos-envoltorio'><table class='pos pos-historial'><thead><tr>"
             "<th>Fecha</th><th>Activo</th><th>Tipo</th><th class='r'>Volumen</th>"
             "<th class='r'>Cierre</th><th class='r'>P/G</th>"
-            "</tr></thead><tbody>" + filas + "</tbody></table>"
+            "</tr></thead><tbody>" + filas + "</tbody></table></div>"
         )
     # Ver más / Ver menos (despliegan de a 10 hacia abajo, dentro de Inicio)
     # Se relee el contador porque este bloque queda fuera del contenedor de la tabla.

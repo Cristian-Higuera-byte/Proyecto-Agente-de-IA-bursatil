@@ -82,9 +82,6 @@ Transportes y Servicios Ltda.
   .destacado-ganancia-perdida .t { color:#8b949e; font-weight:500; }
   /* Cuadrícula de 3 columnas iguales con los indicadores (saldo, margen libre y usado). */
   .kpis { display:grid; grid-template-columns:repeat(3,1fr); /* 3 columnas iguales */ gap:12px; margin-top:18px; }
-  /* En celular las tres tarjetas (saldo, margen libre y margen usado) no caben en una fila: 3 columnas de 1fr miden al menos su contenido
-     (~120 px cada una) y se salen de la tarjeta; con auto-fit pasan a 2 columnas y la tercera baja a la fila siguiente. */
-  @media (max-width: 1024px) { .kpis { grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:8px; } }
   /* Cada indicador: caja con fondo y borde sutiles. */
   .kpi { background:#151c27; border:1px solid #252f3d; border-radius:12px; padding:12px 14px; }
   /* Etiqueta del indicador. */
@@ -229,6 +226,8 @@ Transportes y Servicios Ltda.
       color:#8b949e; font-size:13px; text-align:center; }
   /* Ícono grande y gris del estado vacío. */
   .posicion-vacio .mi { font-size:30px; color:#586174; }
+  /* Envoltorio de la tabla de posiciones: si la tabla es más ancha que la tarjeta, se desplaza dentro de ella en vez de salirse. */
+  .pos-envoltorio { max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; }
   /* Botón "Ver cartera" (clave inicio_ver_cartera): píldora transparente. */
   .st-key-inicio_ver_cartera button { background:transparent !important; border:1px solid #30363d !important;
       border-radius:999px !important; min-height:32px !important; padding:2px 14px !important; }
@@ -275,6 +274,112 @@ Transportes y Servicios Ltda.
   .selector-cuenta-bal { color:#fff; font-size:22px; font-weight:800; margin:2px 0; }
   /* Línea de metadatos (login, plataforma, servidor). */
   .selector-cuenta-meta { color:#8b949e; font-size:12px; }
+
+
+/* pantallas grandes (monitores Full HD+, iMac, monitores gaming QHD/4K) */
+@media (min-width: 1441px) {
+    /* Sin media */
+}
+
+/* notebooks grandes (1600x900, 1920x1080) */
+@media (max-width: 1440px) {
+    /* Sin media */
+}
+
+/* notebooks comunes (1366x768, MacBook Air/Pro) */
+@media (max-width: 1200px) {
+    /* Sin media */
+}
+
+/* tablets horizontales / pantallas medianas (iPad Pro en horizontal, notebooks pequeños) */
+@media (max-width: 992px) {
+    /* En celular las tres tarjetas (saldo, margen libre y margen usado) no caben en una fila: 3 columnas de 1fr miden al menos su contenido
+     (~120 px cada una) y se salen de la tarjeta; con auto-fit pasan a 2 columnas y la tercera baja a la fila siguiente. */
+    .kpis { grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:8px; }
+}
+
+/* tablets verticales (iPad clásico, tablets Android estándar) */
+@media (max-width: 768px) {
+    /* Celular (hasta 768 px): cada posición se apila como una tarjeta de dos líneas, sin desplazamiento horizontal. */
+      /* Los encabezados de columna sobran: cada dato lleva su propio rótulo. */
+      table.pos-abiertas thead { display:none; }
+      /* La tabla y su cuerpo dejan de ser tabla para que cada fila sea una cuadrícula. */
+      table.pos-abiertas, table.pos-abiertas tbody { display:block; width:100%; }
+      /* Línea 1: activo (izquierda) y P/G (derecha). Línea 2: tipo, volumen, apertura y precio actual. */
+      table.pos-abiertas tr { display:grid; grid-template-columns:62px 50px 1fr 1fr; align-items:center; column-gap:10px;
+          row-gap:6px; padding:12px 14px; border-bottom:1px solid #141a22; }
+      /* La última posición no lleva línea inferior. */
+      table.pos-abiertas tr:last-child { border-bottom:none; }
+      /* Las celdas pierden su relleno de tabla y se pueden achicar sin desbordar. */
+      table.pos-abiertas td { padding:0; border-bottom:none; min-width:0; }
+      /* Activo: ocupa las tres primeras columnas de la línea 1. */
+      table.pos-abiertas td:nth-child(1) { grid-column:1 / 4; grid-row:1; }
+      /* P/G: última columna de la línea 1, un poco más grande. */
+      table.pos-abiertas td:nth-child(6) { grid-column:4; grid-row:1; font-size:15px; }
+      /* Tipo, volumen, apertura y actual: línea 2. */
+      table.pos-abiertas td:nth-child(2) { grid-column:1; grid-row:2; }
+      table.pos-abiertas td:nth-child(3) { grid-column:2; grid-row:2; text-align:left; }
+      table.pos-abiertas td:nth-child(4) { grid-column:3; grid-row:2; }
+      table.pos-abiertas td:nth-child(5) { grid-column:4; grid-row:2; }
+      /* Rótulo pequeño sobre cada dato (Volumen, Apertura, Actual y P/G; el tipo y el activo no lo necesitan). */
+      table.pos-abiertas td[data-etiqueta]::before { content:attr(data-etiqueta); display:block; color:#8b949e; font-size:10px;
+          font-weight:600; font-family:system-ui,sans-serif; margin-bottom:2px; }
+      /* El rótulo del P/G va a la derecha, junto a su número. */
+      table.pos-abiertas td:nth-child(6)::before { text-align:right; }
+  
+    /* Celular (hasta 768 px): cada operación cerrada del historial se apila como una tarjeta de dos líneas, sin desplazamiento horizontal. */
+      /* Los encabezados de columna sobran: cada dato lleva su propio rótulo. */
+      table.pos-historial thead { display:none; }
+      /* La tabla y su cuerpo dejan de ser tabla para que cada fila sea una cuadrícula. */
+      table.pos-historial, table.pos-historial tbody { display:block; width:100%; }
+      /* Línea 1: activo (izquierda) y P/G (derecha). Línea 2: tipo, volumen, precio de cierre y fecha. */
+      table.pos-historial tr { display:grid; grid-template-columns:62px 50px 1fr 1fr; align-items:center; column-gap:10px;
+          row-gap:6px; padding:12px 14px; border-bottom:1px solid #141a22; }
+      /* La última operación no lleva línea inferior. */
+      table.pos-historial tr:last-child { border-bottom:none; }
+      /* Las celdas pierden su relleno de tabla y se pueden achicar sin desbordar. */
+      table.pos-historial td { padding:0; border-bottom:none; min-width:0; }
+      /* Activo: ocupa las tres primeras columnas de la línea 1. */
+      table.pos-historial td:nth-child(2) { grid-column:1 / 4; grid-row:1; }
+      /* P/G: última columna de la línea 1, un poco más grande. */
+      table.pos-historial td:nth-child(6) { grid-column:4; grid-row:1; font-size:15px; }
+      /* Tipo, volumen, cierre y fecha: línea 2. */
+      table.pos-historial td:nth-child(3) { grid-column:1; grid-row:2; }
+      table.pos-historial td:nth-child(4) { grid-column:2; grid-row:2; text-align:left; }
+      table.pos-historial td:nth-child(5) { grid-column:3; grid-row:2; }
+      table.pos-historial td:nth-child(1) { grid-column:4; grid-row:2; text-align:right; white-space:nowrap; }
+      /* Rótulo pequeño sobre cada dato (el activo y el tipo no lo necesitan). */
+      table.pos-historial td[data-etiqueta]::before { content:attr(data-etiqueta); display:block; color:#8b949e; font-size:10px;
+          font-weight:600; font-family:system-ui,sans-serif; margin-bottom:2px; }
+      /* Los rótulos de la fecha y del P/G van a la derecha, junto a su dato. */
+      table.pos-historial td:nth-child(1)::before, table.pos-historial td:nth-child(6)::before { text-align:right; }
+}
+
+/* móviles grandes (iPhone 11, iPhone Plus/Max, Android grandes) */
+@media (max-width: 414px) {
+    /* Sin media */
+}
+
+/* móviles medianos (iPhone 12/13/14, Android gama media) */
+@media (max-width: 390px) {
+    /* Sin media */
+}
+
+/* móviles pequeños (Android estándar, iPhone SE) */
+@media (max-width: 360px) {
+    /* Celulares muy angostos (hasta 360 px): números un poco más chicos para que los precios largos no se corten. */
+      table.pos-abiertas td { font-size:11px; }
+      table.pos-abiertas td:nth-child(6) { font-size:14px; }
+      table.pos-abiertas tr { grid-template-columns:52px 40px 1fr 1fr; padding:12px 10px; column-gap:6px; }
+      table.pos-abiertas .posicion-lado { padding:3px 6px; }
+  
+    /* Celulares muy angostos (hasta 360 px): números un poco más chicos para que los precios largos no se corten. */
+      table.pos-historial td { font-size:11px; }
+      table.pos-historial td:nth-child(6) { font-size:14px; }
+      table.pos-historial tr { grid-template-columns:52px 40px 1fr 1fr; padding:12px 10px; column-gap:6px; }
+      table.pos-historial .posicion-lado { padding:3px 6px; }
+}
+
 
 /* -------------------------------------------------------------------------------------------------------
    ------------------------------------- FIN Piña y Jara estilos .CSS ------------------------------------

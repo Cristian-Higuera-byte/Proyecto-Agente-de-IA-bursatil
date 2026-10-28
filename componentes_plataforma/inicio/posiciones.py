@@ -61,18 +61,19 @@ def dibujar_posiciones():
                 "<tr>"
                 f"<td><div class='posicion-simbolo'>{icono_activo(p['symbol'], 26)}{simbolo}</div></td>"
                 f"<td><span class='posicion-lado {'buy' if compra else 'sell'}'>{p['tipo']}</span></td>"
-                f"<td class='r'>{p['volumen']:,.2f}</td>"
-                f"<td class='r'>{p['precio_apertura']:,.5f}</td>"
-                f"<td class='r' data-pj-posc='{ticket}' data-pj-d='5'>{p['precio_actual']:,.5f}</td>"
-                f"<td class='r {'car-sube' if neto >= 0 else 'car-baja'}' data-pj-pos='{ticket}'>{neto:+,.2f}</td>"
+                f"<td class='r' data-etiqueta='Volumen'>{p['volumen']:,.2f}</td>"
+                f"<td class='r' data-etiqueta='Apertura'>{p['precio_apertura']:,.5f}</td>"
+                f"<td class='r' data-etiqueta='Actual' data-pj-posc='{ticket}' data-pj-d='5'>{p['precio_actual']:,.5f}</td>"
+                f"<td class='r {'car-sube' if neto >= 0 else 'car-baja'}' data-etiqueta='P/G' data-pj-pos='{ticket}'>{neto:+,.2f}</td>"
                 "</tr>"
             )
-        # Tabla con todas las filas generadas.
+        # Tabla con todas las filas generadas. El envoltorio contiene a la tabla dentro de la tarjeta (en pantallas angostas
+        # se desplaza o se apila por filas, ver estilos.css) y `data-etiqueta` da el rótulo de cada dato en ese modo apilado.
         st.html(
-            "<table class='pos'><thead><tr>"
+            "<div class='pos-envoltorio'><table class='pos pos-abiertas'><thead><tr>"
             "<th>Activo</th><th>Tipo</th><th class='r'>Volumen</th>"
             "<th class='r'>Apertura</th><th class='r'>Actual</th><th class='r'>P/G</th>"
-            "</tr></thead><tbody>" + filas + "</tbody></table>"
+            "</tr></thead><tbody>" + filas + "</tbody></table></div>"
         )
 
 

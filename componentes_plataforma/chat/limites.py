@@ -19,6 +19,8 @@ usuario le pida y la responsabilidad de ese riesgo es del usuario. El agente y l
 """
 import streamlit as st
 
+from componentes_plataforma.planes.panel import dialogo_bloqueo
+from herramientas import permisos_plan
 from nucleo_agente import ordenes
 
 # Aviso de la última acción (se muestra una vez)
@@ -42,6 +44,8 @@ def _guardar() -> None:
     try:
         ordenes.guardar_limites(valores)
         st.session_state[_CLAVE_AVISO] = ("ok", "Límites guardados. El agente los respeta desde ahora.")
+    except permisos_plan.ErrorPlan as error:   # el plan no incluye los límites: el mensaje ya dice desde qué plan
+        st.session_state[_CLAVE_AVISO] = ("error", str(error))
     except Exception:  # noqa: BLE001
         st.session_state[_CLAVE_AVISO] = ("error", "No se pudieron guardar los límites. Inténtalo de nuevo.")
 
@@ -49,7 +53,15 @@ def _guardar() -> None:
 # TITULO LIMITES DEL AGENTE
 
 def limites_agente() -> None:
-    """Dibuja el botón «Límites» con la ventana para definir los límites del agente (0 = sin límite). No devuelve nada."""
+    """Dibuja el botón «Límites» con la ventana para definir los límites del agente (0 = sin límite). No devuelve nada.
+
+    Definir límites viene desde el plan Básico: con el plan Gratis el botón se muestra con candado y, al pulsarlo, abre el aviso que dice desde qué plan
+    está disponible (igual que los perfiles del agente que el plan no incluye)."""
+    if not permisos_plan.permite("limites_agente"):
+        if st.button("Límites", icon=":material/lock:", key="agente_limites_bloqueado", width="stretch",
+                     help=permisos_plan.mensaje_bloqueo("limites_agente")):
+            dialogo_bloqueo("limites_agente")
+        return
     with st.popover("Límites", icon=":material/tune:", width="stretch", help="Decide con cuánto riesgo puede operar el agente"):
         st.markdown("**Límites del agente**")
         st.caption("Tú decides el riesgo que asumes: con 0 no hay límite. El agente y las vigilancias respetan lo que definas aquí. Operar con límites altos o sin ellos "

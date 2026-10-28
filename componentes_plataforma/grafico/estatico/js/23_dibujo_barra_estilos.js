@@ -274,7 +274,7 @@ Transportes y Servicios Ltda.
     function ubicarDeshacerRehacer(){
       var rangos = document.getElementById('tradingview-rangebar'), ampliar = document.getElementById('boton-expandir-movil');
       if (!rangos || !ampliar) return;
-      var tactil = false; try { tactil = window.parent.innerWidth <= 1024; } catch (e) {}
+      var tactil = false; try { tactil = window.parent.innerWidth <= 992; } catch (e) {}
       var enRangos = botonDeshacer.parentNode === rangos;
       if (tactil && !enRangos) { rangos.insertBefore(botonDeshacer, ampliar); rangos.insertBefore(botonRehacer, ampliar); }
       else if (!tactil && enRangos) { accionesEl.insertBefore(botonRehacer, accionesEl.firstChild); accionesEl.insertBefore(botonDeshacer, botonRehacer); }

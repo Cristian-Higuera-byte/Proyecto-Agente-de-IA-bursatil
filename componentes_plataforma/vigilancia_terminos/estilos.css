@@ -40,8 +40,6 @@ Transportes y Servicios Ltda.
              padding:9px 12px; border-radius:6px; }
   /* Nota final pequena y apagada */
   .vigilancia-terminos-nota { color:#8b949e; font-size:12px; }
-  /* En pantallas angostas la cuadricula pasa a dos columnas */
-  @media (max-width:640px) { .vigilancia-terminos-resumen { grid-template-columns:repeat(2,1fr); } }
   /* TITULO BOTONES DE LA VENTANA (contenedores key terminos_vigilancia_rechazar y terminos_vigilancia_aceptar de dialogo.py) */
   /* Degradado rojo a naranja que sustituye el estilo por defecto del boton de aceptar (!important) */
   .st-key-terminos_vigilancia_aceptar button { background:linear-gradient(90deg,#ff4b4b,#ff8f00) !important;
@@ -49,6 +47,48 @@ Transportes y Servicios Ltda.
   /* Boton de rechazar: contorno rojo suave sobre fondo oscuro */
   .st-key-terminos_vigilancia_rechazar button { background:#161b22 !important; border:1px solid #ff4b4b88 !important;
       color:#ff7b7b !important; }
+
+
+/* pantallas grandes (monitores Full HD+, iMac, monitores gaming QHD/4K) */
+@media (min-width: 1441px) {
+    /* Sin media */
+}
+
+/* notebooks grandes (1600x900, 1920x1080) */
+@media (max-width: 1440px) {
+    /* Sin media */
+}
+
+/* notebooks comunes (1366x768, MacBook Air/Pro) */
+@media (max-width: 1200px) {
+    /* Sin media */
+}
+
+/* tablets horizontales / pantallas medianas (iPad Pro en horizontal, notebooks pequeños) */
+@media (max-width: 992px) {
+    /* Sin media */
+}
+
+/* tablets verticales (iPad clásico, tablets Android estándar) */
+@media (max-width: 768px) {
+    /* En pantallas angostas la cuadricula pasa a dos columnas */
+    .vigilancia-terminos-resumen { grid-template-columns:repeat(2,1fr); }
+}
+
+/* móviles grandes (iPhone 11, iPhone Plus/Max, Android grandes) */
+@media (max-width: 414px) {
+    /* Sin media */
+}
+
+/* móviles medianos (iPhone 12/13/14, Android gama media) */
+@media (max-width: 390px) {
+    /* Sin media */
+}
+
+/* móviles pequeños (Android estándar, iPhone SE) */
+@media (max-width: 360px) {
+    /* Sin media */
+}
 
 
 /* -------------------------------------------------------------------------------------------------------

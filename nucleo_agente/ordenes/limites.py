@@ -23,6 +23,7 @@ import os
 import threading
 from dataclasses import dataclass, replace
 
+from herramientas import permisos_plan
 from herramientas.backends import sesiones_capital
 from herramientas.carpeta_usuario import carpeta_de
 
@@ -121,7 +122,9 @@ def limites_actuales() -> LimitesRiesgo:
 
 def guardar_limites(valores: dict) -> LimitesRiesgo:
     """Guarda los límites del usuario actual y devuelve los vigentes. `valores` es {campo: número o None}; un campo vacío, cero o negativo queda «sin límite»;
-    los campos que no estén en `CAMPOS_EDITABLES` se ignoran. Escritura atómica."""
+    los campos que no estén en `CAMPOS_EDITABLES` se ignoran. Escritura atómica. Solo se pueden definir desde el plan que incluye «limites_agente» (no el
+    Gratis); si el plan no lo incluye lanza `permisos_plan.ErrorPlan` con el aviso y no guarda nada."""
+    permisos_plan.exigir("limites_agente")
     limpios = {c: _limpiar(c, valores.get(c)) for c in CAMPOS_EDITABLES}
     ruta = _ruta()
     with _CANDADO:

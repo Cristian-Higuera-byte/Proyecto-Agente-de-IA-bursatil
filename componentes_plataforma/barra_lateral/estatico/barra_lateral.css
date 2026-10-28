@@ -192,14 +192,31 @@ __ETIQUETAS__
 /* Animacion de fundido de entrada usada por el logo y las etiquetas. */
 @keyframes pjFade { from { opacity: 0; } to { opacity: 1; } }
 
-/* ====== MOVIL (pantallas de hasta 1024 px (celulares y tablets)): la barra de navegacion pasa abajo ====== */
+
+/* pantallas grandes (monitores Full HD+, iMac, monitores gaming QHD/4K) */
+@media (min-width: 1441px) {
+    /* Sin media */
+}
+
+/* notebooks grandes (1600x900, 1920x1080) */
+@media (max-width: 1440px) {
+    /* Sin media */
+}
+
+/* notebooks comunes (1366x768, MacBook Air/Pro) */
+@media (max-width: 1200px) {
+    /* Sin media */
+}
+
+/* tablets horizontales / pantallas medianas (iPad Pro en horizontal, notebooks pequeños) */
+@media (max-width: 992px) {
+    /* ====== MOVIL (hasta 992 px: tablets horizontales y pantallas más chicas): la barra de navegacion pasa abajo ====== */
 /* En celular no hay lugar para una barra lateral: la misma columna se convierte en una franja inferior fija, con los botones en
    fila y desplazable hacia los lados. Las reglas del estado expandido se anulan (en celular la barra no se expande). */
-@media (max-width: 1024px) {
     /* Contenido principal: sin relleno lateral grande y con espacio abajo para que la barra no tape el final. */
     /* El prefijo html sube la prioridad: otras hojas (como la del riel derecho, que reserva 378 px a la derecha) llegan despues. */
     html .block-container, __EXP__ .block-container {
-        padding-left: 12px !important; padding-right: 12px !important; padding-bottom: 88px !important;
+        padding-left: 12px !important; padding-right: 12px !important; padding-bottom: calc(var(--pj-nav-h, 64px) + 24px) !important;
     }
     /* Barra superior fija: ocupa todo el ancho de la pantalla. */
     .st-key-barra_navegacion_fija, __EXP__ .st-key-barra_navegacion_fija {
@@ -212,7 +229,7 @@ __ETIQUETAS__
     /* Columna de navegacion: franja de 64 px pegada al borde inferior, con desplazamiento horizontal si no caben todos los botones. */
     __COL__, __EXP__ __COL__ {
         top: auto !important; bottom: var(--pj-vv-bottom, 0px) !important; left: 0 !important;
-        height: 64px !important; min-height: 0 !important; width: 100% !important; max-width: 100% !important;
+        height: var(--pj-nav-h, 64px) !important; min-height: 0 !important; width: 100% !important; max-width: 100% !important;
         flex: 0 0 100% !important; padding: 0 8px !important;
         border-right: none !important; border-top: 1px solid #30363d;
         overflow-x: auto !important; overflow-y: hidden !important;
@@ -282,7 +299,38 @@ __ETIQUETAS__
     html.pj-mas-abierto __COL__ button::after {
         display: block !important; font-size: 11px; font-weight: 600; line-height: 1; color: #c9d1d9; animation: none;
     }
+
+    /* TITULO HORIZONTAL BAJO (celulares en horizontal: hasta 500 px de alto): barra de navegación más baja */
+    /* La franja baja a --pj-nav-h (44 px, ver aplicacion_principal/estilos.css): los botones se achican y la etiqueta de texto pasa a 9 px, para que ícono y texto quepan sin tapar el gráfico. */
+    @media (orientation: landscape) and (max-height: 500px) {
+        __COL__, __EXP__ __COL__ { padding: 0 6px !important; }
+        __COL__ button, __EXP__ __COL__ button {
+            width: 72px !important; height: calc(var(--pj-nav-h, 64px) - 6px) !important; min-height: 0 !important; gap: 1px !important; }
+        __COL__ button::after { font-size: 9px; }
+        __COL__ button span[data-testid="stIconMaterial"], __COL__ button [data-testid="stIconMaterial"] { font-size: 20px !important; }
+    }
 }
+
+/* tablets verticales (iPad clásico, tablets Android estándar) */
+@media (max-width: 768px) {
+    /* Sin media */
+}
+
+/* móviles grandes (iPhone 11, iPhone Plus/Max, Android grandes) */
+@media (max-width: 414px) {
+    /* Sin media */
+}
+
+/* móviles medianos (iPhone 12/13/14, Android gama media) */
+@media (max-width: 390px) {
+    /* Sin media */
+}
+
+/* móviles pequeños (Android estándar, iPhone SE) */
+@media (max-width: 360px) {
+    /* Sin media */
+}
+
 
 /* -------------------------------------------------------------------------------------------------------
    ---------------------------------- FIN Piña y Jara barra_lateral .CSS ---------------------------------

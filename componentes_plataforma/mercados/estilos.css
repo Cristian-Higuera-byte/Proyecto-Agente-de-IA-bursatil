@@ -240,17 +240,60 @@ Transportes y Servicios Ltda.
   /* Realce del boton Operar al pasar el raton */
   .st-key-ficha_operar button:hover { filter:brightness(1.08); }
 
-  /* TITULO MOVIL (pantallas de hasta 1024 px (celulares y tablets)): tabla de instrumentos reducida */
-  /* La tabla de 7 columnas mide unos 820 px y no cabe en el celular: se conservan instrumento, precio y cambio porcentual
+
+/* pantallas grandes (monitores Full HD+, iMac, monitores gaming QHD/4K) */
+@media (min-width: 1441px) {
+    /* Sin media */
+}
+
+/* notebooks grandes (1600x900, 1920x1080) */
+@media (max-width: 1440px) {
+    /* Sin media */
+}
+
+/* notebooks comunes (1366x768, MacBook Air/Pro) */
+@media (max-width: 1200px) {
+    /* Sin media */
+}
+
+/* tablets horizontales / pantallas medianas (iPad Pro en horizontal, notebooks pequeños) */
+@media (max-width: 992px) {
+    /* TITULO MOVIL (hasta 992 px: tablets horizontales y pantallas más chicas): tabla de instrumentos reducida */
+    /* La tabla de 7 columnas mide unos 820 px y no cabe en el celular: se conservan instrumento, precio y cambio porcentual
      (columnas 1, 2 y 4) y se ocultan cambio, rango, 5 dias y estado, tanto en la cabecera como en las filas. */
-  @media (max-width: 1024px) {
-    .mercados-cabecera, .mercados-fila { grid-template-columns:minmax(0,1fr) 96px 88px; }
+    /* Instrumento, precio y cambio % se reparten el ancho en proporción (antes precio y cambio quedaban pegados al borde derecho). */
+    .mercados-cabecera, .mercados-fila { grid-template-columns:minmax(0,1.5fr) minmax(0,1fr) minmax(0,1fr); }
     .mercados-cabecera > div, .mercados-fila > div { padding:0 8px; }
+    /* Precio y cambio % centrados en su columna, tanto en la cabecera como en las filas. */
+    .mercados-cabecera > .mercados-r, .mercados-fila > .mercados-r { text-align:center; justify-content:center; }
+    /* Pastilla del cambio % más compacta para que quepa dentro de su columna. */
+    .mercados-pastilla { min-width:72px; padding:3px 6px; font-size:12px; }
     .mercados-cabecera > div:nth-child(3), .mercados-cabecera > div:nth-child(n+5),
     .mercados-fila > div:nth-child(3), .mercados-fila > div:nth-child(n+5) { display:none !important; }
     /* Ficha del instrumento: los 6 rendimientos (1 dia a 1 año) miden ~480 px en una fila y se salen del dialogo; van en 2 filas de 3. */
     .ficha-rendimiento { grid-template-columns:repeat(3,minmax(0,1fr)); }
-  }
+}
+
+/* tablets verticales (iPad clásico, tablets Android estándar) */
+@media (max-width: 768px) {
+    /* Sin media */
+}
+
+/* móviles grandes (iPhone 11, iPhone Plus/Max, Android grandes) */
+@media (max-width: 414px) {
+    /* Sin media */
+}
+
+/* móviles medianos (iPhone 12/13/14, Android gama media) */
+@media (max-width: 390px) {
+    /* Sin media */
+}
+
+/* móviles pequeños (Android estándar, iPhone SE) */
+@media (max-width: 360px) {
+    /* Sin media */
+}
+
 
 /* -------------------------------------------------------------------------------------------------------
    ------------------------------------- FIN Piña y Jara estilos .CSS ------------------------------------

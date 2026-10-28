@@ -11,7 +11,7 @@
 # ------------------------------------- INICIO Piña y Jara movil .PY ------------------------------------
 # -------------------------------------------------------------------------------------------------------
 
-"""Elementos de la vista operativa que solo se ven en el celular (pantallas de hasta 1024 px (celulares y tablets)).
+"""Elementos de la vista operativa que solo se ven en el celular (pantallas de hasta 992 px: tablets horizontales y más chicas; en horizontal la barra se reemplaza por el rail y los cajones, ver riel/estilos.css).
 
 En escritorio el rail derecho ya ofrece los favoritos y el ticket; en el celular se agrega una barra fija «Vender / Comprar»
 que muestra los precios en vivo y abre el ticket de órdenes. Se dibuja siempre y el CSS de `estilos.css` la oculta en

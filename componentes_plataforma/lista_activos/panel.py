@@ -46,6 +46,15 @@ def renderizar_watchlist():
     if "activo_seleccionado" not in st.session_state:
         st.session_state.activo_seleccionado = "EURUSD..."
 
+    # Pestaña para abrir la lista como cajón a la izquierda (solo en celular y tablet en horizontal, hasta 992 px en horizontal o con más de 768 px de ancho; el CSS del rail la oculta en las demás
+    # pantallas y riel.js atiende el clic). Va fuera del panel, que recorta lo que sobresale de sus esquinas.
+    with st.container(key="pj_pestana_activos"):
+        st.markdown(
+            "<button type='button' class='pj-pestana-activos' aria-label='Mostrar u ocultar la lista de activos'>"
+            "<span class='lista-activos-icono-material'>show_chart</span></button>",
+            unsafe_allow_html=True,
+        )
+
     with st.container(key="lista_activos_panel"):
         # Encabezado
         st.markdown(

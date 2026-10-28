@@ -31,8 +31,8 @@ Transportes y Servicios Ltda.
     // recargar el contenido sin cambiar el elemento iframe y este script arrancaria de nuevo sin saber que ya esta ampliado.
     var fsFalso = false;
     var marcoFs = window.frameElement;
-    /** Indica si la ventana padre es de celular o tablet (hasta 1024 px, el mismo corte que el CSS de la plataforma). */
-    function esTactil(){ try { return window.parent.innerWidth <= 1024; } catch (e) { return false; } }
+    /** Indica si la ventana padre es de celular o tablet (hasta 992 px, el mismo corte que el CSS de la plataforma). */
+    function esTactil(){ try { return window.parent.innerWidth <= 992; } catch (e) { return false; } }
     /** Amplia el iframe a toda la ventana (position:fixed con !important para ganar a la regla de alto de la plataforma). Devuelve false si no se puede. */
     function entrarFsFalso(){
       if (!marcoFs || !docPadre) return false;

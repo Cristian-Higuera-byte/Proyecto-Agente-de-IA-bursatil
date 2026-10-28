@@ -146,10 +146,28 @@ Transportes y Servicios Ltda.
     [class*="st-key-superior_interruptor"] button p,
     [class*="st-key-superior_interruptor"] button p *,
     [class*="st-key-superior_interruptor"] button span[data-testid="stIconMaterial"] { font-size:28px !important; }
-    /* TITULO MOVIL (pantallas de hasta 1024 px (celulares y tablets)): barra superior reducida */
+
+
+/* pantallas grandes (monitores Full HD+, iMac, monitores gaming QHD/4K) */
+@media (min-width: 1441px) {
+    /* Sin media */
+}
+
+/* notebooks grandes (1600x900, 1920x1080) */
+@media (max-width: 1440px) {
+    /* Sin media */
+}
+
+/* notebooks comunes (1366x768, MacBook Air/Pro) */
+@media (max-width: 1200px) {
+    /* Sin media */
+}
+
+/* tablets horizontales / pantallas medianas (iPad Pro en horizontal, notebooks pequeños) */
+@media (max-width: 992px) {
+    /* TITULO MOVIL (hasta 992 px: tablets horizontales y pantallas más chicas): barra superior reducida */
     /* En celular queda: lupa, capital con la etiqueta de cuenta, campana y avatar. Se ocultan el boton del menu lateral, el
        espaciador, las tarjetas de riesgo, drawdown y mercado, el icono de tema, el P/G junto al capital y el nombre del usuario. */
-    @media (max-width: 1024px) {
         /* La fila no salta de linea y sus columnas pueden encogerse. */
         .st-key-barra_navegacion_fija [data-testid="stHorizontalBlock"] { flex-wrap:nowrap !important; gap:8px !important; }
         /* Columna 3 (espaciador): oculta. */
@@ -178,11 +196,27 @@ Transportes y Servicios Ltda.
         .navegacion-usuario > summary > span { display:none !important; }
         /* Desplegables a lo ancho de la pantalla, sin ancho minimo de escritorio. */
         [data-testid="stPopoverBody"] { min-width:0 !important; width:calc(100vw - 24px) !important; }
+
+    /* TITULO HORIZONTAL BAJO (celulares en horizontal: hasta 500 px de alto): barra superior más baja */
+    /* La barra mide ~44 px en vez de 62 (el relleno lo baja aplicacion_principal/estilos.css): lupa, tarjeta de capital y avatar se achican. */
+    @media (orientation: landscape) and (max-height: 500px) {
+        .st-key-barra_navegacion_fija [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(1)::before { font-size: 18px; }
+        .st-key-barra_navegacion_fija [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(2) { flex: 0 0 32px !important; width: 32px !important; }
+        [class*="st-key-boton_abrir_buscador"] button { width: 32px !important; height: 32px; min-height: 32px !important; }
+        .st-key-barra_navegacion_fija div[style*="padding:4px 11px"] { padding: 2px 9px !important; }
     }
+}
+
+/* tablets verticales (iPad clásico, tablets Android estándar) */
+@media (max-width: 768px) {
+    /* Sin media */
+}
+
+/* móviles grandes (iPhone 11, iPhone Plus/Max, Android grandes) */
+@media (max-width: 414px) {
     /* TITULO MOVIL ANGOSTO (hasta 400 px): barra superior aun mas compacta */
     /* En un celular de 360 a 400 px el contenido (logo, lupa, capital con DEMO, campana y avatar) medido a 390 px ya llega a 382 px: se
        aprietan los espacios, la lupa y la etiqueta DEMO para que el avatar nunca se salga de la pantalla. */
-    @media (max-width: 440px) {
         .st-key-barra_navegacion_fija [data-testid="stHorizontalBlock"] { gap:5px !important; }
         .st-key-barra_navegacion_fija [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(2) {
             flex:0 0 36px !important; width:36px !important; }
@@ -190,11 +224,23 @@ Transportes y Servicios Ltda.
         .st-key-barra_navegacion_fija [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(1)::before { font-size:20px; }
         .st-key-barra_navegacion_fija [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(4) [data-testid="stMarkdownContainer"] > div { gap:5px !important; }
         .st-key-barra_navegacion_fija [title^="Cuenta con la que"] { font-size:9px !important; padding:1px 5px !important; }
-    }
+}
+
+/* móviles medianos (iPhone 12/13/14, Android gama media) */
+@media (max-width: 390px) {
+    /* Sin media */
+}
+
+/* móviles pequeños (Android estándar, iPhone SE) */
+@media (max-width: 360px) {
+    /* Corte interno de 340 px: en 360 px (el ancho Android más común) la campana todavía cabe y solo se oculta por debajo de 340 px. */
     /* En pantallas de hasta 340 px la campana se oculta (el avatar y el capital pasan primero). */
     @media (max-width: 340px) {
-        .st-key-barra_navegacion_fija [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(5) { display:none !important; }
+            .st-key-barra_navegacion_fija [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(5) { display:none !important; }
+    
     }
+}
+
 
 /* -------------------------------------------------------------------------------------------------------
    ------------------------------------- FIN Piña y Jara estilos .CSS ------------------------------------

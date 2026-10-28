@@ -44,7 +44,7 @@ Transportes y Servicios Ltda.
     P.__pjVV = true;
     var vv = P.visualViewport;
     var ajustarVentana = function(){
-      var movil = P.innerWidth <= 1024;
+      var movil = P.innerWidth <= 992;
       var arriba = movil ? Math.max(0, Math.round(vv.offsetTop)) : 0;
       var abajo = movil ? Math.max(0, Math.round(D.documentElement.clientHeight - vv.height - vv.offsetTop)) : 0;
       H.style.setProperty('--pj-vv-top', arriba + 'px');

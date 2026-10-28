@@ -94,7 +94,7 @@ Transportes y Servicios Ltda.
         if(tool==='clear'){
           if(!elementosDibujados.length)return;
           /* Pantallas tactiles: confirm() lo bloquean muchos navegadores integrados dentro de un iframe (el boton no hacia nada); se pide un segundo toque en 3 s. */
-          var tactilLimpiar=false;try{tactilLimpiar=window.parent.innerWidth<=1024;}catch(er){}
+          var tactilLimpiar=false;try{tactilLimpiar=window.parent.innerWidth<=992;}catch(er){}
           if(tactilLimpiar){
             if(!btn._armado){
               btn._armado=true;btn.style.color='#f85149';btn.title='Toca de nuevo para limpiar todos los dibujos';

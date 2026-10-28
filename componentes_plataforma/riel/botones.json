@@ -13,5 +13,10 @@
     ":material/star:",
     "fav",
     "Favoritos"
+  ],
+  [
+    ":material/pending_actions:",
+    "ordenes",
+    "Órdenes del agente"
   ]
 ]

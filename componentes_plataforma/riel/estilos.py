@@ -32,7 +32,7 @@ def css() -> str:
     rellenos derechos (rail + panel + 16 y rail + 16). Lee el archivo con caché; no escribe nada."""
     # Una regla de tooltip por botón: el texto sale del tercer elemento de cada tupla de BOTONES.
     tips = "\n".join(
-        f'    .st-key-rail_{pid} button::after {{ content: {json.dumps(nombre)}; }}'
+        f'    .st-key-rail_{pid} button::after {{ content: {json.dumps(nombre, ensure_ascii=False)}; }}'
         for _, pid, nombre in BOTONES
     )
     # Plantilla con todos los marcadores sustituidos (los más largos primero para no pisar los más cortos).

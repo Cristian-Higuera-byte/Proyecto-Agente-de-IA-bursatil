@@ -58,6 +58,52 @@ Transportes y Servicios Ltda.
     /* Etiqueta de texto que rotula cada grupo de la barra. */
     .tradingview-rangelabel { color:#6e7681; font-size:12px; font-weight:600; padding:0 8px 0 2px; white-space:nowrap; }
 
+
+/* pantallas grandes (monitores Full HD+, iMac, monitores gaming QHD/4K) */
+@media (min-width: 1441px) {
+    /* Sin media */
+}
+
+/* notebooks grandes (1600x900, 1920x1080) */
+@media (max-width: 1440px) {
+    /* Sin media */
+}
+
+/* notebooks comunes (1366x768, MacBook Air/Pro) */
+@media (max-width: 1200px) {
+    /* Sin media */
+}
+
+/* tablets horizontales / pantallas medianas (iPad Pro en horizontal, notebooks pequeños) */
+@media (max-width: 992px) {
+    /* TITULO ALTO BAJO (iframe de hasta 360 px de alto: celulares en horizontal): barra de rangos más baja */
+    @media (max-height: 360px) {
+        #tradingview-rangebar { padding: 3px 10px; }
+        .tvrange { padding: 3px 10px; font-size: 12px; }
+    }
+}
+
+/* tablets verticales (iPad clásico, tablets Android estándar) */
+@media (max-width: 768px) {
+    /* Sin media */
+}
+
+/* móviles grandes (iPhone 11, iPhone Plus/Max, Android grandes) */
+@media (max-width: 414px) {
+    /* Sin media */
+}
+
+/* móviles medianos (iPhone 12/13/14, Android gama media) */
+@media (max-width: 390px) {
+    /* Sin media */
+}
+
+/* móviles pequeños (Android estándar, iPhone SE) */
+@media (max-width: 360px) {
+    /* Sin media */
+}
+
+
 /* -------------------------------------------------------------------------------------------------------
    --------------------------------- FIN Piña y Jara 60_barra_rangos .CSS --------------------------------
    ------------------------------------------------------------------------------------------------------- */

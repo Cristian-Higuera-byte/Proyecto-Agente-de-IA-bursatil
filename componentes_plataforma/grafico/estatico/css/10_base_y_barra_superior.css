@@ -97,27 +97,68 @@ Transportes y Servicios Ltda.
         stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; flex-shrink:0;
     }
 
+
+/* pantallas grandes (monitores Full HD+, iMac, monitores gaming QHD/4K) */
+@media (min-width: 1441px) {
+    /* Sin media */
+}
+
+/* notebooks grandes (1600x900, 1920x1080) */
+@media (max-width: 1440px) {
+    /* Sin media */
+}
+
+/* notebooks comunes (1366x768, MacBook Air/Pro) */
+@media (max-width: 1200px) {
     /* TITULO BARRA SUPERIOR EN ANCHOS ESTRECHOS */
     /* Con el panel derecho abierto el gráfico mide ~1000px y la barra necesita ~1080px: las acciones se cortaban por la derecha
-       (captura de pantalla y pantalla completa). Por debajo de 1100px, los botones Comparar, Indicadores, Backtest y Replay
+       (captura de pantalla y pantalla completa). Por debajo de 1200px, los botones Comparar, Indicadores, Backtest y Replay
        muestran solo el ícono (su nombre sigue visible como tooltip por el atributo title). */
-    @media (max-width: 1100px) {
         #boton-comparar-seleccionar span, #boton-indicador-seleccionar span, #boton-backtest-abrir span, #boton-repeticion-abrir span { display:none; }
-    }
-    /* Por debajo de 880px el selector de tipo de gráfico también queda solo con el ícono. */
-    @media (max-width: 880px) {
+}
+
+/* tablets horizontales / pantallas medianas (iPad Pro en horizontal, notebooks pequeños) */
+@media (max-width: 992px) {
+    /* Por debajo de 992px el selector de tipo de gráfico también queda solo con el ícono. */
         #boton-type-seleccionar span { display:none; }
+
+    /* TITULO ALTO BAJO (iframe de hasta 360 px de alto: celulares en horizontal): barra superior del gráfico más baja */
+    /* La barra de 52 px y la de rangos de 48 px dejaban ~120 px de lienzo en un iframe de 220: los botones, temporalidades y rangos pierden relleno y bajan a ~34 y ~30 px. */
+    @media (max-height: 360px) {
+        #tradingview-barra-superior { padding: 4px 10px; }
+        .tvbtn { padding: 3px 8px; font-size: 12px; }
+        .tvbtn.icon { padding: 3px 6px; }
+        .tvtf { padding: 3px 8px; font-size: 12px; }
     }
+}
+
+/* tablets verticales (iPad clásico, tablets Android estándar) */
+@media (max-width: 768px) {
     /* En celular (hasta 768 px de ancho del iframe) la leyenda se reduce a una línea de valores OHLC de 10 px: el símbolo, la temporalidad y el
        origen ya están en la cabecera de precio y en la barra de temporalidades, y los 12 px de escritorio tapaban las velas. */
-    @media (max-width: 768px) {
         #tradingview-leyenda { top:4px; left:8px; gap:1px; }
         #tradingview-leyenda .leyenda-simbolo, #tradingview-leyenda .leyenda-dot,
         #tradingview-leyenda .leyenda-temporalidad, #tradingview-leyenda .leyenda-flujo { display:none; }
         #tradingview-leyenda .leyenda-linea { gap:4px; font-size:10px; }
         #tradingview-leyenda .tradingview-ohlc, #tradingview-leyenda .tradingview-volumen { font-size:10px; }
         #tradingview-leyenda .tradingview-ohlc b { margin-right:3px; }
-    }
+}
+
+/* móviles grandes (iPhone 11, iPhone Plus/Max, Android grandes) */
+@media (max-width: 414px) {
+    /* Sin media */
+}
+
+/* móviles medianos (iPhone 12/13/14, Android gama media) */
+@media (max-width: 390px) {
+    /* Sin media */
+}
+
+/* móviles pequeños (Android estándar, iPhone SE) */
+@media (max-width: 360px) {
+    /* Sin media */
+}
+
 
 /* -------------------------------------------------------------------------------------------------------
    ---------------------------- FIN Piña y Jara 10_base_y_barra_superior .CSS ----------------------------
