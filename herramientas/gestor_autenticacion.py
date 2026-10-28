@@ -35,10 +35,11 @@ import os
 import hmac
 import hashlib
 import binascii
-from typing import Optional, cast
+from typing import Any, Optional, cast
 
 from dotenv import load_dotenv
-from supabase import Client, create_client  # type: ignore[import-not-found]
+
+from herramientas import base_datos
 
 load_dotenv()
 
@@ -47,11 +48,12 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 
 # Cliente único (se crea solo si hay credenciales)
-# Instancia compartida del cliente Supabase; None si no hay credenciales o falla la conexión.
-_supabase: Optional[Client] = None
-if SUPABASE_URL and SUPABASE_KEY:
+# Instancia compartida del cliente de base de datos (Supabase o PostgreSQL, según BASE_DATOS del .env); el nombre `_supabase` se
+# conserva porque otros módulos lo usan. None si no hay credenciales o falla la conexión.
+_supabase: Optional[Any] = None
+if base_datos.hay_credenciales():
     try:
-        _supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+        _supabase = base_datos.crear_cliente()
     except Exception:
         _supabase = None
 

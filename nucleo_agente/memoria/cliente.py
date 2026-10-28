@@ -12,7 +12,6 @@
 # -------------------------------------------------------------------------------------------------------
 
 """Cliente de Supabase (se crea al primer uso, no al importar) y hora UTC."""
-import os
 from datetime import datetime, timezone
 from typing import Any
 
@@ -28,21 +27,19 @@ _cliente_global: Any = None
 def _obtener_cliente() -> Any:
     """Devuelve el cliente de Supabase del proceso, creándolo la primera vez.
 
-    Lee SUPABASE_URL y SUPABASE_KEY del entorno (.env); lanza ErrorMemoria si faltan o si la creación falla.
-    La librería supabase se importa aquí para no exigirla cuando la memoria no se usa.
+    Usa el motor que indique BASE_DATOS en el .env (Supabase por defecto, o PostgreSQL); lanza ErrorMemoria si faltan sus variables o si la
+    creación falla. Las librerías de cada motor se importan solo cuando ese motor se elige.
     """
     global _cliente_global
     if _cliente_global is None:
-        url = os.getenv("SUPABASE_URL", "")
-        clave = os.getenv("SUPABASE_KEY", "")
-        if not url or not clave:
-            raise ErrorMemoria("Faltan SUPABASE_URL y/o SUPABASE_KEY en el .env.")
-        try:
-            from supabase import create_client
+        from herramientas import base_datos
 
-            _cliente_global = create_client(url, clave)
+        if not base_datos.hay_credenciales():
+            raise ErrorMemoria("Faltan las credenciales de la base de datos en el .env (SUPABASE_URL y SUPABASE_KEY, o las POSTGRES_* si BASE_DATOS=postgres).")
+        try:
+            _cliente_global = base_datos.crear_cliente()
         except Exception as e:  # noqa: BLE001
-            raise ErrorMemoria(f"No se pudo crear el cliente de Supabase: {e}") from e
+            raise ErrorMemoria(f"No se pudo crear el cliente de la base de datos: {e}") from e
     return _cliente_global
 
 

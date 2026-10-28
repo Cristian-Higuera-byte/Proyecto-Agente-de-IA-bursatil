@@ -27,22 +27,19 @@ Supabase no está configurado o la consulta falla. Las credenciales se leen de
 import os
 import unicodedata
 from concurrent.futures import ThreadPoolExecutor
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 from dotenv import load_dotenv
-from supabase import Client, create_client  # type: ignore[import-not-found]
+
+from herramientas import base_datos
 
 load_dotenv()
 
-# URL y clave de Supabase leídas del entorno (.env); vacías si no existen
-_URL = os.environ.get("SUPABASE_URL", "")
-_KEY = os.environ.get("SUPABASE_KEY", "")
-
-# Cliente Supabase compartido del módulo; None si no hay credenciales o falla la conexión
-_supabase: Optional[Client] = None
-if _URL and _KEY:
+# Cliente de base de datos compartido del módulo (Supabase o PostgreSQL, según BASE_DATOS del .env); None si no hay credenciales o falla la conexión
+_supabase: Optional[Any] = None
+if base_datos.hay_credenciales():
     try:
-        _supabase = create_client(_URL, _KEY)
+        _supabase = base_datos.crear_cliente()
     except Exception:
         _supabase = None
 
