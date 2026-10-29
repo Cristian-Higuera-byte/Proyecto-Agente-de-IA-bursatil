@@ -64,7 +64,7 @@ _COLORES_BARRAS = {1: "#f85149", 2: "#db6d28", 3: "#e3b341", 4: "#3fb950"}
 def cabecera(titulo: str, subtitulo: str) -> None:
     """Dibuja el logo, el título y un subtítulo, centrados, como encabezado de cualquier pantalla de acceso."""
     st.markdown(
-        f"<div style='text-align:center; margin-top:6vh;'>{_LOGO_HTML}"
+        f"<div style='text-align:center;'>{_LOGO_HTML}"
         f"<h2 style='margin:8px 0 2px; font-size:22px;'>{titulo}</h2>"
         f"<p style='color:#8b949e; margin:0 0 14px; font-size:14px;'>{subtitulo}</p></div>",
         unsafe_allow_html=True,
@@ -211,13 +211,13 @@ def vista_verificacion(token: str) -> None:
     resultado = st.session_state[clave]
     if resultado["ok"]:
         icono_circular("ok", "verde")
-        titulo, texto = "Correo confirmado", "Tu cuenta ya está activa."
+        titulo, texto = "Correo confirmado", "Tu cuenta ya está activa. Inicia sesión para continuar."
     else:
         icono_circular("error", "rojo")
         titulo, texto = "No pudimos confirmar tu correo", resultado["mensaje"]
     st.markdown(f"<div style='text-align:center;'><h2 style='margin:0; font-size:22px;'>{titulo}</h2>"
                 f"<p style='color:#8b949e; margin:6px 0 14px; font-size:14px;'>{texto}</p></div>", unsafe_allow_html=True)
-    st.link_button("Entrar a la plataforma" if resultado["ok"] else "Ir a iniciar sesión", "?acceso=entrar", type="primary", width="stretch")
+    st.link_button("Iniciar sesión" if resultado["ok"] else "Ir a iniciar sesión", "?acceso=entrar", type="primary", width="stretch")
 
 
 # TITULO OLVIDE MI CONTRASENA

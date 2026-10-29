@@ -36,6 +36,7 @@ import hmac
 import hashlib
 import binascii
 import re
+import sys
 from typing import Any, Optional, cast
 
 from dotenv import load_dotenv
@@ -111,6 +112,14 @@ def verificacion_activa() -> bool:
     la persona no recibe el enlace y no puede entrar, para que un error de configuración no deje cuentas sin verificar.
     """
     return os.environ.get("VERIFICACION_CORREO", "").strip().lower() in ("1", "true", "si", "sí", "activa")
+
+
+# TITULO ERROR NEUTRO
+
+def _error_neutro(accion: str, error: Exception) -> dict:
+    """Respuesta {"ok": False, "mensaje": ...} para un fallo inesperado: la persona ve un texto neutro y el detalle técnico queda solo en el registro del servidor."""
+    print(f"[Autenticación] Falló {accion}: {error}", file=sys.stderr, flush=True)
+    return {"ok": False, "mensaje": "No pudimos completar la operación en este momento. Inténtalo de nuevo en unos minutos."}
 
 
 # TITULO VALIDAR CONTRASENA
@@ -258,7 +267,7 @@ def verificar_correo(token: str) -> dict:
         _supabase.table("usuarios").update({"correo_verificado": True, "correo_verificado_en": verificacion_correo.ahora_utc().isoformat()}).eq("id", usuario_id).execute()
         return {"ok": True, "mensaje": "Correo confirmado. Ya puedes iniciar sesión."}
     except Exception as e:
-        return {"ok": False, "mensaje": f"Error al confirmar el correo: {e}"}
+        return _error_neutro("la confirmación del correo", e)
 
 
 # TITULO REENVIAR VERIFICACION
@@ -278,7 +287,7 @@ def reenviar_verificacion(usuario_id, nombre: str, destinatario: str) -> dict:
     except verificacion_correo.ErrorEnlace as error:
         return {"ok": False, "mensaje": str(error)}
     except Exception as e:
-        return {"ok": False, "mensaje": f"Error al enviar el enlace: {e}"}
+        return _error_neutro("el reenvío del enlace", e)
 
 
 # TITULO SOLICITAR RECUPERACION
@@ -335,7 +344,7 @@ def restablecer_contrasena(token: str, nueva: str) -> dict:
         sesion_persistente.revocar_todas(usuario_id)
         return {"ok": True, "mensaje": "Contraseña actualizada. Ya puedes iniciar sesión."}
     except Exception as e:
-        return {"ok": False, "mensaje": f"Error al restablecer la contraseña: {e}"}
+        return _error_neutro("el restablecimiento de la contraseña", e)
 
 
 # TITULO ACTUALIZAR NOMBRE

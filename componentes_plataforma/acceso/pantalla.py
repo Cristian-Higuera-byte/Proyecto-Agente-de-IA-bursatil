@@ -24,8 +24,11 @@ Uso en aplicacion.py:
     usuario = requerir_login()   # detiene la app si no hay sesión
     # ... a partir de aquí el usuario está autenticado (dict con id/nombre/email)
 """
+from pathlib import Path
+
 import streamlit as st
 
+from componentes_plataforma._estaticos import estilos
 from herramientas.gestor_autenticacion import autenticar_usuario, registrar_usuario
 
 from .cookie import aplicar_pendiente
@@ -33,6 +36,9 @@ from .pantallas_correo import (
     CLAVE_PENDIENTE, CLAVE_REVISA, aviso_sin_verificar, cabecera, enlaces_inferiores, iniciar_espera_reenvio, medidor_contrasena, pestanas,
     vista_olvide_contrasena, vista_recuperacion, vista_revisa_correo, vista_verificacion)
 from .sesion import cerrar_sesion, iniciar_sesion, usuario_en_sesion
+
+# CSS de las pantallas de acceso (columna centrada y responsiva); se vuelve a leer solo si el archivo cambia en disco.
+_CSS = Path(__file__).parent / "estilos.css"
 
 
 # TITULO REQUERIR LOGIN
@@ -58,8 +64,8 @@ def requerir_login() -> dict:
     token_verificar = st.query_params.get("verificar")
     token_recuperar = st.query_params.get("recuperar")
     if token_verificar or token_recuperar:
-        _, centro_correo, _ = st.columns([1, 1.3, 1])
-        with centro_correo:
+        st.html(estilos(_CSS))
+        with st.container():
             if token_verificar:
                 vista_verificacion(token_verificar)
             else:
@@ -88,9 +94,9 @@ def requerir_login() -> dict:
         from componentes_plataforma.portada import renderizar_portada
         renderizar_portada()
         st.stop()
-    # Columna central más ancha para que el formulario quede centrado
-    _, centro, _ = st.columns([1, 1.3, 1])
-    with centro:
+    # Una sola columna centrada, de ancho limitado en el escritorio y completo en el celular (ver acceso/estilos.css)
+    st.html(estilos(_CSS))
+    with st.container():
         if modo == "recordar":
             vista_olvide_contrasena()
             st.stop()
