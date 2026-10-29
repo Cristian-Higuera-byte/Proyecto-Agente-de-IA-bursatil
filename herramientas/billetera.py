@@ -240,7 +240,7 @@ def transferir(origen_id, destino_id, monto: float, concepto_origen: str, concep
         raise ErrorBilletera("El monto debe ser mayor que cero.")
     cliente = gestor_autenticacion._supabase
     if cliente is None:
-        raise ErrorBilletera("Las transferencias necesitan la base de datos (Supabase).")
+        raise ErrorBilletera("Las transferencias necesitan la base de datos.")
     try:
         filas = cliente.rpc("billetera_transferir", {"p_origen": int(origen_id), "p_destino": int(destino_id), "p_monto": monto, "p_concepto_origen": concepto_origen,
                                                      "p_concepto_destino": concepto_destino, "p_referencia": referencia, "p_clave": clave_unica}).execute().data or []

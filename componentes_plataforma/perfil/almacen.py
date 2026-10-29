@@ -102,7 +102,7 @@ def guardar(usuario_id: Any, campos: dict[str, Any]) -> dict[str, Any]:
         datos.setdefault(str(usuario_id), {}).update(limpio)
         os.makedirs(_RUTA_LOCAL.parent, exist_ok=True)
         _RUTA_LOCAL.write_text(json.dumps(datos, ensure_ascii=False, indent=2), encoding="utf-8")
-        return {"ok": True, "mensaje": "Datos guardados (modo local: Supabase no está configurado)."}
+        return {"ok": True, "mensaje": "Datos guardados (modo local: la base de datos no está configurada)."}
     try:
         fila = {"usuario_id": int(usuario_id), "actualizado_en": datetime.now().astimezone().isoformat(), **limpio}
         gestor_autenticacion._supabase.table(TABLA).upsert(fila, on_conflict="usuario_id").execute()

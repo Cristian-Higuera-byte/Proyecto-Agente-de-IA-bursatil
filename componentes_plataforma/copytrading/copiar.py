@@ -129,7 +129,7 @@ def _formulario(uid, e: dict) -> None:
 def dialogo_copiar(e: dict) -> None:
     """Ventana de copia de la estrategia real `e`: pide abrir la cuenta de inversor si falta y luego muestra el formulario de copia."""
     if not copiador.disponible():
-        st.info("Copiar estrategias necesita la base de datos (Supabase) y el modo multiusuario, que no están activos en este equipo.")
+        st.info("Copiar estrategias necesita la base de datos y el modo multiusuario, que no están activos en este equipo.")
         return
     if gestor_estrategias.cuenta_actual() != "demo":
         st.warning("Por ahora el copy trading funciona solo con la cuenta demo. Cambia a tu cuenta demo para copiar.")

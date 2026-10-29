@@ -104,7 +104,7 @@ def _operaciones(uid, c: dict) -> None:
 def renderizar_cartera_copias() -> None:
     """Dibuja la sección Cartera: las copias del usuario con sus botones (pausar, reanudar, detener) y sus operaciones. No devuelve nada."""
     if not copiador.disponible():
-        st.info("Las copias necesitan la base de datos (Supabase) y el modo multiusuario, que no están activos en este equipo.")
+        st.info("Las copias necesitan la base de datos y el modo multiusuario, que no están activos en este equipo.")
         return
     usuario = st.session_state.get("usuario_informacion") or {}
     uid = usuario.get("id") if isinstance(usuario, dict) else None

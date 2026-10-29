@@ -187,7 +187,7 @@ def _crear(uid, req: dict, hay_estrategias: bool) -> None:
 def renderizar_area_gestor() -> None:
     """Dibuja el área de gestor: requisitos, mis estrategias con sus acciones y el formulario para crear una nueva. No devuelve nada."""
     if not gestion.disponible():
-        st.info("El área de gestor necesita la base de datos (Supabase), que no está configurada en este equipo.")
+        st.info("El área de gestor necesita la base de datos, que no está configurada en este equipo.")
         return
     usuario = st.session_state.get("usuario_informacion") or {}
     uid = usuario.get("id") if isinstance(usuario, dict) else None

@@ -67,7 +67,7 @@ class _BaseMemoria:
         try:
             return consulta.execute().data or []
         except Exception as e:  # noqa: BLE001
-            raise ErrorMemoria(f"Supabase falló al {accion}: {e}") from e
+            raise ErrorMemoria(f"La base de datos falló al {accion}: {e}") from e
 
     # TITULO ULTIMO REGISTRO
 

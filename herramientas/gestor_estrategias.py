@@ -51,7 +51,7 @@ def _cliente():
     """Cliente de Supabase, o `ErrorGestor` si no está configurado."""
     cliente = gestor_autenticacion._supabase
     if cliente is None:
-        raise ErrorGestor("El área de gestor necesita la base de datos (Supabase), que no está configurada en este equipo.")
+        raise ErrorGestor("El área de gestor necesita la base de datos, que no está configurada en este equipo.")
     return cliente
 
 

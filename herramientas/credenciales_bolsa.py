@@ -88,7 +88,7 @@ def _cliente():
     """Devuelve el cliente Supabase compartido con la autenticación, o lanza RuntimeError si no está configurado."""
     cliente = gestor_autenticacion._supabase
     if cliente is None:
-        raise RuntimeError("Supabase no está configurado (revisa SUPABASE_URL / SUPABASE_KEY en .env).")
+        raise RuntimeError("La base de datos no está configurada (revisa BASE_DATOS y las variables de conexión en .env).")
     return cliente
 
 

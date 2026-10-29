@@ -64,7 +64,7 @@ def _cliente():
     """Cliente de Supabase, o `ErrorCopia` si no está configurado."""
     cliente = gestor_autenticacion._supabase
     if cliente is None:
-        raise ErrorCopia("El copy trading necesita la base de datos (Supabase), que no está configurada en este equipo.")
+        raise ErrorCopia("El copy trading necesita la base de datos, que no está configurada en este equipo.")
     return cliente
 
 

@@ -115,7 +115,7 @@ def registrar_usuario(nombre: str, correo: str, contrasena: str) -> dict:
     hash). Efecto secundario: lecturas y una inserción en la tabla `usuarios`.
     """
     if _supabase is None:
-        return {"ok": False, "mensaje": "Supabase no está configurado (revisa SUPABASE_URL / SUPABASE_KEY en .env).", "usuario": None}
+        return {"ok": False, "mensaje": "La base de datos no está configurada (revisa BASE_DATOS y las variables de conexión en .env).", "usuario": None}
 
     nombre = (nombre or "").strip()
     correo = (correo or "").strip().lower()
@@ -157,7 +157,7 @@ def autenticar_usuario(correo: str, contrasena: str) -> dict:
     Efecto secundario: consulta de red a la tabla `usuarios`.
     """
     if _supabase is None:
-        return {"ok": False, "mensaje": "Supabase no está configurado (revisa SUPABASE_URL / SUPABASE_KEY en .env).", "usuario": None}
+        return {"ok": False, "mensaje": "La base de datos no está configurada (revisa BASE_DATOS y las variables de conexión en .env).", "usuario": None}
 
     correo = (correo or "").strip().lower()
     if not correo or not contrasena:
@@ -188,7 +188,7 @@ def cambiar_contrasena(usuario_id, actual: str, nueva: str) -> dict:
     que no esté vacía. Efecto secundario: una lectura y una actualización en la tabla `usuarios`.
     """
     if _supabase is None:
-        return {"ok": False, "mensaje": "Supabase no está configurado (revisa SUPABASE_URL / SUPABASE_KEY en .env)."}
+        return {"ok": False, "mensaje": "La base de datos no está configurada (revisa BASE_DATOS y las variables de conexión en .env)."}
     if not actual or not nueva:
         return {"ok": False, "mensaje": "Completa la contraseña actual y la nueva."}
     try:
@@ -213,7 +213,7 @@ def actualizar_nombre(usuario_id, nombre: str) -> dict:
     """
     nombre = (nombre or "").strip()
     if _supabase is None:
-        return {"ok": False, "mensaje": "Supabase no está configurado."}
+        return {"ok": False, "mensaje": "La base de datos no está configurada."}
     if not nombre:
         return {"ok": False, "mensaje": "El nombre no puede estar vacío."}
     try:

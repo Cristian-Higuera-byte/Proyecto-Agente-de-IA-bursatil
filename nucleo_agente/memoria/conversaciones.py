@@ -37,7 +37,7 @@ class _ConversacionesMixin:
             "crear la conversación",
         )
         if not filas:
-            raise ErrorMemoria("Supabase no devolvió la conversación creada.")
+            raise ErrorMemoria("La base de datos no devolvió la conversación creada.")
         self.chat_id = filas[0]["id"]
         self._tiene_titulo = False
         if self.chat_id is None:
