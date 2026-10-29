@@ -263,6 +263,11 @@ Transportes y Servicios Ltda.
         var min = panel.classList.toggle('repeticion-min');
         this.textContent = (min ? '▸' : '▾') + ' Práctica (dinero de prueba)';
       };
+      // En celular el panel parte plegado: así no tapa el gráfico mientras se elige el punto de inicio (se despliega tocando su título).
+      if (window.matchMedia && window.matchMedia('(max-width: 768px)').matches){
+        panel.classList.add('repeticion-min');
+        document.getElementById('repeticion-ph').textContent = '▸ Práctica (dinero de prueba)';
+      }
       repeticionEl.empezar.onclick = repeticionEmpezarRetroceso;
       repeticionEl.cant.addEventListener('keydown', function(e){ if (e.key === 'Enter') repeticionEmpezarRetroceso(); });
       repeticionEl.plegar.onclick = function(){ repeticionPlegarBarra(!repeticionEl.barra.classList.contains('repeticion-min')); };

@@ -165,6 +165,26 @@ def renderizar_contenido():
         _panel_externas(externas)
 
 
+# TITULO FLECHAS CARRUSEL
+
+def _flechas_carrusel(posicion: str, pagina: int, numero_pagina: int) -> None:
+    """Dibuja una fila con las flechas anterior y siguiente del carrusel, para usarla arriba y abajo de las tarjetas en celular.
+
+    Recibe `posicion` ("sup" o "inf", sufijo de las claves de los botones), la página actual y el total de páginas. Cada flecha cambia la
+    página (con vuelta al inicio o al final) y relanza solo el fragmento. El CSS las oculta en pantallas anchas, donde las flechas laterales
+    siguen a los lados de las tarjetas."""
+    with st.container(key=f"noticias_flechas_{posicion}"):
+        c_anterior, c_siguiente = st.columns(2)
+        with c_anterior:
+            if st.button("‹", key=f"noticias_anterior_{posicion}"):
+                st.session_state.noticias_pagina = (pagina - 1) % numero_pagina
+                st.rerun(scope="fragment")
+        with c_siguiente:
+            if st.button("›", key=f"noticias_siguiente_{posicion}"):
+                st.session_state.noticias_pagina = (pagina + 1) % numero_pagina
+                st.rerun(scope="fragment")
+
+
 # TITULO COLUMNA PRINCIPAL
 
 def _columna_principal(noticias: list, idioma: str | None) -> None:
@@ -207,6 +227,9 @@ def _columna_principal(noticias: list, idioma: str | None) -> None:
     pagina = st.session_state.noticias_pagina % numero_pagina
     ventana = pool[pagina * POR_PAGINA: pagina * POR_PAGINA + POR_PAGINA]
 
+    # Flechas arriba de las tarjetas (solo se ven en celular; en pantallas anchas siguen a los lados)
+    _flechas_carrusel("sup", pagina, numero_pagina)
+
     # Flecha izquierda, tarjetas y flecha derecha en una sola fila
     c_anterior, c_tarjetas, c_next = st.columns([0.6, 11, 0.6], vertical_alignment="center")
 
@@ -229,6 +252,9 @@ def _columna_principal(noticias: list, idioma: str | None) -> None:
         if st.button("›", key="noticias_siguiente"):
             st.session_state.noticias_pagina = (pagina + 1) % numero_pagina
             st.rerun(scope="fragment")
+
+    # Flechas debajo de las tarjetas (solo en celular)
+    _flechas_carrusel("inf", pagina, numero_pagina)
 
     # --- Apartado "Más noticias" (sin repetir las que ya salen arriba) ---
     renderizar_mas_noticias(idioma, {destacado["id"]} | {n["id"] for n in pool})

@@ -195,6 +195,10 @@ def requerir_cuenta(usuario: dict) -> None:
 
     _, centro, _ = st.columns([1, 1.3, 1])
     with centro:
+        # Con una cuenta ya conectada se puede volver al panel desde arriba (si no, había que bajar hasta el final de la pantalla)
+        if hay_cuenta and st.button("Volver al panel", key="cuentas_volver_arriba", icon=":material/arrow_back:"):
+            st.session_state[_CLAVE_GESTIONAR] = False
+            st.rerun()
         st.markdown(
             "<div style='text-align:center; margin-top:6vh;'>"
             f"<h2 style='margin:0 0 4px;'>Hola, {usuario.get('nombre', '')}</h2>"

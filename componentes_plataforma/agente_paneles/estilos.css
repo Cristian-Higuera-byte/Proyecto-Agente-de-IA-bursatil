@@ -23,20 +23,20 @@ Transportes y Servicios Ltda.
      cabecera con icono en degradado naranja y botones naranja / oscuro como el modal de cierre. */
   /* TITULO PANELES: CONTENEDOR PRINCIPAL */
   /* Tarjeta oscura redondeada de cada panel (historial, propuestas y chat). */
-  .st-key-agente_historial_panel, .st-key-agente_propuestas_panel, .st-key-agente_chat_panel { background:#0d1117; border:1px solid #1f2937;
+  .st-key-agente_historial_panel, .st-key-agente_propuestas_panel, [class*="st-key-agente_chat_panel"] { background:#0d1117; border:1px solid #1f2937;
       border-radius:14px; padding:0 0 14px; overflow:hidden; } /* overflow recorta el contenido a las esquinas redondeadas */
   /* Separación vertical entre los elementos apilados dentro de cada panel. */
   .st-key-agente_historial_panel [data-testid="stVerticalBlock"], .st-key-agente_propuestas_panel [data-testid="stVerticalBlock"],
-  .st-key-agente_chat_panel [data-testid="stVerticalBlock"] { gap:10px; }
+  [class*="st-key-agente_chat_panel"] [data-testid="stVerticalBlock"] { gap:10px; }
   /* Quita el fondo y el borde de los contenedores internos de Streamlit para que no se dupliquen con el del panel. */
   .st-key-agente_historial_panel div[data-testid="stVerticalBlockBorderWrapper"],
   .st-key-agente_propuestas_panel div[data-testid="stVerticalBlockBorderWrapper"],
-  .st-key-agente_chat_panel div[data-testid="stVerticalBlockBorderWrapper"] { background:transparent !important; border:none !important; }
+  [class*="st-key-agente_chat_panel"] div[data-testid="stVerticalBlockBorderWrapper"] { background:transparent !important; border:none !important; }
 
   /* TITULO ZONAS CON SCROLL */
   /* Zonas con scroll: dentro del panel, con márgenes laterales */
   /* Área desplazable de cada panel: márgenes laterales de 14px y barra de scroll fina y discreta. */
-  .st-key-agente_historial_desplazamiento, .st-key-agente_propuestas_desplazamiento, .st-key-agente_chat_desplazamiento { margin:0 14px; width:calc(100% - 28px) !important; /* ancho total menos los dos márgenes */
+  .st-key-agente_historial_desplazamiento, .st-key-agente_propuestas_desplazamiento, [class*="st-key-agente_chat_desplazamiento"] { margin:0 14px; width:calc(100% - 28px) !important; /* ancho total menos los dos márgenes */
       scrollbar-width:thin; scrollbar-color:#2b3550 transparent; }
 
   /* TITULO CABECERA DE PANEL */
@@ -142,15 +142,15 @@ Transportes y Servicios Ltda.
   /* Realce al pasar el cursor sobre el botón principal. */
   .st-key-agente_propuestas_panel [class*="st-key-agente_propuestas_aceptar_"] button:hover { filter:brightness(1.1); }
   /* Botones secundarios oscuros (claves agente_propuestas_no_*: Rechazar, Detener; y agente_chat_nueva del chat). */
-  .st-key-agente_propuestas_panel [class*="st-key-agente_propuestas_no_"] button, .st-key-agente_chat_panel .st-key-agente_chat_nueva button {
+  .st-key-agente_propuestas_panel [class*="st-key-agente_propuestas_no_"] button, [class*="st-key-agente_chat_panel"] [class*="st-key-agente_chat_nueva"] button {
       height:44px; border-radius:12px !important; background:#161b22 !important; border:1px solid #30363d !important;
       color:#fff !important; }
   /* Borde azul al pasar el cursor sobre los botones secundarios. */
-  .st-key-agente_propuestas_panel [class*="st-key-agente_propuestas_no_"] button:hover, .st-key-agente_chat_panel .st-key-agente_chat_nueva button:hover {
+  .st-key-agente_propuestas_panel [class*="st-key-agente_propuestas_no_"] button:hover, [class*="st-key-agente_chat_panel"] [class*="st-key-agente_chat_nueva"] button:hover {
       border-color:#58a6ff !important; background:#21262d !important; }
   /* Texto de todos los botones anteriores: tamaño, grosor y color uniformes. */
   .st-key-agente_propuestas_panel [class*="st-key-agente_propuestas_aceptar_"] button p, .st-key-agente_propuestas_panel [class*="st-key-agente_propuestas_no_"] button p,
-  .st-key-agente_chat_panel .st-key-agente_chat_nueva button p { font-size:14px !important; font-weight:700 !important;
+  [class*="st-key-agente_chat_panel"] [class*="st-key-agente_chat_nueva"] button p { font-size:14px !important; font-weight:700 !important;
       color:#fff !important; }
 
   /* TITULO RESPUESTA EN CURSO DEL CHAT */
@@ -209,57 +209,99 @@ Transportes y Servicios Ltda.
   /* TITULO BOTON DETENER DEL CHAT */
   /* Botón Detener (consulta en curso): compacto, oscuro y rojo al pasar el cursor */
   /* Botón Detener (claves agente_chat_stop_*): compacto y oscuro. */
-  .st-key-agente_chat_panel [class*="st-key-agente_chat_stop_"] button { height:34px; min-height:34px; padding:0 14px;
+  [class*="st-key-agente_chat_panel"] [class*="st-key-agente_chat_stop_"] button { height:34px; min-height:34px; padding:0 14px;
       border-radius:10px !important; background:#161b22 !important; border:1px solid #30363d !important;
       color:#e6edf3 !important; }
   /* Se pone rojo al pasar el cursor, salvo que esté deshabilitado. */
-  .st-key-agente_chat_panel [class*="st-key-agente_chat_stop_"] button:hover:not(:disabled) { border-color:#f85149 !important;
+  [class*="st-key-agente_chat_panel"] [class*="st-key-agente_chat_stop_"] button:hover:not(:disabled) { border-color:#f85149 !important;
       color:#f85149 !important; background:#21262d !important; }
   /* Aspecto atenuado cuando está deshabilitado. */
-  .st-key-agente_chat_panel [class*="st-key-agente_chat_stop_"] button:disabled { opacity:.65; }
+  [class*="st-key-agente_chat_panel"] [class*="st-key-agente_chat_stop_"] button:disabled { opacity:.65; }
   /* Texto del botón Detener. */
-  .st-key-agente_chat_panel [class*="st-key-agente_chat_stop_"] button p { font-size:13px !important; font-weight:700 !important; }
+  [class*="st-key-agente_chat_panel"] [class*="st-key-agente_chat_stop_"] button p { font-size:13px !important; font-weight:700 !important; }
 
   /* TITULO CHAT DEL AGENTE */
   /* Chat */
   /* Filas horizontales del chat (selector de modelo y botones) con márgenes y alineación vertical centrada. */
-  .st-key-agente_chat_panel [data-testid="stHorizontalBlock"] { padding:0 14px; gap:10px; align-items:center; }
+  [class*="st-key-agente_chat_panel"] [data-testid="stHorizontalBlock"] { padding:0 14px; gap:10px; align-items:center; }
   /* Selector desplegable con el mismo estilo oscuro de los botones. */
-  .st-key-agente_chat_panel div[data-baseweb="select"] > div { min-height:44px; border-radius:12px !important;
+  [class*="st-key-agente_chat_panel"] div[data-baseweb="select"] > div { min-height:44px; border-radius:12px !important;
       background:#161b22 !important; border:1px solid #30363d !important; }
   /* Zona con scroll de los mensajes del chat (clave agente_chat_desplazamiento). */
-  .st-key-agente_chat_desplazamiento { background:#0b0f19; border:1px solid #1f2937 !important; border-radius:12px; padding:10px; }
+  [class*="st-key-agente_chat_desplazamiento"] { background:#0b0f19; border:1px solid #1f2937 !important; border-radius:12px; padding:10px; }
   /* Burbuja de cada mensaje del chat. */
-  .st-key-agente_chat_panel [data-testid="stChatMessage"] { background:#151c27; border:1px solid #202a37; border-radius:12px;
+  [class*="st-key-agente_chat_panel"] [data-testid="stChatMessage"] { background:#151c27; border:1px solid #202a37; border-radius:12px;
       padding:12px 14px; margin-bottom:8px; }
   /* Mensajes del usuario: fondo y borde algo más claros que los del agente (:has detecta el avatar de usuario). */
-  .st-key-agente_chat_panel [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) {
+  [class*="st-key-agente_chat_panel"] [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) {
       background:#19212e; border-color:#36465f; }
   /* Avatar del usuario en azul. */
-  .st-key-agente_chat_panel [data-testid="stChatMessageAvatarUser"] { background:#1f6feb !important; color:#fff !important; }
+  [class*="st-key-agente_chat_panel"] [data-testid="stChatMessageAvatarUser"] { background:#1f6feb !important; color:#fff !important; }
   /* Párrafos de los mensajes. */
-  .st-key-agente_chat_panel [data-testid="stChatMessage"] p { font-size:14px; line-height:1.5; }
+  [class*="st-key-agente_chat_panel"] [data-testid="stChatMessage"] p { font-size:14px; line-height:1.5; }
   /* Leyendas pequeñas de los mensajes en gris tenue. */
-  .st-key-agente_chat_panel [data-testid="stChatMessage"] [data-testid="stCaptionContainer"] { color:#6b7686; }
+  [class*="st-key-agente_chat_panel"] [data-testid="stChatMessage"] [data-testid="stCaptionContainer"] { color:#6b7686; }
   /* Si el modelo envuelve texto o cifras en comillas invertidas, no se muestran como código (verde y pequeño):
      heredan la fuente, el tamaño y el color del texto normal. */
   /* Código en línea: toma el aspecto del texto normal (ver nota anterior). */
-  .st-key-agente_chat_panel [data-testid="stChatMessage"] code { font-family:inherit !important; font-size:inherit !important;
+  [class*="st-key-agente_chat_panel"] [data-testid="stChatMessage"] code { font-family:inherit !important; font-size:inherit !important;
       color:inherit !important; background:transparent !important; padding:0 !important; }
   /* Bloques de código reales: se conserva la fuente monoespaciada. */
-  .st-key-agente_chat_panel [data-testid="stChatMessage"] pre code { font-family:ui-monospace,Consolas,monospace !important;
+  [class*="st-key-agente_chat_panel"] [data-testid="stChatMessage"] pre code { font-family:ui-monospace,Consolas,monospace !important;
       font-size:13px !important; }
   /* Caja de entrada del chat, alineada con los márgenes laterales del panel. */
-  .st-key-agente_chat_panel [data-testid="stChatInput"] { margin:0 14px; width:calc(100% - 28px); background:#0f1620 !important;
+  [class*="st-key-agente_chat_panel"] [data-testid="stChatInput"] { margin:0 14px; width:calc(100% - 28px); background:#0f1620 !important;
       border:1px solid #2b3546 !important; border-radius:12px !important; box-shadow:none !important; }
   /* Borde naranja cuando la caja de entrada tiene el foco. */
-  .st-key-agente_chat_panel [data-testid="stChatInput"]:focus-within { border-color:#ff8f00 !important; }
+  [class*="st-key-agente_chat_panel"] [data-testid="stChatInput"]:focus-within { border-color:#ff8f00 !important; }
   /* Fondo transparente y texto claro dentro del campo de entrada. */
-  .st-key-agente_chat_panel [data-testid="stChatInput"] > div, .st-key-agente_chat_panel [data-testid="stChatInput"] textarea {
+  [class*="st-key-agente_chat_panel"] [data-testid="stChatInput"] > div, [class*="st-key-agente_chat_panel"] [data-testid="stChatInput"] textarea {
       background:transparent !important; color:#e6edf3 !important; }
   /* Botón de enviar con degradado naranja de la marca. */
-  .st-key-agente_chat_panel [data-testid="stChatInputSubmitButton"] { background:linear-gradient(135deg,#ff4b4b,#ff8f00) !important;
+  [class*="st-key-agente_chat_panel"] [data-testid="stChatInputSubmitButton"] { background:linear-gradient(135deg,#ff4b4b,#ff8f00) !important;
       color:#fff !important; border-radius:9px !important; }
+
+
+/* pantallas grandes (monitores Full HD+, iMac, monitores gaming QHD/4K) */
+@media (min-width: 1441px) {
+    /* Sin media */
+}
+
+/* notebooks grandes (1600x900, 1920x1080) */
+@media (max-width: 1440px) {
+    /* Sin media */
+}
+
+/* notebooks comunes (1366x768, MacBook Air/Pro) */
+@media (max-width: 1200px) {
+    /* Sin media */
+}
+
+/* tablets horizontales / pantallas medianas (iPad Pro en horizontal, notebooks pequeños) */
+@media (max-width: 992px) {
+    /* Sin media */
+}
+
+/* tablets verticales (iPad clásico, tablets Android estándar) */
+@media (max-width: 768px) {
+    /* Sin media */
+}
+
+/* móviles grandes (iPhone 11, iPhone Plus/Max, Android grandes) */
+@media (max-width: 414px) {
+    /* Sin media */
+}
+
+/* móviles medianos (iPhone 12/13/14, Android gama media) */
+@media (max-width: 390px) {
+    /* Sin media */
+}
+
+/* móviles pequeños (Android estándar, iPhone SE) */
+@media (max-width: 360px) {
+    /* Sin media */
+}
+
 
 /* -------------------------------------------------------------------------------------------------------
    ------------------------------------- FIN Piña y Jara estilos .CSS ------------------------------------

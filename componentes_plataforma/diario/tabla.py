@@ -87,17 +87,17 @@ def tabla_y_metricas(m, ops, stt):
                     or "<span style='color:#424b58'>—</span>")
             filas += (
                 "<tr>"
-                f"<td class='diario-posicion-fecha'>{fecha}</td>"
+                f"<td class='diario-posicion-fecha' data-etiqueta='Cierre'>{fecha}</td>"
                 f"<td><div class='diario-posicion-simbolo'>{icono_activo(o['symbol'], 26)}"
                 f"{html.escape(str(o['nombre']))}</div></td>"
                 f"<td><span class='diario-posicion-lado {lado}'>{etiqueta}</span></td>"
-                f"<td class='r'>{o['volumen']:,.2f}</td>"
-                f"<td class='r'>{o['entrada']:,.5f}</td>"
-                f"<td class='r'>{o['salida']:,.5f}</td>"
-                f"<td class='r'>{duracion(o['duracion_s'])}</td>"
-                f"<td class='r {clase_sube_baja(riesgo_beneficio) if riesgo_beneficio is not None else ''}'>"
+                f"<td class='r' data-etiqueta='Lotes'>{o['volumen']:,.2f}</td>"
+                f"<td class='r' data-etiqueta='Entrada'>{o['entrada']:,.5f}</td>"
+                f"<td class='r' data-etiqueta='Salida'>{o['salida']:,.5f}</td>"
+                f"<td class='r' data-etiqueta='Duración'>{duracion(o['duracion_s'])}</td>"
+                f"<td class='r {clase_sube_baja(riesgo_beneficio) if riesgo_beneficio is not None else ''}' data-etiqueta='R/R'>"
                 f"{'—' if riesgo_beneficio is None else f'{riesgo_beneficio:+.2f}R'}</td>"
-                f"<td class='diario-posicion-estrategia'>{estrategia}</td>"
+                f"<td class='diario-posicion-estrategia' data-etiqueta='Estrategia'>{estrategia}</td>"
                 f"<td class='r'><span class='diario-posicion-resultado {ncls}'>{neto:+,.2f}</span></td>"
                 "</tr>")
 

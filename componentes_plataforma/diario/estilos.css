@@ -59,8 +59,6 @@ Transportes y Servicios Ltda.
   /* Cuadricula de 6 columnas con las metricas (HTML de tabla.tabla_y_metricas). */
   .diario-suma { display:grid; grid-template-columns:repeat(6,1fr); gap:18px;
       padding:16px 20px 18px; border-bottom:1px solid #1b2430; }
-  /* En pantallas estrechas el resumen pasa a 3 columnas. */
-  @media (max-width:900px){ .diario-suma { grid-template-columns:repeat(3,1fr); } }
   /* Cada metrica: titulo, valor y subtitulo apilados. */
   .diario-suma .it { display:flex; flex-direction:column; gap:3px; min-width:0; }
   /* Titulo de la metrica en mayusculas pequenas. */
@@ -139,6 +137,84 @@ Transportes y Servicios Ltda.
   .diario-nota { color:#6b7686; font-size:11px; margin-top:8px; line-height:1.5; }
   /* Mensaje "Nota guardada." tras guardar. */
   .diario-aceptar { color:#3fb950; font-size:13px; font-weight:600; margin-top:6px; }
+
+
+/* pantallas grandes (monitores Full HD+, iMac, monitores gaming QHD/4K) */
+@media (min-width: 1441px) {
+    /* Sin media */
+}
+
+/* notebooks grandes (1600x900, 1920x1080) */
+@media (max-width: 1440px) {
+    /* Sin media */
+}
+
+/* notebooks comunes (1366x768, MacBook Air/Pro) */
+@media (max-width: 1200px) {
+    /* Sin media */
+}
+
+/* tablets horizontales / pantallas medianas (iPad Pro en horizontal, notebooks pequeños) */
+@media (max-width: 992px) {
+    /* En pantallas estrechas el resumen pasa a 3 columnas. */
+    .diario-suma { grid-template-columns:repeat(3,1fr); }
+
+    /* Celular (hasta 992 px): cada operación cerrada se apila como una tarjeta con TODOS sus datos, sin desplazamiento horizontal. */
+      /* Los encabezados sobran: cada dato lleva su propio rótulo (data-etiqueta). */
+      table.jpos thead { display:none; }
+      /* La tabla y su cuerpo dejan de ser tabla para que cada fila sea una cuadrícula de 3 columnas. */
+      table.jpos, table.jpos tbody { display:block; width:100%; }
+      table.jpos tr { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); align-items:center; column-gap:10px; row-gap:8px;
+          padding:12px 14px; border-bottom:1px solid #141a22; }
+      /* La última operación no lleva línea inferior. */
+      table.jpos tr:last-child { border-bottom:none; }
+      /* Las celdas pierden su relleno de tabla y se pueden achicar sin desbordar. */
+      table.jpos td, table.jpos td.r { padding:0; border-bottom:none; min-width:0; text-align:left; }
+      /* Línea 1: activo (dos columnas) y resultado a la derecha. */
+      table.jpos td:nth-child(2) { grid-column:1 / 3; grid-row:1; }
+      table.jpos td:nth-child(10) { grid-column:3; grid-row:1; text-align:right; }
+      /* Línea 2: dirección, lotes y duración. */
+      table.jpos td:nth-child(3) { grid-column:1; grid-row:2; }
+      table.jpos td:nth-child(4) { grid-column:2; grid-row:2; }
+      table.jpos td:nth-child(7) { grid-column:3; grid-row:2; }
+      /* Línea 3: entrada, salida y R/R. */
+      table.jpos td:nth-child(5) { grid-column:1; grid-row:3; }
+      table.jpos td:nth-child(6) { grid-column:2; grid-row:3; }
+      table.jpos td:nth-child(8) { grid-column:3; grid-row:3; }
+      /* Línea 4: fecha de cierre y estrategia (el texto largo se recorta con puntos suspensivos). */
+      table.jpos td:nth-child(1) { grid-column:1; grid-row:4; }
+      table.jpos td:nth-child(9) { grid-column:2 / 4; grid-row:4; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      /* El nombre del activo también se recorta si no cabe. */
+      table.jpos .diario-posicion-simbolo { min-width:0; overflow:hidden; text-overflow:ellipsis; }
+      /* Rótulo pequeño sobre cada dato (los de activo, dirección y resultado no lo llevan). */
+      table.jpos td[data-etiqueta]::before { content:attr(data-etiqueta); display:block; color:#8b949e; font-size:10px; font-weight:600;
+          font-family:system-ui,sans-serif; text-transform:uppercase; letter-spacing:.3px; margin-bottom:2px; }
+      /* La fecha de cierre no se parte en dos líneas. */
+      table.jpos td:nth-child(1) { white-space:nowrap; }
+}
+
+/* tablets verticales (iPad clásico, tablets Android estándar) */
+@media (max-width: 768px) {
+    /* Sin media */
+}
+
+/* móviles grandes (iPhone 11, iPhone Plus/Max, Android grandes) */
+@media (max-width: 414px) {
+    /* Sin media */
+}
+
+/* móviles medianos (iPhone 12/13/14, Android gama media) */
+@media (max-width: 390px) {
+    /* Sin media */
+}
+
+/* móviles pequeños (Android estándar, iPhone SE) */
+@media (max-width: 360px) {
+    /* Celulares muy angostos (hasta 360 px): letra un poco menor para que los precios largos no se toquen. */
+      table.jpos td { font-size:12px; }
+      table.jpos tr { padding:12px 10px; column-gap:8px; }
+}
+
 
 /* -------------------------------------------------------------------------------------------------------
    ------------------------------------- FIN Piña y Jara estilos .CSS ------------------------------------

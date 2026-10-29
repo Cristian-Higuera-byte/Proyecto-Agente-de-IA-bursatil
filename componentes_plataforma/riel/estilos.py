@@ -19,7 +19,7 @@ import json
 from pathlib import Path
 
 from componentes_plataforma._estaticos import texto
-from componentes_plataforma.riel.datos import BOTONES, PANEL, RAIL, TOP
+from componentes_plataforma.riel.datos import BOTONES, PANEL, PANEL_AGENTE, RAIL, TOP
 
 
 # TITULO CSS
@@ -28,17 +28,18 @@ def css() -> str:
     """Devuelve el CSS final del rail envuelto en una etiqueta style.
 
     Lee la plantilla `estilos.css`, genera una regla `::after` con el nombre de cada botón (tooltip propio) y
-    sustituye los marcadores de medidas: ancho del rail, ancho del panel, alto de la barra superior y los
-    rellenos derechos (rail + panel + 16 y rail + 16). Lee el archivo con caché; no escribe nada."""
+    sustituye los marcadores de medidas: ancho del rail, ancho del panel y del panel del agente, alto de la barra superior y los
+    rellenos derechos (rail + panel + 16, rail + panel del agente + 16 y rail + 16) y los márgenes de la burbuja del chat (rail + panel + 22 y rail + 22). Lee el archivo con caché; no escribe nada."""
     # Una regla de tooltip por botón: el texto sale del tercer elemento de cada tupla de BOTONES.
     tips = "\n".join(
-        f'    .st-key-rail_{pid} button::after {{ content: {json.dumps(nombre)}; }}'
+        f'    .st-key-rail_{pid} button::after {{ content: {json.dumps(nombre, ensure_ascii=False)}; }}'
         for _, pid, nombre in BOTONES
     )
     # Plantilla con todos los marcadores sustituidos (los más largos primero para no pisar los más cortos).
     cuerpo = (texto(Path(__file__).parent / "estilos.css")
-              .replace("__RAIL_PANEL_16__", str(RAIL + PANEL + 16)).replace("__RAIL_16__", str(RAIL + 16))
-              .replace("__RAIL__", str(RAIL)).replace("__PANEL__", str(PANEL)).replace("__TOP__", str(TOP))
+              .replace("__RAIL_PANEL_16__", str(RAIL + PANEL + 16)).replace("__RAIL_AGENTE_16__", str(RAIL + PANEL_AGENTE + 16))
+              .replace("__RAIL_PANEL_22__", str(RAIL + PANEL + 22)).replace("__RAIL_16__", str(RAIL + 16)).replace("__RAIL_22__", str(RAIL + 22))
+              .replace("@@R14@@", str(RAIL + 14)).replace("@@R12@@", str(RAIL + 12)).replace("__RAIL__", str(RAIL)).replace("__AGENTE__", str(PANEL_AGENTE)).replace("__PANEL__", str(PANEL)).replace("__TOP__", str(TOP))
               .replace("__TIPS__", tips))
     return "\n<style>\n" + cuerpo + "</style>\n"
 

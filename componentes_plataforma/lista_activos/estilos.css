@@ -98,13 +98,6 @@ Transportes y Servicios Ltda.
     /* Pista transparente de las barras internas. */
     .st-key-lista_activos_desplazamiento ::-webkit-scrollbar-track { background: transparent; }
 
-    /* TITULO MOVIL (pantallas de hasta 1024 px (celulares y tablets)): lista de activos mas baja */
-    /* En el celular la lista queda bajo el grafico: la altura fija de escritorio (640 px) se reduce para no alargar la pagina. */
-    @media (max-width: 1024px) {
-        /* La altura la fija el envoltorio (flex-basis y height inline de st.container); el contenedor con scroll solo lo llena. */
-        [data-testid="stLayoutWrapper"]:has(> .st-key-lista_activos_desplazamiento) { height: 360px !important; flex: 0 0 360px !important; }
-        .st-key-lista_activos_desplazamiento { height: 360px !important; }
-    }
 
     /* TITULO FILA DE ACTIVO */
     /* Fila de activo */
@@ -282,6 +275,52 @@ Transportes y Servicios Ltda.
         color: #ffffff !important;
         background: rgba(88,166,255,0.06) !important;
     }
+
+
+/* pantallas grandes (monitores Full HD+, iMac, monitores gaming QHD/4K) */
+@media (min-width: 1441px) {
+    /* Sin media */
+}
+
+/* notebooks grandes (1600x900, 1920x1080) */
+@media (max-width: 1440px) {
+    /* Sin media */
+}
+
+/* notebooks comunes (1366x768, MacBook Air/Pro) */
+@media (max-width: 1200px) {
+    /* Sin media */
+}
+
+/* tablets horizontales / pantallas medianas (iPad Pro en horizontal, notebooks pequeños) */
+@media (max-width: 992px) {
+    /* TITULO MOVIL (hasta 992 px: tablets horizontales y pantallas más chicas): lista de activos mas baja */
+    /* En el celular la lista queda bajo el grafico: la altura fija de escritorio (640 px) se reduce para no alargar la pagina. */
+        /* La altura la fija el envoltorio (flex-basis y height inline de st.container); el contenedor con scroll solo lo llena. */
+        [data-testid="stLayoutWrapper"]:has(> .st-key-lista_activos_desplazamiento) { height: 360px !important; flex: 0 0 360px !important; }
+        .st-key-lista_activos_desplazamiento { height: 360px !important; }
+}
+
+/* tablets verticales (iPad clásico, tablets Android estándar) */
+@media (max-width: 768px) {
+    /* Sin media */
+}
+
+/* móviles grandes (iPhone 11, iPhone Plus/Max, Android grandes) */
+@media (max-width: 414px) {
+    /* Sin media */
+}
+
+/* móviles medianos (iPhone 12/13/14, Android gama media) */
+@media (max-width: 390px) {
+    /* Sin media */
+}
+
+/* móviles pequeños (Android estándar, iPhone SE) */
+@media (max-width: 360px) {
+    /* Sin media */
+}
+
 
 /* -------------------------------------------------------------------------------------------------------
    ------------------------------------- FIN Piña y Jara estilos .CSS ------------------------------------

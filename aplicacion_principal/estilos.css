@@ -13,6 +13,11 @@ Transportes y Servicios Ltda.
    ----------------------------------- INICIO Piña y Jara estilos .CSS -----------------------------------
    ------------------------------------------------------------------------------------------------------- */
 
+/* Alturas de las barras fijas del cascarón: los cajones, el gráfico y la barra de navegación las usan para ajustarse solas (con variables, para poder achicarlas todas a la vez en
+   celulares en horizontal, ver el bloque de 992 px al final). --pj-top-h: barra superior; --pj-nav-h: barra de navegación inferior (solo hasta 992 px); --pj-cab-h: espacio entre la
+   barra superior y el gráfico (cabecera de precio y sus márgenes); --pj-graf-min: alto mínimo del gráfico. */
+:root { --pj-top-h: 62px; --pj-nav-h: 64px; --pj-cab-h: 68px; --pj-graf-min: 220px; }
+
 /* Ocultar la barra propia de Streamlit */
 [data-testid="stHeader"] { display: none; }
 [data-testid="stToolbar"] { display: none; }
@@ -115,6 +120,61 @@ div[data-testid="column"]:has(.pj-navegacion) {
    Ajusta este valor (negativo = sube) si necesitas moverlo un poco más. */
 .pj-logo {
     margin-top: -0.5rem !important;
+}
+
+
+/* pantallas grandes (monitores Full HD+, iMac, monitores gaming QHD/4K) */
+@media (min-width: 1441px) {
+    /* Sin media */
+}
+
+/* notebooks grandes (1600x900, 1920x1080) */
+@media (max-width: 1440px) {
+    /* Sin media */
+}
+
+/* notebooks comunes (1366x768, MacBook Air/Pro) */
+@media (max-width: 1200px) {
+    /* Sin media */
+}
+
+/* tablets horizontales / pantallas medianas (iPad Pro en horizontal, notebooks pequeños) */
+@media (max-width: 992px) {
+    /* TITULO HORIZONTAL BAJO (celulares en horizontal: hasta 500 px de alto): barras más bajas para que el gráfico tenga espacio */
+    /* Con 360 a 430 px de alto, las barras de 62 y 64 px, la cabecera de precio y las barras del gráfico se comían casi todo: el gráfico quedaba de ~120 px y las barras fijas tapaban su
+       borde inferior. Aquí cada barra baja a ~44 px y el resto de las hojas lee las alturas de estas variables. */
+    @media (orientation: landscape) and (max-height: 500px) {
+        :root { --pj-top-h: 44px; --pj-nav-h: 44px; --pj-cab-h: 44px; --pj-graf-min: 150px; }
+        /* La barra superior pierde relleno y el contenido sube lo que ella baja (la hoja del cascarón calcula la diferencia con sus 62 px de siempre). */
+        .st-key-barra_navegacion_fija { padding: 3px 12px !important; }
+        .st-key-pj_vista { margin-top: calc(var(--pj-top-h) - 62px + 4px); }
+    }
+
+    /* TITULO HORIZONTAL MUY BAJO (hasta 340 px de alto): con la barra del navegador a la vista un teléfono deja ~265 px de página */
+    /* Segundo nivel: las barras bajan a 38 y 32 px, la barra de navegación queda solo con íconos y el alto mínimo del gráfico a 100 px. */
+    @media (orientation: landscape) and (max-height: 340px) {
+        :root { --pj-top-h: 38px; --pj-nav-h: 32px; --pj-cab-h: 36px; --pj-graf-min: 100px; }
+    }
+}
+
+/* tablets verticales (iPad clásico, tablets Android estándar) */
+@media (max-width: 768px) {
+    /* Sin media */
+}
+
+/* móviles grandes (iPhone 11, iPhone Plus/Max, Android grandes) */
+@media (max-width: 414px) {
+    /* Sin media */
+}
+
+/* móviles medianos (iPhone 12/13/14, Android gama media) */
+@media (max-width: 390px) {
+    /* Sin media */
+}
+
+/* móviles pequeños (Android estándar, iPhone SE) */
+@media (max-width: 360px) {
+    /* Sin media */
 }
 
 

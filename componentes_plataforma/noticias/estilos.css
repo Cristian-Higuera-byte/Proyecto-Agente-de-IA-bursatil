@@ -25,6 +25,9 @@ Transportes y Servicios Ltda.
     [class*="st-key-noticias_anterior"] button:hover, [class*="st-key-noticias_siguiente"] button:hover {
         border-color:#58a6ff !important; color:#58a6ff !important;
     }
+    /* TITULO FLECHAS ARRIBA Y ABAJO DEL CARRUSEL (keys noticias_flechas_sup y noticias_flechas_inf de secciones.py) */
+    /* En pantallas anchas las flechas van a los lados de las tarjetas y estas filas no se muestran. */
+    .st-key-noticias_flechas_sup, .st-key-noticias_flechas_inf { display:none; }
     /* TITULO TARJETAS Y NOTICIA PRINCIPAL CLICABLES */
     /* Tarjeta / principal clicables: botón invisible que cubre todo.
        Se fijan los 4 bordes explícitos (no el shorthand inset) — igual que en
@@ -79,6 +82,60 @@ Transportes y Servicios Ltda.
     .st-key-noticias_idioma button[aria-checked="true"], .st-key-noticias_idioma button[aria-pressed="true"],
     .st-key-noticias_idioma button[data-testid="stBaseButton-segmented_controlActive"] {
         background:rgba(34,197,94,0.15) !important; border-color:#22c55e !important; color:#22c55e !important; }
+
+
+/* pantallas grandes (monitores Full HD+, iMac, monitores gaming QHD/4K) */
+@media (min-width: 1441px) {
+    /* Sin media */
+}
+
+/* notebooks grandes (1600x900, 1920x1080) */
+@media (max-width: 1440px) {
+    /* Sin media */
+}
+
+/* notebooks comunes (1366x768, MacBook Air/Pro) */
+@media (max-width: 1200px) {
+    /* Sin media */
+}
+
+/* tablets horizontales / pantallas medianas (iPad Pro en horizontal, notebooks pequeños) */
+@media (max-width: 992px) {
+    /* Sin media */
+}
+
+/* tablets verticales (iPad clásico, tablets Android estándar) */
+@media (max-width: 768px) {
+    /* Celular y tablet vertical (hasta 768 px; por debajo de 640 px Streamlit apila las columnas): las flechas laterales pasan a una fila arriba y otra abajo de las tarjetas. */
+        /* Se muestran las dos filas de flechas. */
+        .st-key-noticias_flechas_sup, .st-key-noticias_flechas_inf { display:block; }
+        /* Anterior a la izquierda y siguiente a la derecha en la misma línea (Streamlit las apilaría). */
+        .st-key-noticias_flechas_sup [data-testid="stHorizontalBlock"], .st-key-noticias_flechas_inf [data-testid="stHorizontalBlock"] {
+            flex-direction:row !important; flex-wrap:nowrap !important; justify-content:space-between !important; }
+        /* Cada columna mide lo que su botón. */
+        .st-key-noticias_flechas_sup [data-testid="stColumn"], .st-key-noticias_flechas_inf [data-testid="stColumn"] {
+            width:auto !important; min-width:0 !important; flex:0 0 auto !important; }
+        /* Las flechas laterales (columnas con los botones noticias_anterior y noticias_siguiente) se quitan para no duplicarlas. */
+        /* Solo la columna que contiene directamente el botón (`>`): sin eso también coincidirían las columnas de la página que lo rodean y se ocultaría todo. */
+        [data-testid="stColumn"]:has(> [data-testid="stVerticalBlock"] > .st-key-noticias_anterior),
+        [data-testid="stColumn"]:has(> [data-testid="stVerticalBlock"] > .st-key-noticias_siguiente) { display:none !important; }
+}
+
+/* móviles grandes (iPhone 11, iPhone Plus/Max, Android grandes) */
+@media (max-width: 414px) {
+    /* Sin media */
+}
+
+/* móviles medianos (iPhone 12/13/14, Android gama media) */
+@media (max-width: 390px) {
+    /* Sin media */
+}
+
+/* móviles pequeños (Android estándar, iPhone SE) */
+@media (max-width: 360px) {
+    /* Sin media */
+}
+
 
 /* -------------------------------------------------------------------------------------------------------
    ------------------------------------- FIN Piña y Jara estilos .CSS ------------------------------------

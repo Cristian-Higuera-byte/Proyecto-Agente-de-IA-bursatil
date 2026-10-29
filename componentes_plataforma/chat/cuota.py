@@ -28,10 +28,10 @@ from herramientas import cuota_ia
 
 # TITULO BARRA CUOTA
 
-def barra_cuota(e: dict | None = None) -> None:
+def barra_cuota(e: dict | None = None, sufijo: str = "") -> None:
     """Dibuja la barra con el porcentaje de uso del mes, los tokens gastados sobre el total del plan y cuándo se renueva.
 
-    Recibe el estado de la cuota (`cuota_ia.estado()`); si no se pasa, lo calcula. No devuelve nada."""
+    Recibe el estado de la cuota (`cuota_ia.estado()`; si no se pasa, lo calcula) y un sufijo para la clave del botón «Ver planes» (una por copia del chat). No devuelve nada."""
     e = e or cuota_ia.estado()
     detalle = (f"{cuota_ia.formato(e['usado'])} / {cuota_ia.formato(e['limite'])} tokens · quedan {cuota_ia.formato(e['restante'])} · "
                f"se renueva el {e['renueva']}")
@@ -46,7 +46,7 @@ def barra_cuota(e: dict | None = None) -> None:
     )
     # Con el uso alto o agotado se ofrece ver los planes: es el momento de mayor interés (y se anota el origen en la prueba de demanda).
     if e["nivel"] != "ok":
-        st.button("Ver planes", key="cuota_ver_planes", icon=":material/workspace_premium:", on_click=ir_a_planes,
+        st.button("Ver planes", key=f"cuota_ver_planes{sufijo}", icon=":material/workspace_premium:", on_click=ir_a_planes,
                   args=("cuota_agotada" if e["agotada"] else "barra_cuota",))
 
 

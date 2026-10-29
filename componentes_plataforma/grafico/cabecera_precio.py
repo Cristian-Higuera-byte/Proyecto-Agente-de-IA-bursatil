@@ -74,11 +74,12 @@ def renderizar_cabecera_precio(activo_visible: str, digits: int) -> None:
         texto_estado = "Conectado" if conectado else "Sin conexión"
         
         # Barra HTML: izquierda símbolo, origen, precio y Bid/Ask; derecha estado de la conexión.
-        # En celular (hasta 1024 px (celulares y tablets)) los datos pasan a dos filas: símbolo, origen y precio arriba; Bid/Ask abajo, a todo el ancho.
+        # En tablet y celular (hasta 992 px: tablets horizontales y pantallas más chicas) los datos pasan a dos filas: símbolo, origen y precio arriba; Bid/Ask abajo, a todo el ancho.
         # Los estilos en línea mandan sobre la hoja, por eso las reglas móviles llevan !important (llaves dobles por el f-string).
         st.markdown(f"""
             <style>
-            @media (max-width: 1024px) {{
+            /* tablets horizontales / pantallas medianas (iPad Pro en horizontal, notebooks pequeños) */
+            @media (max-width: 992px) {{
                 .pj-cab-precio {{ position: relative; padding: 6px 12px !important; margin-bottom: 6px !important; flex-wrap: nowrap !important; }}
                 .pj-cab-precio-datos {{ flex-wrap: wrap; gap: 0 10px !important; }}
                 .pj-cab-bidask {{ flex: 0 0 100%; font-size: 12px !important; }}
@@ -90,6 +91,21 @@ def renderizar_cabecera_precio(activo_visible: str, digits: int) -> None:
                 .pj-cab-bidask {{ font-size: 11px !important; }}
                 .pj-cab-simbolo {{ cursor: pointer; }}
                 .pj-cab-simbolo::after {{ content: " \\25BE"; color: #8b949e; font-size: 14px; }}
+                /* Horizontal bajo (celulares en horizontal, hasta 500 px de alto): una sola línea de 30 px, para dejarle alto al gráfico. */
+                @media (orientation: landscape) and (max-height: 500px) {{
+                    .pj-cab-precio {{ padding: 2px 10px !important; margin: 3px 0 3px !important; }}
+                    .pj-cab-precio-datos {{ flex-wrap: nowrap !important; align-items: center; }}
+                    .pj-cab-bidask {{ flex: 0 0 auto !important; }}
+                    .pj-cab-estado {{ top: 50% !important; transform: translateY(-50%); }}
+                }}
+                /* Horizontal muy bajo (hasta 340 px de alto): letras más chicas y sin la insignia del origen. */
+                @media (orientation: landscape) and (max-height: 340px) {{
+                    .pj-cab-precio {{ padding: 1px 10px !important; margin: 2px 0 2px !important; }}
+                    .pj-cab-simbolo {{ font-size: 14px !important; }}
+                    .pj-cab-precio-datos > span[data-pj-f="px"] {{ font-size: 15px !important; }}
+                    .pj-cab-bidask {{ font-size: 10px !important; }}
+                    .pj-cab-origen {{ display: none !important; }}
+                }}
             }}
             </style>
             <div class='pj-cab-precio' style='background-color: #161b22; padding: 10px 16px; border-radius: 8px; border: 1px solid #30363d; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;'>

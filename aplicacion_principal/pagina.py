@@ -16,12 +16,13 @@ Armado de la página completa del dashboard.
 
 Contiene `ejecutar()`, que Streamlit invoca en cada reejecución del script y que dibuja la página
 en el mismo orden que tenía el antiguo app.py: configuración, estilos, login, pantalla de carga,
-barra superior, feed en vivo, datos de mercado, fragmentos, barra lateral, vista activa y diálogos.
+barra superior, feed en vivo, datos de mercado, fragmentos, barra lateral, vista activa, diálogos y chat flotante del agente.
 """
 import streamlit as st
 
 from componentes_plataforma.acceso import requerir_login
 from componentes_plataforma.barra_lateral import renderizar_barra_navegacion as renderizar_nav_lateral
+from componentes_plataforma.chat_flotante import renderizar_chat_flotante
 from componentes_plataforma.conectar_cuenta import registrar_resolvedor, requerir_cuenta
 from componentes_plataforma.mercado_datos import cargar_datos_mercado
 from componentes_plataforma.flujo_precios import inyectar_flujo
@@ -108,6 +109,9 @@ def ejecutar(consola) -> None:
 
     # Diálogos (buscador, cierre de posición y términos de One-Click) fuera de los fragmentos.
     renderizar_dialogos()
+
+    # Chat del agente flotante (burbuja abajo a la derecha): va en TODAS las secciones, siempre al final para no alterar el orden de las vistas.
+    renderizar_chat_flotante()
 
 
 # -------------------------------------------------------------------------------------------------------

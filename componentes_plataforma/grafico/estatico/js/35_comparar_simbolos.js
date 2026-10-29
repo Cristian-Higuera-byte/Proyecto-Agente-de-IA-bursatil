@@ -273,11 +273,12 @@ Transportes y Servicios Ltda.
           var fila = document.createElement('div'); fila.className = 'comparar-fila' + (principal ? ' deshab' : '');
           var txt = document.createElement('div'); txt.className = 'comparar-texto';
           var l1 = document.createElement('div');
-          var nom = document.createElement('span'); nom.className = 'comparar-nombre'; nom.textContent = it.n;
+          // El nombre del instrumento va primero (así se reconoce «CK Hutchison» y no solo su código «0001»); el símbolo, debajo.
+          var nom = document.createElement('span'); nom.className = 'comparar-nombre'; nom.textContent = it.d || it.n;
           l1.appendChild(nom);
           if (it.c) { var cat = document.createElement('span'); cat.className = 'comparar-categoria'; cat.textContent = it.c; l1.appendChild(cat); }
           txt.appendChild(l1);
-          if (it.d) { var de = document.createElement('div'); de.className = 'comparar-descripcion'; de.textContent = it.d; txt.appendChild(de); }
+          if (it.d && it.d !== it.n) { var de = document.createElement('div'); de.className = 'comparar-descripcion'; de.textContent = it.n; txt.appendChild(de); }
           var est = document.createElement('span'); est.className = 'comparar-estado' + (c ? ' on' : '');
           est.textContent = principal ? 'Principal' : (c ? 'Quitar' : 'Añadir');
           fila.appendChild(txt); fila.appendChild(est);

@@ -102,6 +102,70 @@ Transportes y Servicios Ltda.
     /* El botón Replay se ve activo mientras el modo está encendido. */
     #tradingview-contenedor.repeticion-activo #boton-repeticion-abrir { border-color:#a78bfa; color:#a78bfa; }
 
+
+/* pantallas grandes (monitores Full HD+, iMac, monitores gaming QHD/4K) */
+@media (min-width: 1441px) {
+    /* Sin media */
+}
+
+/* notebooks grandes (1600x900, 1920x1080) */
+@media (max-width: 1440px) {
+    /* Sin media */
+}
+
+/* notebooks comunes (1366x768, MacBook Air/Pro) */
+@media (max-width: 1200px) {
+    /* Sin media */
+}
+
+/* tablets horizontales / pantallas medianas (iPad Pro en horizontal, notebooks pequeños) */
+@media (max-width: 992px) {
+    /* Sin media */
+}
+
+/* tablets verticales (iPad clásico, tablets Android estándar) */
+@media (max-width: 768px) {
+    /* TITULO REPLAY EN CELULAR (hasta 768 px de ancho del iframe, el mismo corte que la leyenda del gráfico) */
+    /* Las reglas de escritorio dejan la barra flotando arriba a la derecha con un ancho de «100% - 520px»: en un celular eso queda en pocos píxeles y el
+       texto se parte palabra por palabra, y el panel de práctica (240 px a la izquierda) tapa medio gráfico. Aquí la barra va a todo el ancho y el panel
+       se acomoda abajo, a todo el ancho. */
+        /* Barra a todo el ancho, justo bajo la leyenda de valores. */
+        #repeticion-barra:not(.repeticion-min) { left:8px; right:8px; top:22px; max-width:none; justify-content:flex-start; gap:6px 8px; padding:6px 8px; }
+        /* Primera línea: plegar y etiqueta a la izquierda, Salir a la derecha. */
+        #repeticion-barra #repeticion-plegar { order:1; }
+        #repeticion-barra .repeticion-tag { order:2; flex:1 1 auto; }
+        #repeticion-barra #repeticion-salir { order:3; }
+        /* Segunda línea: mensaje de estado, a la izquierda y con todo el ancho (en escritorio mide 0 px y se estira con min-width). */
+        #repeticion-barra .repeticion-estado { order:4; flex:1 1 100%; width:auto; min-width:0; text-align:left; font-size:11.5px; }
+        /* Tercera línea: controles (retroceso o reproducción), que bajan a otra línea si no caben. */
+        #repeticion-barra .repeticion-grupo { order:5; flex:1 1 100%; flex-wrap:wrap; gap:6px; }
+        /* Panel de práctica: hoja inferior a todo el ancho, con los campos en dos columnas. */
+        #repeticion-panel { left:8px; right:8px; top:auto; bottom:8px; width:auto; max-height:55%; padding:8px 10px; }
+        #repeticion-panel:not(.repeticion-min) { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); column-gap:10px; row-gap:6px; align-content:start; }
+        /* Título, botones, información, resumen, historial y nota ocupan las dos columnas. */
+        #repeticion-panel .repeticion-ph, #repeticion-panel .repeticion-ops, #repeticion-panel .repeticion-cierre, #repeticion-panel .repeticion-info,
+        #repeticion-panel .repeticion-res, #repeticion-panel .repeticion-hist, #repeticion-panel .repeticion-nota { grid-column:1 / -1; margin-top:0; }
+        /* Cada campo: rótulo arriba y el control debajo, a todo el ancho de su columna. */
+        #repeticion-panel .repeticion-fila { flex-direction:column; align-items:stretch; justify-content:flex-start; gap:2px; padding:0; font-size:11.5px; color:#8b949e; }
+        #repeticion-panel input, #repeticion-panel select { width:100%; max-width:none; box-sizing:border-box; text-align:left; }
+}
+
+/* móviles grandes (iPhone 11, iPhone Plus/Max, Android grandes) */
+@media (max-width: 414px) {
+    /* Sin media */
+}
+
+/* móviles medianos (iPhone 12/13/14, Android gama media) */
+@media (max-width: 390px) {
+    /* Sin media */
+}
+
+/* móviles pequeños (Android estándar, iPhone SE) */
+@media (max-width: 360px) {
+    /* Sin media */
+}
+
+
 /* -------------------------------------------------------------------------------------------------------
    ------------------------------------ FIN Piña y Jara 66_replay .CSS -----------------------------------
    ------------------------------------------------------------------------------------------------------- */
