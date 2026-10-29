@@ -98,36 +98,70 @@ def _procesar_enlaces(cuentas: dict) -> None:
         del st.query_params["cuentas"]
 
 
+# TITULO GUIA
+
+def _guia() -> None:
+    """Dibuja la guía de 4 pasos, siempre visible, para crear la API key en Capital.com."""
+    with st.container(border=True):
+        st.markdown(
+            "**Cómo crear tu API key**\n\n"
+            "1. En Capital.com entra a **Configuración → API integrations** y activa la autenticación en dos pasos.\n"
+            "2. Crea una API key nueva y define su contraseña.\n"
+            "3. Dale permiso para **operar** y **no** habilites retiros.\n"
+            "4. Copia aquí la key y su contraseña. Se guardan cifradas: en la base de datos solo hay texto ilegible y únicamente el servidor puede usarlas."
+        )
+
+
+# TITULO RESULTADO DE LA PRUEBA
+
+def _filas_resultado(pruebas: dict) -> None:
+    """Muestra una fila por cuenta (demo y real) con el resultado de la prueba: aceptada o el motivo por el que Capital.com no la aceptó."""
+    for nombre, es_demo in _TIPOS.items():
+        prueba = pruebas["demo" if es_demo else "real"]
+        if prueba["ok"]:
+            st.success(f"Cuenta {nombre}: la conexión funciona.", icon=":material/check_circle:")
+        else:
+            st.warning(f"Cuenta {nombre}: {prueba['mensaje']}", icon=":material/error:")
+
+
 # TITULO FORMULARIO DE CONEXION
 
-def _formulario(usuario_id: int) -> None:
-    """Dibuja el formulario de conexión: se escriben los datos UNA vez y se verifican con la cuenta demo y la real.
+# Claves de st.session_state: el resultado de la última prueba (con los datos probados) y los campos del formulario
+_CLAVE_PRUEBA = "cuentas_prueba"
+_CLAVES_CAMPOS = ("conectar_identificador", "conectar_api_key", "conectar_api_contrasena")
 
-    Se guardan, cifrados, los datos de cada cuenta que Capital.com acepte (una, otra o las dos). Al terminar muestra
-    qué quedó conectado y un botón para ir al panel."""
-    with st.form("form_conectar_cuenta", border=True, clear_on_submit=True):
-        identificador = st.text_input("Correo de tu cuenta de Capital.com", placeholder="tucorreo@dominio.com")
-        api_key = st.text_input("API key", type="password")
-        api_contrasena = st.text_input("Contraseña de la API key", type="password",
-                                       help="La que definiste al crear la key, no la de tu cuenta.")
-        enviar = st.form_submit_button("Conectar mis cuentas", width="stretch", type="primary")
-    if not enviar:
-        return
-    identificador, api_key, api_contrasena = identificador.strip(), api_key.strip(), api_contrasena.strip()
-    if not (identificador and api_key and api_contrasena):
-        st.error("Completa el correo, la API key y la contraseña de la key.")
-        return
-    with st.spinner("Verificando tu cuenta demo y tu cuenta real en Capital.com..."):
-        pruebas = sesiones_capital.probar_ambas_cuentas(identificador, api_key, api_contrasena)
-    if not (pruebas["demo"]["ok"] or pruebas["real"]["ok"]):
-        st.error(pruebas["demo"]["mensaje"])
+
+def _formulario(usuario_id: int) -> None:
+    """Dibuja el formulario de conexión: se escriben los datos UNA vez, se prueban con la cuenta demo y la real y recién entonces se pueden guardar.
+
+    «Probar conexión» verifica ambas cuentas y muestra el resultado de cada una. «Guardar y continuar» solo se habilita si la prueba corresponde a lo que hay
+    escrito (si se cambia un dato, hay que probar de nuevo) y guarda, cifradas, las cuentas que Capital.com aceptó. Siempre se empieza en demo."""
+    identificador = st.text_input("Correo de tu cuenta de Capital.com", placeholder="tucorreo@dominio.com", key=_CLAVES_CAMPOS[0])
+    api_key = st.text_input("API key", type="password", key=_CLAVES_CAMPOS[1])
+    api_contrasena = st.text_input("Contraseña de la API key", type="password", key=_CLAVES_CAMPOS[2],
+                                   help="La que definiste al crear la key, no la de tu cuenta.")
+    datos = (identificador.strip(), api_key.strip(), api_contrasena.strip())
+    prueba = st.session_state.get(_CLAVE_PRUEBA)
+    vigente = prueba if prueba and prueba["datos"] == datos else None
+    if st.button("Probar conexión", width="stretch", key="conectar_probar"):
+        if not all(datos):
+            st.error("Completa el correo, la API key y la contraseña de la key.")
+        else:
+            with st.spinner("Verificando tu cuenta demo y tu cuenta real en Capital.com..."):
+                pruebas = sesiones_capital.probar_ambas_cuentas(*datos)
+            vigente = st.session_state[_CLAVE_PRUEBA] = {"datos": datos, "pruebas": pruebas}
+    if vigente:
+        _filas_resultado(vigente["pruebas"])
+    pruebas = vigente["pruebas"] if vigente else None
+    aceptada = bool(pruebas and (pruebas["demo"]["ok"] or pruebas["real"]["ok"]))
+    if not st.button("Guardar y continuar", type="primary", width="stretch", disabled=not aceptada, key="conectar_guardar"):
         return
     previas = cuentas_conectadas()
     conectadas = []
     for nombre, es_demo in _TIPOS.items():
         if not pruebas["demo" if es_demo else "real"]["ok"]:
             continue
-        guardado = credenciales_bolsa.guardar_credenciales(usuario_id, es_demo, identificador, api_key, api_contrasena)
+        guardado = credenciales_bolsa.guardar_credenciales(usuario_id, es_demo, *datos)
         if not guardado["ok"]:
             st.error(guardado["mensaje"])
             return
@@ -137,13 +171,12 @@ def _formulario(usuario_id: int) -> None:
     # Solo se cambia sola de cuenta cuando es la primera vez; si ya operaba con otra, no se la cambia por sorpresa
     if not (previas.get("demo") or previas.get("real")):
         fijar_modo(True if "Demo" in conectadas else False)
+    st.session_state.pop(_CLAVE_PRUEBA, None)
+    for clave in _CLAVES_CAMPOS:
+        st.session_state.pop(clave, None)
     st.session_state[_CLAVE_GESTIONAR] = False
     st.success("Conectado: " + " y ".join(f"cuenta {n}" for n in conectadas) + ". La plataforma siempre empieza en demo; "
                "cambias de cuenta cuando quieras desde «Seleccione cuenta».")
-    faltante = [n for n in _TIPOS if n not in conectadas]
-    if faltante:
-        st.info(f"Con estos datos Capital.com no aceptó la cuenta {faltante[0]}: "
-                f"{pruebas['demo' if faltante[0] == 'Demo' else 'real']['mensaje']}")
     st.button("Ir al panel", type="primary", width="stretch")
 
 
@@ -206,13 +239,7 @@ def requerir_cuenta(usuario: dict) -> None:
             "verificamos tu cuenta demo y tu cuenta real, y eliges con cuál operar cuando quieras.</p></div>",
             unsafe_allow_html=True,
         )
-        with st.expander("¿Cómo creo mi API key?"):
-            st.markdown(
-                "1. En Capital.com entra a **Configuración → API integrations** y activa la autenticación en dos pasos.\n"
-                "2. Crea una API key nueva y define su contraseña.\n"
-                "3. Dale permiso para **operar** y **no** habilites retiros.\n"
-                "4. Copia aquí la key y su contraseña. Se guardan cifradas: en la base de datos solo hay texto ilegible y únicamente el servidor puede usarlas."
-            )
+        _guia()
         if hay_cuenta:
             _lista_cuentas(usuario_id, cuentas)
             st.divider()
