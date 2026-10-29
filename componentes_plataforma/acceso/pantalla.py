@@ -15,8 +15,8 @@
 acceso/pantalla.py
 -----------------
 Pantalla de inicio de sesión / registro (UI) conectada a Supabase (tabla `usuarios`).
-`requerir_login()` es la puerta de entrada de la app: si no hay sesión, dibuja el login
-centrado y DETIENE la ejecución; si la hay, devuelve el dict del usuario. La mecánica de
+`requerir_login()` es la puerta de entrada de la app: si no hay sesión, dibuja la portada pública (o el formulario de acceso si llega `?acceso=entrar|crear`)
+y DETIENE la ejecución; si la hay, devuelve el dict del usuario. La mecánica de
 sesión (iniciar/cerrar/restaurar token) vive en acceso/sesion.py.
 
 Uso en aplicacion.py:
@@ -70,23 +70,28 @@ def requerir_login() -> dict:
             del st.query_params["perfil"]
         return usuario
 
-    # --- No autenticado: renderizar pantalla de login centrada ---
+    # --- No autenticado ---
+    # Sin `?acceso=` se muestra la portada pública (presentación de la plataforma, con los botones «Iniciar sesión» y «Regístrate»); con `?acceso=entrar` o
+    # `?acceso=crear`, el formulario correspondiente.
+    modo = st.query_params.get("acceso")
+    if modo not in ("entrar", "crear"):
+        from componentes_plataforma.portada import renderizar_portada
+        renderizar_portada()
+        st.stop()
     # Columna central más ancha para que el formulario quede centrado
     _, centro, _ = st.columns([1, 1.3, 1])
     with centro:
         # Cabecera con logo, título y subtítulo
+        subtitulo = "Inicia sesión para acceder al panel bursátil" if modo == "entrar" else "Crea tu cuenta gratis y conversa con tu agente de IA"
         st.markdown(
             f"<div style='text-align:center; margin-top:8vh;'>{_LOGO_HTML}"
             "<h1 style='margin:10px 0 2px;'>Piña &amp; Jara · Terminal</h1>"
-            "<p style='color:#8b949e; margin:0 0 18px;'>Inicia sesión para acceder al panel bursátil</p></div>",
+            f"<p style='color:#8b949e; margin:0 0 18px;'>{subtitulo}</p></div>",
             unsafe_allow_html=True,
         )
 
-        # Dos pestañas: entrar con cuenta existente o crear una nueva
-        pestana_entrar, pestana_crear = st.tabs(["Iniciar sesión", "Crear cuenta"])
-
         # --- Iniciar sesión ---
-        with pestana_entrar:
+        if modo == "entrar":
             with st.form("form_login", border=True):
                 correo = st.text_input("Email", key="inicio_sesion_correo", placeholder="tucorreo@dominio.com")
                 contrasena = st.text_input("Contraseña", type="password", key="inicio_sesion_contrasena")
@@ -98,9 +103,10 @@ def requerir_login() -> dict:
                     iniciar_sesion(resultado["usuario"])
                 else:
                     st.error(resultado["mensaje"])
+            enlace_cambio = "¿Aún no tienes cuenta? <a href='?acceso=crear' target='_self'>Créala gratis</a>"
 
         # --- Crear cuenta ---
-        with pestana_crear:
+        else:
             with st.form("form_registro", border=True):
                 nombre = st.text_input("Nombre", key="registro_nombre", placeholder="Nombre...Ap")
                 correo_r = st.text_input("Email", key="registro_correo", placeholder="tucorreo@dominio.com")
@@ -115,6 +121,11 @@ def requerir_login() -> dict:
                     iniciar_sesion(resultado["usuario"])
                 else:
                     st.error(resultado["mensaje"])
+            enlace_cambio = "¿Ya tienes cuenta? <a href='?acceso=entrar' target='_self'>Inicia sesión</a>"
+
+        # Enlaces para pasar de un formulario al otro y volver a la portada
+        st.markdown(f"<p style='text-align:center; color:#8b949e; margin:6px 0 0;'>{enlace_cambio}</p>"
+                    "<p style='text-align:center; margin:10px 0 0;'><a href='./' target='_self'>← Volver a la portada</a></p>", unsafe_allow_html=True)
 
     # Corta la ejecución para que no se pinte el resto de la app
     st.stop()

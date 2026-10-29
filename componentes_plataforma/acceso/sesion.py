@@ -64,6 +64,8 @@ def iniciar_sesion(usuario: dict) -> None:
     # Marca la pestaña como autenticada y guarda los datos del usuario
     st.session_state.usuario_autenticado = True
     st.session_state.usuario_informacion = usuario
+    if "acceso" in st.query_params:   # ya no hace falta el parámetro de la portada
+        del st.query_params["acceso"]
     st.query_params["s"] = almacen_sesiones.crear(usuario)  # persiste tras F5
     # «Mantener sesión iniciada»: token de larga duración guardado en Supabase y en una cookie del navegador (se escribe en la próxima pasada)
     token_larga = sesion_persistente.crear(usuario.get("id"), st.context.headers.get("User-Agent", ""), reemplaza_token=cookie.leer())
