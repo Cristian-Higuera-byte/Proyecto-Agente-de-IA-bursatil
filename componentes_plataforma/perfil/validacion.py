@@ -20,6 +20,7 @@ from datetime import date
 from typing import Any
 
 from componentes_plataforma.perfil.datos import REQUERIDOS, SECCIONES
+from herramientas import contrasenas
 
 # Edad mínima para operar y máxima aceptada al leer una fecha de nacimiento.
 EDAD_MINIMA = 18
@@ -136,13 +137,14 @@ def validar_nacimiento(nacimiento: date | None) -> tuple[bool, str]:
 # TITULO VALIDAR CONTRASENA NUEVA
 
 def validar_contrasena_nueva(actual: str, nueva: str, repetida: str) -> tuple[bool, str]:
-    """Valida el cambio de contraseña: no vacía, distinta de la actual, de 8 o más caracteres con letras y números, y repetida igual."""
+    """Valida el cambio de contraseña: no vacía, distinta de la actual, que cumpla la regla de herramientas/contrasenas.py, y repetida igual."""
     if not actual or not nueva or not repetida:
         return False, "Completa los tres campos."
     if nueva == actual:
         return False, "La contraseña nueva debe ser distinta de la actual."
-    if len(nueva) < 8 or not re.search(r"[A-Za-z]", nueva) or not re.search(r"\d", nueva):
-        return False, "La contraseña nueva debe tener al menos 8 caracteres, con letras y números."
+    aviso = contrasenas.validar(nueva)
+    if aviso:
+        return False, aviso
     if nueva != repetida:
         return False, "Las contraseñas nuevas no coinciden."
     return True, ""

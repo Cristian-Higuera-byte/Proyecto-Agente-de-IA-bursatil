@@ -40,7 +40,7 @@ from typing import Any, Optional, cast
 
 from dotenv import load_dotenv
 
-from herramientas import base_datos, verificacion_correo
+from herramientas import base_datos, contrasenas, verificacion_correo
 from herramientas import correo as servicio_correo
 
 load_dotenv()
@@ -116,10 +116,8 @@ def verificacion_activa() -> bool:
 # TITULO VALIDAR CONTRASENA
 
 def validar_contrasena(contrasena: str) -> Optional[str]:
-    """Devuelve el aviso a mostrar si la contraseña no cumple la regla (8 o más caracteres, con letras y números), o None si es válida."""
-    if len(contrasena or "") < 8 or not re.search(r"[A-Za-z]", contrasena) or not re.search(r"\d", contrasena):
-        return "La contraseña debe tener al menos 8 caracteres, con letras y números."
-    return None
+    """Devuelve el aviso a mostrar si la contraseña no cumple la regla única de la plataforma (herramientas/contrasenas.py), o None si es válida."""
+    return contrasenas.validar(contrasena)
 
 
 # TITULO REGISTRAR USUARIO
@@ -132,7 +130,7 @@ def registrar_usuario(nombre: str, correo: str, contrasena: str) -> dict:
     Crea un usuario nuevo. Retorna {"ok": bool, "mensaje": str, "usuario": dict|None}.
 
     Valida que Supabase esté configurado, que los campos no estén vacíos y que
-    la contraseña tenga al menos 8 caracteres con letras y números; verifica que el email (normalizado
+    la contraseña cumpla la regla de seguridad (8 o más caracteres con mayúscula, minúscula, número y símbolo, y no sea común); verifica que el email (normalizado
     a minúsculas) no exista y luego inserta el registro con la contraseña
     cifrada. El diccionario "usuario" solo incluye id, nombre y email (nunca el
     hash). Efecto secundario: lecturas y una inserción en la tabla `usuarios`.
@@ -221,13 +219,15 @@ def cambiar_contrasena(usuario_id, actual: str, nueva: str) -> dict:
     Cambia la contraseña de un usuario. Retorna {"ok": bool, "mensaje": str}.
 
     Lee el hash guardado del usuario (por id), exige que `actual` coincida con él y guarda el hash de `nueva`
-    (PBKDF2 con salt nuevo). La contraseña nueva se valida en el perfil (largo, letras y números); aquí solo se exige
-    que no esté vacía. Efecto secundario: una lectura y una actualización en la tabla `usuarios`.
+    (PBKDF2 con salt nuevo). La contraseña nueva debe cumplir la regla de herramientas/contrasenas.py (también se avisa antes en el perfil). Efecto secundario: una lectura y una actualización en la tabla `usuarios`.
     """
     if _supabase is None:
         return {"ok": False, "mensaje": "La base de datos no está configurada (revisa BASE_DATOS y las variables de conexión en .env)."}
     if not actual or not nueva:
         return {"ok": False, "mensaje": "Completa la contraseña actual y la nueva."}
+    aviso = validar_contrasena(nueva)
+    if aviso:
+        return {"ok": False, "mensaje": aviso}
     try:
         fila = _supabase.table("usuarios").select("password_hash").eq("id", usuario_id).limit(1).execute()
         if not fila.data:

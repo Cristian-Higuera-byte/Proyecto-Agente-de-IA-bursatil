@@ -30,7 +30,8 @@ from herramientas.gestor_autenticacion import autenticar_usuario, registrar_usua
 
 from .cookie import aplicar_pendiente
 from .pantallas_correo import (
-    CLAVE_PENDIENTE, cabecera, enlaces_inferiores, vista_olvide_contrasena, vista_recuperacion, vista_revisa_correo, vista_verificacion)
+    CLAVE_PENDIENTE, CLAVE_REVISA, aviso_sin_verificar, cabecera, enlaces_inferiores, iniciar_espera_reenvio, medidor_contrasena, pestanas,
+    vista_olvide_contrasena, vista_recuperacion, vista_revisa_correo, vista_verificacion)
 from .sesion import cerrar_sesion, iniciar_sesion, usuario_en_sesion
 
 
@@ -93,55 +94,61 @@ def requerir_login() -> dict:
         if modo == "recordar":
             vista_olvide_contrasena()
             st.stop()
-        # Con una cuenta esperando confirmar su correo se muestra «Revisa tu correo» en lugar del formulario
+        # Con una cuenta recién creada esperando confirmar su correo se muestra «Revisa tu correo» en lugar del formulario
         if vista_revisa_correo():
             st.stop()
-        # Cabecera con logo, título y subtítulo
-        cabecera("Inicia sesión para acceder al panel bursátil" if modo == "entrar" else "Crea tu cuenta gratis y conversa con tu agente de IA")
-
-        # --- Iniciar sesión ---
+        # Cabecera con logo, título y subtítulo, y las pestañas para pasar de un formulario al otro
         if modo == "entrar":
-            with st.form("form_login", border=True):
-                correo = st.text_input("Email", key="inicio_sesion_correo", placeholder="tucorreo@dominio.com")
-                contrasena = st.text_input("Contraseña", type="password", key="inicio_sesion_contrasena")
-                enviar = st.form_submit_button("Entrar", width="stretch", type="primary")
-            if enviar:
-                # Valida credenciales; si son correctas inicia sesión (rerun), si el correo no está confirmado ofrece reenviar el enlace, si no muestra el error
-                resultado = autenticar_usuario(correo, contrasena)
-                if resultado["ok"]:
-                    iniciar_sesion(resultado["usuario"])
-                elif resultado.get("codigo") == "sin_verificar":
-                    st.session_state[CLAVE_PENDIENTE] = resultado["pendiente"]
-                    st.rerun()
-                else:
-                    st.error(resultado["mensaje"])
-            enlaces = ["<a href='?acceso=recordar' target='_self'>¿Olvidaste tu contraseña?</a>",
-                       "¿Aún no tienes cuenta? <a href='?acceso=crear' target='_self'>Créala gratis</a>"]
-
-        # --- Crear cuenta ---
+            cabecera("P&amp;J Finance", "Inicia sesión para acceder al panel bursátil")
         else:
-            with st.form("form_registro", border=True):
-                nombre = st.text_input("Nombre", key="registro_nombre", placeholder="Nombre...Ap")
-                correo_r = st.text_input("Email", key="registro_correo", placeholder="tucorreo@dominio.com")
-                contrasena_r = st.text_input("Contraseña", type="password", key="registro_contrasena",
-                                       help="Mínimo 8 caracteres, con letras y números")
-                crear = st.form_submit_button("Crear cuenta", width="stretch", type="primary")
-            if crear:
-                # Registra al usuario nuevo y valida los datos (nombre, email, contraseña)
-                resultado = registrar_usuario(nombre, correo_r, contrasena_r)
-                if not resultado["ok"]:
-                    st.error(resultado["mensaje"])
-                elif resultado.get("requiere_verificacion"):
-                    # Con verificación activa no se inicia sesión: primero debe confirmar su correo
-                    st.session_state[CLAVE_PENDIENTE] = resultado["usuario"]
-                    st.rerun()
-                else:
-                    # Inicia sesión automáticamente tras registrarse
-                    iniciar_sesion(resultado["usuario"])
-            enlaces = ["¿Ya tienes cuenta? <a href='?acceso=entrar' target='_self'>Inicia sesión</a>"]
+            cabecera("Crea tu cuenta", "Te enviaremos un enlace para confirmar tu correo")
 
-        # Enlaces para pasar de un formulario al otro y volver a la portada
-        enlaces_inferiores(*enlaces, "<a href='./' target='_self'>← Volver a la portada</a>")
+        with st.container(border=True):
+            pestanas(modo)
+
+            # --- Iniciar sesión ---
+            if modo == "entrar":
+                with st.form("form_login", border=False):
+                    correo = st.text_input("Correo electrónico", key="inicio_sesion_correo", placeholder="nombre@correo.com")
+                    contrasena = st.text_input("Contraseña", type="password", key="inicio_sesion_contrasena")
+                    st.markdown("<p style='text-align:right; margin:-6px 0 4px; font-size:13px;'><a href='?acceso=recordar' target='_self'>¿Olvidaste tu contraseña?</a></p>",
+                                unsafe_allow_html=True)
+                    enviar = st.form_submit_button("Entrar", width="stretch", type="primary")
+                if enviar:
+                    # Valida credenciales; si son correctas inicia sesión (rerun), si el correo no está confirmado ofrece reenviar el enlace, si no muestra el error
+                    resultado = autenticar_usuario(correo, contrasena)
+                    if resultado["ok"]:
+                        iniciar_sesion(resultado["usuario"])
+                    elif resultado.get("codigo") == "sin_verificar":
+                        st.session_state[CLAVE_PENDIENTE] = resultado["pendiente"]
+                    else:
+                        st.session_state.pop(CLAVE_PENDIENTE, None)
+                        st.error(resultado["mensaje"])
+                aviso_sin_verificar()
+
+            # --- Crear cuenta ---
+            else:
+                nombre = st.text_input("Nombre", key="registro_nombre", placeholder="Ana Pérez")
+                correo_r = st.text_input("Correo electrónico", key="registro_correo", placeholder="nombre@correo.com")
+                contrasena_r = st.text_input("Contraseña", type="password", key="registro_contrasena")
+                medidor_contrasena(contrasena_r)
+                crear = st.button("Crear cuenta", width="stretch", type="primary", key="registro_crear")
+                if crear:
+                    # Registra al usuario nuevo y valida los datos (nombre, email, contraseña)
+                    resultado = registrar_usuario(nombre, correo_r, contrasena_r)
+                    if not resultado["ok"]:
+                        st.error(resultado["mensaje"])
+                    elif resultado.get("requiere_verificacion"):
+                        # Con verificación activa no se inicia sesión: primero debe confirmar su correo
+                        st.session_state[CLAVE_REVISA] = resultado["usuario"]
+                        iniciar_espera_reenvio()
+                        st.rerun()
+                    else:
+                        # Inicia sesión automáticamente tras registrarse
+                        iniciar_sesion(resultado["usuario"])
+
+        # Enlace para volver a la portada
+        enlaces_inferiores("<a href='./' target='_self'>← Volver a la portada</a>")
 
     # Corta la ejecución para que no se pinte el resto de la app
     st.stop()
