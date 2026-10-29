@@ -25,6 +25,18 @@ from componentes_plataforma.portada import secciones
 
 # CSS de la portada (los 8 cortes de pantalla de la empresa); se vuelve a leer solo si el archivo cambia en disco.
 _CSS = Path(__file__).parent / "estilos.css"
+# Cada cuántos segundos se refresca la sección de mercados.
+REFRESCO_S = 5
+
+
+# TITULO MERCADOS EN VIVO
+
+@st.fragment(run_every=f"{REFRESCO_S}s")
+def _mercados_en_vivo() -> None:
+    """Sección «Mercados» como fragmento: se vuelve a dibujar sola cada pocos segundos (solo ella, no la página) para mostrar los precios más recientes de la caché de `datos.py`.
+
+    Los visitantes solo leen la caché del servidor, así que refrescar no genera peticiones a Capital.com."""
+    st.html(secciones.activos())
 
 
 # TITULO RENDERIZAR PORTADA
@@ -32,10 +44,11 @@ _CSS = Path(__file__).parent / "estilos.css"
 def renderizar_portada() -> None:
     """Dibuja la portada completa en la página de Streamlit. No recibe parámetros ni devuelve nada.
 
-    Inyecta el CSS (que además oculta el relleno de Streamlit para usar todo el ancho) y el HTML de cada sección, en orden de arriba a abajo."""
+    Inyecta el CSS (que además oculta el relleno de Streamlit para usar todo el ancho) y el HTML de cada sección, en orden de arriba a abajo; la sección de mercados es un fragmento que se refresca sola."""
     st.html(estilos(_CSS))
-    st.html("".join(f() for f in (secciones.barra, secciones.heroe, secciones.porque, secciones.graficos, secciones.agente, secciones.activos,
-                                 secciones.noticias, secciones.herramientas, secciones.pasos, secciones.planes, secciones.preguntas, secciones.cierre, secciones.pie)))
+    st.html("".join(f() for f in (secciones.barra, secciones.heroe, secciones.porque, secciones.graficos, secciones.agente)))
+    _mercados_en_vivo()
+    st.html("".join(f() for f in (secciones.noticias, secciones.herramientas, secciones.pasos, secciones.planes, secciones.preguntas, secciones.cierre, secciones.pie)))
 
 
 # -------------------------------------------------------------------------------------------------------

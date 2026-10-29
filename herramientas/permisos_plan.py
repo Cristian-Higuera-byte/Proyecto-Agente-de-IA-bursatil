@@ -13,12 +13,12 @@
 
 """Qué puede hacer cada usuario según su plan: consulta de límites y funciones, con mensajes listos para mostrar.
 
-La tabla de funciones y valores de cada plan (Gratis, Básico, Pro y Avanzado) vive en `herramientas/plan_funciones.json`: allí está el
+La tabla de funciones y valores de cada plan (Gratis, Básico, Profesional y Avanzado) vive en `herramientas/plan_funciones.json`: allí está el
 catálogo de funciones (nombre, categoría, tipo y si ya se aplica o está por aplicar) y el valor de cada una en cada plan. Los tokens del
 agente y los precios salen de `PLANES_IA` en `configuracion.py`. Este módulo solo lee esa tabla y la entrega:
 
   - `valor(funcion)` / `limite(funcion)` / `permite(funcion)`: lo que permite el plan actual (`limite` devuelve None si no hay tope);
-  - `plan_minimo(funcion)`: el primer plan que la incluye (para decir «disponible desde el plan Pro»);
+  - `plan_minimo(funcion)`: el primer plan que la incluye (para decir «disponible desde el plan Profesional»);
   - `mensaje_bloqueo(funcion)`: el texto que se le muestra al usuario cuando topa con un límite;
   - `exigir(funcion)`: lanza `ErrorPlan` si el plan no la permite;
   - `para_grafico()`: los límites que necesita el gráfico (se le inyectan al abrirlo).
@@ -65,10 +65,10 @@ def funcion(clave: str) -> dict | None:
 def valor(clave: str, plan: str | None = None):
     """Valor de la función `clave` en el `plan` (por defecto el del usuario actual): un número, verdadero/falso, una lista o un texto.
 
-    Los tokens del mes salen de `configuracion.PLANES_IA`. Una función desconocida devuelve None."""
+    Los tokens de la semana salen de `configuracion.PLANES_IA`. Una función desconocida devuelve None."""
     plan = plan or cuota_ia.plan_actual()
-    if clave == "tokens_mes":
-        return configuracion.PLANES_IA[plan]["tokens_mes"]
+    if clave == "tokens_semana":
+        return configuracion.PLANES_IA[plan]["tokens_semana"]
     return matriz()["planes"].get(plan, {}).get(clave)
 
 
@@ -102,7 +102,7 @@ def plan_minimo(clave: str) -> str | None:
 # TITULO NOMBRE PLAN
 
 def nombre_plan(plan: str | None) -> str:
-    """Nombre visible del plan (por ejemplo «Pro»); cadena vacía si la clave no existe."""
+    """Nombre visible del plan (por ejemplo «Profesional»); cadena vacía si la clave no existe."""
     return configuracion.PLANES_IA.get(plan or "", {}).get("nombre", "")
 
 

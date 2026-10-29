@@ -85,17 +85,23 @@ REINTENTOS_LLM = 3                 # reintentos automáticos ante fallos de red 
 # ──────────────────────────────────────────────────────────────
 # Cuota de uso de la IA por plan (ver herramientas/cuota_ia.py)
 # ──────────────────────────────────────────────────────────────
-# Tokens mensuales de cada plan. Cuentan los tokens de entrada y de salida que informa la API, multiplicados por el peso del modelo
-# (más abajo). Una consulta típica gasta del orden de 25.000 tokens (la entrada incluye el prompt, las herramientas y el historial que
-# se reenvían en cada llamada): son cifras de partida para ajustar con el consumo real que muestra el Laboratorio.
-# `precios` son los precios mensuales (USD) que se muestran en la página de Planes para medir el interés (prueba de demanda): a cada usuario se
-# le asigna siempre el mismo, así se comparan las tasas de clic entre precios. Todavía no se cobra nada.
+# Tokens SEMANALES de cada plan: la cuota se reinicia cada semana (ver REINICIO_SEMANAL). Cuentan los tokens de entrada y de salida que informa la API,
+# multiplicados por el peso del modelo (más abajo). Una consulta típica gasta del orden de 25.000 tokens (la entrada incluye el prompt, las herramientas
+# y el historial que se reenvían en cada llamada): son cifras de partida para ajustar con el consumo real que muestra el Laboratorio.
+# Cuentas de costo (flash, 0,15 a 0,30 USD por millón de tokens ponderados, 4,33 semanas por mes): aun gastando todo cada semana, el costo mensual de IA
+# queda por debajo del ingreso neto de cada plan (Básico 2,6 USD, Profesional 7,8 USD, Avanzado 15,6 USD como máximo).
+# `precios` son los precios mensuales (USD) de la página de Planes y de la portada. Con un solo precio por plan ya no hay prueba de precios A/B
+# (si se agregan más precios a un plan, a cada usuario se le asigna siempre el mismo y se comparan los clics, como antes).
 PLANES_IA: dict[str, dict] = {
-    "gratis": {"nombre": "Gratis", "tokens_mes": 300_000, "precios": [0]},                         # ≈ 12 consultas: para probar el agente
-    "basico": {"nombre": "Básico", "tokens_mes": 3_000_000, "precios": [5, 9, 12]},               # ≈ 120 consultas
-    "pro": {"nombre": "Pro", "tokens_mes": 10_000_000, "precios": [12, 19, 29]},                  # ≈ 400 consultas
-    "avanzado": {"nombre": "Avanzado", "tokens_mes": 30_000_000, "precios": [29, 49, 69]},        # ≈ 1.200 consultas
+    "gratis": {"nombre": "Gratis", "tokens_semana": 300_000, "precios": [0]},                         # ≈ 12 consultas por semana: para probar el agente
+    "basico": {"nombre": "Básico", "tokens_semana": 2_000_000, "precios": [4.99]},                    # ≈ 80 consultas por semana
+    "pro": {"nombre": "Profesional", "tokens_semana": 6_000_000, "precios": [14.99]},                 # ≈ 240 consultas por semana
+    "avanzado": {"nombre": "Avanzado", "tokens_semana": 12_000_000, "precios": [29.99]},              # ≈ 480 consultas por semana
 }
+# Cuándo se reinicia la cuota de tokens: cada semana, el día `dia` (0 = lunes … 6 = domingo) a la hora indicada, en la zona horaria `zona` (con
+# cambio de horario incluido). El domingo por la tarde queda justo antes de la apertura semanal del mercado de divisas. Si la zona no está disponible
+# (en Windows hace falta el paquete tzdata), se usa la hora local del servidor.
+REINICIO_SEMANAL = {"zona": "America/Santiago", "dia": 6, "hora": 18, "minuto": 0}
 # Plan de un usuario al que todavía no se le asignó ninguno (modo multiusuario) y plan del modo de un solo usuario (desarrollo: no se te
 # limita el agente en tu propio equipo; para probar el límite, cambia el plan en el Laboratorio).
 PLAN_POR_DEFECTO = "gratis"

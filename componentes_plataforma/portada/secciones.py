@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import base64
 import random
+import time
 from functools import lru_cache
 from html import escape
 from pathlib import Path
@@ -36,7 +37,7 @@ IMAGENES = Path(__file__).parent / "imagenes"
 # Enlaces de acceso: el parámetro de la URL decide qué formulario se muestra.
 ENTRAR = "?acceso=entrar"
 CREAR = "?acceso=crear"
-# Tokens que cuesta, en promedio, una consulta al agente (para convertir la cuota del plan en consultas aproximadas).
+# Tokens que cuesta, en promedio, una consulta al agente (para convertir la cuota semanal del plan en consultas aproximadas).
 TOKENS_POR_CONSULTA = 25_000
 
 
@@ -68,16 +69,19 @@ def _captura(nombre: str, alt: str, clase: str = "") -> str:
 
 # TITULO MINIGRAFICO
 
-def _spark(simbolo: str, sube: bool, ancho: int = 96, alto: int = 32) -> str:
-    """Minigráfico ilustrativo de una fila de cotizaciones (línea con semilla fija por símbolo, que termina arriba si el activo sube y abajo si baja), como imagen data URI."""
-    azar = random.Random(simbolo)
-    valor, puntos = 50.0, []
-    for i in range(18):
-        valor += azar.uniform(-4, 4) + (1.1 if sube else -1.1)
-        puntos.append(valor)
+def _spark(simbolo: str, sube: bool, serie: list | None = None, ancho: int = 96, alto: int = 32) -> str:
+    """Minigráfico de una fila de cotizaciones como imagen data URI. Con `serie` (cierres reales) dibuja esa serie; sin ella, una línea ILUSTRATIVA (semilla fija por símbolo, que termina arriba si el activo sube y abajo si baja), solo para los datos de ejemplo."""
+    if serie:
+        puntos = list(serie)
+    else:
+        azar = random.Random(simbolo)
+        valor, puntos = 50.0, []
+        for i in range(18):
+            valor += azar.uniform(-4, 4) + (1.1 if sube else -1.1)
+            puntos.append(valor)
     minimo, maximo = min(puntos), max(puntos)
     rango = (maximo - minimo) or 1
-    xy = " ".join(f"{i * ancho / 17:.1f},{alto - 3 - (v - minimo) / rango * (alto - 6):.1f}" for i, v in enumerate(puntos))
+    xy = " ".join(f"{i * ancho / (len(puntos) - 1):.1f},{alto - 3 - (v - minimo) / rango * (alto - 6):.1f}" for i, v in enumerate(puntos))
     color = "#2ea043" if sube else "#f85149"
     svg = f"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 {ancho} {alto}'><polyline points='{xy}' fill='none' stroke='{color}' stroke-width='2' stroke-linejoin='round' stroke-linecap='round'/></svg>"
     return f"<img class='pj-p-spark' alt='' src='data:image/svg+xml;base64,{base64.b64encode(svg.encode()).decode()}'>"
@@ -97,7 +101,7 @@ def barra() -> str:
     enlaces = "".join(f"<a href='#{escape(ancla)}'>{escape(texto)}</a>" for texto, ancla in C["nav"])
     return (
         "<header class='pj-p-barra'><div class='pj-p-cont pj-p-barra-fila'>"
-        "<a class='pj-p-logo' href='#inicio'><b>P&amp;J</b><span>Piña &amp; Jara</span></a>"
+        "<a class='pj-p-logo' href='#inicio'><b>P&amp;J</b><span>Finance</span></a>"
         f"<nav class='pj-p-nav'>{enlaces}</nav>"
         f"<div class='pj-p-acciones'><a class='pj-p-btn pj-p-btn-suave' href='{ENTRAR}' target='_self'>Iniciar sesión</a>"
         f"<a class='pj-p-btn pj-p-btn-claro' href='{CREAR}' target='_self'>Regístrate</a></div>"
@@ -171,17 +175,24 @@ def agente() -> str:
 # TITULO ACTIVOS
 
 def activos() -> str:
-    """Sección «Mercados»: tabla de activos con precio, variación (verde si sube, rojo si baja) y minigráfico. Los datos salen de `datos.activos()`; si son de ejemplo, lo dice debajo."""
+    """Sección «Mercados»: tabla de activos con precio, variación (verde si sube, rojo si baja) y minigráfico. Los datos salen de `datos.activos()`: en vivo si hay lectura reciente de Capital.com (con la hora de la
+    última actualización y minigráficos reales) y, si no, de ejemplo (y lo dice debajo)."""
     a = C["activos"]
     lista = datos.activos()
+    en_vivo = not any(x.get("ejemplo") for x in lista)
     filas = ""
     for x in lista:
         sube = x["var"] >= 0
         signo = "+" if sube else ""
-        filas += (f"<div class='pj-p-fila'><div class='pj-p-fila-nom'><b>{escape(x['simbolo'])}</b><span>{escape(x['nombre'])}</span></div>{_spark(x['simbolo'], sube)}"
+        grafico = _spark(x["simbolo"], sube, x.get("serie")) if (x.get("serie") or not en_vivo) else "<span class='pj-p-spark pj-p-spark-vacio'></span>"
+        filas += (f"<div class='pj-p-fila'><div class='pj-p-fila-nom'><b>{escape(x['simbolo'])}</b><span>{escape(x['nombre'])}</span></div>{grafico}"
                   f"<div class='pj-p-fila-precio'>{_num(x['precio'], x['decimales'])}</div>"
                   f"<div class='pj-p-fila-var {'pj-p-sube' if sube else 'pj-p-baja'}'>{signo}{_num(x['var'], 2)}%</div></div>")
-    nota = f"<p class='pj-p-nota pj-p-centro'>{escape(a['nota_ejemplo'])}</p>" if any(x.get("ejemplo") for x in lista) else ""
+    if en_vivo:
+        hora = time.strftime("%H:%M:%S", time.localtime(max(x["ts"] for x in lista)))
+        nota = f"<p class='pj-p-vivo pj-p-centro'><span class='pj-p-punto-vivo'></span>{escape(a['en_vivo'])} · actualizado a las {hora}</p>"
+    else:
+        nota = f"<p class='pj-p-nota pj-p-centro'>{escape(a['nota_ejemplo'])}</p>"
     return (f"<section class='pj-p-seccion' id='activos'><div class='pj-p-cont pj-p-angosto2'><h2 class='pj-p-centro'>{escape(a['titulo'])}</h2>"
             f"<p class='pj-p-sub pj-p-centro'>{escape(a['subtitulo'])}</p><div class='pj-p-tabla'>{filas}</div>{nota}"
             f"<div class='pj-p-centro pj-p-espacio'><a class='pj-p-btn pj-p-btn-borde pj-p-btn-grande' href='{CREAR}' target='_self'>{escape(a['boton'])}</a></div></div></section>")
@@ -233,17 +244,28 @@ def pasos() -> str:
 # TITULO PLANES
 
 def planes() -> str:
-    """Tarjetas de los planes tomadas de configuracion.PLANES_IA: nombre, para quién es y consultas aproximadas al mes. No muestra precios (todavía se mide el interés)."""
+    """Tarjetas de los planes tomadas de configuracion.PLANES_IA: nombre, para quién es, precio mensual y consultas aproximadas por semana (la cuota se reinicia cada semana).
+
+    El precio es el de `precios` del plan (hoy uno solo por plan); si un plan tuviera varios (prueba de precios), se muestra el menor con «desde»."""
     p = C["planes"]
     titulos = datos_json(Path(__file__).parent.parent / "planes" / "planes.json")["titulos"]
     tarjetas = ""
     for clave, plan in configuracion.PLANES_IA.items():
-        consultas = max(1, plan["tokens_mes"] // TOKENS_POR_CONSULTA)
+        consultas = max(1, plan["tokens_semana"] // TOKENS_POR_CONSULTA)
         miles = f"{consultas:,}".replace(",", ".")   # separador de miles en español
         gratis = clave == "gratis"
+        precios = plan.get("precios") or [0]
+        precio_min = min(precios)
+        if precio_min <= 0:
+            precio = "<p class='pj-p-plan-precio'><b>Gratis</b></p>"
+        else:
+            valor = f"{precio_min:,.2f}".replace(",", "@").replace(".", ",").replace("@", ".")
+            valor = valor[:-3] if valor.endswith(",00") else valor
+            desde = "<i>desde</i>" if len(set(precios)) > 1 else ""
+            precio = f"<p class='pj-p-plan-precio'>{desde}<b>{valor} USD</b><i>al mes</i></p>"
         tarjetas += (
-            f"<article class='pj-p-plan{' pj-p-plan-gratis' if gratis else ''}'><h3>{escape(plan['nombre'])}</h3><p class='pj-p-plan-tit'>{escape(titulos.get(clave, ''))}</p>"
-            f"<p class='pj-p-plan-n'><b>≈ {miles}</b> consultas al mes</p>"
+            f"<article class='pj-p-plan{' pj-p-plan-gratis' if gratis else ''}'><h3>{escape(plan['nombre'])}</h3><p class='pj-p-plan-tit'>{escape(titulos.get(clave, ''))}</p>{precio}"
+            f"<p class='pj-p-plan-n'><b>≈ {miles}</b> consultas por semana</p>"
             f"<a class='pj-p-btn {'pj-p-btn-marca' if gratis else 'pj-p-btn-borde'}' href='{CREAR}' target='_self'>{'Empezar gratis' if gratis else 'Crear cuenta'}</a></article>"
         )
     return (f"<section class='pj-p-seccion' id='planes'><div class='pj-p-cont'><h2 class='pj-p-centro'>{escape(p['titulo'])}</h2>"
@@ -274,7 +296,7 @@ def cierre() -> str:
 def pie() -> str:
     """Pie de página: aviso de riesgo, enlaces de acceso y créditos de la empresa."""
     return (f"<footer class='pj-p-pie'><div class='pj-p-cont'><p class='pj-p-riesgo'>{escape(C['riesgo'])}</p>"
-            f"<div class='pj-p-pie-fila'><a class='pj-p-logo' href='#inicio'><b>P&amp;J</b><span>Piña &amp; Jara</span></a>"
+            f"<div class='pj-p-pie-fila'><a class='pj-p-logo' href='#inicio'><b>P&amp;J</b><span>Finance</span></a>"
             f"<span>Sitio creado, programado y diseñado por <a href='https://www.pinayjara.cl' target='_blank' rel='noopener'>Piña y Jara Transportes y Servicios Ltda.</a></span></div></div></footer>")
 
 

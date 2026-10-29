@@ -26,7 +26,7 @@ import streamlit as st
 
 import configuracion
 from componentes_plataforma import _estaticos
-from componentes_plataforma.planes.panel import comprar_con_billetera, precio_de
+from componentes_plataforma.planes.panel import comprar_con_billetera, precio_de, usd_texto
 from herramientas import billetera, cuota_ia, demanda
 
 # Hoja de estilos de la vista, junto a este archivo
@@ -105,7 +105,7 @@ def renderizar_panel_billetera(main=None) -> None:
         c1.html(f"<div class='bil-tarjeta'><div class='bil-etiqueta'>Saldo disponible</div><div class='bil-saldo'>{escape(_usd(saldo))}</div>"
                 f"<div class='bil-nota'>Billetera virtual · {escape(cfg['moneda'])}</div></div>")
         c2.html(f"<div class='bil-tarjeta'><div class='bil-etiqueta'>Plan actual</div><div class='bil-valor'>{escape(configuracion.PLANES_IA[actual]['nombre'])}</div>"
-                f"<div class='bil-nota'>{escape(cuota_ia.formato(configuracion.PLANES_IA[actual]['tokens_mes']))} tokens de IA al mes</div></div>")
+                f"<div class='bil-nota'>{escape(cuota_ia.formato(configuracion.PLANES_IA[actual]['tokens_semana']))} tokens de IA por semana</div></div>")
         c3.html(f"<div class='bil-tarjeta'><div class='bil-etiqueta'>Recargado este mes</div><div class='bil-valor'>{escape(_usd(recargado))}</div>"
                 f"<div class='bil-nota'>Tope mensual: {escape(_usd(float(cfg['recarga_mensual_max'])))}</div></div>")
 
@@ -126,7 +126,7 @@ def renderizar_panel_billetera(main=None) -> None:
             variantes = max(len(p.get("precios", [0])) for p in configuracion.PLANES_IA.values())
             with col:
                 col.html(f"<div class='bil-plan{' bil-plan-actual' if clave == actual else ''}'><div class='bil-plan-nombre'>{escape(configuracion.PLANES_IA[clave]['nombre'])}</div>"
-                         f"<div class='bil-plan-precio'>{precio:,.0f} USD <span>al mes</span></div></div>")
+                         f"<div class='bil-plan-precio'>{usd_texto(precio)} USD <span>al mes</span></div></div>")
                 if clave == actual:
                     st.button("Tu plan actual", key=f"billetera_plan_{clave}", width="stretch", disabled=True)
                 else:

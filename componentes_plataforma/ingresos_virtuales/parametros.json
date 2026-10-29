@@ -1,7 +1,7 @@
 {
   "activos": ["suscripcion", "recargo", "referido", "performance", "patrimonio"],
   "dias": 365,
-  "suscripcion_mensual": 19.0,
+  "suscripcion_mensual": 14.99,
   "recargo_fijo": 0.5,
   "recargo_por_lote": 0.5,
   "spread_usd_por_lote": 6.0,
@@ -17,7 +17,8 @@
   },
   "planes": [
     {"nombre": "Gratis", "precio": 0.0, "tope_ia": 0.5},
-    {"nombre": "Pro", "precio": 19.0, "tope_ia": 6.0},
-    {"nombre": "Avanzado", "precio": 49.0, "tope_ia": 25.0}
+    {"nombre": "Básico", "precio": 4.99, "tope_ia": 2.6},
+    {"nombre": "Profesional", "precio": 14.99, "tope_ia": 7.8},
+    {"nombre": "Avanzado", "precio": 29.99, "tope_ia": 15.6}
   ]
 }
