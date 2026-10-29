@@ -122,7 +122,7 @@ def _entrada(uid: str, agente, error_agente: str, en_curso: bool, vistos, agotad
     """
     # Texto de ayuda de la caja según el estado.
     texto_guia = (
-        "Alcanzaste el límite de tokens de tu plan este mes" if agotada else
+        "Alcanzaste el límite de tokens de tu plan esta semana" if agotada else
         "El agente está respondiendo… puedes moverte por la plataforma, te avisaremos"
         if en_curso else "Escribe tu consulta o pide un gráfico en imagen..."
     )

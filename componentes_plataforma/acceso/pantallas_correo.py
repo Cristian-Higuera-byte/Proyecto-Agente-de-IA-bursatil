@@ -39,7 +39,7 @@ def cabecera(subtitulo: str) -> None:
     """Dibuja el logo, el título y un subtítulo, centrados, como encabezado de cualquier pantalla de acceso."""
     st.markdown(
         f"<div style='text-align:center; margin-top:8vh;'>{_LOGO_HTML}"
-        "<h1 style='margin:10px 0 2px;'>Piña &amp; Jara · Terminal</h1>"
+        "<h1 style='margin:10px 0 2px;'>P&amp;J Finance</h1>"
         f"<p style='color:#8b949e; margin:0 0 18px;'>{subtitulo}</p></div>",
         unsafe_allow_html=True,
     )

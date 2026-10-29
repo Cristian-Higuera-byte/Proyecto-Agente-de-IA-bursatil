@@ -1,5 +1,5 @@
 {
- "marca": "Piña & Jara",
+ "marca": "P&J Finance",
  "nav": [
   [
    "Gráficos",
@@ -55,7 +55,7 @@
   "Microsoft"
  ],
  "porque": {
-  "titulo": "¿Por qué elegir Piña & Jara?",
+  "titulo": "¿Por qué elegir P&J Finance?",
   "subtitulo": "Pensada para que tomes decisiones con más información y más calma.",
   "tarjetas": [
    [
@@ -157,8 +157,8 @@
  },
  "planes": {
   "titulo": "Empieza gratis, crece cuando lo necesites",
-  "subtitulo": "El agente va en todos los planes; cambia la cantidad de consultas y las funciones avanzadas.",
-  "nota": "Consultas aproximadas por mes. El plan Gratis no requiere tarjeta."
+  "subtitulo": "El agente va en todos los planes; cambian las consultas de cada semana y las funciones avanzadas.",
+  "nota": "Precios en USD por mes. Las consultas se renuevan cada domingo a las 18:00 (hora de Chile) y son aproximadas: el consumo real depende de cada consulta. El plan Gratis no requiere tarjeta."
  },
  "faq": {
   "titulo": "Preguntas frecuentes",
@@ -166,6 +166,10 @@
    [
     "¿Necesito dinero para empezar?",
     "No. Puedes crear tu cuenta gratis y operar en una cuenta demo de Capital.com, que usa dinero virtual."
+   ],
+   [
+    "¿Cuándo se renuevan mis consultas del agente?",
+    "Cada semana, el domingo a las 18:00 (hora de Chile), tu cuota del agente vuelve a empezar desde cero. En la plataforma ves siempre cuánto llevas usado y cuándo se renueva."
    ],
    [
     "¿El agente puede operar sin mi permiso?",
@@ -218,7 +222,8 @@
   "titulo": "Los mercados, a un vistazo",
   "subtitulo": "Divisas, índices, materias primas, criptomonedas y acciones: sigue lo que te interesa y llévalo directo al gráfico.",
   "boton": "Ver todos los mercados",
-  "nota_ejemplo": "Cotizaciones de ejemplo. Dentro de la plataforma ves los precios y variaciones del mercado en tiempo real."
+  "nota_ejemplo": "Cotizaciones de ejemplo mientras se establece la conexión con el mercado. Dentro de la plataforma ves los precios y variaciones en tiempo real.",
+  "en_vivo": "Precios en vivo"
  },
  "noticias": {
   "titulo": "Noticias que mueven el mercado",

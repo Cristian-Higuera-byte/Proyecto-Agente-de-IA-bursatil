@@ -72,6 +72,14 @@ def dialogo_bloqueo(clave: str) -> None:
         st.rerun()
 
 
+# TITULO TEXTO DE PRECIO
+
+def usd_texto(precio: float) -> str:
+    """Precio en formato español, con coma decimal y sin «,00» si es redondo (4,99 · 15)."""
+    texto = f"{float(precio):,.2f}".replace(",", "@").replace(".", ",").replace("@", ".")
+    return texto[:-3] if texto.endswith(",00") else texto
+
+
 # TITULO PRECIO DEL PLAN
 
 def _precio_plan(clave: str, variante: int) -> float:
@@ -91,7 +99,7 @@ def _lineas_plan(clave: str) -> list:
     def n(x):
         """Número con puntos de miles."""
         return f"{x:,.0f}".replace(",", ".")
-    lineas = [f"{n(v('tokens_mes'))} tokens de IA al mes"]
+    lineas = [f"{n(v('tokens_semana'))} tokens de IA por semana"]
     lineas.append("Modelo avanzado del agente (perfil profundo)" if "profundo" in (v("perfiles_ia") or []) else "Agente rápido y de análisis")
     lineas.append(f"{n(v('vigilancias_activas'))} vigilancia{'s' if v('vigilancias_activas') != 1 else ''} automática{'s' if v('vigilancias_activas') != 1 else ''}"
                   if v("vigilancias_activas") else "Sin vigilancias automáticas")
@@ -107,16 +115,16 @@ def _lineas_plan(clave: str) -> list:
 # TITULO TARJETA PLAN
 
 def _tarjeta_plan(clave: str, precio: float, actual: bool) -> str:
-    """HTML de la tarjeta de un plan: nombre, descripción corta, precio, tokens al mes y lo más importante que incluye."""
+    """HTML de la tarjeta de un plan: nombre, descripción corta, precio, tokens por semana y lo más importante que incluye."""
     plan = configuracion.PLANES_IA[clave]
     items = "".join(f"<li>{escape(c)}</li>" for c in _lineas_plan(clave)[1:])
     marca = "<span class='planes-actual'>Tu plan actual</span>" if actual else ""
-    precio_txt = "Gratis" if precio <= 0 else f"{precio:,.0f} USD"
+    precio_txt = "Gratis" if precio <= 0 else f"{usd_texto(precio)} USD"
     return (f"<div class='planes-tarjeta{' planes-tarjeta-actual' if actual else ''}'>{marca}"
             f"<div class='planes-nombre'>{escape(plan['nombre'])}</div>"
             f"<div class='planes-desc'>{escape(_TEXTOS['titulos'].get(clave, ''))}</div>"
             f"<div class='planes-precio'>{precio_txt}<span>{'' if precio <= 0 else ' al mes'}</span></div>"
-            f"<div class='planes-tokens'>{cuota_ia.formato(plan['tokens_mes'])} tokens al mes</div><ul>{items}</ul></div>")
+            f"<div class='planes-tokens'>{cuota_ia.formato(plan['tokens_semana'])} tokens por semana</div><ul>{items}</ul></div>")
 
 
 # TITULO PRECIO DE
@@ -142,7 +150,7 @@ def comprar_con_billetera(clave: str, precio: float, variante: int, usuario_id, 
         return
     demanda.registrar("plan_activado", usuario_id, clave, precio, variante, "billetera", anterior=anterior)
     nombre = configuracion.PLANES_IA[clave]["nombre"]
-    st.session_state[_CLAVE_AVISO] = f"Compraste el plan {nombre} por {precio:,.0f} USD de tu billetera virtual (saldo: {restante:,.2f} USD).".replace(",", "X").replace(".", ",").replace("X", ".")
+    st.session_state[_CLAVE_AVISO] = f"Compraste el plan {nombre} por {precio:,.2f} USD de tu billetera virtual (saldo: {restante:,.2f} USD).".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
 # TITULO USAR PLAN
@@ -264,7 +272,7 @@ def renderizar_panel_planes(main=None) -> None:
                               type="primary" if clave != "gratis" else "secondary", width="stretch", on_click=_usar_plan,
                               args=(clave, precio, variante, uid, origen))
                     if clave != "gratis":
-                        st.button(f"Comprar con billetera ({precio:,.0f} USD)", key=f"plan_comprar_{clave}", icon=":material/account_balance_wallet:",
+                        st.button(f"Comprar con billetera ({usd_texto(precio)} USD)", key=f"plan_comprar_{clave}", icon=":material/account_balance_wallet:",
                                   width="stretch", on_click=comprar_con_billetera, args=(clave, precio, variante, uid, origen))
         interes = st.session_state.get(_CLAVE_INTERES)
         if interes:

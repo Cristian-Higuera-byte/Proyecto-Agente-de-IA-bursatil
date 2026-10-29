@@ -8,8 +8,8 @@
     {"clave": "soporte", "nombre": "Soporte y acceso"}
   ],
   "funciones": [
-    {"clave": "tokens_mes", "nombre": "Tokens de IA al mes", "categoria": "agente", "tipo": "cantidad", "estado": "aplicado",
-     "descripcion": "Cuota mensual de tokens del agente (entrada + salida, ponderada por modelo). Sale de PLANES_IA en configuracion.py."},
+    {"clave": "tokens_semana", "nombre": "Tokens de IA por semana", "categoria": "agente", "tipo": "cantidad", "estado": "aplicado",
+     "descripcion": "Cuota semanal de tokens del agente (entrada + salida, ponderada por modelo); se reinicia cada domingo a las 18:00 (hora de Chile). Sale de PLANES_IA en configuracion.py."},
     {"clave": "perfiles_ia", "nombre": "Perfiles del agente", "categoria": "agente", "tipo": "lista", "estado": "aplicado",
      "descripcion": "Perfiles de IA que puede elegir. El perfil «profundo» usa el modelo avanzado, unas 12 veces más caro."},
     {"clave": "vigilancias_activas", "nombre": "Vigilancias automáticas a la vez", "categoria": "agente", "tipo": "cantidad", "unidad": "vigilancias", "estado": "aplicado",
