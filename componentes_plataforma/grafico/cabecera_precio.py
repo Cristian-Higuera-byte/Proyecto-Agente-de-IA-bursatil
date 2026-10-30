@@ -89,8 +89,11 @@ def renderizar_cabecera_precio(activo_visible: str, digits: int) -> None:
                 .pj-cab-simbolo {{ font-size: 17px !important; }}
                 .pj-cab-precio-datos > span[data-pj-f="px"] {{ font-size: 18px !important; }}
                 .pj-cab-bidask {{ font-size: 11px !important; }}
-                .pj-cab-simbolo {{ cursor: pointer; }}
-                .pj-cab-simbolo::after {{ content: " \\25BE"; color: #8b949e; font-size: 14px; }}
+                /* El símbolo es el botón que abre la lista de activos: se dibuja como botón (fondo, borde y flecha de color) y se hunde al tocarlo. */
+                .pj-cab-simbolo {{ cursor: pointer; display: inline-flex; align-items: center; gap: 8px; background: #1f2733; border: 1px solid #3b4757; border-radius: 8px;
+                    padding: 3px 9px 3px 11px !important; -webkit-tap-highlight-color: transparent; transition: background .15s, border-color .15s; }}
+                .pj-cab-simbolo::after {{ content: ""; width: 7px; height: 7px; border-right: 2px solid #58a6ff; border-bottom: 2px solid #58a6ff; transform: rotate(45deg) translateY(-2px); }}
+                .pj-cab-simbolo:active {{ background: #2b3646; border-color: #58a6ff; }}
                 /* Horizontal bajo (celulares en horizontal, hasta 500 px de alto): una sola línea de 30 px, para dejarle alto al gráfico. */
                 @media (orientation: landscape) and (max-height: 500px) {{
                     .pj-cab-precio {{ padding: 2px 10px !important; margin: 3px 0 3px !important; }}
