@@ -19,9 +19,12 @@ contraseña, «Revisa tu correo» (con reenvío y espera), confirmación del cor
 (`?recuperar=TOKEN`). Las dibuja `requerir_login()` (acceso/pantalla.py); la lógica está en herramientas/gestor_autenticacion.py y la regla de las
 contraseñas en herramientas/contrasenas.py. El diseño sigue la maqueta aprobada: tarjetas oscuras, íconos en círculo y el rojo de la marca en los botones.
 """
+import json
 import time
+from pathlib import Path
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 from herramientas import contrasenas
 from herramientas.gestor_autenticacion import (
@@ -57,6 +60,9 @@ _ICONOS = {
 
 # Colores de las 4 barras del medidor según cuántas se llenan.
 _COLORES_BARRAS = {1: "#f85149", 2: "#db6d28", 3: "#e3b341", 4: "#3fb950"}
+
+# Script que actualiza el medidor mientras se escribe (ver estatico/medidor.js).
+_JS_MEDIDOR = Path(__file__).parent / "estatico" / "medidor.js"
 
 
 # TITULO CABECERA
@@ -112,8 +118,10 @@ def icono_circular(nombre: str, color: str) -> None:
 
 # TITULO MEDIDOR
 
-def medidor_contrasena(contrasena: str) -> None:
-    """Dibuja bajo el campo de contraseña las 4 barras de fuerza y la lista de requisitos, marcando los que ya se cumplen."""
+def medidor_contrasena(contrasena: str, etiqueta: str) -> None:
+    """Dibuja bajo el campo de contraseña las 4 barras de fuerza y la lista de requisitos, marcando los que ya se cumplen.
+
+    `etiqueta` es la etiqueta del campo de contraseña al que pertenece: `medidor_en_vivo()` la usa para repintar el medidor mientras se escribe."""
     llenas = contrasenas.barras(contrasena)
     barras = "".join(f"<span style='flex:1; height:4px; border-radius:2px; background:{_COLORES_BARRAS[llenas] if i < llenas else '#30363d'};'></span>"
                      for i in range(4))
@@ -125,7 +133,22 @@ def medidor_contrasena(contrasena: str) -> None:
             for texto, cumple in contrasenas.evaluar(contrasena))
         comun = "<p style='color:#f85149; font-size:12px; margin:4px 0 0;'>Esa contraseña es demasiado común.</p>" if contrasenas.es_comun(contrasena) else ""
         detalle = f"<div style='margin-top:4px; line-height:1.7;'>{puntos}</div>{comun}"
-    st.markdown(f"<div style='display:flex; gap:4px; margin-top:2px;'>{barras}</div>{detalle}", unsafe_allow_html=True)
+    st.markdown(f"<div data-pj-medidor='{etiqueta}'><div style='display:flex; gap:4px; margin-top:2px;'>{barras}</div>{detalle}</div>", unsafe_allow_html=True)
+
+
+# TITULO MEDIDOR EN VIVO
+
+def medidor_en_vivo() -> None:
+    """Activa en el navegador el repintado del medidor mientras se escribe la contraseña (sin esperar a que el campo pierda el foco).
+
+    Emite un componente de altura 0 con la regla de contraseñas y el script estatico/medidor.js; se llama una vez por pantalla, después de los campos."""
+    configuracion = {
+        "comunes": sorted(contrasenas.COMUNES),
+        "requisitos": [descripcion for descripcion, _ in contrasenas.REQUISITOS],
+        "ayuda": contrasenas.TEXTO_AYUDA,
+        "colores": {str(cuantas): color for cuantas, color in _COLORES_BARRAS.items()},
+    }
+    components.html(f"<script>var CFG = {json.dumps(configuracion)};\n{_JS_MEDIDOR.read_text(encoding='utf-8')}</script>", height=0)
 
 
 # TITULO REENVIAR ENLACE
@@ -247,11 +270,13 @@ def vista_recuperacion(token: str) -> None:
         st.link_button("Ir a iniciar sesión", "?acceso=entrar", type="primary", width="stretch")
         return
     cabecera("Elige una contraseña nueva", "Será la que uses desde ahora para entrar")
-    with st.container(border=True):
+    # Es un formulario para que las dos contraseñas y el botón lleguen juntos al servidor (sin recargas intermedias al salir de cada campo)
+    with st.form("form_recuperar", border=True):
         nueva = st.text_input("Contraseña nueva", type="password", key="recuperar_nueva")
-        medidor_contrasena(nueva)
+        medidor_contrasena(nueva, "Contraseña nueva")
         repetida = st.text_input("Repite la contraseña", type="password", key="recuperar_repetida")
-        guardar = st.button("Guardar contraseña", width="stretch", type="primary", key="recuperar_guardar")
+        guardar = st.form_submit_button("Guardar contraseña", width="stretch", type="primary")
+    medidor_en_vivo()
     if guardar:
         if nueva != repetida:
             st.error("Las contraseñas no coinciden.")

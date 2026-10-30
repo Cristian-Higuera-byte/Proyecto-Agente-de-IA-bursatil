@@ -33,7 +33,7 @@ from herramientas.gestor_autenticacion import autenticar_usuario, registrar_usua
 
 from .cookie import aplicar_pendiente
 from .pantallas_correo import (
-    CLAVE_PENDIENTE, CLAVE_REVISA, aviso_sin_verificar, cabecera, enlaces_inferiores, iniciar_espera_reenvio, medidor_contrasena, pestanas,
+    CLAVE_PENDIENTE, CLAVE_REVISA, aviso_sin_verificar, cabecera, enlaces_inferiores, iniciar_espera_reenvio, medidor_contrasena, medidor_en_vivo, pestanas,
     vista_olvide_contrasena, vista_recuperacion, vista_revisa_correo, vista_verificacion)
 from .sesion import cerrar_sesion, iniciar_sesion, usuario_en_sesion
 
@@ -134,11 +134,13 @@ def requerir_login() -> dict:
 
             # --- Crear cuenta ---
             else:
-                nombre = st.text_input("Nombre", key="registro_nombre", placeholder="Ana Pérez")
-                correo_r = st.text_input("Correo electrónico", key="registro_correo", placeholder="nombre@correo.com")
-                contrasena_r = st.text_input("Contraseña", type="password", key="registro_contrasena")
-                medidor_contrasena(contrasena_r)
-                crear = st.button("Crear cuenta", width="stretch", type="primary", key="registro_crear")
+                with st.form("form_registro", border=False):
+                    nombre = st.text_input("Nombre", key="registro_nombre", placeholder="Ana Pérez")
+                    correo_r = st.text_input("Correo electrónico", key="registro_correo", placeholder="nombre@correo.com")
+                    contrasena_r = st.text_input("Contraseña", type="password", key="registro_contrasena")
+                    medidor_contrasena(contrasena_r, "Contraseña")
+                    crear = st.form_submit_button("Crear cuenta", width="stretch", type="primary")
+                medidor_en_vivo()
                 if crear:
                     # Registra al usuario nuevo y valida los datos (nombre, email, contraseña)
                     resultado = registrar_usuario(nombre, correo_r, contrasena_r)
