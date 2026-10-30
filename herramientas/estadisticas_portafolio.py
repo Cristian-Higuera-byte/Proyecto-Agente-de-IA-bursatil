@@ -98,6 +98,23 @@ def _tamano_contrato(symbol: str) -> float:
         return 0.0
 
 
+# TITULO TASA A CUENTA
+
+def _tasa_a_cuenta(symbol: str) -> float:
+    """Cuántas unidades de la moneda de la cuenta vale 1 unidad de la moneda en que cotiza el símbolo (JPY en USDJPY, EUR en una acción
+    europea); 1.0 si cotiza en la moneda de la cuenta o si el proveedor no sabe convertir (MT5 ya entrega el notional en su moneda)."""
+    convertir = getattr(mt5, "tasa_a_cuenta", None)
+    if mt5 is None or convertir is None:
+        return 1.0
+    try:
+        with MT5_LOCK:
+            info = mt5.symbol_info(symbol)
+        moneda = str(getattr(info, "currency_profit", "") or "") if info else ""
+        return float(convertir(moneda)) if moneda else 1.0
+    except Exception:
+        return 1.0
+
+
 # TITULO VALOR PUNTO
 
 def _valor_punto(symbol: str) -> tuple[float, float]:
@@ -264,8 +281,10 @@ def calcular(dias_curva: int = 3650) -> dict:
         simbolo = p["symbol"]
         volumen = float(p.get("volumen", 0.0) or 0.0)
         precio = float(p.get("precio_actual", 0.0) or 0.0) or float(p.get("precio_apertura", 0.0) or 0.0)
-        cs = _tamano_contrato(resolver_simbolo(simbolo))
-        notional = volumen * cs * precio
+        simbolo_bolsa = resolver_simbolo(simbolo)
+        cs = _tamano_contrato(simbolo_bolsa)
+        # El notional sale en la moneda de cotización (yenes en USDJPY): se pasa a la de la cuenta para sumar y comparar con el equity.
+        notional = volumen * cs * precio * _tasa_a_cuenta(simbolo_bolsa)
         es_compra = p.get("tipo") == "Compra"
         if es_compra:
             exposicion_largos += notional

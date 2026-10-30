@@ -215,6 +215,10 @@ def _tasa_a_cuenta(moneda: str) -> float:
     return tasa
 
 
+# Nombre público para quien necesite pasar un monto de otra moneda a la de la cuenta (por ejemplo la exposición del portafolio).
+tasa_a_cuenta = _tasa_a_cuenta
+
+
 # TITULO SPECS
 
 def _specs(epic: str) -> dict:
@@ -308,6 +312,7 @@ def symbol_info(symbol: str):
         digits=s["digitos"], point=s["point"],
         trade_tick_size=s["tick_size"], trade_tick_value=s["tick_value"],
         trade_contract_size=s["contract"], trade_stops_level=s["stops_level"],
+        currency_profit=s["moneda"], currency_base=symbol[:3].upper() if s.get("tipo") == "CURRENCIES" and len(symbol) == 6 else "",
         volume_min=s["vmin"], volume_max=s["vmax"], volume_step=s["vstep"],
         filling_mode=2, spread=int((s["ask"] - s["bid"]) / s["point"]) if s["point"] else 0,
         visible=True, trade_mode=SYMBOL_TRADE_MODE_FULL if s["tradeable"] else 0,

@@ -986,7 +986,9 @@ def especs_posicion(ticket) -> dict:
 # ---------------------------------------------------------------------------
 def obtener_historial(dias: int = 90, limite: int = 100) -> list:
     """Operaciones cerradas (para el historial de Inicio).
-    Lee /history/transactions del período y toma las de tipo negociación.
+    Lee /history/transactions del período y toma las de tipo negociación. Los lotes, el precio de cierre y la dirección no vienen en
+    ese listado: salen del detalle de cada cierre que ya se guardó para el Diario (sin consultas nuevas); si una operación aún no
+    lo tiene, quedan en 0 y el tipo en el que informa Capital (la pantalla muestra «—»).
     NOTA: el nombre/forma exactos del P/G realizado se validan con una operación
     cerrada real; aquí se leen varios campos candidatos de forma defensiva."""
     # `from` al inicio del día: así la clave de caché no cambia cada segundo.
@@ -1005,13 +1007,14 @@ def obtener_historial(dias: int = 90, limite: int = 100) -> list:
             ganancia_perdida = float(str(ganancia_perdida).replace(t.get("currency", "") or "", "").strip() or 0)
         except ValueError:
             ganancia_perdida = 0.0
+        detalle = _cierres.get(t.get("dealId", "")) or _detalles_basicos.get(t.get("dealId", "")) or {}
         salida.append({
             "ticket": t.get("reference", ""),
             "deal_id": t.get("dealId", ""),          # id de la posición (para detalle_cierre)
             "symbol": t.get("instrumentName", ""),
-            "tipo": t.get("transactionType", ""),
-            "volumen": 0.0,
-            "precio_cierre": 0.0,
+            "tipo": detalle.get("tipo") or t.get("transactionType", ""),
+            "volumen": float(detalle.get("volumen", 0.0) or 0.0),
+            "precio_cierre": float(detalle.get("salida", 0.0) or 0.0),
             "pg": ganancia_perdida,
             "fecha": _epoch_utc(t.get("dateUtc", "") or t.get("date", "")),
         })

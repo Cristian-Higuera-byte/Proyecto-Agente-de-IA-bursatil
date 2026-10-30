@@ -68,15 +68,19 @@ def dibujar_historial():
         # Una fila de tabla por operación, de la más reciente a la más antigua.
         for h in historial[:n]:
             compra = h["tipo"] == "Compra"
+            # Sin el detalle del cierre (aún no consultado) no se inventa un 0: se muestra «—»
+            lado = h["tipo"] if h["tipo"] in ("Compra", "Venta") else "—"
+            volumen = f"{h['volumen']:,.2f}" if h["volumen"] else "—"
+            precio_cierre = f"{h['precio_cierre']:,.5f}" if h["precio_cierre"] else "—"
             simbolo = h["symbol"].replace("...", "")
             fecha = _dt.datetime.fromtimestamp(h["fecha"]).strftime("%d-%m %H:%M")
             filas += (
                 "<tr>"
                 f"<td class='historial-fecha' data-etiqueta='Fecha'>{fecha}</td>"
                 f"<td><div class='posicion-simbolo'>{icono_activo(h['symbol'], 26)}{simbolo}</div></td>"
-                f"<td><span class='posicion-lado {'buy' if compra else 'sell'}'>{h['tipo']}</span></td>"
-                f"<td class='r' data-etiqueta='Volumen'>{h['volumen']:,.2f}</td>"
-                f"<td class='r' data-etiqueta='Cierre'>{h['precio_cierre']:,.5f}</td>"
+                f"<td><span class='posicion-lado {'buy' if compra else 'sell'}'>{lado}</span></td>"
+                f"<td class='r' data-etiqueta='Volumen'>{volumen}</td>"
+                f"<td class='r' data-etiqueta='Cierre'>{precio_cierre}</td>"
                 f"<td class='r {'car-sube' if h['pg'] >= 0 else 'car-baja'}' data-etiqueta='P/G'>{h['pg']:+,.2f}</td>"
                 "</tr>"
             )
