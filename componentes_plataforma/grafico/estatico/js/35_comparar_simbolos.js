@@ -126,6 +126,16 @@ Transportes y Servicios Ltda.
     function hayIndicadorSobrePrecio(){
       return indicadorActivos.some(function(i){ return DEFS[i.id] && DEFS[i.id].destino === 'precio' && !i.oculto; });
     }
+    // TITULO NOMBRE CMP
+
+    /** Nombre para mostrar de un símbolo comparado: su descripción del catálogo («CK Hutchison») y, si no se conoce, el propio código («0001»). */
+    function nombreComparar(sym){
+      if (catalogoSimbolos) {
+        var u = String(sym).toUpperCase();
+        for (var i = 0; i < catalogoSimbolos.length; i++) if (catalogoSimbolos[i].n.toUpperCase() === u) return catalogoSimbolos[i].d || sym;
+      }
+      return sym;
+    }
     // TITULO REFRESCAR LEYENDA CMP
 
     /**
@@ -139,9 +149,10 @@ Transportes y Servicios Ltda.
       comparados.forEach(function(c){
         var it = document.createElement('div'); it.className = 'comparar-elemento';
         var pto = document.createElement('span'); pto.className = 'comparar-punto'; pto.style.background = c.color;
-        var nom = document.createElement('span'); nom.className = 'comparar-simbolo'; nom.textContent = c.sym;
+        var nom = document.createElement('span'); nom.className = 'comparar-simbolo'; nom.textContent = nombreComparar(c.sym); nom.title = c.sym;
+        try { c.serie.applyOptions({ title: nombreComparar(c.sym) }); } catch (e) {}
         var pct = document.createElement('span'); pct.className = 'comparar-porcentaje';
-        var x = document.createElement('button'); x.className = 'comparar-x'; x.title = 'Quitar ' + c.sym; x.textContent = String.fromCharCode(10005);
+        var x = document.createElement('button'); x.className = 'comparar-x'; x.title = 'Quitar ' + nombreComparar(c.sym); x.textContent = String.fromCharCode(10005);
         x.addEventListener('click', function(ev){ ev.stopPropagation(); quitarComparado(c); });
         it.appendChild(pto); it.appendChild(nom); it.appendChild(pct); it.appendChild(x);
         cont.appendChild(it);
@@ -210,14 +221,14 @@ Transportes y Servicios Ltda.
       if (PLAN.comparar != null && comparados.length >= PLAN.comparar) { avisoPlan(PLAN.mensajes.comparar); return PLAN.mensajes.comparar; }   // límite del plan del usuario
       var color = colorLibreComparar();
       var serieC = chart.addLineSeries({
-        color: color, lineWidth: 2, priceLineVisible: false, lastValueVisible: true, title: sym,
+        color: color, lineWidth: 2, priceLineVisible: false, lastValueVisible: true, title: nombreComparar(sym),
         priceFormat: { type: 'price', precision: 2, minMove: 0.01 }
       });
       var c = { sym: sym, color: color, serie: serieC, datos: [], error: '', req: 0, elPct: null };
       comparados.push(c);
       aplicarModoComparar();
       cargarComparado(c);
-      if (sinGuardar) { listaCompararGuardada = comparados.map(function(x){ return x.sym; }); refrescarLeyendaComparar(); }
+      if (sinGuardar) { cargarCatalogo(); listaCompararGuardada = comparados.map(function(x){ return x.sym; }); refrescarLeyendaComparar(); }
       else guardarSeleccionComparar();
       return '';
     }
@@ -292,6 +303,15 @@ Transportes y Servicios Ltda.
       }
       if (!mostrados) notaComparar('Sin resultados. Pulsa Enter para intentar con «' + filtro + '».');
     }
+    // TITULO ORDENAR CATALOGO
+
+    /** Ordena el catálogo por nombre para mostrar y deja al final los instrumentos cuyo código es solo numérico («0001»), para que no encabecen la lista. */
+    function ordenarCatalogo(lista){
+      var num = function(it){ return /^\d+$/.test(it.n) ? 1 : 0; };
+      return lista.slice().sort(function(a, b){
+        return num(a) - num(b) || String(a.d || a.n).localeCompare(String(b.d || b.n), 'es', { sensitivity: 'base' });
+      });
+    }
     // TITULO CARGAR CATALOGO
 
     /**
@@ -304,8 +324,9 @@ Transportes y Servicios Ltda.
       fetch(API + '/simbolos')
         .then(function(r){ return r.json(); })
         .then(function(v){
-          if (Array.isArray(v) && v.length) { catalogoSimbolos = v; catalogoEstado = ''; } else { catalogoEstado = 'sin_servidor'; }
+          if (Array.isArray(v) && v.length) { catalogoSimbolos = ordenarCatalogo(v); catalogoEstado = ''; } else { catalogoEstado = 'sin_servidor'; }
           renderizarListaComparar(compararInput.value);
+          refrescarLeyendaComparar();      // ya se conocen los nombres: la leyenda deja de mostrar solo los códigos
         })
         .catch(function(){ catalogoEstado = 'sin_servidor'; renderizarListaComparar(compararInput.value); });
     }

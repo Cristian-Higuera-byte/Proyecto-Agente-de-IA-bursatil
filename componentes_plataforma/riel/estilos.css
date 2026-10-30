@@ -228,9 +228,8 @@ __TIPS__
     @media (orientation: landscape), (min-width: 769px) {
         /* El contenido reserva solo el ancho del rail a la derecha y deja sitio abajo solo para la barra de navegación. */
         html .block-container, html.pj-panel-none .block-container { padding-right: __RAIL_16__px !important; padding-bottom: calc(var(--pj-nav-h, 64px) + 24px) !important; }
-        /* En Trading, la pestaña de la lista de activos queda pegada al borde izquierdo: el contenido se corre a la derecha lo que ella mide (46 px) más un aire, para que no
-           tape el gráfico. En Cartera, que no tiene lista ni pestaña, no se reserva nada. */
-        html:has(.st-key-pj_pestana_activos) .block-container { padding-left: 58px !important; }
+        /* La pestaña lateral de la lista de activos ya no se muestra (tapaba las herramientas del gráfico en pantalla completa): la lista se abre tocando el nombre del
+           activo en la cabecera de precio, y por eso el contenido ya no reserva sitio a la izquierda. */
         /* Rail visible, entre la barra superior y la de navegación, con el botón de órdenes del agente. */
         .st-key-pj_rail { display: flex !important; top: var(--pj-top-h, __TOP__px) !important; height: calc(100vh - var(--pj-top-h, __TOP__px) - var(--pj-nav-h, 64px)) !important; }
         .st-key-rail_ordenes { display: block !important; }
@@ -287,7 +286,7 @@ __TIPS__
         /* Pestaña del cajón de la lista (lista_activos/panel.py): su envoltorio mide lo que la columna y no ocupa alto; el botón sale por el borde derecho. */
         [data-testid="stLayoutWrapper"]:has(> .st-key-pj_pestana_activos) { position: absolute !important; left: 0; top: 0; width: 100% !important; height: 0 !important; }
         .st-key-pj_pestana_activos { height: 0 !important; }
-        .pj-pestana-activos { display: flex; align-items: center; justify-content: center; position: absolute; left: 100%; top: 80px; width: 46px; height: 76px; padding: 0;
+        .pj-pestana-activos { display: none !important; align-items: center; justify-content: center; position: absolute; left: 100%; top: 80px; width: 46px; height: 76px; padding: 0;
             background: #161b22; border: 1px solid #30363d; border-left: none; border-radius: 0 12px 12px 0; color: #e6edf3; cursor: pointer; box-shadow: 6px 0 18px rgba(0,0,0,.4); }
         /* Pestaña al pasar el dedo o el cursor y con el cajón abierto. */
         .pj-pestana-activos:hover, html.pj-panel-activos .pj-pestana-activos { border-color: #58a6ff; color: #58a6ff; }

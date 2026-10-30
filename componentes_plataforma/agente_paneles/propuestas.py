@@ -99,7 +99,7 @@ def renderizar_ordenes_propuestas(altura: int = 300) -> None:
     with st.container(key="agente_propuestas_panel"):
         st.html(cabecera_agente(
             "pending_actions", "Órdenes propuestas",
-            "El agente propone y tú confirmas. Solo opera solo si autorizas una vigilancia. Solo cuenta demo.",
+            "El agente propone y tú confirmas. Solo opera solo si autorizas una vigilancia." + (" Solo cuenta demo." if ordenes.LIMITES.solo_demo else " Cuenta demo o real."),
         ))
         # Resultado de la última acción (verde si ok, rojo si error)
         if aviso:

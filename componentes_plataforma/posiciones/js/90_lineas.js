@@ -190,11 +190,16 @@ Transportes y Servicios Ltda.
        * Coloca una línea en la altura y (píxeles) y rellena sus textos y colores.
        * Recibe el nodo el, y, ancho w y alto h de la capa, ancho del eje, color col, texto de lotes vo, texto de P/G pg y
        * su color pgCol, precio para el recuadro del eje pxEje, nivel (true para TP/SL: solo contorno) y esOrden.
-       * Devuelve true si la línea es visible (dentro del área) y false si queda oculta.
+       * Devuelve true si la línea se dibuja y false si queda oculta (sin escala todavía). Un precio fuera del rango visible NO se oculta: la línea se
+       * fija al borde de arriba o de abajo (punteada, con ▲/▼ en el recuadro del eje) para que la entrada, el SL y el TP siempre se vean.
        */
       // Dibuja una línea en la altura del precio dado
       function colocar(el, y, w, h, eje, col, vo, pg, gananciaPerdidaColumna, precioEje, nivel, esOrden){
-        if (y === null || y < 0 || y > h - 28){ el.style.display = 'none'; return false; }
+        if (y === null || y !== y){ el.style.display = 'none'; el._fuera = false; return false; }
+        var tope = h - 28, fuera = y < 0 ? '\u25B2 ' : (y > tope ? '\u25BC ' : '');
+        if (fuera) y = y < 0 ? 10 : tope;
+        el._y = y;   // altura real en que quedó (la que usan el apilado de recuadros y el conector)
+        el._fuera = !!fuera; el.classList.toggle('fuera', !!fuera);
         el.style.display = '';
         el.style.top = Math.round(y) + 'px';
         el.style.width = w + 'px';
@@ -222,7 +227,7 @@ Transportes y Servicios Ltda.
                     ej.style.boxShadow = 'inset 0 0 0 1.5px ' + col; ej.style.border = 'none'; }
         else { ej.style.background = col; ej.style.color = '#fff'; ej.style.boxShadow = 'none';
                ej.style.border = ord ? '1.5px dashed #0d1117' : 'none'; }
-        txt(ej, fmt(precioEje, DIGITS));
+        txt(ej, fuera + fmt(precioEje, DIGITS));
         return true;
       }
       // TITULO PG TXT

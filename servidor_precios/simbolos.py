@@ -49,8 +49,8 @@ def listar_simbolos() -> list:
     for s in todos:
         ruta = (getattr(s, "path", "") or "").replace("\\", "/")
         datos.append({"n": s.name, "d": getattr(s, "description", "") or "", "c": ruta.split("/")[0] if "/" in ruta else ""})
-    # Orden alfabético sin distinguir mayúsculas
-    datos.sort(key=lambda x: x["n"].lower())
+    # Orden alfabético sin distinguir mayúsculas, con los códigos solo numéricos («0001») al final para que no encabecen la lista
+    datos.sort(key=lambda x: (x["n"].isdigit(), x["n"].lower()))
     # Solo cachea si hubo resultados (evita fijar una lista vacía por un fallo transitorio)
     if datos:
         _SIMBOLOS["t"], _SIMBOLOS["datos"] = ahora, datos

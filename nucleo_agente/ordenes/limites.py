@@ -17,13 +17,14 @@ Define los límites de riesgo (LimitesRiesgo) y las constantes de tolerancia y d
 el código: cada usuario decide los suyos (riesgo máximo por operación, riesgo total, pérdida diaria, volumen y apalancamiento máximos) y se guardan en el archivo
 `limites_agente.json` de su carpeta. Un límite vacío (None) significa «sin límite»: por defecto el agente opera con el riesgo que el usuario le pida y no hay tope.
 `limites_actuales()` devuelve los del usuario actual (los de `LIMITES` con lo que el usuario haya definido encima); `guardar_limites` los guarda.
-Se siguen aplicando, porque no son de riesgo, que solo se opere en cuenta demo, la vigencia de las propuestas, el deslizamiento máximo y las listas de símbolos."""
+Se siguen aplicando, porque no son de riesgo, la vigencia de las propuestas, el deslizamiento máximo y las listas de símbolos. Que se opere solo en cuenta demo depende de `configuracion.OPERAR_EN_CUENTA_REAL`."""
 import json
 import os
 import threading
 from dataclasses import dataclass, replace
 
 from herramientas import permisos_plan
+import configuracion
 from herramientas.backends import sesiones_capital
 from herramientas.carpeta_usuario import carpeta_de
 
@@ -42,7 +43,7 @@ class LimitesRiesgo:
 
     Cada campo se comenta con su unidad; None en un límite de riesgo significa «sin límite». `LIMITES` son los valores base; los de cada usuario salen de
     `limites_actuales()`."""
-    solo_demo: bool = True                       # rechaza TODO si la cuenta conectada no es demo
+    solo_demo: bool = not configuracion.OPERAR_EN_CUENTA_REAL   # True rechaza TODO si la cuenta conectada no es demo (por defecto, según la configuración)
     riesgo_max_por_operacion_pct: float | None = None   # % del equity que se puede perder si salta el SL (None = sin límite)
     riesgo_max_total_pct: float | None = None           # % del equity en riesgo sumando posiciones abiertas + propuestas pendientes + la nueva (None = sin límite)
     max_posiciones_abiertas: int | None = None          # None = sin tope de posiciones abiertas

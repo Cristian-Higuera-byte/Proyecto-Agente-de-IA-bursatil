@@ -89,8 +89,11 @@ def renderizar_cabecera_precio(activo_visible: str, digits: int) -> None:
                 .pj-cab-simbolo {{ font-size: 17px !important; }}
                 .pj-cab-precio-datos > span[data-pj-f="px"] {{ font-size: 18px !important; }}
                 .pj-cab-bidask {{ font-size: 11px !important; }}
-                .pj-cab-simbolo {{ cursor: pointer; }}
-                .pj-cab-simbolo::after {{ content: " \\25BE"; color: #8b949e; font-size: 14px; }}
+                /* El nombre del activo es el botón que abre la lista de activos (y los favoritos): se ve como un botón, con borde, fondo y flecha. */
+                .pj-cab-simbolo {{ cursor: pointer; display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px 3px 11px; border-radius: 14px;
+                    background: #1f2937; border: 1px solid #58a6ff88; box-shadow: 0 0 0 1px #58a6ff22; -webkit-tap-highlight-color: transparent; }}
+                .pj-cab-simbolo::after {{ content: "\\25BE"; color: #58a6ff; font-size: 15px; line-height: 1; }}
+                .pj-cab-simbolo:active, html.pj-panel-activos .pj-cab-simbolo, html.pj-panel-favorito .pj-cab-simbolo {{ background: #12263f; border-color: #58a6ff; }}
                 /* Horizontal bajo (celulares en horizontal, hasta 500 px de alto): una sola línea de 30 px, para dejarle alto al gráfico. */
                 @media (orientation: landscape) and (max-height: 500px) {{
                     .pj-cab-precio {{ padding: 2px 10px !important; margin: 3px 0 3px !important; }}
@@ -110,7 +113,7 @@ def renderizar_cabecera_precio(activo_visible: str, digits: int) -> None:
             </style>
             <div class='pj-cab-precio' style='background-color: #161b22; padding: 10px 16px; border-radius: 8px; border: 1px solid #30363d; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;'>
                 <div class='pj-cab-precio-datos' style='display: flex; align-items: center; gap: 14px;'>
-                    <span class='pj-cab-simbolo' style='font-size: 20px; font-weight: bold; color: #ffffff;'>{escape(activo_visible)}</span>
+                    <span class='pj-cab-simbolo' role='button' title='Ver lista de activos' style='font-size: 20px; font-weight: bold; color: #ffffff;'>{escape(activo_visible)}</span>
                     <span class='pj-cab-origen' style='background: #30363d; color: #8b949e; padding: 2px 8px; border-radius: 4px; font-size: 11px;'>{NOMBRE_PROVEEDOR}</span>
                     <span {_en_vivo(activo_visible, 'px', d=digits, flash=1)} style='font-size: 22px; font-weight: bold; font-family: monospace; color: {color_variacion_activo};'>{precio_actual:,.{digits}f}</span>
                     <span class='pj-cab-bidask' style='font-size: 14px; font-weight: 600; color: {color_variacion_activo};'>Bid:<span {_en_vivo(activo_visible, 'bid', d=digits)}>{bid:,.{digits}f}</span> | Ask: <span {_en_vivo(activo_visible, 'ask', d=digits)}>{ask:,.{digits}f}</span></span>

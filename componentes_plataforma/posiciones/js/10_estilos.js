@@ -40,6 +40,8 @@ Transportes y Servicios Ltda.
         '#pj-posicion .ejlive{position:absolute;right:0;z-index:7;background:#e6edf3;color:#0d1117;}' +   // precio en vivo (blanco), lo dibujamos nosotros
         // Estados de la línea: pendiente de confirmación (pend, semitransparente) y valor inválido (mal, punteada).
         '#pj-posicion .pl.pend{opacity:.5;}' +
+        '#pj-posicion .pl.fuera .ln{border-top-style:dotted;opacity:.7;}' +
+        '#pj-posicion .pl.fuera .ej{opacity:.9;}' +
         '#pj-posicion .pl.mal .ln{border-top-style:dotted;border-top-width:2px;}' +
         // Insignias TP/SL arrastrables (bds, bd) y conectores de nivel (cn).
         '#pj-posicion .bds{position:absolute;top:-11px;height:22px;display:flex;gap:4px;pointer-events:auto;}' +

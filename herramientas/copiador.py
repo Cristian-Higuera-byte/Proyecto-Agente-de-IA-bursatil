@@ -29,7 +29,7 @@ Reglas de réplica:
   - Take profit y stop loss de la copia: porcentaje del importe invertido; al alcanzarlo se cierran las posiciones de la copia y la copia queda cerrada.
 Límites conocidos: la copia depende de que el gestor tenga la plataforma abierta (sus operaciones se registran desde su sesión: en segundos si las hace desde la
 plataforma); no se propagan los cambios de stop loss o take profit del gestor a posiciones ya copiadas; el resultado de una copia cerrada se actualiza con el registro
-de operaciones del seguidor (hasta un minuto de retraso). Todo es solo demo.
+de operaciones del seguidor (hasta un minuto de retraso). La copia se hace en el mismo tipo de cuenta de la estrategia (demo con demo, real con real; la real solo si `configuracion.OPERAR_EN_CUENTA_REAL`).
 """
 import math
 import threading
@@ -160,7 +160,7 @@ def crear_copia(usuario_id, estrategia_id, modo: str, importe=None, multiplicado
     """Crea la copia de una estrategia publicada para el usuario y devuelve su fila.
 
     Validaciones: tener cuenta de inversor, que la estrategia esté publicada y no sea propia, no copiarla ya, no superar las copias vigentes permitidas, un importe
-    mínimo, un multiplicador válido y, si se indica `equity_cuenta` (equity de su cuenta demo), que el total asignado a todas sus copias no lo supere. El take profit y el
+    mínimo, un multiplicador válido y, si se indica `equity_cuenta` (equity de su cuenta), que el total asignado a todas sus copias no lo supere. El take profit y el
     stop loss (% del importe) exigen un importe. `perfil_previo` guarda el perfil de inversor anterior del seguidor, por si quiere restaurarlo al detener la copia. Lanza `ErrorCopia` si algo no se cumple."""
     cliente, cfg = _cliente(), configuracion.COPYTRADING
     if not cuenta_inversor(usuario_id):
@@ -168,7 +168,7 @@ def crear_copia(usuario_id, estrategia_id, modo: str, importe=None, multiplicado
     estrategia = (cliente.table("estrategias").select("*").eq("id", int(estrategia_id)).eq("estado", "publicada").limit(1).execute().data or [None])[0]
     if not estrategia:
         raise ErrorCopia("Esa estrategia ya no está disponible para copiar.")
-    if estrategia.get("cuenta_tipo", "demo") != "demo":
+    if estrategia.get("cuenta_tipo", "demo") != "demo" and not configuracion.OPERAR_EN_CUENTA_REAL:
         raise ErrorCopia("Por ahora solo se pueden copiar estrategias de cuentas demo.")
     if int(estrategia["gestor_id"]) == int(usuario_id):
         raise ErrorCopia("No puedes copiar tu propia estrategia.")
@@ -285,7 +285,7 @@ def _equity_gestor(cliente, estrategia: dict, operacion: dict) -> float:
 def _registrar_operacion_copiada(cliente, copia: dict, origen: dict, ticket: str, volumen: float, precio: float, equity: float | None) -> int | None:
     """Anota en `operaciones` la posición que se abrió para la copia (origen «copia») y devuelve su id. Si el registro de operaciones ya la había anotado como manual,
     la corrige. None si no se pudo anotar (la copia igual quedó abierta y se anotará como manual)."""
-    fila = {"usuario_id": copia["inversor_id"], "cuenta_tipo": "demo", "id_broker": str(ticket), "simbolo": origen["simbolo"], "tipo_activo": origen.get("tipo_activo"),
+    fila = {"usuario_id": copia["inversor_id"], "cuenta_tipo": origen.get("cuenta_tipo") or "demo", "id_broker": str(ticket), "simbolo": origen["simbolo"], "tipo_activo": origen.get("tipo_activo"),
             "lado": origen["lado"], "volumen": volumen, "precio_apertura": precio, "abierta_en": _ahora(), "stop_loss": origen.get("stop_loss"), "take_profit": origen.get("take_profit"),
             "equity_apertura": equity, "estado": "abierta", "origen": "copia", "copia_id": copia["id"], "operacion_origen_id": origen["id"]}
     try:
@@ -293,8 +293,8 @@ def _registrar_operacion_copiada(cliente, copia: dict, origen: dict, ticket: str
     except Exception:  # noqa: BLE001 - el registro de operaciones se adelantó: se corrige su fila
         try:
             cliente.table(_OPERACIONES).update({"origen": "copia", "copia_id": copia["id"], "operacion_origen_id": origen["id"]}) \
-                .eq("usuario_id", copia["inversor_id"]).eq("cuenta_tipo", "demo").eq("id_broker", str(ticket)).execute()
-            return (cliente.table(_OPERACIONES).select("id").eq("usuario_id", copia["inversor_id"]).eq("cuenta_tipo", "demo").eq("id_broker", str(ticket)).limit(1).execute().data or [{}])[0].get("id")
+                .eq("usuario_id", copia["inversor_id"]).eq("cuenta_tipo", origen.get("cuenta_tipo") or "demo").eq("id_broker", str(ticket)).execute()
+            return (cliente.table(_OPERACIONES).select("id").eq("usuario_id", copia["inversor_id"]).eq("cuenta_tipo", origen.get("cuenta_tipo") or "demo").eq("id_broker", str(ticket)).limit(1).execute().data or [{}])[0].get("id")
         except Exception:  # noqa: BLE001
             return None
 
@@ -423,8 +423,8 @@ def procesar_copia(cliente, copia: dict, estrategia: dict) -> dict:
     Devuelve {"abiertas": n, "cerradas": n, "protegida": motivo o None, "comision": resultado de `comisiones.revisar`}. Una copia cerrada solo cierra sus posiciones si
     se pidió así; después liquida su comisión final."""
     resumen = {"abiertas": 0, "cerradas": 0, "protegida": None}
-    if estrategia.get("cuenta_tipo", "demo") != "demo":
-        return resumen               # nunca se replican operaciones de una cuenta real
+    if estrategia.get("cuenta_tipo", "demo") != "demo" and not configuracion.OPERAR_EN_CUENTA_REAL:
+        return resumen               # con la cuenta real deshabilitada no se replican operaciones de una cuenta real
     if copia["estado"] == "cerrada":
         if copia.get("motivo_cierre") == "usuario_cierra_posiciones":
             resumen["cerradas"] = _cerrar_todas(cliente, copia)
@@ -444,7 +444,7 @@ def procesar_copia(cliente, copia: dict, estrategia: dict) -> dict:
 # TITULO PROCESAR TODAS
 
 def procesar_todas() -> int:
-    """Una pasada de todas las copias vigentes (y de las cerradas que pidieron cerrar sus posiciones). Cada copia se procesa en la cuenta demo de su dueño y un fallo en una
+    """Una pasada de todas las copias vigentes (y de las cerradas que pidieron cerrar sus posiciones). Cada copia se procesa en la cuenta de su dueño (del tipo de la estrategia) y un fallo en una
     no afecta a las demás. Devuelve cuántas procesó."""
     cliente = gestor_autenticacion._supabase
     if cliente is None or not sesiones_capital.MULTIUSUARIO:
@@ -459,7 +459,7 @@ def procesar_todas() -> int:
             estrategia = (cliente.table("estrategias").select("*").eq("id", copia["estrategia_id"]).limit(1).execute().data or [None])[0]
             if not estrategia:
                 continue
-            with sesiones_capital.con_clave((int(copia["inversor_id"]), True)):
+            with sesiones_capital.con_clave((int(copia["inversor_id"]), estrategia.get("cuenta_tipo", "demo") == "demo")):
                 procesar_copia(cliente, copia, estrategia)
             procesadas += 1
         except Exception:  # noqa: BLE001 - se imprime y sigue con las demás copias

@@ -509,6 +509,19 @@ def marcar_hilo_fondo() -> None:
     _tl.bg = True
 
 
+# TITULO ANOTAR SI LENTA
+
+def _anotar_si_lenta(metodo: str, ruta: str, segundos: float) -> None:
+    """Pasa al diagnóstico de rendimiento (herramientas/diagnostico_rendimiento.py) las peticiones que tardaron mucho; nunca falla ni interfiere con la petición."""
+    if segundos < 0.4:
+        return
+    try:
+        from herramientas import diagnostico_rendimiento
+        diagnostico_rendimiento.llamada(metodo, ruta, segundos)
+    except Exception:  # noqa: BLE001 - es solo una medición
+        pass
+
+
 # TITULO LIMITAR
 
 def _limitar() -> None:
@@ -549,12 +562,14 @@ def _pedir(metodo: str, ruta: str, *, parametros=None, json=None, reintento=True
         return None
     token_usado = _tokens["CST"]
     _limitar()
+    _inicio = time.perf_counter()
     try:
         r = _HTTP.request(metodo, f"{BASE}{ruta}", headers=_cabeceras(),
                           params=parametros, json=json, timeout=_TIEMPO_ESPERA)
     except requests.exceptions.RequestException as e:
         print(f"[CAPITAL] Error de red en {metodo} {ruta}: {e}")
         return None
+    _anotar_si_lenta(metodo, ruta, time.perf_counter() - _inicio)
     # Token caducado/ inválido -> reautenticar una vez, salvo que otro hilo o proceso ya lo haya renovado
     if r.status_code == 401 and reintento:
         with _CANDADO_SESION:

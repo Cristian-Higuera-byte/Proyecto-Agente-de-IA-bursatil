@@ -20,7 +20,7 @@ from typing import Any
 
 from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
-from nucleo_agente.ordenes.limites import TOLERANCIA_RIESGO, limites_actuales
+from nucleo_agente.ordenes.limites import LIMITES, TOLERANCIA_RIESGO, limites_actuales
 from nucleo_agente.ordenes.mt5_utiles import (NOMBRE_BROKER, _con_candado, _exposicion_nocional, _normalizar, _preparar_mt5, _resolver_simbolo,
                                                _riesgo_expuesto)
 
@@ -210,15 +210,15 @@ def validar_simbolo(simbolo: str) -> dict[str, Any]:
 
 @_con_candado
 def cuenta_demo() -> tuple[Any, str | None]:
-    """Devuelve (cuenta, motivo). motivo es None solo si MT5 responde Y la cuenta es DEMO. La operación automática
-    exige demo SIEMPRE, aunque `solo_demo` se relaje para las propuestas manuales."""
+    """Devuelve (cuenta, motivo). motivo es None si MT5 responde y la cuenta es aceptada para operar: con `LIMITES.solo_demo` activo solo se acepta la DEMO; con la
+    cuenta real habilitada (`configuracion.OPERAR_EN_CUENTA_REAL`) se acepta también la real. Lo usan las vigilancias automáticas."""
     error = _preparar_mt5()
     if error:
         return None, error
     cuenta = mt5.account_info()
     if cuenta is None:
         return None, f"No se pudo leer la cuenta de {NOMBRE_BROKER}."
-    if cuenta.trade_mode != mt5.ACCOUNT_TRADE_MODE_DEMO:
+    if LIMITES.solo_demo and cuenta.trade_mode != mt5.ACCOUNT_TRADE_MODE_DEMO:
         return cuenta, "La operación automática solo está permitida en cuenta DEMO y la cuenta conectada no lo es."
     return cuenta, None
 
