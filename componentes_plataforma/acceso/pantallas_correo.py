@@ -118,22 +118,12 @@ def icono_circular(nombre: str, color: str) -> None:
 
 # TITULO MEDIDOR
 
-def medidor_contrasena(contrasena: str, etiqueta: str) -> None:
-    """Dibuja bajo el campo de contraseña las 4 barras de fuerza y la lista de requisitos, marcando los que ya se cumplen.
+def medidor_contrasena(etiqueta: str) -> None:
+    """Reserva bajo el campo de contraseña el sitio del medidor de fuerza (4 barras y requisitos), que dibuja `medidor_en_vivo()` en el navegador.
 
-    `etiqueta` es la etiqueta del campo de contraseña al que pertenece: `medidor_en_vivo()` la usa para repintar el medidor mientras se escribe."""
-    llenas = contrasenas.barras(contrasena)
-    barras = "".join(f"<span style='flex:1; height:4px; border-radius:2px; background:{_COLORES_BARRAS[llenas] if i < llenas else '#30363d'};'></span>"
-                     for i in range(4))
-    if not contrasena:
-        detalle = f"<p style='color:#8b949e; font-size:12px; margin:4px 0 0;'>{contrasenas.TEXTO_AYUDA}</p>"
-    else:
-        puntos = "".join(
-            f"<span style='color:{'#3fb950' if cumple else '#8b949e'}; font-size:12px; margin-right:12px; white-space:nowrap;'>{'✓' if cumple else '○'} {texto}</span>"
-            for texto, cumple in contrasenas.evaluar(contrasena))
-        comun = "<p style='color:#f85149; font-size:12px; margin:4px 0 0;'>Esa contraseña es demasiado común.</p>" if contrasenas.es_comun(contrasena) else ""
-        detalle = f"<div style='margin-top:4px; line-height:1.7;'>{puntos}</div>{comun}"
-    st.markdown(f"<div data-pj-medidor='{etiqueta}'><div style='display:flex; gap:4px; margin-top:2px;'>{barras}</div>{detalle}</div>", unsafe_allow_html=True)
+    `etiqueta` es la etiqueta del campo de contraseña al que pertenece. El elemento va vacío a propósito: su contenido lo pinta el script dentro de un
+    Shadow DOM para no pisar el árbol de React (ver estatico/medidor.js). La altura mínima evita que la pantalla salte al aparecer."""
+    st.markdown(f"<div data-pj-medidor='{etiqueta}' style='min-height:44px;'></div>", unsafe_allow_html=True)
 
 
 # TITULO MEDIDOR EN VIVO
@@ -257,37 +247,52 @@ def vista_olvide_contrasena() -> None:
     enlaces_inferiores("<a href='?acceso=entrar' target='_self'>← Volver a iniciar sesión</a>")
 
 
+# TITULO CONTRASENA ACTUALIZADA
+
+def _contrasena_actualizada() -> None:
+    """Dibuja la confirmación «Contraseña actualizada» con el botón para ir a iniciar sesión."""
+    icono_circular("ok", "verde")
+    st.markdown("<div style='text-align:center;'><h2 style='margin:0; font-size:22px;'>Contraseña actualizada</h2>"
+                "<p style='color:#8b949e; margin:6px 0 14px; font-size:14px;'>Ya puedes iniciar sesión con tu contraseña nueva.</p></div>", unsafe_allow_html=True)
+    st.link_button("Ir a iniciar sesión", "?acceso=entrar", type="primary", width="stretch")
+
+
 # TITULO CONTRASENA NUEVA
 
 def vista_recuperacion(token: str) -> None:
     """Pantalla del enlace `?recuperar=TOKEN`: pide la contraseña nueva dos veces (con medidor de fuerza) y la guarda.
 
-    El enlace no se gasta al abrir la página sino al guardar una contraseña válida. Efecto secundario: al guardar, escribe en la base de datos."""
+    El enlace no se gasta al abrir la página sino al guardar una contraseña válida. Al guardar, la confirmación reemplaza al formulario en la misma
+    pasada (sin `st.rerun()`, que dejaba ver un error del navegador por un instante). Efecto secundario: al guardar, escribe en la base de datos."""
+    zona = st.empty()
     if st.session_state.get("recuperacion_lista"):
-        icono_circular("ok", "verde")
-        st.markdown(f"<div style='text-align:center;'><h2 style='margin:0; font-size:22px;'>Contraseña actualizada</h2>"
-                    f"<p style='color:#8b949e; margin:6px 0 14px; font-size:14px;'>{st.session_state['recuperacion_lista']}</p></div>", unsafe_allow_html=True)
-        st.link_button("Ir a iniciar sesión", "?acceso=entrar", type="primary", width="stretch")
+        with zona.container():
+            _contrasena_actualizada()
         return
-    cabecera("Elige una contraseña nueva", "Será la que uses desde ahora para entrar")
-    # Es un formulario para que las dos contraseñas y el botón lleguen juntos al servidor (sin recargas intermedias al salir de cada campo)
-    with st.form("form_recuperar", border=True):
-        nueva = st.text_input("Contraseña nueva", type="password", key="recuperar_nueva")
-        medidor_contrasena(nueva, "Contraseña nueva")
-        repetida = st.text_input("Repite la contraseña", type="password", key="recuperar_repetida")
-        guardar = st.form_submit_button("Guardar contraseña", width="stretch", type="primary")
-    medidor_en_vivo()
-    if guardar:
-        if nueva != repetida:
-            st.error("Las contraseñas no coinciden.")
-        else:
-            resultado = restablecer_contrasena(token, nueva)
-            if resultado["ok"]:
-                st.session_state["recuperacion_lista"] = resultado["mensaje"]
-                st.rerun()
+    guardada = False
+    with zona.container():
+        cabecera("Elige una contraseña nueva", "Será la que uses desde ahora para entrar")
+        # Es un formulario para que las dos contraseñas y el botón lleguen juntos al servidor (sin recargas intermedias al salir de cada campo)
+        with st.form("form_recuperar", border=True):
+            nueva = st.text_input("Contraseña nueva", type="password", key="recuperar_nueva")
+            medidor_contrasena("Contraseña nueva")
+            repetida = st.text_input("Repite la contraseña", type="password", key="recuperar_repetida")
+            guardar = st.form_submit_button("Guardar contraseña", width="stretch", type="primary")
+        medidor_en_vivo()
+        if guardar:
+            if nueva != repetida:
+                st.error("Las contraseñas no coinciden.")
             else:
-                st.error(resultado["mensaje"])
-    enlaces_inferiores("¿El enlace venció? <a href='?acceso=recordar' target='_self'>Pide uno nuevo</a>")
+                resultado = restablecer_contrasena(token, nueva)
+                if resultado["ok"]:
+                    guardada = True
+                else:
+                    st.error(resultado["mensaje"])
+        enlaces_inferiores("¿El enlace venció? <a href='?acceso=recordar' target='_self'>Pide uno nuevo</a>")
+    if guardada:
+        st.session_state["recuperacion_lista"] = True
+        with zona.container():
+            _contrasena_actualizada()
 
 
 # -------------------------------------------------------------------------------------------------------

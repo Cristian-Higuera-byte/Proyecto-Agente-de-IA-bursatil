@@ -138,7 +138,7 @@ def requerir_login() -> dict:
                     nombre = st.text_input("Nombre", key="registro_nombre", placeholder="Ana Pérez")
                     correo_r = st.text_input("Correo electrónico", key="registro_correo", placeholder="nombre@correo.com")
                     contrasena_r = st.text_input("Contraseña", type="password", key="registro_contrasena")
-                    medidor_contrasena(contrasena_r, "Contraseña")
+                    medidor_contrasena("Contraseña")
                     crear = st.form_submit_button("Crear cuenta", width="stretch", type="primary")
                 medidor_en_vivo()
                 if crear:

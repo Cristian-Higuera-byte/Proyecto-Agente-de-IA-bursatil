@@ -18,7 +18,10 @@ Actualiza en vivo, mientras se escribe, el medidor de fuerza de la contraseña (
 campo pierde el foco o se pulsa Enter, así que el medidor se calcula aquí, en el navegador, con la misma regla que herramientas/contrasenas.py.
 
 Python antepone `var CFG = {...}` con la regla (requisitos, claves comunes, colores y texto de ayuda). El medidor de cada campo es un elemento con
-`data-pj-medidor="<etiqueta del campo>"`; el campo se reconoce por su `aria-label`, que Streamlit toma de la etiqueta.
+`data-pj-medidor="<etiqueta del campo>"` que llega VACÍO desde Python; el campo se reconoce por su `aria-label`, que Streamlit toma de la etiqueta.
+
+El medidor se dibuja dentro de un Shadow DOM del elemento: el árbol de la página es de React y, si aquí se reescribiera su contenido, al recargar Streamlit
+fallaría con «NotFoundError: Failed to execute 'removeChild'». Un observador vuelve a dibujar el medidor cuando React crea el elemento de nuevo.
 */
 (function () {
   var P;
@@ -84,7 +87,31 @@ Python antepone `var CFG = {...}` con la regla (requisitos, claves comunes, colo
       var aviso = comun ? "<p style='color:#f85149; font-size:12px; margin:4px 0 0;'>Esa contraseña es demasiado común.</p>" : '';
       detalle = "<div style='margin-top:4px; line-height:1.7;'>" + puntos + '</div>' + aviso;
     }
-    medidor.innerHTML = "<div style='display:flex; gap:4px; margin-top:2px;'>" + barras + '</div>' + detalle;
+    var raiz = medidor.shadowRoot || medidor.attachShadow({ mode: 'open' });
+    raiz.innerHTML = "<div style='display:flex; gap:4px; margin-top:2px;'>" + barras + '</div>' + detalle;
+  }
+
+
+  // TITULO CAMPO DE
+  function campoDe(medidor) {
+    var etiqueta = medidor.getAttribute('data-pj-medidor');
+    var campos = D.querySelectorAll('input[aria-label]');
+    for (var i = 0; i < campos.length; i++) {
+      if (campos[i].getAttribute('aria-label') === etiqueta) return campos[i];
+    }
+    return null;
+  }
+
+
+  // TITULO BARRER
+  // Dibuja los medidores que React acaba de crear (todavía sin contenido) con el valor actual de su campo.
+  function barrer() {
+    var medidores = D.querySelectorAll('[data-pj-medidor]');
+    for (var i = 0; i < medidores.length; i++) {
+      if (medidores[i].shadowRoot) continue;
+      var campo = campoDe(medidores[i]);
+      dibujar(medidores[i], campo ? campo.value || '' : '');
+    }
   }
 
 
@@ -94,14 +121,27 @@ Python antepone `var CFG = {...}` con la regla (requisitos, claves comunes, colo
     if (!campo || !campo.getAttribute) return;
     var etiqueta = campo.getAttribute('aria-label');
     if (!etiqueta) return;
-    var medidor = D.querySelector('[data-pj-medidor="' + etiqueta.replace(/"/g, '\\"') + '"]');
-    if (medidor) dibujar(medidor, campo.value || '');
+    var medidores = D.querySelectorAll('[data-pj-medidor]');
+    for (var i = 0; i < medidores.length; i++) {
+      if (medidores[i].getAttribute('data-pj-medidor') === etiqueta) dibujar(medidores[i], campo.value || '');
+    }
   }
 
   // Cada ejecución de la página crea un componente nuevo: se quita el oyente anterior para no acumularlos.
   if (P.__pjMedidorOyente) D.removeEventListener('input', P.__pjMedidorOyente, true);
   P.__pjMedidorOyente = alEscribir;
   D.addEventListener('input', alEscribir, true);
+
+  // Observador: cuando Streamlit recarga y React crea un medidor nuevo (vacío), se dibuja en el siguiente cuadro de animación.
+  if (P.__pjMedidorObservador) P.__pjMedidorObservador.disconnect();
+  var pendiente = false;
+  P.__pjMedidorObservador = new P.MutationObserver(function () {
+    if (pendiente) return;
+    pendiente = true;
+    P.requestAnimationFrame(function () { pendiente = false; barrer(); });
+  });
+  P.__pjMedidorObservador.observe(D.body, { childList: true, subtree: true });
+  barrer();
 })();
 
 // -------------------------------------------------------------------------------------------------------
