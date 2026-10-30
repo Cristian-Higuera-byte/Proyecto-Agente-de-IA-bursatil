@@ -55,13 +55,32 @@ Transportes y Servicios Ltda.
     .st-key-pj_chat_flotante > [data-testid="stLayoutWrapper"]:has(> .st-key-agente_chat_panel_flot) { flex: 1 1 0; min-height: 0; }
     .st-key-agente_chat_panel_flot { height: 100%; display: flex !important; flex-direction: column; gap: 8px !important; border: none !important; border-radius: 0 !important;
         background: transparent !important; padding: 0 0 12px !important; min-height: 0; }
-    .st-key-agente_chat_panel_flot > [data-testid="stLayoutWrapper"]:has(> .st-key-agente_chat_desplazamiento_flot) { flex: 1 1 0; min-height: 0; }
+    /* El chat es un fragmento y Streamlit lo envuelve en dos bloques más: la cadena de bloques que lleva la zona de mensajes hasta la tarjeta también reparte el alto (flex), para que
+       la zona de mensajes sea la que se achica y la caja de texto quede siempre a la vista, sin cortarse abajo. */
+    .st-key-agente_chat_panel_flot > [data-testid="stLayoutWrapper"]:has(.st-key-agente_chat_desplazamiento_flot) { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
+    .st-key-agente_chat_panel_flot > [data-testid="stLayoutWrapper"]:has(.st-key-agente_chat_desplazamiento_flot) > [data-testid="stVerticalBlock"] { flex: 1 1 0; min-height: 0; }
+    .st-key-agente_chat_panel_flot [data-testid="stLayoutWrapper"]:has(> .st-key-agente_chat_desplazamiento_flot) { flex: 1 1 0; min-height: 0; }
+    .st-key-agente_chat_desplazamiento_flot { height: 100% !important; }
     .st-key-agente_chat_desplazamiento_flot { height: 100% !important; }
     /* Nueva conversación y Límites siempre lado a lado (Streamlit apila las columnas en pantallas angostas). */
     .st-key-agente_chat_panel_flot [data-testid="stHorizontalBlock"] { flex-direction: row !important; flex-wrap: nowrap !important; }
     .st-key-agente_chat_panel_flot [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] { min-width: 0 !important; flex: 1 1 0 !important; width: auto !important; }
     /* Controles y barra de cuota con el mismo margen lateral que la caja de texto. */
     .st-key-agente_chat_panel_flot .cuota-ia { margin: 0 14px; }
+
+    /* TITULO TABLAS DENTRO DEL CHAT ANGOSTO */
+    /* En el chat flotante y en el lateral las tablas del agente (varias columnas) eran más anchas que el mensaje y se salían corridas. Ahora la tabla no pasa del
+       ancho del mensaje: letra y espacios más chicos, textos que se parten en varias líneas y, si aun así no cabe, desplazamiento horizontal dentro de la propia tabla. */
+    .st-key-agente_chat_panel_flot [data-testid="stMarkdownContainer"] { min-width: 0; max-width: 100%; }
+    .st-key-agente_chat_panel_flot [data-testid="stMarkdownContainer"] table { display: block; max-width: 100%; overflow-x: auto; margin: 6px 0; border-collapse: collapse; font-size: 11.5px; line-height: 1.3; scrollbar-width: thin; -webkit-overflow-scrolling: touch; }
+    .st-key-agente_chat_panel_flot [data-testid="stMarkdownContainer"] th, .st-key-agente_chat_panel_flot [data-testid="stMarkdownContainer"] td {
+        padding: 4px 5px !important; white-space: normal; overflow-wrap: break-word; vertical-align: top; font-size: 11.5px; max-width: 120px; }
+    .st-key-agente_chat_panel_flot [data-testid="stMarkdownContainer"] th { font-weight: 700; white-space: nowrap; background: transparent; }
+
+    /* TITULO BOTONES DE REFRESCO OCULTOS */
+    /* Cada fragmento del agente (chat, historial, órdenes propuestas, campana) lleva un botón sin presencia que un script pulsa para refrescarlo sin reiniciar la página
+       (componentes_plataforma/refresco_fragmentos.py). Quedan fuera del flujo para no sumar separación entre elementos. */
+    [class*="st-key-pj_refrescar_"] { display: none !important; }
 
     /* TITULO ENVOLTORIOS FUERA DEL FLUJO */
     /* Los contenedores de la burbuja, el panel y el script son fijos (no ocupan lugar): sus envoltorios salen del flujo para no sumar separación al final de la página. */

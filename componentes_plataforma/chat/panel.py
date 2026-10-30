@@ -27,6 +27,7 @@ from componentes_plataforma.chat.historial import (iniciar_conversacion, pintar_
 from componentes_plataforma.chat.sesion import cambiar_perfil, obtener_agente, usuario_id
 from componentes_plataforma.agente_paneles import cabecera_agente
 from componentes_plataforma.chat.cuota import barra_cuota
+from componentes_plataforma.refresco_fragmentos import fragmento_con_refresco, pedir_refresco
 from componentes_plataforma.chat.limites import limites_agente
 from componentes_plataforma.planes.panel import dialogo_bloqueo
 from herramientas import cuota_ia, permisos_plan
@@ -50,7 +51,8 @@ def renderizar_chat_agente(sufijo: str = "", altura: int = 450, compacto: bool =
                 "smart_toy", "Agente IA Analítico",
                 f"Consola, gráficos e imágenes · mantiene el contexto y usa los datos de {NOMBRE_BROKER}",
             ))
-        _chat_agente(sufijo, altura, compacto)
+        # El chat es un fragmento: escribir, enviar, detener o reiniciar solo reejecutan el chat, no la página. Su clave («chat» o «chat_flot») permite refrescarlo desde fuera.
+        fragmento_con_refresco(f"chat{sufijo}", _chat_agente, sufijo, altura, compacto)
 
 
 # TITULO CONTROLES
@@ -107,7 +109,8 @@ def _controles(agente, en_curso: bool, sufijo: str = "", compacto: bool = False)
             if agente is not None:
                 agente.reiniciar()
             reiniciar_conversacion()
-            st.rerun()
+            st.session_state["_chat_sincronizar"] = True   # las demás copias del chat se ponen al día en la próxima pasada
+            _reejecutar()
 
 
 # TITULO ENTRADA
@@ -138,6 +141,18 @@ def _entrada(uid: str, agente, error_agente: str, en_curso: bool, vistos, agotad
             if nuevo is not None:   # None = ya había un turno en curso: no se duplica el mensaje
                 st.session_state.mensajes_ui.append({"role": "user", "content": prompt_usuario})
                 vistos.add(nuevo.id)
+        st.session_state["_chat_sincronizar"] = True       # las demás copias del chat se ponen al día en la próxima pasada
+        _reejecutar()
+
+
+# TITULO REEJECUTAR
+
+def _reejecutar() -> None:
+    """Vuelve a dibujar SOLO el chat (su fragmento) después de enviar un mensaje o reiniciar la conversación; si por alguna razón no corre como fragmento, reejecuta la
+    página completa como antes."""
+    try:
+        st.rerun(scope="fragment")
+    except st.errors.StreamlitAPIException:
         st.rerun(scope="app")
 
 
@@ -149,6 +164,9 @@ def _chat_agente(sufijo: str = "", altura: int = 450, compacto: bool = False) ->
     Recibe el sufijo de las claves, el alto de la zona de mensajes y si los controles van compactos. No devuelve nada. El orden importa: primero se sincroniza el turno
     en segundo plano (puede añadir mensajes) y luego se dibujan los controles y el historial.
     """
+    # Si otra pasada pidió poner al día las demás copias del chat (se envió un mensaje o se reinició la conversación), se les pide su refresco.
+    if st.session_state.pop("_chat_sincronizar", False):
+        pedir_refresco("chat_flot" if not sufijo else "chat")
     # --- ZONA DE CHAT INFERIOR: AGENTE (nucleo_agente.agente.Agente) ---
     # Identificación del usuario y conversación inicial.
     uid = usuario_id()

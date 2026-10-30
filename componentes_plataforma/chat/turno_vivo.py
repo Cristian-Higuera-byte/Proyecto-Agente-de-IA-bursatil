@@ -23,6 +23,7 @@ from html import escape
 
 import streamlit as st
 
+from componentes_plataforma.refresco_fragmentos import pedir_refresco
 from nucleo_agente import turnos
 
 
@@ -42,7 +43,14 @@ def burbuja_en_vivo(usuario_id: str, turno_id: str, sufijo: str = "") -> None:
     # Turno actual del usuario; si cambió o terminó, se relanza la app para incorporar la respuesta.
     t = turnos.turno_de(usuario_id)
     if t is None or t.id != turno_id or t.terminado:
-        st.rerun(scope="app")
+        # El turno terminó: se pide refrescar (sin reiniciar la página) el chat, el historial y las órdenes propuestas del agente y la campana de avisos; al volver a dibujarse el
+        # chat ya no trae esta burbuja y su temporizador se detiene. Si el refresco no llegara en 5 s, red de seguridad: se reejecuta la página completa, como antes.
+        pedir_refresco("todo_agente", marca=f"fin-{turno_id}{sufijo}")
+        inicio = st.session_state.setdefault(f"_fin_turno_{turno_id}{sufijo}", time.time())
+        if time.time() - inicio > 5:
+            st.session_state.pop(f"_fin_turno_{turno_id}{sufijo}", None)
+            st.rerun(scope="app")
+        return
     t.ui_viva = time.time()   # la interfaz lo está mostrando: el aviso final nacerá ya leído
     with st.chat_message("assistant"):
         st.html(

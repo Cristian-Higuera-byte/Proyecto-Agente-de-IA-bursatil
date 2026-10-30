@@ -21,6 +21,7 @@ propuestas.
 import streamlit as st
 
 from componentes_plataforma.chat import renderizar_chat_agente
+from componentes_plataforma.refresco_fragmentos import fragmento_con_refresco
 from componentes_plataforma.grafico.panel import renderizar_panel_central
 from componentes_plataforma.agente_paneles import (inyectar_estilos_agente,
                                                    renderizar_historial_agente,
@@ -81,11 +82,12 @@ def renderizar_vista_operativa(renderizar_lista_izquierda, fragmentos, consola) 
     # Segunda fila: paneles del agente, con las mismas proporciones que la primera.
     columna_historial, columna_chat, columna_propuestas = st.columns(COLUMNAS_OPERAR)
     with columna_historial:
-        renderizar_historial_agente(altura=ALTURA_HISTORIAL)
+        # Historial y órdenes propuestas son fragmentos con clave: el agente los refresca al terminar un turno sin reiniciar la página.
+        fragmento_con_refresco("agente_historial", renderizar_historial_agente, altura=ALTURA_HISTORIAL)
     with columna_chat:
         renderizar_chat_agente()
     with columna_propuestas:
-        renderizar_ordenes_propuestas(altura=ALTURA_PROPUESTAS)
+        fragmento_con_refresco("agente_propuestas", renderizar_ordenes_propuestas, altura=ALTURA_PROPUESTAS)
 
 
 # -------------------------------------------------------------------------------------------------------
