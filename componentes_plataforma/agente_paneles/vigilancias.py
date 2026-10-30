@@ -23,6 +23,7 @@ import streamlit as st
 
 from componentes_plataforma.agente_paneles.datos import CLAVE_AVISO
 from componentes_plataforma.agente_paneles.formato import escapar_html, hora, par_clave_valor
+from nucleo_agente import ordenes
 from componentes_plataforma.vigilancia_terminos import pedir as pedir_terminos
 from nucleo_agente import vigilancia
 
@@ -55,7 +56,7 @@ def tarjeta_vigilancia(v: dict[str, Any]) -> str:
         cuarto = par_clave_valor("Dura", f"{v['duracion_horas']:g} h")
         pie = (f"<div class='agente-aviso'>El agente analizará <b>{escapar_html(v['simbolo'])}</b> y, si autorizas, "
                "<b>comprará o venderá solo</b>, sin pedirte confirmación, dentro de estos límites. "
-               "Solo cuenta demo; puedes detenerla cuando quieras.</div>")
+               + ("Solo cuenta demo; " if ordenes.LIMITES.solo_demo else "En la cuenta conectada (demo o real); ") + "puedes detenerla cuando quieras.</div>")
         cita = escapar_html((v.get("instruccion") or "").strip())
     else:
         tiempo = f"Vence a las {hora(v.get('vence'))}"

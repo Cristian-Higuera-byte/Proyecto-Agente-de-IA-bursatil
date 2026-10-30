@@ -26,9 +26,12 @@ from herramientas import billetera, copiador, gestor_autenticacion, gestor_estra
 from herramientas.puente_mt5 import obtener_info_cuenta
 
 # Texto resumido de los términos de la cuenta de inversor
-_TERMINOS = ("Copiar estrategias es solo para cuentas demo de práctica. El rendimiento pasado no garantiza resultados futuros y copiar conlleva riesgo de pérdida. "
-             "Las operaciones se replican de forma automática en tu cuenta demo con el tamaño que elijas; puede haber diferencias de precio y operaciones que no se puedan copiar. "
-             "Puedes pausar o detener una copia cuando quieras.")
+_TERMINOS = (("Copiar estrategias conlleva riesgo de pérdida y el rendimiento pasado no garantiza resultados futuros. "
+              "Las operaciones se replican de forma automática en la cuenta (demo o real) de la estrategia, con el tamaño que elijas; en una cuenta real se opera con dinero real. "
+              if configuracion.OPERAR_EN_CUENTA_REAL else
+              "Copiar estrategias es solo para cuentas demo de práctica. El rendimiento pasado no garantiza resultados futuros y copiar conlleva riesgo de pérdida. "
+              "Las operaciones se replican de forma automática en tu cuenta demo con el tamaño que elijas; ")
+             + "puede haber diferencias de precio y operaciones que no se puedan copiar. Puedes pausar o detener una copia cuando quieras.")
 
 
 # TITULO USUARIO
@@ -117,7 +120,7 @@ def _formulario(uid, e: dict) -> None:
             return
         if ajustar:
             perfil_copia.aplicar(uid, propuesta["nuevos"])
-        st.session_state["copytrading_aviso"] = f"Ya estás copiando «{e['nombre']}». Las operaciones nuevas del gestor se replicarán en tu cuenta demo."
+        st.session_state["copytrading_aviso"] = f"Ya estás copiando «{e['nombre']}». Las operaciones nuevas del gestor se replicarán en tu cuenta {e.get('cuenta_tipo') or 'demo'}."
         st.session_state["copytrading_seccion"] = "Cartera"
         st.session_state.copytrading_estrategia = None
         st.rerun()
@@ -131,7 +134,11 @@ def dialogo_copiar(e: dict) -> None:
     if not copiador.disponible():
         st.info("Copiar estrategias necesita la base de datos y el modo multiusuario, que no están activos en este equipo.")
         return
-    if gestor_estrategias.cuenta_actual() != "demo":
+    tipo_estrategia = str(e.get("cuenta_tipo") or "demo")
+    if gestor_estrategias.cuenta_actual() != tipo_estrategia:
+        st.warning(f"Esta estrategia opera en cuenta {tipo_estrategia}: cambia a tu cuenta {tipo_estrategia} para copiarla.")
+        return
+    if tipo_estrategia != "demo" and not configuracion.OPERAR_EN_CUENTA_REAL:
         st.warning("Por ahora el copy trading funciona solo con la cuenta demo. Cambia a tu cuenta demo para copiar.")
         return
     uid = _usuario_id()

@@ -113,7 +113,7 @@ def renderizar_cabecera_precio(activo_visible: str, digits: int) -> None:
             </style>
             <div class='pj-cab-precio' style='background-color: #161b22; padding: 10px 16px; border-radius: 8px; border: 1px solid #30363d; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;'>
                 <div class='pj-cab-precio-datos' style='display: flex; align-items: center; gap: 14px;'>
-                    <span class='pj-cab-simbolo' style='font-size: 20px; font-weight: bold; color: #ffffff;'>{escape(activo_visible)}</span>
+                    <span class='pj-cab-simbolo' role='button' title='Ver lista de activos' style='font-size: 20px; font-weight: bold; color: #ffffff;'>{escape(activo_visible)}</span>
                     <span class='pj-cab-origen' style='background: #30363d; color: #8b949e; padding: 2px 8px; border-radius: 4px; font-size: 11px;'>{NOMBRE_PROVEEDOR}</span>
                     <span {_en_vivo(activo_visible, 'px', d=digits, flash=1)} style='font-size: 22px; font-weight: bold; font-family: monospace; color: {color_variacion_activo};'>{precio_actual:,.{digits}f}</span>
                     <span class='pj-cab-bidask' style='font-size: 14px; font-weight: 600; color: {color_variacion_activo};'>Bid:<span {_en_vivo(activo_visible, 'bid', d=digits)}>{bid:,.{digits}f}</span> | Ask: <span {_en_vivo(activo_visible, 'ask', d=digits)}>{ask:,.{digits}f}</span></span>

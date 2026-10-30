@@ -28,7 +28,10 @@ from componentes_plataforma.mercado_datos import cargar_datos_mercado
 from componentes_plataforma.flujo_precios import inyectar_flujo
 from componentes_plataforma.transicion import inyectar_transicion
 
+from herramientas import diagnostico_rendimiento as rendimiento
+
 from .cabecera import datos_cuenta, renderizar_barra_superior
+from .calentamiento import calentar
 from .dialogos import renderizar_dialogos
 from .estilos import css_global, html_pantalla_carga
 from .fragmentos import crear_fragmentos
@@ -54,6 +57,8 @@ def ejecutar(consola) -> None:
         layout="wide"
     )
 
+    rendimiento.iniciar()   # medición de tiempos (solo con PJ_DIAGNOSTICO=1 o ?diag=1)
+
     # Estilos CSS globales (tema oscuro tipo terminal de trading).
     st.markdown(css_global(), unsafe_allow_html=True)
 
@@ -64,6 +69,7 @@ def ejecutar(consola) -> None:
     registrar_resolvedor()   # el backend de Capital averigua el usuario y su modo (demo/real) desde la sesión
     usuario_actual = requerir_login()
     requerir_cuenta(usuario_actual)   # sin cuenta de Capital conectada se muestra la pantalla para conectarla
+    rendimiento.marca("estilos y acceso")
     # Mercados precargado en segundo plano desde el arranque (una vez por proceso): sin esperas al abrir pestañas.
     from componentes_plataforma.mercados.secciones import precargar_todas_las_categorias
     precargar_todas_las_categorias()
@@ -74,9 +80,13 @@ def ejecutar(consola) -> None:
     if primera_carga:
         cubierta_carga.markdown(html_pantalla_carga(), unsafe_allow_html=True)
 
+    # Lecturas del bróker en paralelo (cuenta, posiciones y activo del gráfico): así la página no las espera una tras otra tras un rato inactiva.
+    calentar()
+
     # 1. Barra superior fija (saldo de MT5 y métricas de riesgo).
     saldo, moneda, ganancia_perdida, metricas = datos_cuenta()
     renderizar_barra_superior(usuario_actual, saldo, moneda, ganancia_perdida, metricas)
+    rendimiento.marca("barra superior")
 
     # Feed de precios en vivo (SSE desde servidor_datos.py): pinta los números directo en el
     # navegador unas 4 veces por segundo, sin reejecutar Streamlit.
@@ -87,6 +97,7 @@ def ejecutar(consola) -> None:
 
     # Precarga en segundo plano de las secciones lentas (Noticias, Mercados y Diario), una vez por proceso.
     iniciar_precargas()
+    rendimiento.marca("datos de mercado")
 
     # Fragmentos con números en vivo (favoritos, watchlist y cartera).
     fragmentos = crear_fragmentos()
@@ -102,7 +113,9 @@ def ejecutar(consola) -> None:
     with columna_principal:
         # El contenedor con clave `pj_vista` es lo que la cortina de transición oculta mientras se carga la sección.
         with st.container(key="pj_vista"):
+            rendimiento.marca("barra lateral")
             renderizar_vista(fragmentos, consola)
+            rendimiento.marca(f"vista {st.session_state.get('navegacion_activo')}")
 
     # Se quita la cubierta de carga una vez dibujado todo.
     cubierta_carga.empty()
@@ -112,6 +125,8 @@ def ejecutar(consola) -> None:
 
     # Chat del agente flotante (burbuja abajo a la derecha): va en TODAS las secciones, siempre al final para no alterar el orden de las vistas.
     renderizar_chat_flotante()
+    rendimiento.marca("diálogos y chat")
+    rendimiento.etiqueta()
 
 
 # -------------------------------------------------------------------------------------------------------

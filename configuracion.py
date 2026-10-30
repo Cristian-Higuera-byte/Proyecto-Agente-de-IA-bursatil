@@ -110,6 +110,9 @@ PLAN_MODO_LOCAL = "avanzado"
 # moneda: moneda del saldo; bono_inicial: saldo con el que se abre la billetera; recargas: montos que ofrece el botón de recarga;
 # recarga_mensual_max: tope de recargas por mes; saldo_maximo: tope del saldo (evita acumular saldo de prueba sin límite).
 BILLETERA: dict = {"moneda": "USD", "bono_inicial": 100.0, "recargas": [50, 100, 500, 1000], "recarga_mensual_max": 5000.0, "saldo_maximo": 10000.0}
+# Cuenta real: True deja operar con la cuenta real de Capital.com todo lo que antes era solo de la cuenta demo (órdenes propuestas por el agente y manuales,
+# vigilancias automáticas y copy trading). False vuelve al modo anterior, en que el agente y el copy trading solo operan en cuenta demo.
+OPERAR_EN_CUENTA_REAL: bool = True
 # Copy trading: requisitos para ser gestor y límites de una estrategia.
 # dias_minimos y operaciones_minimas: historial registrado que se pide para publicar; max_estrategias: estrategias vigentes por gestor (las cerradas
 # no cuentan); comision_max y comision_defecto: comisión de rendimiento (%) que el gestor cobra a quien copia; inversion_minima: mínimo (USD) para copiar;

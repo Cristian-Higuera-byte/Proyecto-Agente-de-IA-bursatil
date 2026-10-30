@@ -29,8 +29,10 @@ Funciones principales:
 Claves de estado de sesión usadas: cartera_anterior, cartera_ganancia_perdida_real, cartera_cerradas, cartera_detalle,
 cartera_cerrar, cartera_resultado y cartera_editando.
 """
+import contextlib
 import html
 import re
+import threading
 import time
 
 import streamlit as st
@@ -38,6 +40,7 @@ import streamlit as st
 from herramientas.puente_mt5 import obtener_posiciones, obtener_historial
 from herramientas import gestor_lista_activos as wl
 from herramientas import almacen_cerradas
+from herramientas.backends import sesiones_capital
 
 from componentes_plataforma.iconografia import icono_activo   # íconos estilo XM (comunes a todo el dashboard)
 
@@ -46,6 +49,36 @@ from .detalle import detalle_inline
 
 # Altura en píxeles del contenedor con scroll que aloja las tarjetas y las filas de la lista.
 ALTURA_LISTA = 700
+# Cuántos segundos se considera vigente el precalentado de un símbolo, e instante del último precalentado por (cuenta, símbolo).
+VIGENCIA_PRECALENTADO = 25
+_PRECALENTADO: dict = {}
+
+
+# TITULO PRECALENTAR
+
+def _precalentar(posicion: list) -> None:
+    """Carga en segundo plano los datos del bróker de cada activo con posición abierta (decimales, reglas, símbolo real).
+
+    Así, al pulsar «Mostrar gráfico» el gráfico, el ticket de orden y la cabecera encuentran esos datos ya en la caché y el cambio de activo no espera por
+    la red. Recibe la lista de posiciones; no devuelve nada ni bloquea la página. Cada símbolo se precalienta como mucho cada `VIGENCIA_PRECALENTADO` segundos."""
+    clave, ahora = sesiones_capital.clave_actual(), time.time()
+    pendientes = [p["symbol"] for p in posicion if ahora - _PRECALENTADO.get((clave, p["symbol"]), 0) > VIGENCIA_PRECALENTADO]
+    if not pendientes:
+        return
+    for simbolo in pendientes:
+        _PRECALENTADO[(clave, simbolo)] = ahora
+
+    def _tarea():
+        """Hilo de precalentado: pide la información de cada símbolo con la cuenta del usuario y descarta cualquier error."""
+        from componentes_plataforma.grafico.simbolo import info_simbolo, limpiar_simbolo
+        try:
+            with (sesiones_capital.como_usuario(*clave) if len(clave) == 2 else contextlib.nullcontext()):
+                for simbolo in pendientes:
+                    info_simbolo(limpiar_simbolo(simbolo))
+        except Exception:  # noqa: BLE001 - es solo una optimización
+            pass
+
+    threading.Thread(target=_tarea, daemon=True).start()
 
 
 # TITULO DETECTAR CIERRES
@@ -163,6 +196,7 @@ def renderizar_cartera_lista():
     css_detalle()
     # Posiciones abiertas en vivo desde MT5.
     posicion = obtener_posiciones()
+    _precalentar(posicion)
     st.session_state.cartera_editando = False   # lo activan los editores si abren un input
     # Tras un F5 la sesión es nueva: recuperar las tarjetas cerradas del archivo.
     if "cartera_cerradas" not in st.session_state:

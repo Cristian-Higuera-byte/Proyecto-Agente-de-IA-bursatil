@@ -25,7 +25,7 @@ Transportes y Servicios Ltda.
   // Tiempo máximo con la cortina puesta (ms): si Streamlit no termina, se retira igual para no dejar la pantalla vacía.
   var TOPE = 25000;
   // Pausa (ms) sin ejecución antes de dar la sección por lista; evita descubrirla entre dos pasadas seguidas.
-  var REPOSO = 120;
+  var REPOSO = 70;
   var reloj = null;
   // TITULO EJECUTANDO
 
@@ -60,9 +60,9 @@ Transportes y Servicios Ltda.
     reloj = setInterval(function(){
       var ahora = Date.now() - t0;
       if (ejecutando()) { vistoCorriendo = true; quieto = 0; }
-      else if (vistoCorriendo || ahora > 1500) { quieto += 40; }
+      else if (vistoCorriendo || ahora > 900) { quieto += 25; }
       if (quieto >= REPOSO || ahora > TOPE) descubrir();
-    }, 40);
+    }, 25);
   }
   // Si el script se carga otra vez (rerun de Streamlit), se retira el oyente anterior para no duplicar clics.
   if (P.__pjTransFn) D.removeEventListener('click', P.__pjTransFn, true);
@@ -80,6 +80,39 @@ Transportes y Servicios Ltda.
   };
   // Captura (true) para enterarse del clic antes que los manejadores de Streamlit.
   D.addEventListener('click', P.__pjTransFn, true);
+
+  // TITULO RESPUESTA INMEDIATA DE LOS BOTONES
+
+  // Botones y interruptores de Streamlit: al pulsarlos reciben al instante la clase pj-esperando (un anillo verde y un leve hundimiento) y la conservan
+  // hasta que la ejecución termina, de modo que la pantalla responde en el mismo momento del clic aunque el servidor tarde en contestar.
+  var PULSABLES = 'button[data-testid^="stBaseButton"], [data-testid="stCheckbox"] label, [data-testid="stToggle"] label';
+  var esperando = null, relojBoton = null;
+  // TITULO LIBERAR
+
+  /** Quita la clase de espera del último botón pulsado y detiene su vigilante. */
+  function liberar(){
+    if (esperando) esperando.classList.remove('pj-esperando');
+    esperando = null; clearInterval(relojBoton); relojBoton = null;
+  }
+  if (P.__pjPulsoFn) D.removeEventListener('click', P.__pjPulsoFn, true);
+  /**
+   * Oyente de clics (fase de captura): marca el botón pulsado y espera a que la ejecución corra y se quede quieta (o, si nunca corre, 0,7 s; tope 8 s).
+   * Ignora los botones deshabilitados y las pestañas. No detiene el clic.
+   */
+  P.__pjPulsoFn = function(e){
+    var b = e.target && e.target.closest && e.target.closest(PULSABLES);
+    if (!b || b.disabled || b.getAttribute('aria-disabled') === 'true' || b.closest('[role="tablist"]')) return;
+    liberar();
+    esperando = b; b.classList.add('pj-esperando');
+    var t0 = Date.now(), visto = false, quieto = 0;
+    relojBoton = setInterval(function(){
+      var ahora = Date.now() - t0;
+      if (ejecutando()) { visto = true; quieto = 0; }
+      else if (visto || ahora > 700) { quieto += 30; }
+      if (quieto >= 90 || ahora > 8000) liberar();
+    }, 30);
+  };
+  D.addEventListener('click', P.__pjPulsoFn, true);
 })();
 
 /* -------------------------------------------------------------------------------------------------------

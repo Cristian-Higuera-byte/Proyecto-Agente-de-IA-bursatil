@@ -69,7 +69,7 @@ def crear_fragmentos() -> SimpleNamespace:
         lista sigue refrescando para detectar cierres que ocurran solos.
         """
         from componentes_plataforma.cartera_panel import renderizar_cartera_lista
-        cada = None if st.session_state.get("cartera_editando") else intervalo("2s", "5s")
+        cada = None if st.session_state.get("cartera_editando") else intervalo("2s", "8s")
         st.fragment(run_every=cada)(renderizar_cartera_lista)()
 
     return SimpleNamespace(favoritos=favoritos_en_vivo, watchlist=watchlist_en_vivo, cartera=cartera_en_vivo)

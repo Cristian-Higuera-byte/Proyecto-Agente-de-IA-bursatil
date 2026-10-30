@@ -18,6 +18,7 @@ Realiza peticiones HTTP HEAD a la fuente de logos y mantiene dos cachés en memo
 permanentes y fallos con reintento temporizado.
 """
 import re
+import threading
 import time
 import urllib.request
 
@@ -29,6 +30,8 @@ _LOGO_CORRECTO: dict = {}        # símbolo -> url (acierto: se guarda para siem
 _LOGO_FALLO: dict = {}     # símbolo -> instante del último fallo (se reintenta)
 # Segundos antes de reintentar una URL que falló (evita martillar la red, pero no descarta para siempre).
 _REINTENTO_LOGO = 120      # s
+_COMPROBANDO: set = set()  # claves cuya comprobación va en curso (en un hilo aparte)
+_ESPERA_LOGO = 0.3         # s que se espera, como máximo, el resultado de una comprobación nueva antes de seguir sin el logo
 
 
 # TITULO TICKER LOGO
@@ -77,19 +80,36 @@ def url_existe(url: str, clave: str) -> str:
     # Fallo reciente: no se reintenta todavía.
     if time.time() - _LOGO_FALLO.get(clave, 0) < _REINTENTO_LOGO:
         return ""
-    # Comprueba por red que la URL exista y sea una imagen.
+    # La comprobación por red corre en un hilo aparte: así un servidor de logos lento no deja la página esperando hasta 6 s
+    # por cada activo. Se espera un instante por si responde rápido; si no, el activo se dibuja con sus iniciales y el
+    # logo aparece en la siguiente actualización.
+    if clave not in _COMPROBANDO:
+        _COMPROBANDO.add(clave)
+        threading.Thread(target=_comprobar, args=(url, clave), daemon=True).start()
+    fin = time.time() + _ESPERA_LOGO
+    while clave in _COMPROBANDO and time.time() < fin:
+        time.sleep(0.02)
+    return _LOGO_CORRECTO.get(clave, "")
+
+
+# TITULO COMPROBAR
+
+def _comprobar(url: str, clave: str) -> None:
+    """Comprueba por red (HEAD, timeout 6 s) que `url` exista y sea una imagen; anota el acierto o el instante del fallo en las cachés."""
     try:
         req = urllib.request.Request(url, method="HEAD", headers={"User-Agent": "Mozilla/5.0"})
         with urllib.request.urlopen(req, timeout=6) as r:
             if r.status == 200 and "image" in r.headers.get("Content-Type", ""):
                 _LOGO_CORRECTO[clave] = url
-                return url
+                return
     except Exception:
         # Cualquier error de red cuenta como fallo.
         pass
+    finally:
+        _COMPROBANDO.discard(clave)
     # Registra el instante del fallo para el reintento posterior.
-    _LOGO_FALLO[clave] = time.time()
-    return ""
+    if clave not in _LOGO_CORRECTO:
+        _LOGO_FALLO[clave] = time.time()
 
 
 # TITULO URL LOGO ACCION

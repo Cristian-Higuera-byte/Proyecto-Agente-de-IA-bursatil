@@ -94,7 +94,7 @@ def requisitos(usuario_id, cuenta: str | None = None) -> dict:
     vigentes = len(cliente.table(_TABLA).select("id").eq("gestor_id", int(usuario_id)).in_("estado", list(_VIGENTES)).execute().data or [])
     items = [
         {"clave": "apodo", "texto": "Tener un apodo en tu perfil (es tu nombre público)", "ok": bool(apodo), "detalle": f"@{apodo}" if apodo else "Agrégalo en Mi perfil > Datos personales"},
-        {"clave": "cuenta", "texto": "Usar la cuenta demo (por ahora el copy trading es solo demo)", "ok": cuenta == "demo", "detalle": "Cuenta " + cuenta},
+        {"clave": "cuenta", "texto": "Usar la cuenta demo" if not configuracion.OPERAR_EN_CUENTA_REAL else "Usar una cuenta conectada (demo o real)", "ok": cuenta == "demo" or configuracion.OPERAR_EN_CUENTA_REAL, "detalle": "Cuenta " + cuenta},
         {"clave": "dias", "texto": f"Al menos {cfg['dias_minimos']} días de historial registrado", "ok": dias >= cfg["dias_minimos"], "detalle": f"{dias} días"},
         {"clave": "operaciones", "texto": f"Al menos {cfg['operaciones_minimas']} operaciones cerradas", "ok": cerradas >= cfg["operaciones_minimas"], "detalle": f"{cerradas} cerradas" if cerradas < cfg["operaciones_minimas"] else f"{cerradas} o más"},
         {"clave": "cupo", "texto": f"Máximo {cfg['max_estrategias']} estrategias vigentes", "ok": vigentes < cfg["max_estrategias"], "detalle": f"{vigentes} vigentes"},
