@@ -54,7 +54,9 @@ Transportes y Servicios Ltda.
         // Aviso temporal de resultado, centrado arriba.
         '#pj-posicion-aviso{position:absolute;left:50%;top:40px;transform:translateX(-50%);padding:7px 14px;border-radius:8px;' +
         'background:#161b22;border:1px solid #30363d;color:#e6edf3;font:600 12.5px "Source Sans Pro",system-ui,sans-serif;' +
-        'box-shadow:0 6px 20px rgba(0,0,0,.5);transition:opacity .25s;white-space:nowrap;z-index:3;}' +
+        'box-shadow:0 6px 20px rgba(0,0,0,.5);transition:opacity .25s;z-index:3;pointer-events:none;' +
+        // El texto se parte en varias líneas dentro del ancho del gráfico (en el celular los avisos largos se cortaban).
+        'width:max-content;max-width:calc(100% - 24px);box-sizing:border-box;white-space:normal;text-align:center;line-height:1.3;}' +
         // Menú del clic derecho (pj-menu): elementos (it), íconos (ic), separadores (sep) y título (tit).
         '#pj-menu{position:absolute;min-width:230px;background:#161b22;border:1px solid #30363d;border-radius:8px;padding:5px 0;' +
         'pointer-events:auto;box-shadow:0 10px 30px rgba(0,0,0,.6);font:13px "Source Sans Pro",system-ui,sans-serif;z-index:4;}' +
