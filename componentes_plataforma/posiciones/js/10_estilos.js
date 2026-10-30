@@ -46,9 +46,6 @@ Transportes y Servicios Ltda.
         '#pj-posicion .bd{display:flex;align-items:center;padding:0 7px;border:1px dashed;border-radius:4px;background:#0d1117;' +
         'font:700 11.5px "Source Sans Pro",system-ui,sans-serif;cursor:ns-resize;user-select:none;touch-action:none;}' +
         '#pj-posicion .bd:hover{background:#161b22;}' +
-        // Con el dedo (puntero grueso) las etiquetas y las insignias TP/SL se agrandan para poder tocarlas y arrastrarlas.
-        '@media (pointer:coarse){#pj-posicion .tg,#pj-posicion .bds{height:32px;top:-16px;}' +
-        '#pj-posicion .bd{padding:0 13px;font-size:13px;}#pj-posicion .x{width:32px;}}' +
         '#pj-posicion .cn{position:absolute;width:0;border-left:1px solid;}' +
         '#pj-posicion .cn:before,#pj-posicion .cn:after{content:"";position:absolute;left:-4px;width:7px;height:7px;border-radius:50%;background:inherit;}' +
         '#pj-posicion .cn:before{top:-3px;}#pj-posicion .cn:after{bottom:-3px;}' +
