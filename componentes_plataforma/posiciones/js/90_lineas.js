@@ -32,8 +32,8 @@ Transportes y Servicios Ltda.
       // TITULO EMPEZAR
 
       /**
-       * Inicia el arrastre de un nivel (precio de entrada, SL o TP) al pulsar el ratón.
-       * Recibe id del elemento, f (campo: 'po', 'sl' o 'tp') y el evento e. Solo con el botón izquierdo; el SL de un stop
+       * Inicia el arrastre de un nivel (precio de entrada, SL o TP) al pulsar con el ratón o tocar con el dedo (evento de puntero).
+       * Recibe id del elemento, f (campo: 'po', 'sl' o 'tp') y el evento e. Solo con el botón izquierdo (o el dedo); el SL de un stop
        * dinámico no se puede arrastrar y muestra un aviso.
        */
       function empezar(id, f, e){
@@ -70,11 +70,14 @@ Transportes y Servicios Ltda.
         n.bdTp = n.bds.children[0]; n.bdSl = n.bds.children[1];
         n.bdTp.style.color = C_TAKE_PROFIT; n.bdTp.style.borderColor = C_TAKE_PROFIT;
         n.bdSl.style.color = C_STOP_LOSS; n.bdSl.style.borderColor = C_STOP_LOSS;
-        n.bdTp.addEventListener('mousedown', function(e){ empezar(id, 'tp', e); });
-        n.bdSl.addEventListener('mousedown', function(e){ empezar(id, 'sl', e); });
+        n.bdTp.addEventListener('pointerdown', function(e){ empezar(id, 'tp', e); });
+        n.bdSl.addEventListener('pointerdown', function(e){ empezar(id, 'sl', e); });
+        // El toque sobre una etiqueta no debe llegar al gráfico (movería o ampliaría el gráfico mientras se arrastra el nivel).
+        [n.bdTp, n.bdSl].forEach(function(b){ b.addEventListener('touchstart', function(e){ e.stopPropagation(); }, {passive: true}); });
         // ✕ de la línea principal: en posiciones abre el modal de cierre; en órdenes cancela la orden.
         var x = n.main.querySelector('.x');
         x.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+        x.addEventListener('pointerdown', function(e){ e.stopPropagation(); });
         if (it.kind === 'pos'){
           // ✕ de la posición → modal de cierre (botón invisible de Python, gatillos_cierre)
           x.title = 'Cerrar posición';
@@ -87,7 +90,8 @@ Transportes y Servicios Ltda.
           x.addEventListener('click', function(e){ e.stopPropagation(); cancelarOrden(id); });
           var tgo = n.main.querySelector('.tg');
           tgo.title = 'Arrastrar para mover · doble clic o clic derecho para modificar';
-          tgo.addEventListener('mousedown', function(e){ if (e.detail < 2) empezar(id, 'po', e); });
+          tgo.addEventListener('pointerdown', function(e){ empezar(id, 'po', e); });
+          tgo.addEventListener('touchstart', function(e){ e.stopPropagation(); }, {passive: true});
           tgo.addEventListener('dblclick', function(e){ e.stopPropagation(); drag = null; document.body.style.cursor = ''; abrirEditor(id); });
           tgo.addEventListener('contextmenu', function(e){ menuOrden(e, id); });
         }
@@ -96,6 +100,7 @@ Transportes y Servicios Ltda.
           var lv = n[f], lx = lv.querySelector('.x');
           lx.title = 'Quitar ' + NOMBRE[f];
           lx.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+          lx.addEventListener('pointerdown', function(e){ e.stopPropagation(); });
           lx.addEventListener('click', function(e){
             e.stopPropagation();
             // SL en automático (stop dinámico): el motor lo repone enseguida, así que
@@ -107,7 +112,8 @@ Transportes y Servicios Ltda.
             cambiarNivel(id, f, 0);
           });
           lv.querySelector('.tg').title = 'Arrastrar para mover el ' + NOMBRE[f];
-          lv.querySelector('.tg').addEventListener('mousedown', function(e){ empezar(id, f, e); });
+          lv.querySelector('.tg').addEventListener('pointerdown', function(e){ empezar(id, f, e); });
+          lv.querySelector('.tg').addEventListener('touchstart', function(e){ e.stopPropagation(); }, {passive: true});
         });
         return n;
       }
@@ -171,14 +177,15 @@ Transportes y Servicios Ltda.
         if (motivo){ avisar('No válido: ' + motivo, true); return; }
         cambiarNivel(d.id, d.f, d.px);
       }
-      // Seguimiento global del ratón: si se soltó fuera del gráfico se cancela; si no, se actualiza el arrastre.
-      document.addEventListener('mousemove', function(e){
+      // Seguimiento global del puntero (ratón o dedo): si se soltó fuera del gráfico se cancela; si no, se actualiza el arrastre.
+      document.addEventListener('pointermove', function(e){
         if (!drag) return;
         if (e.buttons === 0){ soltar(true); return; }   // se soltó fuera del gráfico
         mover(e);
       });
-      // Soltar el botón confirma el arrastre.
-      document.addEventListener('mouseup', function(){ soltar(false); });
+      // Soltar el botón o levantar el dedo confirma el arrastre; si el sistema lo interrumpe (gesto del sistema) se cancela.
+      document.addEventListener('pointerup', function(){ soltar(false); });
+      document.addEventListener('pointercancel', function(){ soltar(true); });
       // Escape cancela el arrastre y cierra menú, tarjeta de confirmación y editor.
       document.addEventListener('keydown', function(e){
         if (e.key === 'Escape'){ soltar(true); cerrarMenu(); cerrarConfiguracion(true); cerrarEditor(); }

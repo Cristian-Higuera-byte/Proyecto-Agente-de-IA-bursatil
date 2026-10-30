@@ -26,7 +26,7 @@ Transportes y Servicios Ltda.
         // Etiqueta (tg) con tres partes: lotes (vo), P/G (pg) y botón de cierre (x).
         '#pj-posicion .tg{position:absolute;top:-11px;height:22px;display:flex;align-items:stretch;pointer-events:auto;' +
         'font:600 12px "Source Sans Pro",system-ui,sans-serif;border-radius:4px;overflow:hidden;' +
-        'box-shadow:0 2px 8px rgba(0,0,0,.45);cursor:default;white-space:nowrap;}' +
+        'box-shadow:0 2px 8px rgba(0,0,0,.45);cursor:default;white-space:nowrap;touch-action:none;}' +
         '#pj-posicion .lv .tg,#pj-posicion .po .tg{cursor:ns-resize;}' +
         '#pj-posicion .vo{display:flex;align-items:center;padding:0 8px;color:#fff;border:1px solid transparent;border-right:none;}' +
         '#pj-posicion .pg{display:flex;align-items:center;padding:0 9px;background:#161b22;border:1px solid;border-left:none;border-right:none;' +
@@ -44,8 +44,11 @@ Transportes y Servicios Ltda.
         // Insignias TP/SL arrastrables (bds, bd) y conectores de nivel (cn).
         '#pj-posicion .bds{position:absolute;top:-11px;height:22px;display:flex;gap:4px;pointer-events:auto;}' +
         '#pj-posicion .bd{display:flex;align-items:center;padding:0 7px;border:1px dashed;border-radius:4px;background:#0d1117;' +
-        'font:700 11.5px "Source Sans Pro",system-ui,sans-serif;cursor:ns-resize;user-select:none;}' +
+        'font:700 11.5px "Source Sans Pro",system-ui,sans-serif;cursor:ns-resize;user-select:none;touch-action:none;}' +
         '#pj-posicion .bd:hover{background:#161b22;}' +
+        // Con el dedo (puntero grueso) las etiquetas y las insignias TP/SL se agrandan para poder tocarlas y arrastrarlas.
+        '@media (pointer:coarse){#pj-posicion .tg,#pj-posicion .bds{height:32px;top:-16px;}' +
+        '#pj-posicion .bd{padding:0 13px;font-size:13px;}#pj-posicion .x{width:32px;}}' +
         '#pj-posicion .cn{position:absolute;width:0;border-left:1px solid;}' +
         '#pj-posicion .cn:before,#pj-posicion .cn:after{content:"";position:absolute;left:-4px;width:7px;height:7px;border-radius:50%;background:inherit;}' +
         '#pj-posicion .cn:before{top:-3px;}#pj-posicion .cn:after{bottom:-3px;}' +
