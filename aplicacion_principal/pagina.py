@@ -34,6 +34,7 @@ from .cabecera import datos_cuenta, renderizar_barra_superior
 from .calentamiento import calentar
 from .dialogos import renderizar_dialogos
 from .estilos import css_global, html_pantalla_carga
+from componentes_plataforma.refresco_fragmentos import iniciar_pasada
 from .fragmentos import crear_fragmentos
 from .precarga import iniciar_precargas
 from .vistas import renderizar_vista
@@ -58,6 +59,8 @@ def ejecutar(consola) -> None:
     )
 
     rendimiento.iniciar()   # medición de tiempos (solo con PJ_DIAGNOSTICO=1 o ?diag=1)
+
+    iniciar_pasada()   # anota qué fragmentos refrescables (chat, paneles del agente, campana) se dibujan en esta pasada
 
     # Estilos CSS globales (tema oscuro tipo terminal de trading).
     st.markdown(css_global(), unsafe_allow_html=True)

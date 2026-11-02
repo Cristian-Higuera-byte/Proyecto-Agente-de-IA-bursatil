@@ -24,6 +24,7 @@ import streamlit.components.v1 as components
 from componentes_plataforma._estaticos import estilos, texto
 from componentes_plataforma.chat import renderizar_chat_agente
 from componentes_plataforma.chat.sesion import usuario_id
+from componentes_plataforma.refresco_fragmentos import botones_refresco
 from nucleo_agente import turnos
 
 # Sufijo de las claves del chat de este panel: distingue sus widgets de los del chat de la fila de abajo de Trading y Cartera.
@@ -61,6 +62,7 @@ def renderizar_chat_flotante() -> None:
         renderizar_chat_agente(SUFIJO, altura=ALTURA_BASE, compacto=True)
     with st.container(key="pj_chat_js"):
         components.html(_JS, height=0, width=0)
+    botones_refresco()   # botones sin presencia con los que el agente refresca el chat, sus paneles y la campana sin reiniciar la página
 
 
 # -------------------------------------------------------------------------------------------------------

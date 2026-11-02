@@ -23,6 +23,7 @@ import time
 import streamlit as st
 
 from componentes_plataforma.barra_superior.datos import ICONO_TIPO
+from componentes_plataforma.refresco_fragmentos import fragmento_con_refresco, pedir_refresco
 from nucleo_agente import notificaciones
 
 
@@ -83,16 +84,31 @@ def vigilar_notificaciones(usuario_id: str) -> None:
     """Fragmento que revisa cada 3 s (sin dibujar nada) si llegó un aviso nuevo.
 
     Recibe el id del usuario. Compara la última notificación con la guardada en
-    `st.session_state["_notificacion_ultima_id"]` y solo si difieren reejecuta la app completa, para
+    `st.session_state["_notificacion_ultima_id"]` y solo si difieren pide refrescar la campana (su fragmento, no la página completa), para
     que aparezcan la insignia y el toast aunque el usuario esté en otra sección.
     """
-    if notificaciones.ultima_id(usuario_id) != st.session_state.get("_notificacion_ultima_id"):
-        st.rerun(scope="app")
+    ultima = notificaciones.ultima_id(usuario_id)
+    if ultima != st.session_state.get("_notificacion_ultima_id") and ultima != st.session_state.get("_notificacion_pedida"):
+        # Aviso nuevo: solo se refresca la campana (insignia, lista y aviso emergente), sin reejecutar la página; si el refresco no llegara, el siguiente cambio de sección o
+        # la próxima pasada completa lo muestra.
+        st.session_state["_notificacion_pedida"] = ultima
+        pedir_refresco("campana", marca=f"aviso-{ultima}")
 
 
 # TITULO CAMPANA
 
 def campana(usuario_id: str) -> None:
+    """Dibuja la campana (como fragmento con clave «campana», refrescable sin reiniciar la página) y, aparte, el vigilante de avisos nuevos.
+
+    Recibe el id del usuario; el contenido está en `_campana_contenido`."""
+    fragmento_con_refresco("campana", _campana_contenido, usuario_id)
+    # Arranca el fragmento que detecta avisos nuevos cada 3 s
+    vigilar_notificaciones(usuario_id)
+
+
+# TITULO CAMPANA CONTENIDO
+
+def _campana_contenido(usuario_id: str) -> None:
     """Dibuja la campana con insignia y la lista desplegable de notificaciones.
 
     Recibe el id del usuario. Guarda en sesión el id de la última notificación (para el
@@ -137,8 +153,6 @@ def campana(usuario_id: str) -> None:
                 if st.button("Marcar como leídas", key="notificacion_leer", icon=":material/done_all:", width="stretch"):
                     notificaciones.limpiar(usuario_id)
                     st.rerun()
-    # Arranca el fragmento que detecta avisos nuevos cada 3 s
-    vigilar_notificaciones(usuario_id)
 
 
 # -------------------------------------------------------------------------------------------------------
