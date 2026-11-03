@@ -59,7 +59,7 @@ def nota_agente() -> None:
 
 def aviso_cookie() -> None:
     """Dibuja en el inicio de sesión el aviso de la cookie que mantiene la sesión abierta, con el enlace a la política de privacidad."""
-    st.markdown("<p style='margin:10px 0 0; color:#8b949e; font-size:12px; line-height:1.5; text-align:center;'>Al iniciar sesión guardamos en este dispositivo una cookie para mantenerla abierta hasta 30 días; "
+    st.markdown("<p style='margin:10px 0 10px; color:#8b949e; font-size:12px; line-height:1.5; text-align:center;'>Al iniciar sesión guardamos en este dispositivo una cookie para mantenerla abierta hasta 30 días; "
                 "se borra al cerrar sesión. <a href='?legal=privacidad' target='_blank' rel='noopener' style='color:#8b949e;'>Más información</a>.</p>", unsafe_allow_html=True)
 
 
