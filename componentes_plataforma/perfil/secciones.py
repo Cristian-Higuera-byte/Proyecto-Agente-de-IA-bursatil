@@ -21,12 +21,14 @@ from typing import Any
 
 import streamlit as st
 
+from componentes_plataforma.acceso.sesion import cerrar_sesion_en_todos
 from componentes_plataforma.agente_paneles.formato import escapar_html
 from componentes_plataforma.perfil import almacen
 from componentes_plataforma.perfil.datos import PREFIJOS, opciones, seccion as _seccion
 from componentes_plataforma.perfil.validacion import (mascara, validar_contrasena_nueva, validar_documento,
                                                        validar_apodo, validar_nacimiento, validar_telefono)
-from herramientas import gestor_autenticacion
+from herramientas import credenciales_bolsa, gestor_autenticacion
+from herramientas.backends import sesiones_capital
 from herramientas.puente_mt5 import NOMBRE_BROKER, obtener_info_cuenta
 
 # Clave de session_state con el aviso (tipo, texto) que se muestra tras guardar y recargar la vista.
@@ -235,7 +237,59 @@ def _seguridad(usuario: dict[str, Any]) -> None:
     st.toggle("Pedir un código adicional al iniciar sesión", value=False, disabled=True, key="perfil_2fa",
               help="Próximamente.")
     st.caption("Próximamente: protegerás tu cuenta con un código de una aplicación de autenticación.")
+    st.markdown("**Sesiones abiertas**")
+    st.caption("Si usaste tu cuenta en un computador o un celular que no es tuyo, o crees que alguien más entró, cierra la sesión en todos tus dispositivos.")
+    with st.popover("Cerrar sesión en todos los dispositivos", icon=":material/devices:"):
+        st.write("Se cerrará tu sesión aquí y en todos tus otros dispositivos. Tendrás que iniciar sesión de nuevo en cada uno.")
+        if st.button("Sí, cerrar todas las sesiones", type="primary", key="perfil_cerrar_todas", width="stretch"):
+            cerrar_sesion_en_todos(usuario.get("id"))
+            st.query_params.clear()
+            st.rerun()
     st.html("<a class='perfil-salir' href='?logout=1' target='_self'>Cerrar sesión en este dispositivo</a>")
+
+
+# TITULO DESCONECTAR CUENTA
+
+def _desconectar(usuario_id, es_demo: bool, nombre: str) -> None:
+    """Quita de la plataforma las claves de la API de una cuenta (demo o real) del usuario.
+
+    Primero detiene sus vigilancias automáticas (no cierra posiciones abiertas), luego borra las credenciales cifradas, descarta la conexión en memoria y deja un aviso
+    en la sesión. Si era su única cuenta, al volver a dibujar la página se le pide conectar una. Efectos secundarios: borra filas de la base de datos y relanza la página."""
+    try:
+        from nucleo_agente import vigilancia
+        vigilancia.detener(str(usuario_id))
+    except Exception:  # noqa: BLE001 - no impide desconectar
+        pass
+    resultado = credenciales_bolsa.eliminar_credenciales(usuario_id, es_demo)
+    sesiones_capital.olvidar_usuario(usuario_id)
+    from componentes_plataforma.conectar_cuenta.modo import invalidar_cuentas
+    invalidar_cuentas()
+    st.session_state[CLAVE_AVISO] = ("ok", f"Desconectaste tu cuenta {nombre}. Borramos sus claves de la plataforma.") if resultado["ok"] else ("error", resultado["mensaje"])
+    st.rerun()
+
+
+# TITULO CONEXION CON LA API
+
+def _conexion_api(usuario: dict[str, Any]) -> None:
+    """Bloque «Conexión con Capital.com (API)» de la sección Cuenta de trading: qué cuentas están conectadas y el botón, con confirmación, para quitar las claves de cada una."""
+    st.markdown("**Conexión con Capital.com (API)**")
+    if not sesiones_capital.MULTIUSUARIO:
+        st.caption("Esta plataforma usa una sola cuenta, configurada por quien la administra: no hay claves tuyas que quitar.")
+        return
+    usuario_id = usuario.get("id")
+    if usuario_id is None:
+        return
+    st.caption("Las claves de tu API se guardan cifradas. Si quitas una, la borramos de la plataforma y el agente y las órdenes de esa cuenta dejan de funcionar hasta que la conectes de nuevo.")
+    estado = credenciales_bolsa.estado_credenciales(usuario_id)
+    for nombre, es_demo in (("demo", True), ("real", False)):
+        texto, boton = st.columns([3, 2], vertical_alignment="center")
+        conectada = estado.get(nombre)
+        texto.markdown(f"Cuenta {nombre}: **{'conectada' if conectada else 'sin conectar'}**")
+        if conectada:
+            with boton.popover(f"Quitar la cuenta {nombre}", icon=":material/link_off:", width="stretch"):
+                st.write("Borraremos las claves de esta cuenta de la plataforma y detendremos tus vigilancias automáticas. Las posiciones abiertas no se cierran. Podrás conectarla de nuevo cuando quieras.")
+                if st.button("Sí, quitar la cuenta", type="primary", key=f"perfil_quitar_{nombre}", width="stretch"):
+                    _desconectar(usuario_id, es_demo, nombre)
 
 
 # TITULO CUENTA
@@ -271,6 +325,7 @@ def _cuenta(usuario: dict[str, Any]) -> None:
     except Exception:  # noqa: BLE001
         pass
     st.html("".join(f"<div class='perfil-fila'>{f}</div>" for f in filas) or "<div class='perfil-vacio'>Aún no has aceptado ninguna autorización.</div>")
+    _conexion_api(usuario)
 
 
 # TITULO DIBUJAR

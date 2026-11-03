@@ -25,10 +25,15 @@ Se combina con un token en la URL (?s=<token>) que sí sobrevive al F5:
   - Cerrar sesión     -> se elimina el token de aquí.
 """
 import secrets
+import time
 
 # Diccionario en memoria (se pierde al apagar el proceso) con la forma
 # {token: {"id":..., "nombre":..., "email":...}}
 _sesiones: dict[str, dict] = {}
+
+# Momento (segundos desde 1970) en que cada usuario cerró sus sesiones en todos los dispositivos: {id del usuario: instante}. Una pestaña que inició sesión antes de ese instante
+# deja de ser válida en su próxima ejecución completa (ver acceso/sesion.py). Se pierde al reiniciar el servidor, igual que las propias sesiones.
+_revocaciones: dict[str, float] = {}
 
 # Datos que acompañan a cada sesión y deben sobrevivir a un F5 o a un enlace del menú (que recargan la página y vacían
 # `st.session_state`): por ejemplo la cuenta elegida, demo o real. Forma: {token: {clave: valor}}
@@ -71,6 +76,24 @@ def leer_dato(token: str, clave: str, defecto=None):
     if not token or token not in _sesiones:
         return defecto
     return _datos.get(token, {}).get(clave, defecto)
+
+
+# TITULO REVOCAR USUARIO
+
+def revocar_usuario(usuario_id) -> None:
+    """Cierra todas las sesiones del usuario: borra sus tokens de la URL y anota el instante, para que las pestañas que ya estaban abiertas dejen de valer."""
+    if usuario_id is None:
+        return
+    for token in [t for t, u in _sesiones.items() if str(u.get("id")) == str(usuario_id)]:
+        eliminar(token)
+    _revocaciones[str(usuario_id)] = time.time()
+
+
+# TITULO REVOCADA DESDE
+
+def revocada_desde(usuario_id) -> float:
+    """Instante en que el usuario cerró sus sesiones en todos los dispositivos, o 0 si no lo ha hecho desde que arrancó el servidor."""
+    return _revocaciones.get(str(usuario_id), 0.0)
 
 
 # TITULO ELIMINAR

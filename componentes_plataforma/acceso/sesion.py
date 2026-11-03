@@ -24,11 +24,25 @@ Estado de sesión de Streamlit que maneja este módulo:
   * `usuario_informacion` (dict): datos del usuario ({id, nombre, email}).
 Lo consume acceso/pantalla.py (requerir_login) y, a través de él, aplicacion.py.
 """
+import time
+
 import streamlit as st
 
 from herramientas import almacen_sesiones, sesion_persistente
 
 from . import cookie
+
+
+# TITULO CERRAR SESION EN TODOS
+
+def cerrar_sesion_en_todos(usuario_id) -> None:
+    """Cierra la sesión del usuario en este dispositivo y en todos los demás.
+
+    Borra todas sus sesiones persistentes (las cookies de larga duración dejan de servir) y sus tokens de la URL, y anota el instante: las pestañas de otros dispositivos que
+    ya estaban abiertas se cierran en su próxima ejecución completa (el celular, al recargar o pulsar algo). Luego cierra la de este dispositivo."""
+    sesion_persistente.revocar_todas(usuario_id)
+    almacen_sesiones.revocar_usuario(usuario_id)
+    cerrar_sesion()
 
 
 # TITULO CERRAR SESION
@@ -46,7 +60,7 @@ def cerrar_sesion() -> None:
     sesion_persistente.revocar(cookie.leer())
     cookie.programar_borrado()
     # Olvida el estado local de la pestaña
-    for clave in ("usuario_autenticado", "usuario_informacion"):
+    for clave in ("usuario_autenticado", "usuario_informacion", "_sesion_desde"):
         st.session_state.pop(clave, None)
 
 
@@ -64,6 +78,7 @@ def iniciar_sesion(usuario: dict) -> None:
     # Marca la pestaña como autenticada y guarda los datos del usuario
     st.session_state.usuario_autenticado = True
     st.session_state.usuario_informacion = usuario
+    st.session_state["_sesion_desde"] = time.time()   # para saber si la sesión se cerró en todos los dispositivos después de iniciarla
     if "acceso" in st.query_params:   # ya no hace falta el parámetro de la portada
         del st.query_params["acceso"]
     st.query_params["s"] = almacen_sesiones.crear(usuario)  # persiste tras F5
@@ -85,7 +100,13 @@ def usuario_en_sesion() -> dict | None:
     """
     # Caso normal: la pestaña ya está autenticada
     if st.session_state.get("usuario_autenticado"):
-        return st.session_state.get("usuario_informacion", {})
+        usuario = st.session_state.get("usuario_informacion", {})
+        # Si el usuario cerró sus sesiones en todos los dispositivos después de abrir esta, ya no vale: se olvida y se pide iniciar sesión de nuevo
+        if almacen_sesiones.revocada_desde(usuario.get("id")) > st.session_state.get("_sesion_desde", 0):
+            for clave in ("usuario_autenticado", "usuario_informacion", "_sesion_desde"):
+                st.session_state.pop(clave, None)
+            return None
+        return usuario
 
     # Tras un F5, session_state se vacía pero el token sigue en la URL:
     # si el servidor aún lo tiene (consola encendida), restauramos la sesión.
@@ -95,6 +116,7 @@ def usuario_en_sesion() -> dict | None:
         if usuario:
             st.session_state.usuario_autenticado = True
             st.session_state.usuario_informacion = usuario
+            st.session_state["_sesion_desde"] = time.time()
             return usuario
 
     # Sin token en la URL (navegador cerrado y abierto de nuevo, o servidor reiniciado): se prueba la cookie de «mantener sesión iniciada».
@@ -103,6 +125,7 @@ def usuario_en_sesion() -> dict | None:
     if usuario:
         st.session_state.usuario_autenticado = True
         st.session_state.usuario_informacion = usuario
+        st.session_state["_sesion_desde"] = time.time()
         st.query_params["s"] = almacen_sesiones.crear(usuario)
         return usuario
     return None
