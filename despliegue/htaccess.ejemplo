@@ -27,6 +27,13 @@ RedirectMatch 404 ^/\.git
 
 RewriteEngine On
 
+# TITULO PAGINA DE MANTENIMIENTO
+
+# Si la plataforma no responde (503), Apache muestra mantenimiento.html. La regla de abajo la sirve directo, sin pasarla a Streamlit:
+# sin ella, la propia página de error se enviaría al proxy caído y volvería a dar 503.
+ErrorDocument 503 /mantenimiento.html
+RewriteRule ^mantenimiento\.html$ - [L]
+
 # TITULO SERVIDOR DE PRECIOS (el navegador lo consulta directo)
 
 RewriteRule ^t/(.*)$ http://127.0.0.1:28000/t/$1 [P,L]
