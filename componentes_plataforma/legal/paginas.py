@@ -34,9 +34,9 @@ _ENLACES = (("terminos", "Términos de uso"), ("privacidad", "Privacidad y cooki
 
 # TITULO ENLACES
 
-def enlaces_html(separador: str = " · ") -> str:
+def enlaces_html(separador: str = " · ", color: str = "#8b949e") -> str:
     """Devuelve el HTML con los tres enlaces a los documentos legales, abiertos en otra pestaña para no perder lo que el usuario está haciendo."""
-    return separador.join(f"<a href='?legal={clave}' target='_blank' rel='noopener' style='color:#8b949e;'>{texto}</a>" for clave, texto in _ENLACES)
+    return separador.join(f"<a href='?legal={clave}' target='_blank' rel='noopener' style='color:{color};'>{texto}</a>" for clave, texto in _ENLACES)
 
 
 # TITULO PIE
@@ -66,9 +66,12 @@ def aviso_cookie() -> None:
 # TITULO CASILLA DE ACEPTACION
 
 def casilla_aceptacion(clave: str) -> bool:
-    """Dibuja la casilla «He leído y acepto…» del registro, con enlaces a los tres documentos, y devuelve si está marcada. `clave` identifica la casilla."""
-    return st.checkbox("He leído y acepto los [Términos de uso](?legal=terminos), la [Política de privacidad y cookies](?legal=privacidad) "
-                       "y el [Aviso de riesgo](?legal=riesgo).", key=clave)
+    """Dibuja los enlaces a los tres documentos y debajo la casilla «He leído y acepto…» del registro; devuelve si está marcada. `clave` identifica la casilla.
+
+    Los enlaces van FUERA de la casilla a propósito: Streamlit toma todo el texto de una casilla como parte de ella, y un clic en un enlace dentro de su texto solo
+    marca o desmarca la casilla sin abrir el documento."""
+    st.markdown(f"<p style='margin:2px 0 6px; font-size:14px; color:#8b949e;'>Lee antes de aceptar: {enlaces_html(color='#58a6ff')}</p>", unsafe_allow_html=True)
+    return st.checkbox("He leído y acepto los términos de uso, la política de privacidad y cookies, y el aviso de riesgo.", key=clave)
 
 
 # TITULO BLOQUES
