@@ -145,8 +145,8 @@
    ],
    [
     "2",
-    "Conecta tu cuenta demo",
-    "Vincula tu cuenta demo de Capital.com y opera sin arriesgar capital real."
+    "Conecta tu cuenta",
+    "Vincula tu cuenta de Capital.com, demo o real. Empieza en demo para practicar sin arriesgar capital."
    ],
    [
     "3",
@@ -194,7 +194,7 @@
   "texto": "Crea tu cuenta gratis y conversa hoy mismo con tu agente de IA.",
   "boton": "Crear cuenta gratis"
  },
- "riesgo": "Aviso de riesgo: operar con derivados como los CFD conlleva un alto riesgo de pérdida y puede no ser adecuado para todos los inversionistas. Esta plataforma ofrece herramientas de análisis y un entorno de práctica en cuenta demo; nada de lo que muestre el agente constituye asesoría financiera ni una recomendación de inversión.",
+ "riesgo": "Aviso de riesgo: operar con derivados como los CFD conlleva un alto riesgo de pérdida y puede no ser adecuado para todos los inversionistas. Esta plataforma ofrece herramientas de análisis y te permite operar en una cuenta demo o en tu cuenta real de Capital.com; en una cuenta real, las órdenes que confirmes usan tu dinero. Nada de lo que muestre el agente constituye asesoría financiera ni una recomendación de inversión.",
  "graficos": {
   "etiqueta": "Gráficos",
   "titulo": "Gráficos profesionales, sin salir de la plataforma",

@@ -167,6 +167,7 @@ RIESGO = {
             "Las órdenes y vigilancias automáticas se ejecutan según las reglas que tú autorizas, y pueden fallar por problemas técnicos.",
         ]),
         ("4. Cuenta demo y cuenta real", [
+            "Si operas en una cuenta real, las órdenes que confirmes se ejecutan con tu dinero y las pérdidas son reales.",
             "El resultado en una cuenta demo no garantiza el mismo resultado en una cuenta real: en la realidad influyen el deslizamiento de precios, la liquidez y la velocidad de ejecución. "
             "Los resultados pasados no aseguran resultados futuros.",
         ]),
