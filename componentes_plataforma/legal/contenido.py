@@ -32,7 +32,8 @@ DIRECCION = "José Joaquín Prieto 5373, San Miguel, Santiago, Chile"
 CORREO = "contacto.pinayjara@gmail.com"
 
 # Frase corta que se repite en el pie de la plataforma y junto al agente.
-FRASE_RIESGO = "P&J no entrega asesoría financiera. Operar con CFD conlleva un alto riesgo de pérdida."
+FRASE_RIESGO = ("P&J no entrega asesoría financiera. El agente puede ejecutar órdenes por ti si lo autorizas; en una cuenta real usa tu dinero y puedes perder capital. "
+                "Operar con CFD conlleva un alto riesgo de pérdida.")
 
 
 TERMINOS = {
@@ -64,8 +65,11 @@ TERMINOS = {
         ("5. Agente de inteligencia artificial", [
             "El agente responde de forma automática con datos de mercado y de tu cuenta. Puede equivocarse, estar incompleto o basarse en datos con retraso. "
             "Sus respuestas son informativas y no son asesoría financiera.",
-            "El agente propone órdenes, pero no las ejecuta: nada se envía al bróker hasta que tú lo confirmas, y cada propuesta vence a los pocos minutos. "
-            "Antes de confirmar, revisa el instrumento, el lado, el volumen y los niveles de stop loss y take profit. Tú defines los límites de riesgo que el agente debe respetar.",
+            "El agente propone órdenes. Una orden propuesta no se envía al bróker hasta que tú la confirmas, y vence a los pocos minutos. Antes de confirmar, revisa el "
+            "instrumento, el lado, el volumen y los niveles de stop loss y take profit.",
+            "Además puedes autorizar «vigilancias»: reglas con las que el agente analiza el mercado por su cuenta y abre y cierra posiciones sin pedirte confirmación en cada orden, "
+            "aunque no estés mirando la pantalla, dentro de los límites de riesgo que definas. Mientras una vigilancia esté activa, eres responsable de lo que opere; puedes detenerla "
+            "cuando quieras. Con una cuenta real, esas operaciones usan tu dinero.",
         ]),
         ("6. Uso permitido", [
             ["No uses la plataforma para fines ilegales ni para operar en nombre de otras personas sin su autorización.",
@@ -164,10 +168,11 @@ RIESGO = {
         ]),
         ("3. El agente de inteligencia artificial puede equivocarse", [
             "El agente puede dar información incorrecta, incompleta o desactualizada. Verifica los datos y revisa con cuidado cada orden que te proponga antes de confirmarla. "
-            "Las órdenes y vigilancias automáticas se ejecutan según las reglas que tú autorizas, y pueden fallar por problemas técnicos.",
+            "Si autorizas una vigilancia automática, el agente abre y cierra posiciones por su cuenta sin pedirte confirmación en cada orden: puede equivocarse, operar en un mal momento "
+            "o fallar por problemas técnicos, y las pérdidas son tuyas. Revisa sus operaciones y detenla si no se comporta como esperas.",
         ]),
         ("4. Cuenta demo y cuenta real", [
-            "Si operas en una cuenta real, las órdenes que confirmes se ejecutan con tu dinero y las pérdidas son reales.",
+            "Si operas en una cuenta real, las órdenes que se ejecuten, tanto las que confirmes como las de una vigilancia automática que hayas autorizado, usan tu dinero y las pérdidas son reales.",
             "El resultado en una cuenta demo no garantiza el mismo resultado en una cuenta real: en la realidad influyen el deslizamiento de precios, la liquidez y la velocidad de ejecución. "
             "Los resultados pasados no aseguran resultados futuros.",
         ]),

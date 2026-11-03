@@ -52,7 +52,7 @@ def pie_legal() -> None:
 def nota_agente() -> None:
     """Dibuja bajo el encabezado del agente una nota breve de que sus respuestas no son asesoría financiera."""
     st.markdown("<div style='margin:0 0 6px; color:#8b949e; font-size:12px; line-height:1.4;'>Las respuestas del agente son informativas y pueden tener errores; no son asesoría financiera. "
-                "Tú decides y confirmas cada orden.</div>", unsafe_allow_html=True)
+                "Las órdenes se ejecutan solo si tú las confirmas o si autorizas una vigilancia automática.</div>", unsafe_allow_html=True)
 
 
 # TITULO AVISO DE COOKIE

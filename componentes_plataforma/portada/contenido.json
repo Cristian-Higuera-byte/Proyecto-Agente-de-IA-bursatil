@@ -34,7 +34,7 @@
   "cta_secundario": "Iniciar sesión",
   "puntos": [
    "Cuenta demo, sin arriesgar capital",
-   "Tú confirmas cada orden",
+   "Tú decides qué puede ejecutar el agente",
    "Sin tarjeta para empezar"
   ]
  },
@@ -71,7 +71,7 @@
    [
     "shield",
     "Control total del riesgo",
-    "Define cuánto puede arriesgar el agente: riesgo por operación, pérdida diaria, volumen y apalancamiento. Nada se ejecuta sin tu confirmación."
+    "Define cuánto puede arriesgar el agente: riesgo por operación, pérdida diaria, volumen y apalancamiento. Nada se ejecuta sin tu autorización: confirmas cada orden o autorizas una vigilancia."
    ]
   ]
  },
@@ -173,7 +173,7 @@
    ],
    [
     "¿El agente puede operar sin mi permiso?",
-    "No. El agente propone las órdenes y solo se ejecutan cuando tú las confirmas. Además, defines los límites de riesgo que debe respetar."
+    "No. El agente propone las órdenes y solo se ejecutan cuando tú las confirmas, o cuando autorizas una vigilancia automática, que opera dentro de los límites de riesgo que defines y que puedes detener cuando quieras."
    ],
    [
     "¿Qué mercados puedo ver?",
