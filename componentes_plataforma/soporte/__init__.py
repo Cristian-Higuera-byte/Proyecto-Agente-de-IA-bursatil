@@ -11,10 +11,10 @@
 # ------------------------------------ INICIO Piña y Jara __init__ .PY ----------------------------------
 # -------------------------------------------------------------------------------------------------------
 
-"""Ventana «Soporte» de la plataforma (botón del audífono de la barra lateral): reporte de problemas por correo, preguntas frecuentes y contacto."""
-from .dialogo import abrir, cerrar, renderizar_modal_soporte
+"""Vista «Soporte» de la plataforma (botón del audífono de la barra lateral): reporte de problemas por correo, contacto, documentos y preguntas frecuentes."""
+from .panel import renderizar_panel_soporte
 
-__all__ = ["abrir", "cerrar", "renderizar_modal_soporte"]
+__all__ = ["renderizar_panel_soporte"]
 
 
 # -------------------------------------------------------------------------------------------------------
