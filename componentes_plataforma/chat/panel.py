@@ -27,6 +27,7 @@ from componentes_plataforma.chat.historial import (iniciar_conversacion, pintar_
 from componentes_plataforma.chat.sesion import cambiar_perfil, obtener_agente, usuario_id
 from componentes_plataforma.agente_paneles import cabecera_agente
 from componentes_plataforma.chat.cuota import barra_cuota
+from componentes_plataforma.legal import nota_agente
 from componentes_plataforma.refresco_fragmentos import fragmento_con_refresco, pedir_refresco
 from componentes_plataforma.chat.limites import limites_agente
 from componentes_plataforma.planes.panel import dialogo_bloqueo
@@ -51,6 +52,7 @@ def renderizar_chat_agente(sufijo: str = "", altura: int = 450, compacto: bool =
                 "smart_toy", "Agente IA Analítico",
                 f"Consola, gráficos e imágenes · mantiene el contexto y usa los datos de {NOMBRE_BROKER}",
             ))
+        nota_agente()   # las respuestas no son asesoría financiera
         # El chat es un fragmento: escribir, enviar, detener o reiniciar solo reejecutan el chat, no la página. Su clave («chat» o «chat_flot») permite refrescarlo desde fuera.
         fragmento_con_refresco(f"chat{sufijo}", _chat_agente, sufijo, altura, compacto)
 

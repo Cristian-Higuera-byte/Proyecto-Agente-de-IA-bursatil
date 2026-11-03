@@ -29,6 +29,8 @@ from pathlib import Path
 import streamlit as st
 
 from componentes_plataforma._estaticos import estilos
+from componentes_plataforma.legal import DOCUMENTOS, VERSION, aviso_cookie, casilla_aceptacion, vista_legal
+from herramientas import aceptaciones_legales
 from herramientas.gestor_autenticacion import autenticar_usuario, registrar_usuario
 
 from .cookie import aplicar_pendiente
@@ -70,6 +72,12 @@ def requerir_login() -> dict:
                 vista_verificacion(token_verificar)
             else:
                 vista_recuperacion(token_recuperar)
+        st.stop()
+
+    # Documentos legales (?legal=terminos|privacidad|riesgo): pantalla completa que se puede leer con o sin sesión iniciada
+    documento_legal = st.query_params.get("legal")
+    if documento_legal in DOCUMENTOS:
+        vista_legal(documento_legal, con_sesion=usuario_en_sesion() is not None)
         st.stop()
 
     # Reutiliza la sesión de la pestaña o la restaurada desde el token de la URL
@@ -131,6 +139,7 @@ def requerir_login() -> dict:
                         st.session_state.pop(CLAVE_PENDIENTE, None)
                         st.error(resultado["mensaje"])
                 aviso_sin_verificar()
+                aviso_cookie()
 
             # --- Crear cuenta ---
             else:
@@ -139,11 +148,17 @@ def requerir_login() -> dict:
                     correo_r = st.text_input("Correo electrónico", key="registro_correo", placeholder="nombre@correo.com")
                     contrasena_r = st.text_input("Contraseña", type="password", key="registro_contrasena")
                     medidor_contrasena("Contraseña")
+                    acepto = casilla_aceptacion("registro_acepto")
                     crear = st.form_submit_button("Crear cuenta", width="stretch", type="primary")
                 medidor_en_vivo()
-                if crear:
+                if crear and not acepto:
+                    st.error("Para crear tu cuenta debes aceptar los términos de uso, la política de privacidad y el aviso de riesgo.")
+                elif crear:
                     # Registra al usuario nuevo y valida los datos (nombre, email, contraseña)
                     resultado = registrar_usuario(nombre, correo_r, contrasena_r)
+                    if resultado["ok"]:
+                        # Deja constancia de qué versión de los documentos legales aceptó (si falla, no impide el registro)
+                        aceptaciones_legales.registrar(resultado["usuario"]["id"], list(DOCUMENTOS), VERSION)
                     if not resultado["ok"]:
                         st.error(resultado["mensaje"])
                     elif resultado.get("requiere_verificacion"):

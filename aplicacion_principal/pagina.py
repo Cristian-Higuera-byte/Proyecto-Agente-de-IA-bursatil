@@ -34,6 +34,7 @@ from .cabecera import datos_cuenta, renderizar_barra_superior
 from .calentamiento import calentar
 from .dialogos import renderizar_dialogos
 from .estilos import css_global, html_pantalla_carga
+from componentes_plataforma.legal import pie_legal
 from componentes_plataforma.refresco_fragmentos import iniciar_pasada
 from .fragmentos import crear_fragmentos
 from .precarga import iniciar_precargas
@@ -119,6 +120,8 @@ def ejecutar(consola) -> None:
             rendimiento.marca("barra lateral")
             renderizar_vista(fragmentos, consola)
             rendimiento.marca(f"vista {st.session_state.get('navegacion_activo')}")
+        # Aviso de que la plataforma no es asesoría financiera y enlaces a los documentos legales, al final de cada vista
+        pie_legal()
 
     # Se quita la cubierta de carga una vez dibujado todo.
     cubierta_carga.empty()

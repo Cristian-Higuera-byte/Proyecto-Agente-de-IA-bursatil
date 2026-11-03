@@ -28,6 +28,7 @@ from pathlib import Path
 
 import configuracion
 from componentes_plataforma._estaticos import datos_json
+from componentes_plataforma.legal import enlaces_html
 from componentes_plataforma.portada import datos
 
 # Contenido de la portada (textos, listas y preguntas frecuentes).
@@ -296,6 +297,7 @@ def cierre() -> str:
 def pie() -> str:
     """Pie de página: aviso de riesgo, enlaces de acceso y créditos de la empresa."""
     return (f"<footer class='pj-p-pie'><div class='pj-p-cont'><p class='pj-p-riesgo'>{escape(C['riesgo'])}</p>"
+            f"<p style='margin:-14px 0 22px; font-size:13px; color:#6b7686;'>{enlaces_html()}</p>"
             f"<div class='pj-p-pie-fila'><a class='pj-p-logo' href='#inicio'><b>P&amp;J</b><span>Finance</span></a>"
             f"<span>Sitio creado, programado y diseñado por <a href='https://www.pinayjara.cl' target='_blank' rel='noopener'>Piña y Jara Transportes y Servicios Ltda.</a></span></div></div></footer>")
 
