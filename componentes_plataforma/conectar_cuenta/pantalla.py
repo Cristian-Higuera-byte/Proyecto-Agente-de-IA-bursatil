@@ -26,6 +26,7 @@ Ninguna se muestra ni se registra en logs después de escribirlas.
 """
 import streamlit as st
 
+from componentes_plataforma.legal import enlaces_html
 from herramientas import credenciales_bolsa, token_datos
 from herramientas.backends import sesiones_capital
 
@@ -244,6 +245,13 @@ def requerir_cuenta(usuario: dict) -> None:
             _lista_cuentas(usuario_id, cuentas)
             st.divider()
         _formulario(usuario_id)
+        # Salida para quien aún no quiere conectar una API (o la acaba de quitar): sin esto esta pantalla era una puerta sin salida, porque no deja ver nada más.
+        st.markdown(
+            "<p style='text-align:center; color:#8b949e; font-size:14px; margin:14px 0 4px;'>¿No quieres conectar tu API ahora? "
+            "<a href='?logout=1' target='_self'>Cerrar sesión</a></p>"
+            f"<p style='text-align:center; font-size:12px; margin:0;'>{enlaces_html()}</p>",
+            unsafe_allow_html=True,
+        )
     st.stop()
 
 
