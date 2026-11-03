@@ -23,7 +23,7 @@ reejecuciones automáticas.
 
 def renderizar_dialogos() -> None:
     """
-    Dibuja, uno tras otro, los cuatro diálogos que pueden abrirse sobre la página.
+    Dibuja, uno tras otro, los cinco diálogos que pueden abrirse sobre la página.
 
     Cada diálogo se abre solo cuando su bandera está activa en la sesión: el buscador de símbolos,
     la confirmación de cierre de una posición (Cartera) y los términos y condiciones de One-Click
@@ -46,6 +46,10 @@ def renderizar_dialogos() -> None:
     # Términos y condiciones de la vigilancia automática del agente (al pulsar «Autorizar vigilancia»).
     from componentes_plataforma.vigilancia_terminos import renderizar_modal_terminos_vigilancia
     renderizar_modal_terminos_vigilancia()
+
+    # Ventana de soporte (botón del audífono de la barra lateral).
+    from componentes_plataforma.soporte import renderizar_modal_soporte
+    renderizar_modal_soporte()
 
 
 # -------------------------------------------------------------------------------------------------------

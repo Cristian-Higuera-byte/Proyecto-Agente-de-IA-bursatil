@@ -82,12 +82,16 @@ def leer_configuracion() -> dict:
 
 # TITULO ARMAR MENSAJE
 
-def armar_mensaje(destinatario: str, asunto: str, texto: str, cuerpo_html: Optional[str], configuracion: dict) -> EmailMessage:
-    """Construye el mensaje: de quién, para quién, asunto, texto simple y, si se entrega, la versión con formato (HTML)."""
+def armar_mensaje(destinatario: str, asunto: str, texto: str, cuerpo_html: Optional[str], configuracion: dict, responder_a: Optional[str] = None) -> EmailMessage:
+    """Construye el mensaje: de quién, para quién, asunto, texto simple y, si se entrega, la versión con formato (HTML).
+
+    Con `responder_a` se agrega la cabecera «Reply-To», para que al contestar el correo la respuesta vaya a esa dirección y no al buzón que envía."""
     mensaje = EmailMessage()
     mensaje["From"] = formataddr((configuracion["remitente"], configuracion["usuario"]))
     mensaje["To"] = destinatario
     mensaje["Subject"] = asunto
+    if responder_a:
+        mensaje["Reply-To"] = responder_a
     mensaje["Date"] = formatdate(localtime=True)
     mensaje["Message-ID"] = make_msgid(domain=configuracion["usuario"].split("@")[-1])
     mensaje.set_content(texto)
@@ -98,13 +102,17 @@ def armar_mensaje(destinatario: str, asunto: str, texto: str, cuerpo_html: Optio
 
 # TITULO ENVIAR
 
-def enviar(destinatario: str, asunto: str, texto: str, cuerpo_html: Optional[str] = None) -> None:
-    """Envía un correo; lanza ErrorCorreo si no se pudo (servidor inalcanzable, certificado, usuario o contraseña rechazados, destinatario rechazado)."""
+def enviar(destinatario: str, asunto: str, texto: str, cuerpo_html: Optional[str] = None, responder_a: Optional[str] = None) -> None:
+    """Envía un correo; lanza ErrorCorreo si no se pudo (servidor inalcanzable, certificado, usuario o contraseña rechazados, destinatario rechazado).
+
+    `responder_a` (opcional) es la dirección a la que irán las respuestas, por ejemplo la de la persona que escribió un reporte de soporte."""
     destinatario = (destinatario or "").strip()
     if "@" not in destinatario or any(letra in destinatario for letra in "\r\n"):
         raise ErrorCorreo("La dirección de destino no es válida.")
     configuracion = leer_configuracion()
-    mensaje = armar_mensaje(destinatario, asunto, texto, cuerpo_html, configuracion)
+    if responder_a and ("@" not in responder_a or any(letra in responder_a for letra in chr(13) + chr(10))):
+        responder_a = None
+    mensaje = armar_mensaje(destinatario, asunto, texto, cuerpo_html, configuracion, responder_a)
     contexto = ssl.create_default_context()
     if not configuracion["verificar_certificado"]:
         contexto.check_hostname = False

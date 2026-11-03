@@ -144,7 +144,7 @@ def renderizar_barra_navegacion():
     Inyecta el CSS y el marcador .pj-navegacion, el logo, el script del toggle (sin altura) y un
     botón de solo icono por cada ítem de ITEMS; el activo se pinta como primary. Al pulsar
     un botón guarda su clave en `st.session_state.navegacion_activo` (con `on_click`, sin `st.rerun()`). El botón de
-    Soporte solo muestra un aviso (`st.toast`). Si `navegacion_activo` no existe, inicia en "trading".
+    Soporte abre la ventana de soporte. Si `navegacion_activo` no existe, inicia en "trading".
     """
     # Vista inicial al entrar
     if "navegacion_activo" not in st.session_state:
@@ -175,8 +175,9 @@ def renderizar_barra_navegacion():
         st.button(icono, key=f"navegacion_boton_{clave}", type=tipo, on_click=_ir_a_vista, args=(clave,))
 
     # Soporte: se empuja al fondo con margin-top:auto (ver CSS), sin espaciador fijo.
-    if st.button(":material/headset_mic:", key="navegacion_soporte"):
-        st.toast("Soporte técnico de Piña & Jara activo.")
+    # Abre la ventana de soporte (reporte de problemas, preguntas frecuentes y contacto); la dibuja aplicacion_principal/dialogos.py
+    from componentes_plataforma.soporte import abrir as abrir_soporte
+    st.button(":material/headset_mic:", key="navegacion_soporte", on_click=abrir_soporte)
 
     # «Más» (solo celular; el CSS lo oculta en escritorio): abre y cierra la hoja con todas las secciones. El clic lo atiende
     # barra_lateral.js alternando una clase en html, sin reejecutar Python.
