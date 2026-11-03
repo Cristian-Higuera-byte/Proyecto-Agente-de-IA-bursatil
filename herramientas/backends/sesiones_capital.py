@@ -64,6 +64,10 @@ _MAX_SESIONES = max(2, int(os.getenv("CAPITAL_MAX_SESIONES", "200") or 200))
 # Segundos que se recuerda que un usuario no tiene credenciales (para no consultar Supabase en cada llamada)
 _VIDA_SIN_CREDENCIALES_S = 30.0
 
+# Cada cuántos segundos se vuelve a comprobar que el usuario sigue teniendo guardadas las claves de una copia que ya está en memoria. Así, cuando quita su API, la cuenta deja
+# de funcionar también en el servidor de precios (otro proceso, que no se entera de lo que se hace en la pantalla) en menos de este tiempo.
+_VIDA_VERIFICACION_S = 30.0
+
 # Claves especiales del registro
 _CLAVE_LEGADO = ("legado",)
 _CLAVE_ANONIMO = ("anonimo",)
@@ -73,6 +77,8 @@ _CANDADO = threading.RLock()
 _copias: "OrderedDict[tuple, object]" = OrderedDict()
 # clave -> epoch hasta el que se da por buena la ausencia de credenciales
 _sin_credenciales: dict = {}
+# clave -> epoch hasta el que no hace falta volver a comprobar que las credenciales siguen guardadas
+_verificada_hasta: dict = {}
 # Número de copia, para darle a cada módulo un nombre único
 _contador = 0
 # Límite de peticiones por segundo que se aplica a cada copia nueva (None = el del núcleo)
@@ -202,6 +208,17 @@ def _leer_credenciales(clave: tuple) -> Optional[dict]:
         return None
 
 
+# TITULO SIGUEN LAS CREDENCIALES
+
+def _siguen_las_credenciales(clave: tuple) -> bool:
+    """True si el usuario de `clave` sigue teniendo guardadas las credenciales de ese modo; ante una falla de la base de datos devuelve True, para no cortar una cuenta por un error pasajero."""
+    try:
+        from herramientas import credenciales_bolsa
+        return credenciales_bolsa.existen_credenciales(clave[0], clave[1]) is not False
+    except Exception:
+        return True
+
+
 # TITULO MODULO DE UNA CLAVE
 
 def modulo_de(clave: tuple):
@@ -213,6 +230,15 @@ def modulo_de(clave: tuple):
     with _CANDADO:
         modulo = _copias.get(clave)
         if modulo is not None:
+            if clave not in (_CLAVE_LEGADO, _CLAVE_ANONIMO) and time.time() >= _verificada_hasta.get(clave, 0.0):
+                if _siguen_las_credenciales(clave):
+                    _verificada_hasta[clave] = time.time() + _VIDA_VERIFICACION_S
+                else:
+                    # El usuario quitó su API: la copia (con sus claves en memoria) se descarta y esa cuenta queda sin conexión
+                    _copias.pop(clave, None)
+                    _verificada_hasta.pop(clave, None)
+                    _sin_credenciales[clave] = time.time() + _VIDA_SIN_CREDENCIALES_S
+                    return _modulo_sin_cuenta()
             _copias.move_to_end(clave)
             return modulo
         if clave not in (_CLAVE_LEGADO, _CLAVE_ANONIMO) and time.time() < _sin_credenciales.get(clave, 0.0):
@@ -317,6 +343,7 @@ def olvidar_usuario(usuario_id: int) -> None:
             clave = (int(usuario_id), es_demo)
             _copias.pop(clave, None)
             _sin_credenciales.pop(clave, None)
+            _verificada_hasta.pop(clave, None)
 
 
 # -------------------------------------------------------------------------------------------------------

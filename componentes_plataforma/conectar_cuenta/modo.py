@@ -105,6 +105,14 @@ def fijar_modo(es_demo: bool) -> None:
     almacen_sesiones.guardar_dato(str(st.query_params.get("s", "")), "modo_demo", bool(es_demo))
 
 
+# TITULO REINICIAR MODO
+
+def reiniciar_modo() -> None:
+    """Olvida la cuenta elegida (demo o real), en la pestaña y junto a la sesión del servidor; se usa al quitar la API, para que no quede ninguna elección vieja."""
+    st.session_state.pop(_CLAVE_MODO, None)
+    almacen_sesiones.guardar_dato(str(st.query_params.get("s", "")), "modo_demo", None)
+
+
 # TITULO RESTAURAR MODO
 
 def restaurar_modo() -> None:

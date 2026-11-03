@@ -158,6 +158,19 @@ def estado_credenciales(usuario_id: int) -> dict:
     return estado
 
 
+# TITULO EXISTEN CREDENCIALES
+
+def existen_credenciales(usuario_id: int, es_demo: bool) -> Optional[bool]:
+    """True si el usuario tiene guardadas las credenciales de ese modo, False si no, y None si no se pudo consultar la base de datos.
+
+    Se distingue el None para que una falla pasajera de la base no se confunda con «el usuario quitó su API»."""
+    try:
+        respuesta = _cliente().table(_TABLA).select("es_demo").eq("usuario_id", usuario_id).eq("es_demo", bool(es_demo)).limit(1).execute()
+    except Exception:
+        return None
+    return bool(respuesta.data)
+
+
 # TITULO ELIMINAR CREDENCIALES
 
 def eliminar_credenciales(usuario_id: int, es_demo: bool) -> dict:

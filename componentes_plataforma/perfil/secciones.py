@@ -250,28 +250,31 @@ def _seguridad(usuario: dict[str, Any]) -> None:
 
 # TITULO DESCONECTAR CUENTA
 
-def _desconectar(usuario_id, es_demo: bool, nombre: str) -> None:
-    """Quita de la plataforma las claves de la API de una cuenta (demo o real) del usuario.
+def _quitar_api(usuario_id) -> None:
+    """Quita de la plataforma TODA la API de Capital.com del usuario: las claves de la cuenta demo y de la real.
 
-    Primero detiene sus vigilancias automáticas (no cierra posiciones abiertas), luego borra las credenciales cifradas, descarta la conexión en memoria y deja un aviso
-    en la sesión. Si era su única cuenta, al volver a dibujar la página se le pide conectar una. Efectos secundarios: borra filas de la base de datos y relanza la página."""
+    Primero detiene sus vigilancias automáticas (no cierra posiciones abiertas), luego borra las credenciales cifradas de los dos modos, descarta la conexión en memoria, olvida la
+    cuenta elegida y deja un aviso en la sesión. Al volver a dibujar la página se le pide conectar una API de nuevo. El servidor de precios, que es otro proceso, deja de servirla
+    en menos de 30 segundos. Efectos secundarios: borra filas de la base de datos y relanza la página."""
     try:
         from nucleo_agente import vigilancia
         vigilancia.detener(str(usuario_id))
     except Exception:  # noqa: BLE001 - no impide desconectar
         pass
-    resultado = credenciales_bolsa.eliminar_credenciales(usuario_id, es_demo)
+    resultados = [credenciales_bolsa.eliminar_credenciales(usuario_id, es_demo) for es_demo in (True, False)]
     sesiones_capital.olvidar_usuario(usuario_id)
-    from componentes_plataforma.conectar_cuenta.modo import invalidar_cuentas
+    from componentes_plataforma.conectar_cuenta.modo import invalidar_cuentas, reiniciar_modo
     invalidar_cuentas()
-    st.session_state[CLAVE_AVISO] = ("ok", f"Desconectaste tu cuenta {nombre}. Borramos sus claves de la plataforma.") if resultado["ok"] else ("error", resultado["mensaje"])
+    reiniciar_modo()
+    fallo = next((r for r in resultados if not r["ok"]), None)
+    st.session_state[CLAVE_AVISO] = ("error", fallo["mensaje"]) if fallo else ("ok", "Quitaste tu API de Capital.com. Borramos las claves de tus cuentas de la plataforma.")
     st.rerun()
 
 
 # TITULO CONEXION CON LA API
 
 def _conexion_api(usuario: dict[str, Any]) -> None:
-    """Bloque «Conexión con Capital.com (API)» de la sección Cuenta de trading: qué cuentas están conectadas y el botón, con confirmación, para quitar las claves de cada una."""
+    """Bloque «Conexión con Capital.com (API)» de la sección Cuenta de trading: qué cuentas están conectadas y un solo botón, con confirmación, para quitar toda la API."""
     st.markdown("**Conexión con Capital.com (API)**")
     if not sesiones_capital.MULTIUSUARIO:
         st.caption("Esta plataforma usa una sola cuenta, configurada por quien la administra: no hay claves tuyas que quitar.")
@@ -279,17 +282,15 @@ def _conexion_api(usuario: dict[str, Any]) -> None:
     usuario_id = usuario.get("id")
     if usuario_id is None:
         return
-    st.caption("Las claves de tu API se guardan cifradas. Si quitas una, la borramos de la plataforma y el agente y las órdenes de esa cuenta dejan de funcionar hasta que la conectes de nuevo.")
+    st.caption("Las claves de tu API se guardan cifradas. Si la quitas, borramos de la plataforma las claves de tus cuentas demo y real, y el agente y las órdenes dejan de funcionar hasta que la conectes de nuevo.")
     estado = credenciales_bolsa.estado_credenciales(usuario_id)
-    for nombre, es_demo in (("demo", True), ("real", False)):
-        texto, boton = st.columns([3, 2], vertical_alignment="center")
-        conectada = estado.get(nombre)
-        texto.markdown(f"Cuenta {nombre}: **{'conectada' if conectada else 'sin conectar'}**")
-        if conectada:
-            with boton.popover(f"Quitar la cuenta {nombre}", icon=":material/link_off:", width="stretch"):
-                st.write("Borraremos las claves de esta cuenta de la plataforma y detendremos tus vigilancias automáticas. Las posiciones abiertas no se cierran. Podrás conectarla de nuevo cuando quieras.")
-                if st.button("Sí, quitar la cuenta", type="primary", key=f"perfil_quitar_{nombre}", width="stretch"):
-                    _desconectar(usuario_id, es_demo, nombre)
+    st.markdown(f"Cuenta demo: **{'conectada' if estado.get('demo') else 'sin conectar'}** · Cuenta real: **{'conectada' if estado.get('real') else 'sin conectar'}**")
+    if not (estado.get("demo") or estado.get("real")):
+        return
+    with st.popover("Quitar mi API de Capital.com", icon=":material/link_off:"):
+        st.write("Borraremos de la plataforma las claves de tus cuentas demo y real y detendremos tus vigilancias automáticas. Las posiciones abiertas no se cierran: siguen en Capital.com. Podrás conectar tu API de nuevo cuando quieras.")
+        if st.button("Sí, quitar mi API", type="primary", key="perfil_quitar_api", width="stretch"):
+            _quitar_api(usuario_id)
 
 
 # TITULO CUENTA
