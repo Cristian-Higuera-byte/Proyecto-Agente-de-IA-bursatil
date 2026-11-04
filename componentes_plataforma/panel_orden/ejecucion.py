@@ -51,7 +51,7 @@ def ejecutar(real, visible, tipo, volumen, stop_loss, take_profit, pendiente=Non
     if pendiente:
         # Orden pendiente: se coloca al precio indicado y se arma el mensaje de éxito
         resultado = colocar_orden_pendiente(real, tipo, volumen, pendiente, stop_loss, take_profit, hasta_cancelar=gtc)
-        correcto = (f"Pendiente colocada: {resultado.get('tipo', '')} de {volumen:.2f} lote(s) de {visible} "
+        correcto = (f"Pendiente colocada: {resultado.get('tipo', '')} de {volumen:g} lote(s) de {visible} "
               f"a {resultado.get('price')}" + (" · GTC" if gtc else " · DAY (solo hoy)") + ".")
     else:
         # Orden a mercado: se ejecuta de inmediato al precio vigente
@@ -95,8 +95,8 @@ def ejecutar_oco(real, visible, lado_a, lado_b, precio_a, precio_b, volumen, gtc
         return
     # Ambas colocadas: se vinculan por número de orden para que, al ejecutarse una, se cancele la otra
     almacen_oco.fijar(_tk(ra["order"]), _tk(rb["order"]), real)
-    correcto = (f"¡Listo! OCO colocado en {visible}: {ra.get('tipo')} {volumen:.2f} @ {ra.get('price')} · "
-          f"{rb.get('tipo')} {volumen:.2f} @ {rb.get('price')}"
+    correcto = (f"¡Listo! OCO colocado en {visible}: {ra.get('tipo')} {volumen:g} @ {ra.get('price')} · "
+          f"{rb.get('tipo')} {volumen:g} @ {rb.get('price')}"
           + (" · GTC" if gtc else " · DAY (solo hoy)")
           + ". Cuando una se ejecute, la otra se cancela sola.")
     registrar_resultado("ok", correcto)

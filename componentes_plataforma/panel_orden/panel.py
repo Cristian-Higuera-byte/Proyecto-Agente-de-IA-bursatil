@@ -32,6 +32,8 @@ Este módulo orquesta el render; la lógica vive en los submódulos del paquete:
 Las órdenes se envían a la cuenta CONECTADA en MetaTrader 5 (demo en desarrollo). El
 usuario confirma cada operación (salvo One-Click Trading).
 """
+import math
+
 import streamlit as st
 import streamlit.components.v1 as components
 
@@ -66,6 +68,8 @@ def renderizar_panel_orden(main=None):
     digitos = int(getattr(info, "digits", 5) or 5) if info else 5
     vmin = float(getattr(info, "volume_min", 0.01) or 0.01) if info else 0.01
     vstep = float(getattr(info, "volume_step", 0.01) or 0.01) if info else 0.01
+    # Decimales con que se muestra el volumen: los que pide el paso (Forex en Capital.com avanza de 0,001 en 0,001; con 2 decimales el "+" parecía no hacer nada)
+    decimales_volumen = max(2, math.ceil(-math.log10(vstep))) if vstep > 0 else 2
     punto = getattr(info, "point", 0.0) if info else 0.0
 
     # Lado por defecto del ticket la primera vez
@@ -148,7 +152,7 @@ def renderizar_panel_orden(main=None):
             if modo == "Lotes":
                 with campo("qty", "Volumen", "lote(s)"):
                     volumen = st.number_input("Volumen (lotes)", min_value=vmin, value=vmin,
-                                          step=vstep, format="%.2f", key="orden_volumen",
+                                          step=vstep, format=f"%.{decimales_volumen}f", key="orden_volumen",
                                           label_visibility="collapsed")
             else:
                 with campo("qty", "Cantidad", "unidades"):

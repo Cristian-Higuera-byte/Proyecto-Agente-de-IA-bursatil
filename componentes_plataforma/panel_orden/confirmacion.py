@@ -57,7 +57,7 @@ def renderizar_confirmacion():
             extra = ((f"<br>Stop Loss: <b>{d['sl']:,.{digitos}f}</b>" if d["sl"] else "")
                      + (f"<br>Take Profit: <b>{d['tp']:,.{digitos}f}</b>" if d["tp"] else ""))
             st.html(f"<div class='orden-confirmacion-t'>Confirmar orden</div>"
-                    f"<div class='orden-confirmacion-d'><b>{d['side']}</b> de <b>{d['vol']:.2f}</b> lote(s) "
+                    f"<div class='orden-confirmacion-d'><b>{d['side']}</b> de <b>{d['vol']:g}</b> lote(s) "
                     f"de <b>{d['visible']}</b><br>{modo}{extra}</div>")
             if st.button("Colocar orden", key="orden_confirmacion_aceptar", width="stretch"):
                 # Se vuelve a validar el margen justo antes de enviar, por si cambió desde que se preparó la orden
@@ -77,7 +77,7 @@ def renderizar_confirmacion():
             d, digitos = confirmacion_oco, confirmacion_oco["dig"]
             st.html(
                 f"<div class='orden-confirmacion-t'>Confirmar OCO</div>"
-                f"<div class='orden-confirmacion-d'>Dos órdenes de <b>{d['vol']:.2f}</b> lote(s) de "
+                f"<div class='orden-confirmacion-d'>Dos órdenes de <b>{d['vol']:g}</b> lote(s) de "
                 f"<b>{d['visible']}</b>{' · GTC' if d['gtc'] else ' · DAY'}:<br>"
                 f"A: <b>{d['ta']} · {d['ladoA']}</b> @ <b>{d['pa']:,.{digitos}f}</b><br>"
                 f"B: <b>{d['tb']} · {d['ladoB']}</b> @ <b>{d['pb']:,.{digitos}f}</b><br>"
