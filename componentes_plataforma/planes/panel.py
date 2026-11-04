@@ -11,7 +11,7 @@
 # ------------------------------------- INICIO Piña y Jara panel .PY ------------------------------------
 # -------------------------------------------------------------------------------------------------------
 
-"""Vista "Planes": muestra los planes con su precio y preguntas por semana, y registra qué plan le interesa a cada usuario (prueba de demanda).
+"""Vista "Planes": muestra los planes (con el diseño de la vitrina) con su precio y preguntas por semana, y registra qué plan le interesa a cada usuario (prueba de demanda).
 
 IMPORTANTE: todavía no se cobra nada. La página lo dice de entrada. Mientras dura la prueba, al pulsar «Usar este plan» la cuenta pasa a ese
 plan al instante (se guarda con `herramientas/cuota_ia.py`: en Supabase en multiusuario, en un archivo en modo local) y la plataforma cambia sus
@@ -31,7 +31,7 @@ from pathlib import Path
 import streamlit as st
 
 import configuracion
-from componentes_plataforma import _estaticos
+from componentes_plataforma import _estaticos, vitrina_planes
 from herramientas import billetera, cuota_ia, demanda, permisos_plan
 
 # Hoja de estilos de la vista y textos de cada plan (planes.json), junto a este archivo
@@ -86,45 +86,6 @@ def _precio_plan(clave: str, variante: int) -> float:
     """Precio mensual (USD) del plan `clave` que corresponde a la `variante` del usuario (da la vuelta si el plan tiene menos variantes)."""
     precios = configuracion.PLANES_IA[clave].get("precios") or [0]
     return float(precios[variante % len(precios)])
-
-
-# TITULO LINEAS DEL PLAN
-
-def _lineas_plan(clave: str) -> list:
-    """Frases cortas con lo más importante de cada plan, armadas con los valores de `herramientas/plan_funciones.json` (así la tarjeta y el
-    cuadro comparativo nunca se contradicen)."""
-    def v(f):
-        """Valor de la función `f` en el plan `clave`."""
-        return permisos_plan.valor(f, clave)
-    def n(x):
-        """Número con puntos de miles."""
-        return f"{x:,.0f}".replace(",", ".")
-    lineas = [f"{n(v('preguntas_semana'))} preguntas al agente por semana"]
-    lineas.append("Modelo avanzado del agente (perfil profundo)" if "profundo" in (v("perfiles_ia") or []) else "Agente rápido y de análisis")
-    lineas.append(f"{n(v('vigilancias_activas'))} vigilancia{'s' if v('vigilancias_activas') != 1 else ''} automática{'s' if v('vigilancias_activas') != 1 else ''}"
-                  if v("vigilancias_activas") else "Sin vigilancias automáticas")
-    lineas.append(f"{n(v('indicadores_por_grafico'))} indicadores por gráfico · {n(v('comparar_simbolos'))} símbolo{'s' if v('comparar_simbolos') != 1 else ''} comparado{'s' if v('comparar_simbolos') != 1 else ''}")
-    lineas.append(f"Backtest de hasta {n(v('backtest_velas'))} velas" + (" y Replay" if v("replay") else ""))
-    lineas.append(f"{n(v('activos_en_lista'))} activos en tu lista · {n(v('alertas_precio_activas'))} alertas de precio")
-    if v("cuenta_real"):
-        lineas.append("Cuenta real de Capital.com")
-    lineas.append(f"Soporte: {v('soporte')}")
-    return lineas
-
-
-# TITULO TARJETA PLAN
-
-def _tarjeta_plan(clave: str, precio: float, actual: bool) -> str:
-    """HTML de la tarjeta de un plan: nombre, descripción corta, precio, preguntas por semana y lo más importante que incluye."""
-    plan = configuracion.PLANES_IA[clave]
-    items = "".join(f"<li>{escape(c)}</li>" for c in _lineas_plan(clave)[1:])
-    marca = "<span class='planes-actual'>Tu plan actual</span>" if actual else ""
-    precio_txt = "Gratis" if precio <= 0 else f"{usd_texto(precio)} USD"
-    return (f"<div class='planes-tarjeta{' planes-tarjeta-actual' if actual else ''}'>{marca}"
-            f"<div class='planes-nombre'>{escape(plan['nombre'])}</div>"
-            f"<div class='planes-desc'>{escape(_TEXTOS['titulos'].get(clave, ''))}</div>"
-            f"<div class='planes-precio'>{precio_txt}<span>{'' if precio <= 0 else ' al mes'}</span></div>"
-            f"<div class='planes-tokens'>{cuota_ia.formato(plan['preguntas_semana'])} preguntas por semana</div><ul>{items}</ul></div>")
 
 
 # TITULO PRECIO DE
@@ -239,7 +200,7 @@ def renderizar_panel_planes(main=None) -> None:
     """Dibuja la vista Planes: aviso de que aún no se cobra, las tarjetas de los planes y, tras un clic, el agradecimiento con la encuesta.
 
     `main` no se usa (se conserva por compatibilidad con las demás vistas). Registra una vista por visita (con su origen) y no devuelve nada."""
-    st.html(_estaticos.estilos(_CSS))
+    st.html(_estaticos.estilos(_CSS) + vitrina_planes.estilos())
     usuario = st.session_state.get("usuario_informacion") or {}
     uid = usuario.get("id") if isinstance(usuario, dict) else None
     usuario = usuario if isinstance(usuario, dict) else {}
@@ -251,7 +212,8 @@ def renderizar_panel_planes(main=None) -> None:
         demanda.registrar("vista_planes", uid, variante=variante, origen=origen)
     plan_actual = cuota_ia.plan_actual()
     with st.container(key="planes_contenedor"):
-        st.html("<div class='planes-titulo'>Planes</div><div class='planes-subtitulo'>Elige cuántas consultas quieres hacerle al agente de IA cada mes y qué funciones usar.</div>"
+        st.html("<div class='vp-cabecera'><span class='vp-etiqueta'>Planes</span><h2 class='vp-titulo'>Elige el plan que <span>impulsa tu trading</span></h2>"
+                "<p class='vp-sub'>Cada plan te da más preguntas al agente de IA por semana, más vigilancias automáticas y más herramientas. Cambia de plan cuando quieras.</p></div>"
                 "<div class='planes-aviso'>Modo de prueba: todavía no cobramos ningún plan. Puedes cambiar de plan cuando quieras para probar cómo cambia la plataforma, y "
                 "nos ayudas a decidir qué planes y precios lanzar. También puedes «comprar» un plan con el saldo de prueba de tu Billetera.</div>")
         aviso = st.session_state.pop(_CLAVE_AVISO, None)
@@ -263,17 +225,22 @@ def renderizar_panel_planes(main=None) -> None:
         columnas = st.columns(len(configuracion.PLANES_IA), gap="medium")
         for col, clave in zip(columnas, configuracion.PLANES_IA):
             precio = _precio_plan(clave, variante)
+            es_actual = clave == plan_actual
             with col:
-                st.html(_tarjeta_plan(clave, precio, clave == plan_actual))
-                if clave == plan_actual:
-                    st.button("Tu plan actual", key=f"plan_quiero_{clave}", width="stretch", disabled=True)
-                else:
-                    st.button("Usar este plan" if clave != "gratis" else "Pasar al plan Gratis", key=f"plan_quiero_{clave}",
-                              type="primary" if clave != "gratis" else "secondary", width="stretch", on_click=_usar_plan,
-                              args=(clave, precio, variante, uid, origen))
-                    if clave != "gratis":
-                        st.button(f"Comprar con billetera ({usd_texto(precio)} USD)", key=f"plan_comprar_{clave}", icon=":material/account_balance_wallet:",
-                                  width="stretch", on_click=comprar_con_billetera, args=(clave, precio, variante, uid, origen))
+                # Tarjeta de la vitrina: cabecera (nombre, precio y preguntas), los botones reales del plan y la lista de lo que incluye
+                with st.container(key=f"vpc_{clave}" + ("_actual" if es_actual else "")):
+                    st.html(vitrina_planes.html_cabecera(clave, actual=es_actual, con_boton=False, precio=precio))
+                    if es_actual:
+                        st.button("Tu plan actual", key=f"plan_quiero_{clave}", width="stretch", disabled=True)
+                    else:
+                        st.button("Usar este plan" if clave != "gratis" else "Pasar al plan Gratis", key=f"plan_quiero_{clave}",
+                                  type="primary" if clave != "gratis" else "secondary", width="stretch", on_click=_usar_plan,
+                                  args=(clave, precio, variante, uid, origen))
+                        if clave != "gratis":
+                            st.button(f"Comprar con billetera ({usd_texto(precio)} USD)", key=f"plan_comprar_{clave}", icon=":material/account_balance_wallet:",
+                                      width="stretch", on_click=comprar_con_billetera, args=(clave, precio, variante, uid, origen))
+                    st.html(vitrina_planes.html_lista(clave))
+        st.html(vitrina_planes.html_comun())
         interes = st.session_state.get(_CLAVE_INTERES)
         if interes:
             _formulario_interes(usuario, interes)

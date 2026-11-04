@@ -38,6 +38,7 @@ from .pantallas_correo import (
     CLAVE_PENDIENTE, CLAVE_REVISA, aviso_sin_verificar, cabecera, enlaces_inferiores, iniciar_espera_reenvio, medidor_contrasena, medidor_en_vivo, pestanas,
     vista_olvide_contrasena, vista_recuperacion, vista_revisa_correo, vista_verificacion)
 from .sesion import cerrar_sesion, iniciar_sesion, usuario_en_sesion
+from componentes_plataforma.vitrina_planes import html_pista, html_plan_elegido, html_vitrina, plan_valido
 
 # CSS de las pantallas de acceso (columna centrada y responsiva); se vuelve a leer solo si el archivo cambia en disco.
 _CSS = Path(__file__).parent / "estilos.css"
@@ -116,6 +117,10 @@ def requerir_login() -> dict:
             cabecera("P&amp;J Finance", "Inicia sesión para acceder al panel bursátil")
         else:
             cabecera("Crea tu cuenta", "Te enviaremos un enlace para confirmar tu correo")
+        # Plan que el usuario escogió en la vitrina de planes (?plan=pro): en el registro se le confirma arriba del formulario y su tarjeta queda marcada abajo
+        elegido = plan_valido(st.query_params.get("plan"))
+        if modo == "crear" and elegido:
+            st.html(html_plan_elegido(elegido))
 
         with st.container(border=True):
             pestanas(modo)
@@ -170,8 +175,10 @@ def requerir_login() -> dict:
                         # Inicia sesión automáticamente tras registrarse
                         iniciar_sesion(resultado["usuario"])
 
-        # Enlace para volver a la portada
+        # Enlace llamativo hacia la vitrina de planes, el enlace para volver a la portada y, debajo, los cuatro planes con su detalle
+        st.html(html_pista())
         enlaces_inferiores("<a href='./' target='_self'>← Volver a la portada</a>")
+        st.html(html_vitrina(elegido))
 
     # Corta la ejecución para que no se pinte el resto de la app
     st.stop()
