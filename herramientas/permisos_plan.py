@@ -65,10 +65,10 @@ def funcion(clave: str) -> dict | None:
 def valor(clave: str, plan: str | None = None):
     """Valor de la función `clave` en el `plan` (por defecto el del usuario actual): un número, verdadero/falso, una lista o un texto.
 
-    Los tokens de la semana salen de `configuracion.PLANES_IA`. Una función desconocida devuelve None."""
+    Las preguntas de la semana salen de `configuracion.PLANES_IA`. Una función desconocida devuelve None."""
     plan = plan or cuota_ia.plan_actual()
-    if clave == "tokens_semana":
-        return configuracion.PLANES_IA[plan]["tokens_semana"]
+    if clave == "preguntas_semana":
+        return configuracion.PLANES_IA[plan]["preguntas_semana"]
     return matriz()["planes"].get(plan, {}).get(clave)
 
 

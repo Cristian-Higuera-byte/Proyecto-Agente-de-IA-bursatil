@@ -11,17 +11,17 @@
 # ----------------------------------- INICIO Piña y Jara cuota_ia .PY -----------------------------------
 # -------------------------------------------------------------------------------------------------------
 
-"""Cuota semanal de uso de la IA por usuario y plan: cuántos tokens lleva gastados, cuántos le quedan y si puede seguir usando el agente.
+"""Cuota semanal de preguntas al agente por usuario y plan: cuántas lleva hechas, cuántas le quedan y si puede seguir usando el agente.
 
-Cada llamada al modelo suma sus tokens (entrada + salida, multiplicados por el peso del modelo) al uso de la semana. El límite sale del plan del
-usuario (`configuracion.PLANES_IA`). La cuota se reinicia todas las semanas, el día y la hora de `configuracion.REINICIO_SEMANAL` (por defecto el domingo a las
-18:00, hora de Chile): la «semana» va de un reinicio al siguiente, igual para todos los usuarios. Al agotarlo, el agente deja de responder hasta que se renueve
-la cuota o el usuario cambie de plan. La cuota es de la PERSONA, no de la cuenta: demo y real comparten el mismo contador (se guarda en la carpeta del
-usuario, un nivel sobre la de cada cuenta), así que cambiar de cuenta no reinicia el gasto.
+Cada pregunta del usuario que el agente alcanza a responder suma 1 al uso de la semana, sin importar su largo ni el perfil usado. Los análisis de las vigilancias
+automáticas no cuentan. El límite sale del plan del usuario (`configuracion.PLANES_IA`). La cuota se reinicia todas las semanas, el día y la hora de
+`configuracion.REINICIO_SEMANAL` (por defecto el domingo a las 18:00, hora de Chile): la «semana» va de un reinicio al siguiente, igual para todos los
+usuarios. Al agotarla, el agente deja de responder hasta que se renueve la cuota o el usuario cambie de plan. La cuota es de la PERSONA, no de la cuenta: demo y real
+comparten el mismo contador (se guarda en la carpeta del usuario, un nivel sobre la de cada cuenta), así que cambiar de cuenta no reinicia el gasto.
 
-El uso se anota en un archivo por semana (`cuota_ia_sem_AAAA-MM-DD.jsonl`, con la fecha del reinicio que abrió la semana), una línea por llamada y solo agregando al final: así dos procesos que escriben a
-la vez (la página y el motor de vigilancias) no se pisan. El plan se guarda en `cuota_plan.json`. El límite es «blando»: la comprobación se
-hace al empezar cada consulta, de modo que una consulta que empieza justo antes del tope puede pasarse un poco.
+El uso se anota en un archivo por semana (`preguntas_ia_sem_AAAA-MM-DD.jsonl`, con la fecha del reinicio que abrió la semana), una línea por pregunta y solo
+agregando al final: así dos procesos que escriben a la vez (la página y el motor de vigilancias) no se pisan. El plan se guarda en `cuota_plan.json`. El límite
+se comprueba al empezar cada pregunta y la pregunta se cuenta al terminar su respuesta: dos preguntas que empiezan a la vez justo antes del tope pueden pasarse en una.
 """
 import json
 import os
@@ -102,7 +102,7 @@ def _periodo_actual() -> str:
 
 def _ruta_uso(periodo: str) -> str:
     """Ruta del archivo de uso del usuario actual para la semana de cuota `periodo` ("AAAA-MM-DD", fecha de su reinicio)."""
-    return os.path.join(_carpeta_cuota(), f"cuota_ia_sem_{periodo}.jsonl")
+    return os.path.join(_carpeta_cuota(), f"preguntas_ia_sem_{periodo}.jsonl")
 
 
 # TITULO PLAN ACTUAL
@@ -149,25 +149,15 @@ def fijar_plan(plan: str, origen: str = "prueba") -> bool:
     return True
 
 
-# TITULO PESO
+# TITULO REGISTRAR PREGUNTA
 
-def peso(modelo: str) -> float:
-    """Cuánta cuota gasta cada token del `modelo` (1 si no está en `configuracion.PESO_MODELO`)."""
-    return float(configuracion.PESO_MODELO.get(modelo, 1.0))
+def registrar_pregunta() -> None:
+    """Suma una pregunta respondida al uso de la semana del usuario actual (una línea nueva en el archivo de la semana).
 
-
-# TITULO SUMAR
-
-def sumar(modelo: str, tokens: int) -> None:
-    """Suma al uso de la semana los `tokens` gastados por una llamada al `modelo` (ya multiplicados por el peso del modelo).
-
-    Agrega una línea al archivo de la semana. Nunca lanza excepciones: anotar el uso no debe tumbar una respuesta."""
+    Nunca lanza excepciones: anotar el uso no debe tumbar una respuesta."""
     try:
-        if tokens <= 0:
-            return
-        carpeta = _carpeta_cuota()
-        os.makedirs(carpeta, exist_ok=True)
-        linea = json.dumps({"t": int(time.time()), "modelo": modelo, "tok": round(tokens * peso(modelo), 2)}) + "\n"
+        os.makedirs(_carpeta_cuota(), exist_ok=True)
+        linea = json.dumps({"t": int(time.time()), "preg": 1}) + "\n"
         with _CANDADO:
             with open(_ruta_uso(_periodo_actual()), "a", encoding="utf-8") as f:
                 f.write(linea)
@@ -178,7 +168,7 @@ def sumar(modelo: str, tokens: int) -> None:
 # TITULO USADO
 
 def usado(periodo: str | None = None) -> float:
-    """Tokens (ponderados) gastados por el usuario actual en la semana de cuota `periodo` ("AAAA-MM-DD"; por defecto la actual).
+    """Preguntas hechas por el usuario actual en la semana de cuota `periodo` ("AAAA-MM-DD"; por defecto la actual).
 
     Suma el archivo de uso de la semana; guarda el resultado y solo vuelve a leerlo si el archivo cambió de tamaño o de fecha."""
     ruta = _ruta_uso(periodo or _periodo_actual())
@@ -194,7 +184,7 @@ def usado(periodo: str | None = None) -> float:
     with open(ruta, "r", encoding="utf-8") as f:
         for linea in f:
             try:
-                total += float(json.loads(linea).get("tok", 0) or 0)
+                total += float(json.loads(linea).get("preg", 0) or 0)
             except (ValueError, AttributeError):
                 continue
     _SUMAS[ruta] = (clave, total)
@@ -215,9 +205,9 @@ def estado() -> dict:
     """Estado de la cuota del usuario actual.
 
     Devuelve {"plan", "nombre", "limite", "usado", "restante", "porcentaje" (0 a 100, sin pasar de 100), "agotada", "nivel" ("ok",
-    "aviso" o "critico" según los umbrales de la configuración), "renueva"}. Los tokens vienen redondeados a enteros."""
+    "aviso" o "critico" según los umbrales de la configuración), "renueva"}."""
     plan = plan_actual()
-    limite = int(configuracion.PLANES_IA[plan]["tokens_semana"])
+    limite = int(configuracion.PLANES_IA[plan]["preguntas_semana"])
     gastado = usado()
     porcentaje = min(100.0, gastado / limite * 100.0) if limite > 0 else 100.0
     agotada = gastado >= limite
@@ -229,27 +219,27 @@ def estado() -> dict:
 # TITULO FORMATO
 
 def formato(n: float) -> str:
-    """Formatea una cantidad de tokens con puntos de miles (por ejemplo 45.200)."""
+    """Formatea una cantidad con puntos de miles (por ejemplo 1.200)."""
     return f"{int(round(n)):,}".replace(",", ".")
 
 
 # TITULO TEXTO USO
 
 def texto_uso() -> str:
-    """Texto corto del uso de la semana para el pie de cada respuesta: «Uso de la semana: 45.200 / 300.000 tokens (15 %) · plan Gratis»."""
+    """Texto corto del uso de la semana para el pie de cada respuesta: «Uso de la semana: 3 / 6 preguntas (50 %) · plan Gratis»."""
     e = estado()
-    return f"Uso de la semana: {formato(e['usado'])} / {formato(e['limite'])} tokens ({e['porcentaje']:.0f} %) · plan {e['nombre']}"
+    return f"Uso de la semana: {formato(e['usado'])} / {formato(e['limite'])} preguntas ({e['porcentaje']:.0f} %) · plan {e['nombre']}"
 
 
 # TITULO EXIGIR
 
 def exigir() -> None:
-    """Lanza `ErrorCuota` si el usuario ya gastó toda la cuota de la semana; no hace nada si aún le queda.
+    """Lanza `ErrorCuota` si el usuario ya hizo todas las preguntas de la semana; no hace nada si aún le queda.
 
     Se llama al empezar cada consulta al agente. El mensaje explica el límite, cuándo se renueva y que puede cambiar de plan."""
     e = estado()
     if e["agotada"]:
-        raise ErrorCuota(f"Alcanzaste el límite de tokens de tu plan {e['nombre']} esta semana ({formato(e['limite'])}). La cuota se renueva el "
+        raise ErrorCuota(f"Alcanzaste el límite de {formato(e['limite'])} preguntas de tu plan {e['nombre']} esta semana. La cuota se renueva el "
                          f"{e['renueva']}; mientras tanto puedes pasar a un plan superior para seguir usando el agente.")
 
 

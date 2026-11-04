@@ -402,11 +402,11 @@ def _pestana_parametros(p: dict) -> None:
                                                                           "entrada_acierto": st.column_config.NumberColumn("Entrada en caché (USD/M)", min_value=0.0, format="%.4f"),
                                                                           "entrada_fallo": st.column_config.NumberColumn("Entrada sin caché (USD/M)", min_value=0.0, format="%.4f"),
                                                                           "salida": st.column_config.NumberColumn("Salida (USD/M)", min_value=0.0, format="%.4f")})
-        st.markdown("**Cuota de tokens del agente**")
+        st.markdown("**Cuota de preguntas del agente**")
         claves_planes = list(configuracion.PLANES_IA)
         plan_cuota = st.selectbox("Plan del usuario (para probar la cuota)", claves_planes, index=claves_planes.index(cuota_ia.plan_actual()),
-                                  format_func=lambda k: f"{configuracion.PLANES_IA[k]['nombre']} · {cuota_ia.formato(configuracion.PLANES_IA[k]['tokens_semana'])} tokens por semana",
-                                  help="Define cuántos tokens puede gastar este usuario por semana. Los montos de cada plan están en configuracion.py (PLANES_IA).")
+                                  format_func=lambda k: f"{configuracion.PLANES_IA[k]['nombre']} · {cuota_ia.formato(configuracion.PLANES_IA[k]['preguntas_semana'])} preguntas por semana",
+                                  help="Define cuántas preguntas puede hacerle este usuario al agente por semana. Los montos de cada plan están en configuracion.py (PLANES_IA).")
         guardar = st.form_submit_button("Guardar parámetros", type="primary")
     if guardar:
         cuota_ia.fijar_plan(plan_cuota)

@@ -38,8 +38,6 @@ IMAGENES = Path(__file__).parent / "imagenes"
 # Enlaces de acceso: el parámetro de la URL decide qué formulario se muestra.
 ENTRAR = "?acceso=entrar"
 CREAR = "?acceso=crear"
-# Tokens que cuesta, en promedio, una consulta al agente (para convertir la cuota semanal del plan en consultas aproximadas).
-TOKENS_POR_CONSULTA = 25_000
 
 
 # TITULO ICONO
@@ -121,7 +119,7 @@ def heroe() -> str:
         "<div class='pj-p-heroe-texto'>"
         f"<span class='pj-p-etiqueta'>{escape(h['etiqueta'])}</span>"
         f"<h1>{escape(h['titulo'])}</h1><p class='pj-p-sub'>{escape(h['subtitulo'])}</p>"
-        f"<div class='pj-p-botones pj-p-botones-centro'><a class='pj-p-btn pj-p-btn-marca pj-p-btn-grande' href='{CREAR}' target='_self'>{escape(h['cta_principal'])}</a>"
+        f"<div class='pj-p-botones pj-p-botones-centro'><a class='pj-p-btn pj-p-btn-marca pj-p-btn-grande' href='{CREAR}' target='_self'>{escape(h['cta_principal'])}<span class='pj-p-flecha'>→</span></a>"
         f"<a class='pj-p-btn pj-p-btn-borde pj-p-btn-grande' href='{ENTRAR}' target='_self'>{escape(h['cta_secundario'])}</a></div>"
         f"<ul class='pj-p-puntos pj-p-puntos-centro'>{puntos}</ul></div>"
         f"<div class='pj-p-heroe-vista'>{_captura('plataforma', 'Plataforma: lista de activos, gráfico y chat del agente de IA', 'pj-p-solo-grande')}"
@@ -239,21 +237,20 @@ def pasos() -> str:
     p = C["pasos"]
     items = "".join(f"<article class='pj-p-paso'><span class='pj-p-num'>{escape(n)}</span><h3>{escape(t)}</h3><p>{escape(d)}</p></article>" for n, t, d in p["items"])
     return (f"<section class='pj-p-seccion pj-p-fondo' id='empezar'><div class='pj-p-cont'><h2 class='pj-p-centro'>{escape(p['titulo'])}</h2>"
-            f"<div class='pj-p-rejilla3'>{items}</div><div class='pj-p-centro pj-p-espacio'><a class='pj-p-btn pj-p-btn-marca pj-p-btn-grande' href='{CREAR}' target='_self'>{escape(C['hero']['cta_principal'])}</a></div></div></section>")
+            f"<div class='pj-p-rejilla3'>{items}</div><div class='pj-p-centro pj-p-espacio'><a class='pj-p-btn pj-p-btn-marca pj-p-btn-grande' href='{CREAR}' target='_self'>{escape(C['hero']['cta_principal'])}<span class='pj-p-flecha'>→</span></a></div></div></section>")
 
 
 # TITULO PLANES
 
 def planes() -> str:
-    """Tarjetas de los planes tomadas de configuracion.PLANES_IA: nombre, para quién es, precio mensual y consultas aproximadas por semana (la cuota se reinicia cada semana).
+    """Tarjetas de los planes tomadas de configuracion.PLANES_IA: nombre, para quién es, precio mensual y preguntas al agente por semana (la cuota se reinicia cada semana).
 
     El precio es el de `precios` del plan (hoy uno solo por plan); si un plan tuviera varios (prueba de precios), se muestra el menor con «desde»."""
     p = C["planes"]
     titulos = datos_json(Path(__file__).parent.parent / "planes" / "planes.json")["titulos"]
     tarjetas = ""
     for clave, plan in configuracion.PLANES_IA.items():
-        consultas = max(1, plan["tokens_semana"] // TOKENS_POR_CONSULTA)
-        miles = f"{consultas:,}".replace(",", ".")   # separador de miles en español
+        preguntas = int(plan["preguntas_semana"])
         gratis = clave == "gratis"
         precios = plan.get("precios") or [0]
         precio_min = min(precios)
@@ -266,7 +263,7 @@ def planes() -> str:
             precio = f"<p class='pj-p-plan-precio'>{desde}<b>{valor} USD</b><i>al mes</i></p>"
         tarjetas += (
             f"<article class='pj-p-plan{' pj-p-plan-gratis' if gratis else ''}'><h3>{escape(plan['nombre'])}</h3><p class='pj-p-plan-tit'>{escape(titulos.get(clave, ''))}</p>{precio}"
-            f"<p class='pj-p-plan-n'><b>≈ {miles}</b> consultas por semana</p>"
+            f"<p class='pj-p-plan-n'><b>{preguntas}</b> preguntas al agente por semana</p>"
             f"<a class='pj-p-btn {'pj-p-btn-marca' if gratis else 'pj-p-btn-borde'}' href='{CREAR}' target='_self'>{'Empezar gratis' if gratis else 'Crear cuenta'}</a></article>"
         )
     return (f"<section class='pj-p-seccion' id='planes'><div class='pj-p-cont'><h2 class='pj-p-centro'>{escape(p['titulo'])}</h2>"

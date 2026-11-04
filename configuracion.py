@@ -85,20 +85,18 @@ REINTENTOS_LLM = 3                 # reintentos automáticos ante fallos de red 
 # ──────────────────────────────────────────────────────────────
 # Cuota de uso de la IA por plan (ver herramientas/cuota_ia.py)
 # ──────────────────────────────────────────────────────────────
-# Tokens SEMANALES de cada plan: la cuota se reinicia cada semana (ver REINICIO_SEMANAL). Cuentan los tokens de entrada y de salida que informa la API,
-# multiplicados por el peso del modelo (más abajo). Una consulta típica gasta del orden de 25.000 tokens (la entrada incluye el prompt, las herramientas
-# y el historial que se reenvían en cada llamada): son cifras de partida para ajustar con el consumo real que muestra el Laboratorio.
-# Cuentas de costo (flash, 0,15 a 0,30 USD por millón de tokens ponderados, 4,33 semanas por mes): aun gastando todo cada semana, el costo mensual de IA
-# queda por debajo del ingreso neto de cada plan (Básico 2,6 USD, Profesional 7,8 USD, Avanzado 15,6 USD como máximo).
+# PREGUNTAS SEMANALES al agente de cada plan: la cuota se reinicia cada semana (ver REINICIO_SEMANAL). Cuenta cada pregunta del usuario que el agente alcanza a
+# responder, sin importar su largo ni el perfil usado; los análisis de las vigilancias automáticas no cuentan (su límite es el de vigilancias_activas del plan).
+# Los valores los definió el equipo de la empresa (Patricio): 6, 12, 18 y 24 preguntas por semana.
 # `precios` son los precios mensuales (USD) de la página de Planes y de la portada. Con un solo precio por plan ya no hay prueba de precios A/B
 # (si se agregan más precios a un plan, a cada usuario se le asigna siempre el mismo y se comparan los clics, como antes).
 PLANES_IA: dict[str, dict] = {
-    "gratis": {"nombre": "Gratis", "tokens_semana": 300_000, "precios": [0]},                         # ≈ 12 consultas por semana: para probar el agente
-    "basico": {"nombre": "Básico", "tokens_semana": 2_000_000, "precios": [4.99]},                    # ≈ 80 consultas por semana
-    "pro": {"nombre": "Profesional", "tokens_semana": 6_000_000, "precios": [14.99]},                 # ≈ 240 consultas por semana
-    "avanzado": {"nombre": "Avanzado", "tokens_semana": 12_000_000, "precios": [29.99]},              # ≈ 480 consultas por semana
+    "gratis": {"nombre": "Gratis", "preguntas_semana": 6, "precios": [0]},
+    "basico": {"nombre": "Básico", "preguntas_semana": 12, "precios": [4.99]},
+    "pro": {"nombre": "Profesional", "preguntas_semana": 18, "precios": [14.99]},
+    "avanzado": {"nombre": "Avanzado", "preguntas_semana": 24, "precios": [29.99]},
 }
-# Cuándo se reinicia la cuota de tokens: cada semana, el día `dia` (0 = lunes … 6 = domingo) a la hora indicada, en la zona horaria `zona` (con
+# Cuándo se reinicia la cuota de preguntas: cada semana, el día `dia` (0 = lunes … 6 = domingo) a la hora indicada, en la zona horaria `zona` (con
 # cambio de horario incluido). El domingo por la tarde queda justo antes de la apertura semanal del mercado de divisas. Si la zona no está disponible
 # (en Windows hace falta el paquete tzdata), se usa la hora local del servidor.
 REINICIO_SEMANAL = {"zona": "America/Santiago", "dia": 6, "hora": 18, "minuto": 0}
@@ -121,9 +119,6 @@ OPERAR_EN_CUENTA_REAL: bool = True
 COPYTRADING: dict = {"dias_minimos": 30, "operaciones_minimas": 20, "max_estrategias": 3, "comision_max": 30.0, "comision_defecto": 20.0, "inversion_minima": 50.0,
                      "categorias": ["Forex", "Índices", "Criptomonedas", "Materias primas", "Metales", "Acciones", "Mixta"],
                      "max_copias_por_inversor": 5, "espera_motor_s": 15, "pendiente_vence_s": 120, "liquidacion_dias": 30}
-# Cuánto pesa cada token según el modelo: el modelo «pro» cuesta unas 12 veces más que el «flash», así que gasta 12 veces más cuota.
-# Un modelo que no esté en la tabla pesa 1.
-PESO_MODELO: dict[str, float] = {"deepseek-flash": 1.0, "deepseek-v4-pro": 12.0}
 # Porcentaje de uso desde el cual la barra se pone en ámbar (aviso) y desde el que se pone en rojo.
 UMBRAL_AVISO_PCT = 70
 UMBRAL_CRITICO_PCT = 90

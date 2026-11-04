@@ -67,13 +67,20 @@ def origen(nombre: str):
         _TURNO.reset(ficha_turno)
 
 
+# TITULO ORIGEN ACTUAL
+
+def origen_actual() -> str:
+    """Origen de las llamadas al modelo en este contexto: «chat» (una pregunta del usuario) o «vigilancia» (análisis automático)."""
+    return _ORIGEN.get()
+
+
 # TITULO REGISTRAR
 
 def registrar(perfil: str, modelo: str, usage) -> None:
     """Guarda una línea con el consumo de una llamada al modelo. `usage` es el objeto de uso que entrega la API (puede ser None).
 
     Toma `prompt_tokens`, `completion_tokens` y `prompt_cache_hit_tokens` (los tokens de entrada que salieron de la caché del proveedor,
-    más baratos). Sin datos de uso no guarda nada. También suma los tokens a la cuota mensual del usuario (`herramientas/cuota_ia.py`).
+    más baratos). Sin datos de uso no guarda nada. La cuota del plan ya no cuenta tokens sino preguntas (`herramientas/cuota_ia.py`).
     Nunca lanza excepciones."""
     try:
         entrada = int(getattr(usage, "prompt_tokens", 0) or 0)
@@ -91,11 +98,6 @@ def registrar(perfil: str, modelo: str, usage) -> None:
             if os.path.getsize(ruta) > _MAX_BYTES:
                 _recortar(ruta)
     except Exception:  # noqa: BLE001 - registrar el consumo nunca debe tumbar una respuesta del agente
-        pass
-    try:
-        from herramientas import cuota_ia     # además de anotarla, la llamada gasta cuota del plan del usuario
-        cuota_ia.sumar(modelo, int(getattr(usage, "prompt_tokens", 0) or 0) + int(getattr(usage, "completion_tokens", 0) or 0))
-    except Exception:  # noqa: BLE001
         pass
 
 

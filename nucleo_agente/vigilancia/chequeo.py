@@ -19,7 +19,7 @@ from typing import Any
 
 from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
-from herramientas import consumo_ia, cuota_ia
+from herramientas import consumo_ia
 from nucleo_agente import ordenes
 from nucleo_agente.vigilancia import analisis
 from nucleo_agente.vigilancia.analisis import _mensaje_analisis
@@ -76,11 +76,6 @@ def chequear(vid: str) -> dict[str, Any]:
     if hora_tick is not None and v.get("ultimo_tick") == hora_tick:   # nada se movió: no se gastan tokens
         _actualizar(vid, ultimo_resumen="Mercado sin movimiento desde el último chequeo: no se analizó.")
         return {"ok": True, "estado": "SIN_MOVIMIENTO"}
-
-    # Paso 5b: sin cuota de tokens del plan no se analiza: la vigilancia queda en pausa (sin contar como fallo) hasta que se renueve o cambie el plan.
-    if cuota_ia.estado()["agotada"]:
-        _actualizar(vid, ultimo_resumen="En pausa: se agotó la cuota de IA del mes (se renueva el primer día del mes o al cambiar de plan).")
-        return {"ok": True, "estado": "EN_PAUSA"}
 
     # Paso 6: análisis del modelo; los fallos se cuentan y, al llegar al máximo seguido, se detiene la vigilancia.
     try:

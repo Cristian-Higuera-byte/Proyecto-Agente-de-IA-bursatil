@@ -14,7 +14,7 @@
 """Panel del chat del agente: tarjeta con selector de perfil, «Nueva conversación», límites del agente, historial y caja de texto.
 
 Compone los módulos hermanos: sesion (usuario y agente), historial (mensajes),
-turno_vivo (burbuja en curso) y cuota (barra del uso mensual de tokens). Es lo que importa la fachada del paquete chat.
+turno_vivo (burbuja en curso) y cuota (barra del uso semanal de preguntas). Es lo que importa la fachada del paquete chat.
 """
 from __future__ import annotations
 
@@ -122,12 +122,12 @@ def _entrada(uid: str, agente, error_agente: str, en_curso: bool, vistos, agotad
 
     Parámetros: uid (id del usuario), agente (o None), error_agente (mensaje a mostrar si
     no hay agente), en_curso (deshabilita la caja), vistos (conjunto de ids de turnos
-    conocidos por la sesión) y agotada (la cuota de tokens del mes se acabó: la caja queda deshabilitada y lo dice). Efectos: añade mensajes a la conversación, inicia el turno en
+    conocidos por la sesión) y agotada (las preguntas de la semana se acabaron: la caja queda deshabilitada y lo dice). Efectos: añade mensajes a la conversación, inicia el turno en
     segundo plano con turnos.iniciar y relanza la app completa. `sufijo` da clave propia a la caja de texto de las copias del chat que no son la de la fila de abajo.
     """
     # Texto de ayuda de la caja según el estado.
     texto_guia = (
-        "Alcanzaste el límite de tokens de tu plan esta semana" if agotada else
+        "Alcanzaste el límite de preguntas de tu plan esta semana" if agotada else
         "El agente está respondiendo… puedes moverte por la plataforma, te avisaremos"
         if en_curso else "Escribe tu consulta o pide un gráfico en imagen..."
     )
@@ -176,7 +176,7 @@ def _chat_agente(sufijo: str = "", altura: int = 450, compacto: bool = False) ->
     agente, error_agente = obtener_agente()
     # Trae a la conversación lo ocurrido en segundo plano y dibuja cada bloque.
     turno, en_curso, vistos = sincronizar_turno(uid)
-    cuota = cuota_ia.estado()      # tokens gastados este mes sobre el total del plan (se actualiza al terminar cada consulta)
+    cuota = cuota_ia.estado()      # preguntas hechas esta semana sobre el total del plan (se actualiza al terminar cada consulta)
     barra_cuota(cuota, sufijo)
     _controles(agente, en_curso, sufijo, compacto)
     pintar_mensajes(uid, turno, en_curso, sufijo, altura)

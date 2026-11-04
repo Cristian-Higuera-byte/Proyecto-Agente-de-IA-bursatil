@@ -11,7 +11,7 @@
 # ------------------------------------- INICIO Piña y Jara panel .PY ------------------------------------
 # -------------------------------------------------------------------------------------------------------
 
-"""Vista "Planes": muestra los planes con su precio y tokens, y registra qué plan le interesa a cada usuario (prueba de demanda).
+"""Vista "Planes": muestra los planes con su precio y preguntas por semana, y registra qué plan le interesa a cada usuario (prueba de demanda).
 
 IMPORTANTE: todavía no se cobra nada. La página lo dice de entrada. Mientras dura la prueba, al pulsar «Usar este plan» la cuenta pasa a ese
 plan al instante (se guarda con `herramientas/cuota_ia.py`: en Supabase en multiusuario, en un archivo en modo local) y la plataforma cambia sus
@@ -99,7 +99,7 @@ def _lineas_plan(clave: str) -> list:
     def n(x):
         """Número con puntos de miles."""
         return f"{x:,.0f}".replace(",", ".")
-    lineas = [f"{n(v('tokens_semana'))} tokens de IA por semana"]
+    lineas = [f"{n(v('preguntas_semana'))} preguntas al agente por semana"]
     lineas.append("Modelo avanzado del agente (perfil profundo)" if "profundo" in (v("perfiles_ia") or []) else "Agente rápido y de análisis")
     lineas.append(f"{n(v('vigilancias_activas'))} vigilancia{'s' if v('vigilancias_activas') != 1 else ''} automática{'s' if v('vigilancias_activas') != 1 else ''}"
                   if v("vigilancias_activas") else "Sin vigilancias automáticas")
@@ -115,7 +115,7 @@ def _lineas_plan(clave: str) -> list:
 # TITULO TARJETA PLAN
 
 def _tarjeta_plan(clave: str, precio: float, actual: bool) -> str:
-    """HTML de la tarjeta de un plan: nombre, descripción corta, precio, tokens por semana y lo más importante que incluye."""
+    """HTML de la tarjeta de un plan: nombre, descripción corta, precio, preguntas por semana y lo más importante que incluye."""
     plan = configuracion.PLANES_IA[clave]
     items = "".join(f"<li>{escape(c)}</li>" for c in _lineas_plan(clave)[1:])
     marca = "<span class='planes-actual'>Tu plan actual</span>" if actual else ""
@@ -124,7 +124,7 @@ def _tarjeta_plan(clave: str, precio: float, actual: bool) -> str:
             f"<div class='planes-nombre'>{escape(plan['nombre'])}</div>"
             f"<div class='planes-desc'>{escape(_TEXTOS['titulos'].get(clave, ''))}</div>"
             f"<div class='planes-precio'>{precio_txt}<span>{'' if precio <= 0 else ' al mes'}</span></div>"
-            f"<div class='planes-tokens'>{cuota_ia.formato(plan['tokens_semana'])} tokens por semana</div><ul>{items}</ul></div>")
+            f"<div class='planes-tokens'>{cuota_ia.formato(plan['preguntas_semana'])} preguntas por semana</div><ul>{items}</ul></div>")
 
 
 # TITULO PRECIO DE

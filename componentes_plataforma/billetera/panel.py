@@ -105,7 +105,7 @@ def renderizar_panel_billetera(main=None) -> None:
         c1.html(f"<div class='bil-tarjeta'><div class='bil-etiqueta'>Saldo disponible</div><div class='bil-saldo'>{escape(_usd(saldo))}</div>"
                 f"<div class='bil-nota'>Billetera virtual · {escape(cfg['moneda'])}</div></div>")
         c2.html(f"<div class='bil-tarjeta'><div class='bil-etiqueta'>Plan actual</div><div class='bil-valor'>{escape(configuracion.PLANES_IA[actual]['nombre'])}</div>"
-                f"<div class='bil-nota'>{escape(cuota_ia.formato(configuracion.PLANES_IA[actual]['tokens_semana']))} tokens de IA por semana</div></div>")
+                f"<div class='bil-nota'>{escape(cuota_ia.formato(configuracion.PLANES_IA[actual]['preguntas_semana']))} preguntas al agente por semana</div></div>")
         c3.html(f"<div class='bil-tarjeta'><div class='bil-etiqueta'>Recargado este mes</div><div class='bil-valor'>{escape(_usd(recargado))}</div>"
                 f"<div class='bil-nota'>Tope mensual: {escape(_usd(float(cfg['recarga_mensual_max'])))}</div></div>")
 

@@ -135,8 +135,11 @@ class Agente(_CicloMixin):
         en el ciclo de herramientas y, al llegar el evento "fin", guarda el turno en la memoria. Si el turno
         se interrumpe (error o cierre del generador) elimina del historial lo añadido y relanza la excepción.
         """
-        # Sin cuota de tokens no se empieza: se avisa antes de tocar el historial (lanza ErrorCuota con el mensaje para el usuario).
-        cuota_ia.exigir()
+        # Sin preguntas disponibles esta semana no se empieza: se avisa antes de tocar el historial (lanza ErrorCuota con el mensaje para el usuario).
+        # Los análisis de las vigilancias automáticas no cuentan como preguntas del usuario.
+        es_pregunta = consumo_ia.origen_actual() != "vigilancia"
+        if es_pregunta:
+            cuota_ia.exigir()
         # El perfil elegido tiene que estar incluido en el plan (el «profundo» usa el modelo avanzado, más caro): si no, se explica en vez de usarlo.
         permitidos = permisos_plan.valor("perfiles_ia")
         if permitidos and self.perfil not in permitidos:
@@ -155,6 +158,8 @@ class Agente(_CicloMixin):
                 if evento.tipo == "fin":
                     completo = True
                     self._guardar_turno(punto_inicio)
+                    if es_pregunta:
+                        cuota_ia.registrar_pregunta()      # la pregunta cuenta cuando el agente termina de responderla
                 yield evento
         except BaseException:
             # Un turno a medias (error o cancelación) dejaría llamadas a herramientas

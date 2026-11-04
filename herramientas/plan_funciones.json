@@ -8,12 +8,12 @@
     {"clave": "soporte", "nombre": "Soporte y acceso"}
   ],
   "funciones": [
-    {"clave": "tokens_semana", "nombre": "Tokens de IA por semana", "categoria": "agente", "tipo": "cantidad", "estado": "aplicado",
-     "descripcion": "Cuota semanal de tokens del agente (entrada + salida, ponderada por modelo); se reinicia cada domingo a las 18:00 (hora de Chile). Sale de PLANES_IA en configuracion.py."},
+    {"clave": "preguntas_semana", "nombre": "Preguntas al agente por semana", "categoria": "agente", "tipo": "cantidad", "estado": "aplicado",
+     "descripcion": "Cuántas preguntas puedes hacerle al agente cada semana; se reinicia cada domingo a las 18:00 (hora de Chile). Sale de PLANES_IA en configuracion.py."},
     {"clave": "perfiles_ia", "nombre": "Perfiles del agente", "categoria": "agente", "tipo": "lista", "estado": "aplicado",
      "descripcion": "Perfiles de IA que puede elegir. El perfil «profundo» usa el modelo avanzado, unas 12 veces más caro."},
     {"clave": "vigilancias_activas", "nombre": "Vigilancias automáticas a la vez", "categoria": "agente", "tipo": "cantidad", "unidad": "vigilancias", "estado": "aplicado",
-     "descripcion": "El agente analiza un activo cada cierto tiempo y propone entrar o salir. Gasta mucha cuota de tokens."},
+     "descripcion": "El agente analiza un activo cada cierto tiempo y propone entrar o salir. Sus análisis no cuentan como preguntas, pero cada vigilancia activa gasta IA."},
     {"clave": "propuestas_ordenes", "nombre": "Órdenes propuestas por el agente (tú confirmas)", "categoria": "agente", "tipo": "si_no", "estado": "aplicado",
      "descripcion": "El agente propone órdenes y solo se ejecutan si las confirmas. Es el núcleo del producto y va en todos los planes."},
     {"clave": "limites_agente", "nombre": "Límites de riesgo del agente", "categoria": "agente", "tipo": "si_no", "estado": "aplicado",
