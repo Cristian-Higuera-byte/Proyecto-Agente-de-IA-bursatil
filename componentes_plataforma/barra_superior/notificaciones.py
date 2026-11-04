@@ -62,8 +62,8 @@ def html_notificaciones(elementos: list) -> str:
     vacío si la lista no tiene elementos. Todo el texto se escapa con `html.escape`.
     """
     if not elementos:
-        return ("<div class='notificacion-vacio'>Sin notificaciones por ahora. Aquí te avisamos cuando el agente "
-                "termine de responder.</div>")
+        return ("<div class='notificacion-vacio'>Sin notificaciones por ahora. Aquí te avisamos de las respuestas y órdenes del agente, "
+                "del cierre de tus posiciones y de tus alertas de precio.</div>")
     # Una fila por notificación
     filas = []
     for n in elementos:
@@ -97,6 +97,31 @@ def vigilar_notificaciones(usuario_id: str) -> None:
         pedir_refresco("campana", marca=f"aviso-{ultima}")
 
 
+# TITULO DESTINO DEL AVISO
+
+def _destino_del_aviso(tipo: str) -> tuple[str, str, str]:
+    """Adónde lleva el botón principal de la campana según el tipo del aviso más reciente: (texto, ícono, vista de la plataforma).
+
+    Cierres de posiciones -> Cartera; alertas de precio -> Perfil > Notificaciones (ahí se ven y se crean); lo demás (respuestas, órdenes y
+    vigilancias del agente) -> el chat del agente en Trading."""
+    if tipo == "posicion":
+        return "Ir a Cartera", ":material/account_balance_wallet:", "portafolio"
+    if tipo == "alerta":
+        return "Ver mis alertas", ":material/add_alert:", "perfil"
+    return "Ver el chat del agente", ":material/chat:", "trading"
+
+
+# TITULO IR A
+
+def _ir_a(usuario_id: str, vista: str) -> None:
+    """Marca los avisos como leídos y navega a `vista`; si es el perfil, abre su sección Notificaciones. Relanza la página."""
+    notificaciones.marcar_leidas(usuario_id)
+    if vista == "perfil":
+        st.session_state["perfil_seccion"] = "preferencias"
+    st.session_state.navegacion_activo = vista
+    st.rerun()
+
+
 # TITULO CAMPANA
 
 def campana(usuario_id: str) -> None:
@@ -115,8 +140,9 @@ def _campana_contenido(usuario_id: str) -> None:
 
     Recibe el id del usuario. Guarda en sesión el id de la última notificación (para el
     fragmento vigilante), lanza un `st.toast` una sola vez por notificación nueva y sesión, y
-    muestra un popover con la lista. Sus botones son reales: "Ver el chat del agente" marca
-    todo como leído y navega a Trading; "Marcar como leídas" borra la lista. Al final arranca
+    muestra un popover con la lista. Sus botones son reales: el principal marca todo como leído y
+    navega a donde corresponde al aviso más reciente (Cartera, Perfil o el chat del agente en Trading), "Ver historial" abre Perfil >
+    Notificaciones y "Marcar como leídas" solo quita la insignia (los avisos siguen en la lista). Al final arranca
     el fragmento `vigilar_notificaciones`.
     """
     # Recuerda la última notificación vista para que el vigilante detecte las nuevas
@@ -146,14 +172,17 @@ def _campana_contenido(usuario_id: str) -> None:
             # Lista de notificaciones y, si hay, los botones de acción
             st.html(html_notificaciones(elementos))
             if elementos:
-                if st.button("Ver el chat del agente", key="notificacion_ir", icon=":material/chat:", type="primary",
-                             width="stretch"):
+                # Botón principal: lleva a donde corresponde según el aviso más reciente (sin leer, si hay).
+                reciente = next((n for n in elementos if not n["leida"]), elementos[0])
+                texto, icono, vista = _destino_del_aviso(reciente["tipo"])
+                if st.button(texto, key="notificacion_ir", icon=icono, type="primary", width="stretch"):
+                    _ir_a(usuario_id, vista)
+                # El historial completo (también lo que ya leíste) está en Perfil > Notificaciones.
+                if vista != "perfil" and st.button("Ver historial", key="notificacion_historial", icon=":material/history:", width="stretch"):
+                    _ir_a(usuario_id, "perfil")
+                # Marcar como leídas solo quita la insignia: los avisos siguen en la lista y en el historial.
+                if sin_leer and st.button("Marcar como leídas", key="notificacion_leer", icon=":material/done_all:", width="stretch"):
                     notificaciones.marcar_leidas(usuario_id)
-                    st.session_state.navegacion_activo = "trading"
-                    st.rerun()
-                # Marcar como leídas = ya las viste: se eliminan de la lista (y desaparece la insignia).
-                if st.button("Marcar como leídas", key="notificacion_leer", icon=":material/done_all:", width="stretch"):
-                    notificaciones.limpiar(usuario_id)
                     st.rerun()
 
 
