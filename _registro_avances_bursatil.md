@@ -1040,3 +1040,9 @@ systemctl is-active pyj-datos pyj-app
   - `herramientas/gestor_alertas.py` (reescrito; antes no lo usaba nadie): alertas por usuario en `data/usuarios/<id>/alertas.json`, precios del bróker, tope del plan, rechaza niveles ya cumplidos; se crean y quitan desde Perfil > Notificaciones.
 - **Verificación:** compila; prueba sin red con datos simulados (interruptores, cierre por SL, anti-fallo, alertas y su interruptor). No se vio en pantalla ni se probó con la cuenta de Capital.
 - **Límite conocido:** los avisos de posiciones y alertas solo se generan mientras el usuario tiene la plataforma abierta; sin el navegador abierto no se detectan.
+
+### 04-11-2026 (tarde) — Historial de notificaciones en PostgreSQL
+- **Pedido:** que los avisos de la campana sobrevivan a los reinicios y se vean desde cualquier dispositivo. Hallazgo: vivían solo en memoria (máx. 50 por usuario).
+- **Diseño híbrido (para miles de usuarios):** la campana sigue leyendo de la memoria (el vigilante consulta cada 3 s sin tocar la base); cada aviso y cada cambio (leído, oculto) se escribe en segundo plano por una cola de un solo hilo, y al primer uso tras un reinicio se cargan los últimos 50 desde la base. Sin base o sin la tabla, todo sigue en memoria.
+- **Archivos:** `herramientas/sql/notificaciones.sql` (tabla `notificaciones`, índices, GRANT), `nucleo_agente/notificaciones_base.py` (persistencia) y `nucleo_agente/notificaciones.py` (carga, escritura y `historial`). Perfil > Notificaciones ganó el desplegable «Historial de avisos» (100 más recientes, incluidos los quitados de la campana). «Marcar como leídas» ahora oculta (no borra). Retención 90 días con limpieza diaria desde la propia plataforma.
+- **Verificación:** compila; prueba sin red con una base simulada (guardar, recargar tras reinicio, aislamiento entre usuarios, ocultar, depurar, sin base). No se probó contra el PostgreSQL real. **Falta en el servidor:** ejecutar el SQL y los GRANT al usuario de la base.

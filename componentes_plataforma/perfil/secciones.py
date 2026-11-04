@@ -16,6 +16,7 @@
 Las secciones con campos (datos.json) se dibujan con un formulario genérico que valida y guarda con `almacen`; Seguridad
 (cambio de contraseña) y Cuenta de trading (datos de solo lectura) tienen su propio dibujo. Lo llama panel.py.
 """
+import time
 from datetime import date
 from typing import Any
 
@@ -23,6 +24,7 @@ import streamlit as st
 
 from componentes_plataforma.acceso.sesion import cerrar_sesion_en_todos
 from componentes_plataforma.agente_paneles.formato import escapar_html
+from componentes_plataforma.barra_superior.datos import ICONO_TIPO
 from componentes_plataforma.perfil import almacen
 from componentes_plataforma.perfil.datos import PREFIJOS, opciones, seccion as _seccion
 from componentes_plataforma.perfil.validacion import (mascara, validar_contrasena_nueva, validar_documento,
@@ -250,6 +252,23 @@ def _alertas_precio() -> None:
             st.rerun()
 
 
+# TITULO HISTORIAL DE AVISOS
+
+def _historial_avisos(usuario: dict[str, Any]) -> None:
+    """Desplegable «Historial de avisos» de Notificaciones: los últimos 100 avisos de la campana, también los que ya quitaste de ella.
+
+    Salen de la base de datos, por eso son los mismos en cualquier dispositivo. Se conservan 90 días. Solo lee."""
+    with st.expander("Historial de avisos", icon=":material/history:"):
+        avisos_guardados = avisos.historial(str(_usuario_id(usuario)), 100)
+        if not avisos_guardados:
+            st.html("<div class='perfil-vacio'>Todavía no tienes avisos.</div>")
+            return
+        st.caption("Se guardan 90 días y son los mismos en todos tus dispositivos.")
+        st.html("".join(
+            f"<div class='perfil-fila'>{ICONO_TIPO.get(a['tipo'], '🔔')} <b>{escapar_html(a['titulo'])}</b> · {escapar_html(a['texto'])} "
+            f"· {time.strftime('%d-%m-%Y %H:%M', time.localtime(a['creada']))}</div>" for a in avisos_guardados))
+
+
 # TITULO SEGURIDAD
 
 def _seguridad(usuario: dict[str, Any]) -> None:
@@ -384,6 +403,7 @@ def dibujar(id_seccion: str, usuario: dict[str, Any], perfil: dict[str, Any]) ->
         _formulario(s, usuario, perfil)
         if id_seccion == "preferencias":
             _alertas_precio()
+            _historial_avisos(usuario)
 
 
 # -------------------------------------------------------------------------------------------------------
