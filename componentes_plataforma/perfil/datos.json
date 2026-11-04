@@ -400,16 +400,6 @@
    "id": "posiciones",
    "nombre": "Cambios en mis posiciones",
    "ayuda": "Stop loss, take profit y cierres"
-  },
-  {
-   "id": "noticias",
-   "nombre": "Noticias de mis activos",
-   "ayuda": "Titulares importantes de los activos que sigues"
-  },
-  {
-   "id": "correo_resumen",
-   "nombre": "Resumen semanal por correo",
-   "ayuda": "Rendimiento y operaciones de la semana"
   }
  ],
  "secciones": [
@@ -635,34 +625,10 @@
   },
   {
    "id": "preferencias",
-   "titulo": "Preferencias",
+   "titulo": "Notificaciones",
    "icono": "tune",
-   "descripcion": "Idioma, zona horaria y avisos que quieres recibir.",
+   "descripcion": "Avisos que quieres recibir.",
    "campos": [
-    {
-     "id": "idioma",
-     "etiqueta": "Idioma",
-     "tipo": "select",
-     "opciones": "idiomas",
-     "requerido": false,
-     "defecto": "es"
-    },
-    {
-     "id": "zona_horaria",
-     "etiqueta": "Zona horaria",
-     "tipo": "select",
-     "opciones": "zonas_horarias",
-     "requerido": false,
-     "defecto": "America/Santiago"
-    },
-    {
-     "id": "moneda_visualizacion",
-     "etiqueta": "Moneda para mostrar montos",
-     "tipo": "select",
-     "opciones": "monedas",
-     "requerido": false,
-     "defecto": "USD"
-    },
     {
      "id": "notificaciones",
      "etiqueta": "Notificaciones",

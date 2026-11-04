@@ -8,163 +8,186 @@
 
 
 # -------------------------------------------------------------------------------------------------------
-# -------------------------------- INICIO Piña y Jara gestor_alertas .PY --------------------------------
+# ---------------------------------- INICIO Piña y Jara gestor_alertas .PY ------------------------------
 # -------------------------------------------------------------------------------------------------------
 
-"""
-gestor_alertas.py
--------------------
-Módulo para gestionar y evaluar alertas bursátiles proactivas de forma local.
+"""Alertas de precio por usuario.
 
-Las alertas (ticker, condición 'menor'/'mayor' y precio objetivo) se persisten
-en un archivo JSON dentro de `data/`. La evaluación consulta el último precio
-de cierre en Yahoo Finance (yfinance) y desactiva cada alerta una vez que se
-cumple. Expone `crear_alerta`, `listar_alertas` y `evaluar_alertas_activas`.
+NOMBRE DEL ARCHIVO: herramientas/gestor_alertas.py
+
+Cada usuario guarda sus alertas (activo, condición «mayor» o «menor» y nivel) en `alertas.json`, dentro de su carpeta de datos
+(`data/usuarios/<id>/`), así que no se mezclan con las de otros usuarios y valen para su cuenta demo y su cuenta real. Los precios
+salen del conector del bróker (`obtener_precio_actual`). Al cumplirse una alerta se deja un aviso en la campana (categoría
+`alertas_precio` de Perfil > Notificaciones) y la alerta se desactiva. Las revisa `herramientas/avisos_usuario.py`.
 """
 import json
 import os
+import tempfile
+import threading
 from datetime import datetime
-import yfinance as yf  # type: ignore[import-untyped]
+from typing import Any
 
 from herramientas import permisos_plan
+from herramientas.backends import sesiones_capital
+from herramientas.carpeta_usuario import carpeta_usuario
+from herramientas.puente_mt5 import obtener_precio_actual
+from nucleo_agente import notificaciones
 
-# Ruta (relativa a la carpeta de ejecución) del JSON donde se guardan las alertas.
-ARCHIVO_ALERTAS = "data/alertas_activas.json"
+# Nombre del archivo de alertas dentro de la carpeta del usuario.
+NOMBRE_ARCHIVO = "alertas.json"
+# Condiciones válidas: «mayor» avisa cuando el precio sube hasta el nivel; «menor», cuando baja hasta él.
+CONDICIONES = ("mayor", "menor")
+# Candado que serializa lecturas y escrituras del archivo dentro del proceso.
+_CANDADO = threading.Lock()
 
 
-# TITULO CARGAR ALERTAS
+# TITULO RUTA
 
-def _cargar_alertas() -> list:
-    """
-    Lee las alertas guardadas en disco.
+def _ruta() -> str:
+    """Ruta del archivo de alertas del usuario actual: su carpeta general (no la de demo o real, para que valgan en las dos cuentas)."""
+    carpeta = carpeta_usuario()
+    if len(sesiones_capital.clave_actual()) == 2:
+        carpeta = os.path.dirname(carpeta)
+    return os.path.join(carpeta, NOMBRE_ARCHIVO)
 
-    Devuelve la lista de diccionarios del JSON; si el archivo no existe o está
-    corrupto/ilegible devuelve una lista vacía (nunca lanza excepción).
-    """
-    if not os.path.exists(ARCHIVO_ALERTAS):
-        return []
+
+# TITULO CARGAR
+
+def _cargar() -> list[dict[str, Any]]:
+    """Lee las alertas del usuario; lista vacía si el archivo no existe o está dañado (nunca lanza excepción)."""
     try:
-        with open(ARCHIVO_ALERTAS, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
+        with open(_ruta(), "r", encoding="utf-8") as archivo:
+            datos = json.load(archivo)
+        return datos if isinstance(datos, list) else []
+    except Exception:  # noqa: BLE001 - sin archivo legible equivale a «sin alertas»
         return []
 
 
-# TITULO GUARDAR ALERTAS
+# TITULO GUARDAR
 
-def _guardar_alertas(alertas: list):
-    """
-    Sobrescribe el archivo JSON de alertas con la lista recibida.
-
-    Escribe en UTF-8 con sangría de 4 espacios. Efecto secundario: escritura en
-    disco; falla si la carpeta `data/` no existe.
-    """
-    os.makedirs(os.path.dirname(ARCHIVO_ALERTAS) or ".", exist_ok=True)
-    with open(ARCHIVO_ALERTAS, "w", encoding="utf-8") as f:
-        json.dump(alertas, f, indent=4, ensure_ascii=False)
-
-
-# TITULO CREAR ALERTA
-
-def crear_alerta(ticker: str, condicion: str, valor_objetivo: float) -> str:
-    """
-    Registra una nueva alerta bursátil.
-
-    Parámetros:
-        ticker (str): Símbolo del activo (ej. TSLA, AAPL).
-        condicion (str): 'menor' (precio cae por debajo) o 'mayor' (precio supera).
-        valor_objetivo (float): Precio límite para disparar la alerta.
-
-    Devuelve un mensaje de confirmación con el id asignado. Efecto secundario:
-    escribe el archivo JSON de alertas. El id es el mayor id existente + 1,
-    así nunca se repite aunque se hayan borrado alertas.
-    """
-    # Carga las alertas existentes para calcular el siguiente id.
-    alertas = _cargar_alertas()
-    # El plan del usuario limita cuántas alertas puede tener activas a la vez (herramientas/permisos_plan.py).
-    tope = permisos_plan.limite("alertas_precio_activas")
-    activas = sum(1 for a in alertas if a.get("activa", True))
-    if tope is not None and activas >= tope:
-        return "⚠️ " + permisos_plan.mensaje_bloqueo("alertas_precio_activas") + " Elimina o deja que se dispare alguna alerta antes de crear otra."
-    # Arma el registro normalizando ticker (mayúsculas) y condición (minúsculas).
-    nueva = {
-        "id": max((int(a.get("id", 0)) for a in alertas), default=0) + 1,
-        "ticker": ticker.upper(),
-        "condicion": condicion.lower(),  # "menor" o "mayor"
-        "valor_objetivo": float(valor_objetivo),
-        "fecha_creacion": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "activa": True
-    }
-    # Agrega la alerta y persiste la lista completa.
-    alertas.append(nueva)
-    _guardar_alertas(alertas)
-    return f"✅ Alerta creada exitosamente [ID: {nueva['id']}]: Avisar si {ticker.upper()} está {condicion} a {valor_objetivo}."
+def _guardar(alertas: list[dict[str, Any]]) -> None:
+    """Escribe la lista completa de alertas de forma atómica (archivo temporal y reemplazo) para no dejar el JSON a medias."""
+    ruta = _ruta()
+    os.makedirs(os.path.dirname(ruta), exist_ok=True)
+    descriptor, temporal = tempfile.mkstemp(dir=os.path.dirname(ruta), suffix=".tmp")
+    with os.fdopen(descriptor, "w", encoding="utf-8") as archivo:
+        json.dump(alertas, archivo, indent=2, ensure_ascii=False)
+    os.replace(temporal, ruta)
 
 
 # TITULO LISTAR ALERTAS
 
-def listar_alertas() -> list:
-    """Devuelve la lista completa de alertas registradas (activas e inactivas) leída del JSON."""
-    return _cargar_alertas()
+def listar_alertas(solo_activas: bool = True) -> list[dict[str, Any]]:
+    """Alertas del usuario actual, de la más nueva a la más antigua; con `solo_activas` omite las que ya se dispararon."""
+    with _CANDADO:
+        alertas = _cargar()
+    if solo_activas:
+        alertas = [a for a in alertas if a.get("activa", True)]
+    return list(reversed(alertas))
 
 
-# TITULO EVALUAR ALERTAS ACTIVAS
+# TITULO PRECIO
 
-def evaluar_alertas_activas() -> str:
-    """
-    Revisa todas las alertas activas contra los precios actuales del mercado
-    y avisa si alguna condición se ha cumplido.
+def _precio(ticker: str) -> float | None:
+    """Último precio del activo según el bróker, o None si no se pudo obtener."""
+    try:
+        dato = obtener_precio_actual(ticker)
+    except Exception:  # noqa: BLE001 - sin precio no se puede evaluar
+        return None
+    if not isinstance(dato, dict) or dato.get("error"):
+        return None
+    valor = float(dato.get("last") or dato.get("bid") or 0.0)
+    return valor or None
 
-    Para cada alerta activa consulta en yfinance el último cierre diario y lo
-    compara con el objetivo ('menor': precio <= objetivo; 'mayor': precio >=
-    objetivo). Las alertas disparadas se marcan como inactivas y todo el estado
-    se guarda de nuevo en disco. Devuelve un reporte de texto con una línea por
-    alerta evaluada (disparada, pendiente o con error).
-    """
-    # Carga el estado actual; sin alertas no hay nada que evaluar.
-    alertas = _cargar_alertas()
-    if not alertas:
-        return "No hay alertas activas configuradas en el sistema."
-    reporte = "--- EVALUACIÓN DE ALERTAS PROACTIVAS ---\n"
-    disparadas = 0
-    # Recorre solo las alertas todavía activas.
-    for alerta in alertas:
-        if not alerta["activa"]:
-            continue
-        ticker = alerta["ticker"]
-        condicion = alerta["condicion"]
-        objetivo = alerta["valor_objetivo"]
-        try:
-            # Obtener precio actual de mercado
-            ticket = yf.Ticker(ticker)
-            historial = ticket.history(period="1d")
-            if historial.empty:
+
+# TITULO CREAR ALERTA
+
+def crear_alerta(ticker: str, condicion: str, valor_objetivo: float) -> tuple[bool, str]:
+    """Registra una alerta nueva y devuelve (éxito, mensaje para el usuario).
+
+    Valida el activo (debe tener precio en el bróker), la condición y el nivel; rechaza la alerta si el precio ya cumple la condición
+    (se dispararía de inmediato) o si el plan del usuario ya alcanzó su tope de alertas activas. Escribe el archivo de alertas."""
+    ticker = (ticker or "").strip().upper()
+    condicion = (condicion or "").strip().lower()
+    if not ticker:
+        return False, "Escribe el activo, por ejemplo EURUSD."
+    if condicion not in CONDICIONES:
+        return False, "Elige si quieres que avise cuando el precio suba o cuando baje."
+    try:
+        objetivo = float(valor_objetivo)
+    except (TypeError, ValueError):
+        objetivo = 0.0
+    if objetivo <= 0:
+        return False, "El nivel debe ser mayor que cero."
+    actual = _precio(ticker)
+    if actual is None:
+        return False, f"No se encontró el precio de «{ticker}». Revisa el nombre del activo."
+    if (condicion == "mayor" and actual >= objetivo) or (condicion == "menor" and actual <= objetivo):
+        return False, f"{ticker} ya cotiza en {actual:g}: esa alerta se dispararía de inmediato. Elige otro nivel."
+    with _CANDADO:
+        alertas = _cargar()
+        tope = permisos_plan.limite("alertas_precio_activas")
+        if tope is not None and sum(1 for a in alertas if a.get("activa", True)) >= tope:
+            return False, permisos_plan.mensaje_bloqueo("alertas_precio_activas") + " Quita alguna alerta antes de crear otra."
+        alertas.append({
+            "id": max((int(a.get("id", 0)) for a in alertas), default=0) + 1,
+            "ticker": ticker,
+            "condicion": condicion,
+            "valor_objetivo": objetivo,
+            "fecha_creacion": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "activa": True,
+        })
+        _guardar(alertas)
+    return True, f"Alerta creada: te avisaré cuando {ticker} {'suba a' if condicion == 'mayor' else 'baje a'} {objetivo:g}."
+
+
+# TITULO ELIMINAR ALERTA
+
+def eliminar_alerta(alerta_id: int) -> None:
+    """Borra del archivo la alerta con ese id (no hace nada si no existe)."""
+    with _CANDADO:
+        _guardar([a for a in _cargar() if int(a.get("id", 0)) != int(alerta_id)])
+
+
+# TITULO REVISAR ALERTAS
+
+def revisar_alertas(usuario_id: str) -> int:
+    """Compara las alertas activas del usuario con los precios actuales y avisa en la campana las que se cumplieron.
+
+    Devuelve cuántas se dispararon. Una alerta solo se desactiva si el aviso se entregó: si el usuario apagó «Alertas de precio» en
+    su perfil queda activa, para avisarle cuando vuelva a encenderlas. Efectos: lee precios del bróker y escribe el archivo."""
+    with _CANDADO:
+        alertas = _cargar()
+        pendientes = [a for a in alertas if a.get("activa", True)]
+        if not pendientes:
+            return 0
+        precios: dict[str, float | None] = {}
+        disparadas = 0
+        for alerta in pendientes:
+            ticker = alerta["ticker"]
+            if ticker not in precios:
+                precios[ticker] = _precio(ticker)
+            actual = precios[ticker]
+            if actual is None:
                 continue
-            precio_actual = float(historial["Close"].iloc[-1])
-            # Evalúa la condición contra el precio actual.
-            condicion_cumplida = False
-            if condicion == "menor" and precio_actual <= objetivo:
-                condicion_cumplida = True
-            elif condicion == "mayor" and precio_actual >= objetivo:
-                condicion_cumplida = True
-            # Reporta el resultado; si se cumplió, la alerta se desactiva.
-            if condicion_cumplida:
+            objetivo, sube = float(alerta["valor_objetivo"]), alerta["condicion"] == "mayor"
+            if not ((sube and actual >= objetivo) or (not sube and actual <= objetivo)):
+                continue
+            aviso = notificaciones.agregar(
+                usuario_id, f"Alerta de precio: {ticker}",
+                f"{ticker} {'subió a' if sube else 'bajó a'} {actual:g} (tu nivel: {objetivo:g})",
+                tipo="alerta", categoria="alertas_precio")
+            if aviso["id"] is not None:
+                alerta["activa"] = False
+                alerta["fecha_disparo"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 disparadas += 1
-                reporte += f"🚨 ¡ALERTA DISPARADA! El activo {ticker} cotiza a {precio_actual:.2f} (Objetivo: {condicion} a {objetivo}).\n"
-                alerta["activa"] = False  # Desactivar tras cumplirse
-            else:
-                reporte += f"⏳ Alerta ID {alerta['id']} ({ticker}): Precio actual {precio_actual:.2f} (Aún no se cumple {condicion} a {objetivo}).\n"
-        except Exception as e:
-            reporte += f"❌ Error evaluando alerta para {ticker}: {str(e)}\n"
-    # Persiste los cambios de estado (alertas desactivadas).
-    _guardar_alertas(alertas)
-    if disparadas == 0:
-        reporte += "\nNinguna alerta ha alcanzado su valor objetivo en este ciclo."
-    return reporte
+        if disparadas:
+            _guardar(alertas)
+    return disparadas
 
 
 # -------------------------------------------------------------------------------------------------------
-# ---------------------------------- FIN Piña y Jara gestor_alertas .PY ---------------------------------
+# ----------------------------------- FIN Piña y Jara gestor_alertas .PY --------------------------------
 # -------------------------------------------------------------------------------------------------------
 
 # Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.

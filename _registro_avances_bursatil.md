@@ -1030,3 +1030,13 @@ systemctl is-active pyj-datos pyj-app
 - **Informe del Día 31** entregado en `NOVIEMBRE-11-2026` (7 secciones, sin nada del informe de práctica de Duoc ni de la bitácora Duoc, que son documentos aparte). Tampoco incluye «cerrar sesión en todos los dispositivos» ni «quitar la API» (van en el Día 32).
 - **Estado completo y pendientes** en `_contexto_nuevo_chat/05_estado_y_pendientes.md` (archivo local, excluido de git): cabecera al 03-11, bloque del Día 31, pendientes nuevos y bloque del Día 30 (vigilante con cron).
 - **Último commit del día:** `c57d527`, más este de la bitácora. Falta en el servidor: pull, tabla `aceptaciones_legales`, reinicio de Streamlit y del servidor de precios, y probar soporte, registro con casilla, cerrar sesión en todos y quitar la API.
+
+## 04-11-2026 — Día 32: Perfil más honesto y notificaciones que funcionan
+
+- **Pantallas que mostraban funciones inexistentes (quitadas):** «Autenticación en dos pasos» (`70ffc57`, subido) y los selectores de Idioma, Zona horaria y Moneda del perfil. Hallazgo: esos tres campos solo se guardaban; ningún otro módulo los leía. La sección «Preferencias» pasó a llamarse «Notificaciones». «Autorizaciones aceptadas» se quitó y se volvió a poner a pedido (`20c18d4` y su reversión `34e04bc`).
+- **Notificaciones de la campana (sin commitear):** quedan 3 interruptores reales (órdenes y vigilancias del agente, cambios en mis posiciones, alertas de precio); se descartaron «Noticias de mis activos» y «Resumen semanal por correo».
+  - `nucleo_agente/notificaciones.agregar` recibe `categoria` y consulta el perfil (cache de 30 s, `olvidar_preferencias` al guardar); sin preferencia guardada se avisa. Las respuestas y errores del chat no se pueden apagar.
+  - `herramientas/avisos_usuario.py` (nuevo): el vigilante de la campana (cada 3 s) llama a `revisar`, que cada 10 s por cuenta detecta posiciones cerradas (ausentes en 2 revisiones; anti-fallo si desaparecen todas) y avisa «Stop loss/Take profit alcanzado» o «Posición cerrada» con el P/G del historial. Se hizo en el proceso de Streamlit porque la campana vive en su memoria y el servidor de precios es otro proceso.
+  - `herramientas/gestor_alertas.py` (reescrito; antes no lo usaba nadie): alertas por usuario en `data/usuarios/<id>/alertas.json`, precios del bróker, tope del plan, rechaza niveles ya cumplidos; se crean y quitan desde Perfil > Notificaciones.
+- **Verificación:** compila; prueba sin red con datos simulados (interruptores, cierre por SL, anti-fallo, alertas y su interruptor). No se vio en pantalla ni se probó con la cuenta de Capital.
+- **Límite conocido:** los avisos de posiciones y alertas solo se generan mientras el usuario tiene la plataforma abierta; sin el navegador abierto no se detectan.

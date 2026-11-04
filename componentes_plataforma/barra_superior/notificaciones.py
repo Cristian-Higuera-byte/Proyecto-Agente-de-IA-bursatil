@@ -24,6 +24,7 @@ import streamlit as st
 
 from componentes_plataforma.barra_superior.datos import ICONO_TIPO
 from componentes_plataforma.refresco_fragmentos import fragmento_con_refresco, pedir_refresco
+from herramientas import avisos_usuario
 from nucleo_agente import notificaciones
 
 
@@ -81,12 +82,13 @@ def html_notificaciones(elementos: list) -> str:
 
 @st.fragment(run_every="3s")
 def vigilar_notificaciones(usuario_id: str) -> None:
-    """Fragmento que revisa cada 3 s (sin dibujar nada) si llegó un aviso nuevo.
+    """Fragmento que cada 3 s (sin dibujar nada) genera los avisos de posiciones y alertas de precio y revisa si llegó un aviso nuevo.
 
     Recibe el id del usuario. Compara la última notificación con la guardada en
     `st.session_state["_notificacion_ultima_id"]` y solo si difieren pide refrescar la campana (su fragmento, no la página completa), para
     que aparezcan la insignia y el toast aunque el usuario esté en otra sección.
     """
+    avisos_usuario.revisar(usuario_id)   # cierres de posiciones y alertas de precio (cada 10 s por cuenta, sin importar cuántas pestañas haya)
     ultima = notificaciones.ultima_id(usuario_id)
     if ultima != st.session_state.get("_notificacion_ultima_id") and ultima != st.session_state.get("_notificacion_pedida"):
         # Aviso nuevo: solo se refresca la campana (insignia, lista y aviso emergente), sin reejecutar la página; si el refresco no llegara, el siguiente cambio de sección o

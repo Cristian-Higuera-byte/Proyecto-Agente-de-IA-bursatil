@@ -77,7 +77,8 @@ def _notificar(v: dict[str, Any], titulo: str, texto: str, tipo: str = "auto") -
 
     Cualquier fallo se imprime y se ignora para que avisar nunca detenga al motor."""
     try:
-        notificaciones.agregar(v["usuario_id"], titulo, texto, tipo=tipo, ref=v["id"])
+        notificaciones.agregar(v["usuario_id"], titulo, texto, tipo=tipo, ref=v["id"],
+                               categoria=None if tipo == "error" else "ordenes_agente")
     except Exception:  # noqa: BLE001 - un fallo al avisar nunca debe tumbar el motor
         traceback.print_exc()
 

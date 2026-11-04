@@ -43,6 +43,7 @@ def _avisar(turno: Turno) -> None:
     # Se registra la notificación vinculada al turno (ref) para poder marcarla leída al recogerlo.
     notificaciones.agregar(
         turno.usuario_id, titulo, f"{pregunta} · {tiempo}", tipo=tipo, ref=turno.id, leida=viendo,
+        categoria="ordenes_agente" if tipo == "orden" else None,   # las respuestas y los errores del chat no se pueden apagar
     )
 
 

@@ -36,6 +36,45 @@ MAX_POR_USUARIO = 50
 _CANDADO = threading.Lock()
 # Almacén en memoria: id de usuario -> lista de notificaciones (la más reciente primero).
 _DATOS: dict[str, list[dict[str, Any]]] = {}
+# Segundos que se recuerdan las preferencias de avisos de un usuario antes de volver a leerlas de su perfil.
+VIGENCIA_PREFERENCIAS = 30.0
+# Preferencias recordadas: id de usuario -> (instante de lectura, {categoría: True/False}).
+_PREFERENCIAS: dict[str, tuple[float, dict[str, bool]]] = {}
+
+
+# TITULO OLVIDAR PREFERENCIAS
+
+def olvidar_preferencias(usuario_id: Any) -> None:
+    """Descarta las preferencias recordadas del usuario; se llama al guardar su perfil para que el cambio rija de inmediato."""
+    with _CANDADO:
+        _PREFERENCIAS.pop(str(usuario_id), None)
+
+
+# TITULO QUIERE AVISO
+
+def _quiere_aviso(usuario_id: str, categoria: str | None) -> bool:
+    """Dice si el usuario tiene activada la `categoria` en Perfil > Notificaciones (por defecto todas están activas).
+
+    Sin categoría, o si el perfil no se puede leer, devuelve True: ante la duda se avisa. Las preferencias se recuerdan
+    VIGENCIA_PREFERENCIAS segundos para no consultar la base de datos en cada aviso."""
+    if not categoria:
+        return True
+    clave, ahora = str(usuario_id), time.time()
+    with _CANDADO:
+        recordada = _PREFERENCIAS.get(clave)
+    if recordada is None or ahora - recordada[0] > VIGENCIA_PREFERENCIAS:
+        try:
+            from componentes_plataforma.perfil import almacen
+            perfil = almacen.leer(usuario_id)
+        except Exception:  # noqa: BLE001 - sin perfil legible se avisa igual
+            return True
+        if perfil.get("_error"):
+            return True
+        guardadas = perfil.get("notificaciones")
+        recordada = (ahora, {k: bool(v) for k, v in guardadas.items()} if isinstance(guardadas, dict) else {})
+        with _CANDADO:
+            _PREFERENCIAS[clave] = recordada
+    return recordada[1].get(categoria, True)
 
 
 # TITULO AGREGAR
@@ -44,15 +83,19 @@ def agregar(
     usuario_id: str,
     titulo: str,
     texto: str = "",
-    tipo: str = "agente",        # agente | orden | error
+    tipo: str = "agente",        # agente | orden | auto | error | posicion | alerta
     ref: str | None = None,      # id del turno que la originó
     leida: bool = False,
+    categoria: str | None = None,  # interruptor de Perfil > Notificaciones que la gobierna (None = siempre se avisa)
 ) -> dict[str, Any]:
     """Agrega una notificación al inicio de la lista del usuario y devuelve una copia de ella.
 
-    Recibe el usuario, el título y texto a mostrar, el tipo (agente, orden o error), la referencia
-    al turno que la originó y si nace ya leída. Si se supera MAX_POR_USUARIO descarta las más viejas.
+    Recibe el usuario, el título y texto a mostrar, el tipo, la referencia al turno que la originó, si nace ya leída y la
+    categoría de preferencias (ordenes_agente, alertas_precio o posiciones). Si el usuario apagó esa categoría en su perfil
+    la notificación no se guarda y se devuelve igual la copia, con id None. Si se supera MAX_POR_USUARIO descarta las más viejas.
     """
+    if not _quiere_aviso(usuario_id, categoria):
+        return {"id": None, "titulo": titulo, "texto": texto, "tipo": tipo, "ref": ref, "leida": leida, "creada": time.time()}
     # Se arma el registro con un id corto aleatorio y la hora de creación.
     nueva = {
         "id": uuid.uuid4().hex[:8], "titulo": titulo, "texto": texto, "tipo": tipo,

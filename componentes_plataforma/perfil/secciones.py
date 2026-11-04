@@ -11,7 +11,7 @@
 # ----------------------------------- INICIO Piña y Jara secciones .PY ----------------------------------
 # -------------------------------------------------------------------------------------------------------
 
-"""Formularios de cada sección del perfil: datos personales, documento, contacto, inversor, preferencias, seguridad y cuenta.
+"""Formularios de cada sección del perfil: datos personales, documento, contacto, inversor, notificaciones, seguridad y cuenta.
 
 Las secciones con campos (datos.json) se dibujan con un formulario genérico que valida y guarda con `almacen`; Seguridad
 (cambio de contraseña) y Cuenta de trading (datos de solo lectura) tienen su propio dibujo. Lo llama panel.py.
@@ -27,9 +27,10 @@ from componentes_plataforma.perfil import almacen
 from componentes_plataforma.perfil.datos import PREFIJOS, opciones, seccion as _seccion
 from componentes_plataforma.perfil.validacion import (mascara, validar_contrasena_nueva, validar_documento,
                                                        validar_apodo, validar_nacimiento, validar_telefono)
-from herramientas import credenciales_bolsa, gestor_autenticacion
+from herramientas import credenciales_bolsa, gestor_alertas, gestor_autenticacion
 from herramientas.backends import sesiones_capital
 from herramientas.puente_mt5 import NOMBRE_BROKER, obtener_info_cuenta
+from nucleo_agente import notificaciones as avisos
 
 # Clave de session_state con el aviso (tipo, texto) que se muestra tras guardar y recargar la vista.
 CLAVE_AVISO = "perfil_aviso"
@@ -189,7 +190,7 @@ def _formulario(seccion: dict[str, Any], usuario: dict[str, Any], perfil: dict[s
                 else:
                     i += 1
         if seccion["id"] == "preferencias":
-            st.caption("Estas preferencias se guardan en tu perfil; la plataforma las irá aplicando en próximas versiones.")
+            st.caption("Los avisos llegan a la campana de la barra superior mientras tienes la plataforma abierta.")
         guardar = st.form_submit_button("Guardar cambios", type="primary", icon=":material/save:")
     if not guardar:
         return
@@ -202,6 +203,7 @@ def _formulario(seccion: dict[str, Any], usuario: dict[str, Any], perfil: dict[s
     if not resultado["ok"]:
         st.error(resultado["mensaje"])
         return
+    avisos.olvidar_preferencias(_usuario_id(usuario))     # las notificaciones recién guardadas rigen de inmediato
     if "nombres" in datos and "apellidos" in datos:
         completo = f"{datos['nombres']} {datos['apellidos']}".strip()
         if almacen.modo() == "supabase":
@@ -209,6 +211,43 @@ def _formulario(seccion: dict[str, Any], usuario: dict[str, Any], perfil: dict[s
         usuario["nombre"] = completo       # el mismo diccionario vive en el almacén de sesiones: no se pierde con F5
     st.session_state[CLAVE_AVISO] = ("ok", resultado["mensaje"])
     st.rerun()
+
+
+# TITULO ALERTAS DE PRECIO
+
+def _alertas_precio() -> None:
+    """Bloque «Alertas de precio» de Notificaciones: formulario para crear una alerta y la lista de las activas, con botón para quitarlas.
+
+    Crear valida contra el bróker (activo con precio, nivel aún no alcanzado, tope del plan). Las alertas se revisan solas mientras el
+    usuario tiene la plataforma abierta; al cumplirse llega un aviso a la campana. Efectos: escribe y borra en el archivo de alertas."""
+    st.markdown("**Alertas de precio**")
+    st.caption("Elige un activo y un nivel: cuando el precio lo alcance te llega un aviso a la campana (si tienes «Alertas de precio» activado).")
+    with st.form("perfil_form_alerta", border=False, clear_on_submit=True):
+        c1, c2, c3 = st.columns([1.1, 1.5, 1.1])
+        with c1:
+            activo = st.text_input("Activo", placeholder="EURUSD", key="perfil_alerta_activo")
+        with c2:
+            condicion = st.selectbox("Avisar cuando el precio", ["Suba hasta el nivel", "Baje hasta el nivel"], key="perfil_alerta_condicion")
+        with c3:
+            nivel = st.number_input("Nivel", min_value=0.0, value=0.0, format="%.5f", key="perfil_alerta_nivel")
+        crear = st.form_submit_button("Crear alerta", icon=":material/add_alert:")
+    if crear:
+        ok, mensaje = gestor_alertas.crear_alerta(activo, "mayor" if condicion.startswith("Suba") else "menor", nivel)
+        if ok:
+            st.session_state[CLAVE_AVISO] = ("ok", mensaje)
+            st.rerun()
+        st.error(mensaje)
+    activas = gestor_alertas.listar_alertas()
+    if not activas:
+        st.html("<div class='perfil-vacio'>No tienes alertas activas.</div>")
+    for alerta in activas:
+        fila, boton = st.columns([5, 1], vertical_alignment="center")
+        sube = alerta["condicion"] == "mayor"
+        fila.html(f"<div class='perfil-fila'>{escapar_html(alerta['ticker'])} · {'sube hasta' if sube else 'baja hasta'} "
+                  f"{alerta['valor_objetivo']:g} · creada el {escapar_html(str(alerta.get('fecha_creacion', ''))[:10])}</div>")
+        if boton.button("Quitar", key=f"perfil_alerta_quitar_{alerta['id']}", icon=":material/delete:"):
+            gestor_alertas.eliminar_alerta(alerta["id"])
+            st.rerun()
 
 
 # TITULO SEGURIDAD
@@ -343,6 +382,8 @@ def dibujar(id_seccion: str, usuario: dict[str, Any], perfil: dict[str, Any]) ->
         _cuenta(usuario)
     else:
         _formulario(s, usuario, perfil)
+        if id_seccion == "preferencias":
+            _alertas_precio()
 
 
 # -------------------------------------------------------------------------------------------------------
