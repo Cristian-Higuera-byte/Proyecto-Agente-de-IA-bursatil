@@ -214,7 +214,7 @@ def _formulario(seccion: dict[str, Any], usuario: dict[str, Any], perfil: dict[s
 # TITULO SEGURIDAD
 
 def _seguridad(usuario: dict[str, Any]) -> None:
-    """Sección Seguridad: correo (solo lectura), cambio de contraseña, autenticación en dos pasos (próximamente) y cerrar sesión."""
+    """Sección Seguridad: correo (solo lectura), cambio de contraseña y cierre de sesiones."""
     st.text_input("Correo electrónico", value=usuario.get("email", ""), disabled=True, key="perfil_email_solo_lectura",
                   help="El correo es tu identificador de acceso y no se puede cambiar desde aquí.")
     st.markdown("**Cambiar contraseña**")
@@ -233,10 +233,6 @@ def _seguridad(usuario: dict[str, Any]) -> None:
         else:
             r = gestor_autenticacion.cambiar_contrasena(usuario.get("id"), actual, nueva)
             (st.success if r["ok"] else st.error)(r["mensaje"])
-    st.markdown("**Autenticación en dos pasos**")
-    st.toggle("Pedir un código adicional al iniciar sesión", value=False, disabled=True, key="perfil_2fa",
-              help="Próximamente.")
-    st.caption("Próximamente: protegerás tu cuenta con un código de una aplicación de autenticación.")
     st.markdown("**Sesiones abiertas**")
     st.caption("Si usaste tu cuenta en un computador o un celular que no es tuyo, o crees que alguien más entró, cierra la sesión en todos tus dispositivos.")
     with st.popover("Cerrar sesión en todos los dispositivos", icon=":material/devices:"):
