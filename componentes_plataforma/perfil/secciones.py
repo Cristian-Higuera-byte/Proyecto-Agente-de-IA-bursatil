@@ -16,6 +16,7 @@
 Las secciones con campos (datos.json) se dibujan con un formulario genérico que valida y guarda con `almacen`; Seguridad
 (cambio de contraseña) y Cuenta de trading (datos de solo lectura) tienen su propio dibujo. Lo llama panel.py.
 """
+import math
 import time
 from datetime import date
 from typing import Any
@@ -25,6 +26,7 @@ import streamlit as st
 from componentes_plataforma.acceso.sesion import cerrar_sesion_en_todos
 from componentes_plataforma.agente_paneles.formato import escapar_html
 from componentes_plataforma.barra_superior.datos import ICONO_TIPO
+from componentes_plataforma.buscador.datos import cargar_simbolos_broker
 from componentes_plataforma.perfil import almacen
 from componentes_plataforma.perfil.datos import PREFIJOS, opciones, seccion as _seccion
 from componentes_plataforma.perfil.validacion import (mascara, validar_contrasena_nueva, validar_documento,
@@ -215,30 +217,90 @@ def _formulario(seccion: dict[str, Any], usuario: dict[str, Any], perfil: dict[s
     st.rerun()
 
 
+# TITULO OPCIONES ACTIVOS
+
+def _opciones_activos() -> dict[str, str]:
+    """Activos que se pueden elegir para una alerta: nombre exacto del bróker -> texto mostrado («EURUSD · Euro / US Dollar»). Vacío si el catálogo aún no cargó."""
+    salida = {}
+    for a in cargar_simbolos_broker():
+        salida[a["name"]] = f"{a['visible']} · {a['desc']}" if a["desc"] and a["desc"].upper() != a["visible"].upper() else a["visible"]
+    return salida
+
+
+# TITULO AL ELEGIR ACTIVO
+
+def _al_elegir_activo() -> None:
+    """Al elegir un activo de la alerta: guarda su precio actual como referencia y lo pone como nivel inicial (desde ahí el usuario sube o baja)."""
+    activo = st.session_state.get("perfil_alerta_activo")
+    precio = gestor_alertas.precio_actual(activo) if activo else None
+    st.session_state["perfil_alerta_referencia"] = precio
+    st.session_state["perfil_alerta_nivel"] = float(precio) if precio else 0.0
+
+
+# TITULO CREAR ALERTA DESDE FORMULARIO
+
+def _crear_alerta_desde_formulario() -> None:
+    """Al pulsar «Crear alerta»: la crea con el activo y el nivel elegidos (la condición se decide sola según el precio actual).
+
+    Si sale bien deja el aviso de éxito y limpia el formulario; si no, guarda el motivo para mostrarlo. Es un callback: corre antes de que
+    se dibujen los campos, por eso puede cambiar sus valores."""
+    ok, mensaje = gestor_alertas.crear_alerta(st.session_state.get("perfil_alerta_activo") or "", "auto", st.session_state.get("perfil_alerta_nivel") or 0.0)
+    if ok:
+        st.session_state[CLAVE_AVISO] = ("ok", mensaje)
+        st.session_state["perfil_alerta_activo"] = None
+        st.session_state["perfil_alerta_nivel"] = 0.0
+        st.session_state["perfil_alerta_referencia"] = None
+    else:
+        st.session_state["perfil_alerta_error"] = mensaje
+
+
+# TITULO PASO Y DECIMALES
+
+def _paso_y_decimales(precio: float | None) -> tuple[float, int]:
+    """Paso de los botones +/- y decimales a mostrar según el precio: una diezmilésima del precio redondeada a potencia de 10
+    (EURUSD 1,08 -> 0,0001; oro 2.600 -> 0,1; BTC 90.000 -> 1)."""
+    if not precio or precio <= 0:
+        return 0.01, 2
+    paso = 10.0 ** math.floor(math.log10(precio * 0.0001))
+    return paso, max(2, 1 - math.floor(math.log10(paso)))
+
+
 # TITULO ALERTAS DE PRECIO
 
 def _alertas_precio() -> None:
-    """Bloque «Alertas de precio» de Notificaciones: formulario para crear una alerta y la lista de las activas, con botón para quitarlas.
+    """Bloque «Alertas de precio» de Notificaciones: crear una alerta y lista de las activas, con botón para quitarlas.
 
-    Crear valida contra el bróker (activo con precio, nivel aún no alcanzado, tope del plan). Las alertas se revisan solas mientras el
-    usuario tiene la plataforma abierta; al cumplirse llega un aviso a la campana. Efectos: escribe y borra en el archivo de alertas."""
+    Se elige el activo en un selector con buscador (escribe parte del nombre: «eur», «oro», «tesla»); al elegirlo, el campo Nivel parte en su
+    precio actual y con los botones +/- (o escribiendo) el usuario lo sube o baja hasta donde quiera. No hay que elegir «sube» o «baja»: se decide
+    comparando el nivel con el precio. Las alertas se revisan solas mientras la plataforma está abierta; al cumplirse llega un aviso a la campana.
+    Efectos: escribe y borra en el archivo de alertas."""
     st.markdown("**Alertas de precio**")
-    st.caption("Elige un activo y un nivel: cuando el precio lo alcance te llega un aviso a la campana (si tienes «Alertas de precio» activado).")
-    with st.form("perfil_form_alerta", border=False, clear_on_submit=True):
-        c1, c2, c3 = st.columns([1.1, 1.5, 1.1])
-        with c1:
-            activo = st.text_input("Activo", placeholder="EURUSD", key="perfil_alerta_activo")
-        with c2:
-            condicion = st.selectbox("Avisar cuando el precio", ["Suba hasta el nivel", "Baje hasta el nivel"], key="perfil_alerta_condicion")
-        with c3:
-            nivel = st.number_input("Nivel", min_value=0.0, value=0.0, format="%.5f", key="perfil_alerta_nivel")
-        crear = st.form_submit_button("Crear alerta", icon=":material/add_alert:")
-    if crear:
-        ok, mensaje = gestor_alertas.crear_alerta(activo, "mayor" if condicion.startswith("Suba") else "menor", nivel)
-        if ok:
-            st.session_state[CLAVE_AVISO] = ("ok", mensaje)
-            st.rerun()
-        st.error(mensaje)
+    st.caption("Elige un activo y el precio al que quieres que te avisemos: te llega un aviso a la campana cuando el precio lo alcance (si tienes «Alertas de precio» activado).")
+    opciones = _opciones_activos()
+    referencia = st.session_state.get("perfil_alerta_referencia")
+    paso, decimales = _paso_y_decimales(referencia)
+    st.session_state.setdefault("perfil_alerta_nivel", 0.0)
+    c1, c2 = st.columns([2, 1.2])
+    with c1:
+        if opciones:
+            st.selectbox("Activo", list(opciones), index=None, format_func=opciones.get, placeholder="Escribe para buscar: EURUSD, oro, Tesla…",
+                         key="perfil_alerta_activo", on_change=_al_elegir_activo)
+        else:
+            st.text_input("Activo", placeholder="EURUSD (el catálogo aún se está cargando)", key="perfil_alerta_activo", on_change=_al_elegir_activo)
+    with c2:
+        st.number_input("Precio de la alerta", min_value=0.0, step=paso, format=f"%.{decimales}f", key="perfil_alerta_nivel",
+                        disabled=not referencia, help="Parte en el precio actual: súbelo o bájalo hasta donde quieras que te avisemos.")
+    nivel = st.session_state.get("perfil_alerta_nivel") or 0.0
+    if referencia and nivel > 0 and nivel != referencia:
+        cambio = (nivel / referencia - 1) * 100
+        st.caption(f"Precio actual: {referencia:,.{decimales}f} · te avisaremos cuando {'suba' if nivel > referencia else 'baje'} a {nivel:,.{decimales}f} ({cambio:+.2f} %).")
+    elif referencia:
+        st.caption(f"Precio actual: {referencia:,.{decimales}f}. Mueve el precio de la alerta hacia arriba o hacia abajo.")
+    error = st.session_state.pop("perfil_alerta_error", None)
+    if error:
+        st.error(error)
+    st.button("Crear alerta", icon=":material/add_alert:", on_click=_crear_alerta_desde_formulario,
+              disabled=not (st.session_state.get("perfil_alerta_activo") and referencia and nivel > 0 and nivel != referencia))
     activas = gestor_alertas.listar_alertas()
     if not activas:
         st.html("<div class='perfil-vacio'>No tienes alertas activas.</div>")

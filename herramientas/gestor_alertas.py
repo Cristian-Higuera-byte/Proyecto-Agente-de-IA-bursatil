@@ -86,9 +86,9 @@ def listar_alertas(solo_activas: bool = True) -> list[dict[str, Any]]:
     return list(reversed(alertas))
 
 
-# TITULO PRECIO
+# TITULO PRECIO ACTUAL
 
-def _precio(ticker: str) -> float | None:
+def precio_actual(ticker: str) -> float | None:
     """Último precio del activo según el bróker, o None si no se pudo obtener."""
     try:
         dato = obtener_precio_actual(ticker)
@@ -105,13 +105,15 @@ def _precio(ticker: str) -> float | None:
 def crear_alerta(ticker: str, condicion: str, valor_objetivo: float) -> tuple[bool, str]:
     """Registra una alerta nueva y devuelve (éxito, mensaje para el usuario).
 
-    Valida el activo (debe tener precio en el bróker), la condición y el nivel; rechaza la alerta si el precio ya cumple la condición
-    (se dispararía de inmediato) o si el plan del usuario ya alcanzó su tope de alertas activas. Escribe el archivo de alertas."""
+    `condicion` es «mayor» (avisar cuando suba hasta el nivel), «menor» (cuando baje hasta él) o «auto», que la decide según el precio de
+    ese momento: si el nivel está sobre el precio actual avisa al subir y si está bajo, al bajar. Valida el activo (debe tener precio en el
+    bróker) y el nivel; rechaza la alerta si el precio ya cumple la condición (se dispararía de inmediato) o si el plan del usuario ya
+    alcanzó su tope de alertas activas. Escribe el archivo de alertas."""
     ticker = (ticker or "").strip().upper()
     condicion = (condicion or "").strip().lower()
     if not ticker:
         return False, "Escribe el activo, por ejemplo EURUSD."
-    if condicion not in CONDICIONES:
+    if condicion not in CONDICIONES + ("auto",):
         return False, "Elige si quieres que avise cuando el precio suba o cuando baje."
     try:
         objetivo = float(valor_objetivo)
@@ -119,9 +121,13 @@ def crear_alerta(ticker: str, condicion: str, valor_objetivo: float) -> tuple[bo
         objetivo = 0.0
     if objetivo <= 0:
         return False, "El nivel debe ser mayor que cero."
-    actual = _precio(ticker)
+    actual = precio_actual(ticker)
     if actual is None:
         return False, f"No se encontró el precio de «{ticker}». Revisa el nombre del activo."
+    if condicion == "auto":
+        if objetivo == actual:
+            return False, f"{ticker} ya cotiza en {actual:g}. Elige un nivel distinto del precio actual."
+        condicion = "mayor" if objetivo > actual else "menor"
     if (condicion == "mayor" and actual >= objetivo) or (condicion == "menor" and actual <= objetivo):
         return False, f"{ticker} ya cotiza en {actual:g}: esa alerta se dispararía de inmediato. Elige otro nivel."
     with _CANDADO:
@@ -166,7 +172,7 @@ def revisar_alertas(usuario_id: str) -> int:
         for alerta in pendientes:
             ticker = alerta["ticker"]
             if ticker not in precios:
-                precios[ticker] = _precio(ticker)
+                precios[ticker] = precio_actual(ticker)
             actual = precios[ticker]
             if actual is None:
                 continue
