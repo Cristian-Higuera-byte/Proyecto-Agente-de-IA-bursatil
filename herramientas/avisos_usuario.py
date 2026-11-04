@@ -20,7 +20,7 @@ segundos mientras el usuario tiene la plataforma abierta. Como la campana vive e
 aquí y no en el servidor de precios (otro proceso). Cada cuenta (usuario y modo demo o real) recuerda sus posiciones conocidas.
 
 Una posición cuenta como cerrada solo si falta en dos revisiones seguidas (separadas por al menos CONFIRMACION segundos): así una
-lectura vacía por un fallo momentáneo de la red del bróker no genera avisos falsos.
+lectura vacía por un fallo momentáneo de la red del bróker no genera avisos falsos. El aviso llega unos 3 a 6 segundos después del cierre.
 """
 import threading
 import time
@@ -32,10 +32,15 @@ from herramientas.backends import sesiones_capital
 from herramientas.puente_mt5 import obtener_historial, obtener_info_cuenta, obtener_posiciones
 from nucleo_agente import notificaciones
 
-# Segundos mínimos entre dos revisiones de la misma cuenta (varias pestañas abiertas no multiplican las consultas).
-INTERVALO = 10.0
-# Segundos que una posición debe llevar ausente para darla por cerrada.
-CONFIRMACION = 8.0
+# Segundos mínimos entre dos revisiones de posiciones de la misma cuenta (varias pestañas abiertas no multiplican las consultas). El vigilante de
+# la campana corre cada 3 s; las posiciones se leen con una caché de ~2 s, así que revisarlas a ese ritmo casi no cuesta.
+INTERVALO = 2.5
+# Segundos mínimos entre revisiones de una cuenta que no tiene posiciones abiertas (no hay cierres que detectar, solo abrir una nueva).
+INTERVALO_SIN_POSICIONES = 10.0
+# Segundos mínimos entre dos revisiones de alertas de precio (consultan el precio de cada activo alertado).
+INTERVALO_ALERTAS = 10.0
+# Segundos que una posición debe llevar ausente para darla por cerrada (con INTERVALO equivale a dos lecturas seguidas sin ella).
+CONFIRMACION = 2.0
 # Distancia relativa al nivel de SL o TP bajo la cual el último precio visto se considera «el nivel alcanzado».
 TOLERANCIA_NIVEL = 0.003
 # Candado y estado por cuenta: clave -> {"conocidas": {ticket: posición}, "ausentes": {ticket: instante}, "ultima": instante}.
@@ -48,22 +53,26 @@ _ESTADO: dict[tuple, dict[str, Any]] = {}
 def revisar(usuario_id: str) -> None:
     """Revisa las posiciones y las alertas de precio de la cuenta actual y deja los avisos que correspondan en la campana.
 
-    Se ignora si la cuenta se revisó hace menos de INTERVALO segundos. Cualquier fallo se imprime y se descarta: un aviso
+    Las posiciones se revisan cada INTERVALO segundos (cada INTERVALO_SIN_POSICIONES si la cuenta no tiene ninguna abierta) y las alertas cada INTERVALO_ALERTAS; si no toca ninguna, no hace nada. Cualquier fallo se imprime y se descarta: un aviso
     nunca debe romper la página."""
     ahora = time.time()
     with _CANDADO:
-        estado = _ESTADO.setdefault(sesiones_capital.clave_actual(), {"conocidas": {}, "ausentes": {}, "ultima": 0.0})
-        if ahora - estado["ultima"] < INTERVALO:
+        estado = _ESTADO.setdefault(sesiones_capital.clave_actual(), {"conocidas": {}, "ausentes": {}, "ultima": 0.0, "ultima_alertas": 0.0})
+        if ahora - estado["ultima"] < (INTERVALO if estado["conocidas"] else INTERVALO_SIN_POSICIONES):
             return
         estado["ultima"] = ahora
+        revisar_alertas = ahora - estado["ultima_alertas"] >= INTERVALO_ALERTAS
+        if revisar_alertas:
+            estado["ultima_alertas"] = ahora
     try:
         _revisar_posiciones(usuario_id, estado, ahora)
     except Exception:  # noqa: BLE001
         traceback.print_exc()
-    try:
-        gestor_alertas.revisar_alertas(usuario_id)
-    except Exception:  # noqa: BLE001
-        traceback.print_exc()
+    if revisar_alertas:
+        try:
+            gestor_alertas.revisar_alertas(usuario_id)
+        except Exception:  # noqa: BLE001
+            traceback.print_exc()
 
 
 # TITULO REVISAR POSICIONES
