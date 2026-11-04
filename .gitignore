@@ -47,3 +47,9 @@ data/sesiones_capital/
 # === Scripts de prueba manual y bitácora de trabajo: solo en el equipo de desarrollo, no van al servidor ===
 _prueba_*.py
 _registro_avances_bursatil.md
+
+# Salidas generadas por el agente, capturas de referencia de diseño y archivos de exploración: solo en el equipo de desarrollo
+outputs/
+referencias/
+data/alertas_activas.json
+_descubrir_capital.py
