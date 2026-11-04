@@ -292,7 +292,7 @@ def _conexion_api(usuario: dict[str, Any]) -> None:
 # TITULO CUENTA
 
 def _cuenta(usuario: dict[str, Any]) -> None:
-    """Sección Cuenta de trading: datos de solo lectura de la cuenta del bróker y de las autorizaciones aceptadas."""
+    """Sección Cuenta de trading: datos de solo lectura de la cuenta del bróker."""
     info = obtener_info_cuenta() or {}
     ok = bool(info) and "error" not in info
     moneda = info.get("currency", "USD") if ok else "—"
@@ -306,22 +306,6 @@ def _cuenta(usuario: dict[str, Any]) -> None:
     ]
     st.html("<div class='perfil-cuadricula'>" + "".join(
         f"<div class='perfil-dato'><span>{escapar_html(k)}</span><b>{escapar_html(v)}</b></div>" for k, v in celdas) + "</div>")
-    st.markdown("**Autorizaciones aceptadas**")
-    filas: list[str] = []
-    try:
-        from componentes_plataforma.operacion_un_clic.registro import _leer as _leer_un_clic
-        a = _leer_un_clic().get(str(_usuario_id(usuario)))
-        if a:
-            filas.append(f"One-Click Trading · aceptado el {escapar_html(str(a.get('fecha', ''))[:10])}")
-    except Exception:  # noqa: BLE001 - el registro es opcional
-        pass
-    try:
-        from componentes_plataforma.vigilancia_terminos.registro import aceptaciones_de
-        for a in aceptaciones_de(str(_usuario_id(usuario)))[-5:]:
-            filas.append(f"Vigilancia automática de {escapar_html(a.get('simbolo'))} · aceptada el {escapar_html(str(a.get('fecha', ''))[:10])}")
-    except Exception:  # noqa: BLE001
-        pass
-    st.html("".join(f"<div class='perfil-fila'>{f}</div>" for f in filas) or "<div class='perfil-vacio'>Aún no has aceptado ninguna autorización.</div>")
     _conexion_api(usuario)
 
 
