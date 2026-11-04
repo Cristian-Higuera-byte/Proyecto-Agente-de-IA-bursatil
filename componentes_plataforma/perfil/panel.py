@@ -47,11 +47,28 @@ def _iniciales(nombre: str) -> str:
     return "".join(p[0] for p in nombre.split()[:2]).upper() or "U"
 
 
+# TITULO NOMBRES SUGERIDOS
+
+def _nombres_sugeridos(usuario: dict[str, Any], perfil: dict[str, Any]) -> dict[str, str]:
+    """Nombres y apellidos que se sugieren en el formulario cuando el perfil aún no los tiene: salen del nombre con el que se registró el usuario.
+
+    El registro guarda un solo nombre completo; aquí se reparte: con 2 palabras, nombre y apellido; con 3, un nombre y dos apellidos; con 4 o más, los
+    dos primeros son nombres y el resto apellidos. Es solo una sugerencia que el usuario puede corregir: no se guarda hasta que pulse «Guardar cambios».
+    Devuelve un diccionario vacío si el perfil ya tiene nombres o apellidos, o si no hay nombre de registro."""
+    if perfil.get("nombres") or perfil.get("apellidos"):
+        return {}
+    palabras = str(usuario.get("nombre") or "").split()
+    if not palabras:
+        return {}
+    corte = 1 if len(palabras) <= 3 else 2
+    return {"nombres": " ".join(palabras[:corte]), "apellidos": " ".join(palabras[corte:])}
+
+
 # TITULO CABECERA
 
 def _cabecera(usuario: dict[str, Any], perfil: dict[str, Any]) -> None:
     """Dibuja la tarjeta superior: avatar con iniciales, nombre, correo, insignias (verificación y bróker) y progreso del perfil."""
-    nombre = f"{perfil.get('nombres', '')} {perfil.get('apellidos', '')}".strip() or usuario.get("nombre", "") or "Usuario"
+    nombre = f"{perfil.get('nombres') or ''} {perfil.get('apellidos') or ''}".strip() or usuario.get("nombre") or "Usuario"
     porcentaje, faltan = completitud(perfil)
     clave, texto = estado_verificacion(perfil)
     pista = (f"Te faltan {len(faltan)} datos para completar tu perfil." if faltan
@@ -102,7 +119,7 @@ def renderizar_panel_perfil(main: Any = None) -> None:
             _menu(perfil, activa)
         with der:
             with st.container(key="perfil_tarjeta"):
-                dibujar(activa, usuario, perfil)
+                dibujar(activa, usuario, {**perfil, **_nombres_sugeridos(usuario, perfil)})
 
 
 # -------------------------------------------------------------------------------------------------------
