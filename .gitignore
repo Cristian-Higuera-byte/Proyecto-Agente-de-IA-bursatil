@@ -43,3 +43,7 @@ data/*.db-shm
 # === Multiusuario: datos de cada usuario y sesiones de Capital.com (nunca se suben) ===
 data/usuarios/
 data/sesiones_capital/
+
+# === Scripts de prueba manual y bitácora de trabajo: solo en el equipo de desarrollo, no van al servidor ===
+_prueba_*.py
+_registro_avances_bursatil.md
