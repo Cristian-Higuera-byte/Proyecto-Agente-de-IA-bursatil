@@ -239,6 +239,13 @@ def renderizar_panel_planes(main=None) -> None:
                     st.html(vitrina_planes.html_cabecera(clave, con_boton=False, precio=precio))
                     if es_actual:
                         st.button("Tu plan actual", key=f"plan_quiero_{clave}", icon=":material/check_circle:", width="stretch", disabled=True)
+                    elif clave == "gratis" and plan_actual != "gratis" and not configuracion.PLANES_LIBRES:
+                        # Bajar a Gratis desde un plan de pago no tiene vuelta mientras no exista el pago con Flow (los planes de pago no se activan solos): se pide confirmar
+                        with st.popover("Pasar al plan Gratis", width="stretch"):
+                            st.warning(f"Vas a dejar el plan {configuracion.PLANES_IA[plan_actual]['nombre']}. Hasta que esté disponible el pago con Flow no podrás volver a "
+                                       "contratarlo por tu cuenta.")
+                            st.button("Sí, pasar a Gratis", key=f"plan_confirmar_{clave}", type="primary", width="stretch", on_click=_usar_plan,
+                                      args=(clave, precio, variante, uid, origen))
                     else:
                         st.button(("Usar este plan" if configuracion.PLANES_LIBRES else "Contratar") if clave != "gratis" else "Pasar al plan Gratis", key=f"plan_quiero_{clave}",
                                   icon=":material/workspace_premium:" if clave != "gratis" else None,
