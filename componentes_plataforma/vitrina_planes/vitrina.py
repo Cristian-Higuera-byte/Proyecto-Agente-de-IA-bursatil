@@ -107,16 +107,16 @@ def plan_valido(clave: str | None) -> str | None:
 
 # TITULO CABECERA
 
-def html_cabecera(clave: str, elegido: str | None = None, actual: bool = False, con_boton: bool = True, precio: float | None = None) -> str:
+def html_cabecera(clave: str, elegido: str | None = None, con_boton: bool = True, precio: float | None = None) -> str:
     """Parte de arriba de la tarjeta de un plan: cinta, sello, nombre, lema, precio, preguntas por semana y, si se pide, el botón-enlace al registro.
 
-    `elegido` es el plan escogido en el registro (sello «Tu elección»); `actual` marca el plan que el usuario ya tiene (sello «Tu plan actual»). `con_boton` es
-    False en la vista Planes, que pone debajo sus propios botones. `precio` permite pasar el precio de la variante del usuario (por defecto, el primero del plan)."""
+    `elegido` es el plan escogido en el registro (sello «Tu elección»). `con_boton` es False en la vista Planes, que pone debajo sus propios botones (el plan
+    actual lo marcan allí el borde verde y el botón «Tu plan actual»). `precio` permite pasar el precio de la variante del usuario (por defecto, el primero del plan)."""
     plan = configuracion.PLANES_IA[clave]
     precio = float((plan.get("precios") or [0])[0]) if precio is None else float(precio)
     gratis = precio <= 0
     cinta = "<div class='vp-cinta'>★ MÁS ELEGIDO</div>" if clave == PLAN_DESTACADO else ""
-    sello = "<div class='vp-eleccion'>✓ Tu plan actual</div>" if actual else ("<div class='vp-eleccion'>✓ Tu elección</div>" if clave == elegido else "")
+    sello = "<div class='vp-eleccion'>✓ Tu elección</div>" if clave == elegido else ""
     if gratis:
         cifra, nota = "<b>Gratis</b>", "Sin tarjeta · empieza hoy mismo"
         boton = "<a class='vp-boton vp-boton-lleno' href='?acceso=crear' target='_self'>Crear cuenta gratis →</a>"
@@ -125,9 +125,9 @@ def html_cabecera(clave: str, elegido: str | None = None, actual: bool = False, 
         nota = "Hoy sin cobro: fase de pruebas"
         relleno = " vp-boton-lleno" if clave == PLAN_DESTACADO else ""
         boton = f"<a class='vp-boton{relleno}' href='?acceso=crear&amp;plan={clave}' target='_self'>Probar {escape(plan['nombre'])} →</a>"
-    return (f"{cinta}{sello}<h3 class='vp-nombre'>{escape(plan['nombre'])}</h3><p class='vp-lema'>{escape(_TEXTOS['titulos'].get(clave, ''))}</p>"
+    return (f"{cinta}{sello}<div class='vp-nombre'>{escape(plan['nombre'])}</div><p class='vp-lema'>{escape(_TEXTOS['titulos'].get(clave, ''))}</p>"
             f"<div class='vp-precio'>{cifra}</div><p class='vp-nota'>{nota}</p>"
-            f"<div class='vp-preguntas'><strong>{_n(plan['preguntas_semana'])}</strong><span>preguntas al agente de IA<br>cada semana</span></div>"
+            f"<div class='vp-preguntas'><strong>{_n(plan['preguntas_semana'])}</strong><span>preguntas al agente<br>cada semana</span></div>"
             + (boton if con_boton else ""))
 
 
@@ -167,25 +167,34 @@ def html_plan_elegido(clave: str) -> str:
 def html_comun() -> str:
     """Bloque «Todos los planes incluyen», los avisos de confianza y la nota de precios (para el final de la vitrina y de la vista Planes)."""
     comun = "".join(f"<li>{escape(texto)}</li>" for texto in _EN_TODOS)
-    return (f"<div class='vp-comun'><h3>Todos los planes incluyen</h3><ul>{comun}</ul></div>"
+    return (f"<div class='vp-comun'><div class='vp-comun-titulo'>Todos los planes incluyen</div><ul>{comun}</ul></div>"
             "<div class='vp-confianza'><span>Sin tarjeta para empezar</span><span>Cambia de plan cuando quieras</span>"
             "<span>Fase de pruebas: hoy no se cobra ningún plan</span></div>"
             "<p class='vp-pie'>Precios en USD por mes. Las preguntas al agente se renuevan cada domingo a las 18:00 (hora de Chile).</p>")
 
 
+# TITULO REJILLA
+
+def html_rejilla(elegido: str | None = None, cuatro: bool = False) -> str:
+    """Las cuatro tarjetas de los planes en una rejilla: de dos columnas (el panel a la derecha de los formularios de acceso) o, con `cuatro`, de cuatro columnas
+    (la sección de planes de la portada, que es ancha). `elegido` es el plan marcado con «Tu elección»."""
+    tarjetas = "".join(_tarjeta(clave, plan_valido(elegido)) for clave in configuracion.PLANES_IA)
+    return f"<div class='vp-rejilla{' vp-cuatro' if cuatro else ''}'>{tarjetas}</div>"
+
+
 # TITULO HTML VITRINA
 
 def html_vitrina(elegido: str | None = None) -> str:
-    """HTML completo de la vitrina de acceso: cabecera, las cuatro tarjetas, lo que incluyen todos los planes y los avisos de confianza, con la hoja de estilos.
+    """HTML completo de la vitrina de acceso, de ancho de columna: cabecera, las cuatro tarjetas en dos columnas, lo que incluyen todos los planes y los avisos de
+    confianza, con la hoja de estilos. Va a la derecha del formulario (en pantallas angostas, debajo).
 
     `elegido` es el plan que el usuario escogió en el paso anterior (o None): su tarjeta lleva el sello «Tu elección»."""
-    tarjetas = "".join(_tarjeta(clave, plan_valido(elegido)) for clave in configuracion.PLANES_IA)
     return (estilos()
             + "<section class='vp' id='planes-acceso'><div class='vp-cabecera'><span class='vp-etiqueta'>Planes</span>"
               "<h2 class='vp-titulo'>Elige el plan que <span>impulsa tu trading</span></h2>"
               "<p class='vp-sub'>Empieza gratis y mejora cuando quieras. Cada plan te da más preguntas al agente de IA, más vigilancias automáticas y más herramientas "
               "para operar con respaldo.</p></div>"
-            + f"<div class='vp-rejilla'>{tarjetas}</div>" + html_comun() + "</section>")
+            + html_rejilla(elegido) + html_comun() + "</section>")
 
 
 # -------------------------------------------------------------------------------------------------------

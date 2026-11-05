@@ -30,16 +30,20 @@ Transportes y Servicios Ltda.
 .vp-elegido i { font-style: normal; font-size: 20px; }
 
 /* TITULO SECCION: ancho de la ventana, centrada respecto de la columna angosta */
-.vp { position: relative; left: 50%; transform: translateX(-50%); width: min(1180px, calc(100vw - 32px)); margin: 56px 0 8px; box-sizing: border-box; color: #e6edf3; }
+.vp { position: relative; width: 100%; margin: 0 0 8px; box-sizing: border-box; color: #e6edf3; }
 .vp * { box-sizing: border-box; }
 .vp-cabecera { text-align: center; margin-bottom: 34px; }
 .vp-etiqueta { display: inline-block; padding: 6px 14px; border-radius: 999px; border: 1px solid #3a2a22; background: rgba(255, 107, 53, .10); color: #ff9a6b; font-size: 12.5px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; }
-.vp-titulo { margin: 14px 0 10px; font-size: 40px; line-height: 1.12; font-weight: 800; letter-spacing: -.8px; color: #fff; }
+.vp-titulo { margin: 14px 0 10px; font-size: 36px; line-height: 1.12; font-weight: 800; letter-spacing: -.8px; color: #fff; }
 .vp-titulo span { background: linear-gradient(135deg, #ff4b4b, #ff8f00); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .vp-sub { margin: 0 auto; max-width: 640px; font-size: 17px; line-height: 1.55; color: #9aa4b2; }
 
 /* TITULO REJILLA DE TARJETAS */
-.vp-rejilla { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; align-items: stretch; padding-top: 14px; }
+.vp-rejilla { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; align-items: stretch; padding-top: 14px; }
+.vp-cuatro { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
+/* Orden en la rejilla de dos columnas: Gratis y Profesional arriba (lo primero que se ve), Básico y Avanzado debajo. En la de cuatro, el orden natural. */
+.vp-rejilla .vp-gratis { order: 1; } .vp-rejilla .vp-pro { order: 2; } .vp-rejilla .vp-basico { order: 3; } .vp-rejilla .vp-avanzado { order: 4; }
+.vp-cuatro .vp-basico { order: 2; } .vp-cuatro .vp-pro { order: 3; }
 .vp-tarjeta { --acento: #3fb950; --acento-suave: rgba(63, 185, 80, .13); position: relative; display: flex; flex-direction: column; padding: 30px 22px 24px; border-radius: 22px;
     background: linear-gradient(180deg, #131b29 0%, #0d131d 100%); border: 1px solid #263041;
     animation: vp-entra .6s cubic-bezier(.2, .8, .2, 1) backwards; transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease; }
@@ -60,7 +64,7 @@ Transportes y Servicios Ltda.
 .vp-elegida { border-color: #3fb950; box-shadow: 0 0 0 2px rgba(63, 185, 80, .7), 0 18px 44px rgba(63, 185, 80, .18); }
 
 /* TITULO ENCABEZADO DE CADA TARJETA */
-.vp-nombre { margin: 0; font-size: 13px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase; color: var(--acento); }
+.vp-nombre { margin: 0; padding: 0; font-size: 13px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase; color: var(--acento); }
 .vp-lema { margin: 6px 0 18px; min-height: 40px; font-size: 14px; line-height: 1.4; color: #9aa4b2; }
 .vp-precio { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; margin: 0 0 4px; }
 .vp-precio b { font-size: 46px; line-height: 1; font-weight: 800; letter-spacing: -1.5px; color: #fff; font-variant-numeric: tabular-nums; }
@@ -94,7 +98,7 @@ Transportes y Servicios Ltda.
 
 /* TITULO TODOS LOS PLANES INCLUYEN */
 .vp-comun { margin-top: 30px; padding: 24px 22px; border-radius: 20px; background: linear-gradient(180deg, #111926, #0d131d); border: 1px solid #222c3b; }
-.vp-comun h3 { margin: 0 0 14px; font-size: 16px; font-weight: 800; color: #fff; text-align: center; }
+.vp-comun-titulo { margin: 0 0 14px; font-size: 16px; font-weight: 800; color: #fff; text-align: center; }
 .vp-comun ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 12px; }
 .vp-comun li { padding: 9px 14px 9px 12px; border-radius: 999px; font-size: 13.5px; color: #d3dae3; background: #151d2b; border: 1px solid #263041; }
 .vp-comun li::before { content: '✓'; margin-right: 8px; font-weight: 800; color: #3fb950; }
@@ -116,6 +120,23 @@ Transportes y Servicios Ltda.
 [class*="st-key-vpc_"][class*="_actual"] { border-color: #3fb950; box-shadow: 0 0 0 2px rgba(63, 185, 80, .7), 0 18px 44px rgba(63, 185, 80, .18); }
 .st-key-planes_contenedor .vp-titulo { font-size: 34px; }
 
+/* TITULO BOTONES DE LAS TARJETAS DE LA APP: mismo lenguaje que los botones de la vitrina (borde y color del plan, esquinas de 14 px, relleno suave al pasar el mouse) */
+[class*="st-key-vpc_"] div.stButton > button { min-height: 50px; border-radius: 14px !important; font-size: 15px !important; font-weight: 800 !important; letter-spacing: .1px;
+    background: transparent !important; border: 1px solid var(--acento) !important; color: var(--acento) !important; box-shadow: none; transition: transform .15s ease, background .15s ease, box-shadow .15s ease; }
+[class*="st-key-vpc_"] div.stButton > button p { font-size: 15px; font-weight: 800; }
+[class*="st-key-vpc_"] div.stButton > button:hover:not(:disabled) { transform: translateY(-2px); background: var(--acento-suave) !important; }
+/* El botón secundario (comprar con la billetera, pasar al plan Gratis) es más discreto: borde gris hasta pasar el mouse */
+[class*="st-key-vpc_"] div.stButton > button[kind="secondary"] { border-color: #30363d !important; color: #c9d1d9 !important; min-height: 44px; }
+[class*="st-key-vpc_"] div.stButton > button[kind="secondary"] p { font-size: 14px; font-weight: 700; }
+[class*="st-key-vpc_"] div.stButton > button[kind="secondary"]:hover:not(:disabled) { border-color: var(--acento) !important; color: var(--acento) !important; }
+/* El plan destacado lleva el botón principal con el degradado de la marca y brillo; el plan actual, un botón verde apagado */
+[class*="st-key-vpc_pro"] div.stButton > button[kind="primary"] { background: linear-gradient(135deg, #ff4b4b, #ff8f00) !important; border-color: transparent !important; color: #fff !important;
+    box-shadow: 0 10px 28px rgba(255, 107, 53, .4); }
+[class*="st-key-vpc_pro"] div.stButton > button[kind="primary"]:hover:not(:disabled) { background: linear-gradient(135deg, #ff5c5c, #ffa01a) !important; box-shadow: 0 14px 36px rgba(255, 107, 53, .6); }
+[class*="st-key-vpc_"] div.stButton > button:disabled { min-height: 50px; background: rgba(63, 185, 80, .12) !important; border-color: #3fb950 !important; color: #3fb950 !important; opacity: 1; cursor: default; }
+/* Dentro de la tarjeta de la app, la cinta y el sello cuelgan del recuadro del HTML (30 px más abajo que el borde de la tarjeta): se compensa */
+[class*="st-key-vpc_"] .vp-cinta { top: -45px; }
+[class*="st-key-vpc_"] .vp-lista { margin-top: 6px; }
 /* TITULO ANIMACIONES */
 @keyframes vp-entra { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes vp-aura { 0%, 100% { box-shadow: 0 0 0 1px rgba(255, 143, 0, .55), 0 22px 60px rgba(255, 107, 53, .25); } 50% { box-shadow: 0 0 0 2px rgba(255, 143, 0, .85), 0 26px 80px rgba(255, 107, 53, .5); } }
@@ -124,18 +145,18 @@ Transportes y Servicios Ltda.
 @media (prefers-reduced-motion: reduce) { .vp-tarjeta, .vp-destacada { animation: none; opacity: 1; transform: none; } .vp-boton-lleno::after, .vp-pista b { animation: none; } }
 
 /* TITULO TABLETA Y CELULAR */
-@media (max-width: 1060px) {
-    .vp-rejilla { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 30px; }
-    .vp-titulo { font-size: 34px; } }
+@media (max-width: 1100px) {
+    .vp-cuatro { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 30px; }
+    .vp-titulo { font-size: 32px; } }
+@media (min-width: 1101px) { .vp-pista { display: none; } }
 @media (max-width: 640px) {
-    .vp { margin-top: 40px; }
-    .vp-rejilla { grid-template-columns: minmax(0, 1fr); }
+    .vp-rejilla, .vp-cuatro { grid-template-columns: minmax(0, 1fr); }
     .vp-titulo { font-size: 28px; letter-spacing: -.4px; }
     .vp-sub { font-size: 15.5px; }
     .vp-tarjeta { padding: 28px 18px 20px; }
     .vp-precio b { font-size: 40px; }
     .vp-lema, .vp-nota { min-height: 0; }
-    .vp-destacada { order: -1; } }
+    .vp-rejilla .vp-destacada { order: -1; } }
 
 /* -------------------------------------------------------------------------------------------------------
    --------------------------------- FIN Piña y Jara vitrina_planes .CSS ---------------------------------

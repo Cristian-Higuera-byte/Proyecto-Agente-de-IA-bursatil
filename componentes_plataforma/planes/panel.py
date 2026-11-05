@@ -229,15 +229,16 @@ def renderizar_panel_planes(main=None) -> None:
             with col:
                 # Tarjeta de la vitrina: cabecera (nombre, precio y preguntas), los botones reales del plan y la lista de lo que incluye
                 with st.container(key=f"vpc_{clave}" + ("_actual" if es_actual else "")):
-                    st.html(vitrina_planes.html_cabecera(clave, actual=es_actual, con_boton=False, precio=precio))
+                    st.html(vitrina_planes.html_cabecera(clave, con_boton=False, precio=precio))
                     if es_actual:
-                        st.button("Tu plan actual", key=f"plan_quiero_{clave}", width="stretch", disabled=True)
+                        st.button("Tu plan actual", key=f"plan_quiero_{clave}", icon=":material/check_circle:", width="stretch", disabled=True)
                     else:
                         st.button("Usar este plan" if clave != "gratis" else "Pasar al plan Gratis", key=f"plan_quiero_{clave}",
+                                  icon=":material/bolt:" if clave != "gratis" else None,
                                   type="primary" if clave != "gratis" else "secondary", width="stretch", on_click=_usar_plan,
                                   args=(clave, precio, variante, uid, origen))
                         if clave != "gratis":
-                            st.button(f"Comprar con billetera ({usd_texto(precio)} USD)", key=f"plan_comprar_{clave}", icon=":material/account_balance_wallet:",
+                            st.button("Comprar con billetera", key=f"plan_comprar_{clave}", icon=":material/account_balance_wallet:",
                                       width="stretch", on_click=comprar_con_billetera, args=(clave, precio, variante, uid, origen))
                     st.html(vitrina_planes.html_lista(clave))
         st.html(vitrina_planes.html_comun())

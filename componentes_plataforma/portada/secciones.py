@@ -26,7 +26,7 @@ from functools import lru_cache
 from html import escape
 from pathlib import Path
 
-import configuracion
+from componentes_plataforma import vitrina_planes
 from componentes_plataforma._estaticos import datos_json
 from componentes_plataforma.legal import enlaces_html
 from componentes_plataforma.portada import datos
@@ -243,31 +243,13 @@ def pasos() -> str:
 # TITULO PLANES
 
 def planes() -> str:
-    """Tarjetas de los planes tomadas de configuracion.PLANES_IA: nombre, para quién es, precio mensual y preguntas al agente por semana (la cuota se reinicia cada semana).
-
-    El precio es el de `precios` del plan (hoy uno solo por plan); si un plan tuviera varios (prueba de precios), se muestra el menor con «desde»."""
+    """Sección de planes de la portada: las tarjetas de la vitrina (`componentes_plataforma/vitrina_planes/`) en cuatro columnas, con el detalle de cada plan,
+    lo que incluyen todos y los avisos de confianza. El título y el subtítulo salen de contenido.json."""
     p = C["planes"]
-    titulos = datos_json(Path(__file__).parent.parent / "planes" / "planes.json")["titulos"]
-    tarjetas = ""
-    for clave, plan in configuracion.PLANES_IA.items():
-        preguntas = int(plan["preguntas_semana"])
-        gratis = clave == "gratis"
-        precios = plan.get("precios") or [0]
-        precio_min = min(precios)
-        if precio_min <= 0:
-            precio = "<p class='pj-p-plan-precio'><b>Gratis</b></p>"
-        else:
-            valor = f"{precio_min:,.2f}".replace(",", "@").replace(".", ",").replace("@", ".")
-            valor = valor[:-3] if valor.endswith(",00") else valor
-            desde = "<i>desde</i>" if len(set(precios)) > 1 else ""
-            precio = f"<p class='pj-p-plan-precio'>{desde}<b>{valor} USD</b><i>al mes</i></p>"
-        tarjetas += (
-            f"<article class='pj-p-plan{' pj-p-plan-gratis' if gratis else ''}'><h3>{escape(plan['nombre'])}</h3><p class='pj-p-plan-tit'>{escape(titulos.get(clave, ''))}</p>{precio}"
-            f"<p class='pj-p-plan-n'><b>{preguntas}</b> preguntas al agente por semana</p>"
-            f"<a class='pj-p-btn {'pj-p-btn-marca' if gratis else 'pj-p-btn-borde'}' href='{CREAR}' target='_self'>{'Empezar gratis' if gratis else 'Crear cuenta'}</a></article>"
-        )
-    return (f"<section class='pj-p-seccion' id='planes'><div class='pj-p-cont'><h2 class='pj-p-centro'>{escape(p['titulo'])}</h2>"
-            f"<p class='pj-p-sub pj-p-centro'>{escape(p['subtitulo'])}</p><div class='pj-p-rejilla4'>{tarjetas}</div><p class='pj-p-nota pj-p-centro'>{escape(p['nota'])}</p></div></section>")
+    return (vitrina_planes.estilos()
+            + f"<section class='pj-p-seccion' id='planes'><div class='pj-p-cont'><h2 class='pj-p-centro'>{escape(p['titulo'])}</h2>"
+              f"<p class='pj-p-sub pj-p-centro'>{escape(p['subtitulo'])}</p>"
+              f"<div class='vp'>{vitrina_planes.html_rejilla(cuatro=True)}{vitrina_planes.html_comun()}</div></div></section>")
 
 
 # TITULO PREGUNTAS

@@ -31,6 +31,17 @@ div.stButton > button[kind="primary"] { background-color: #ff4b4b; border-color:
 div.stButton > button[kind="primary"]:hover { background-color: #ff6363; border-color: #ff6363; color: #ffffff; }
 div.stButton > button[kind="primary"]:disabled { background-color: #2b3138; border-color: #2b3138; color: #8b949e; }
 
+/* TITULO PANTALLA DIVIDIDA (inicio de sesión y registro): con el contenedor de clave acceso_dividido la columna se ensancha a 1280 px; el formulario va a la izquierda
+   y se queda fijo al bajar, y los planes van a la derecha. Hasta 1100 px de ancho las dos columnas se apilan (formulario arriba, planes abajo). */
+[data-testid="stMainBlockContainer"].block-container:has(.st-key-acceso_dividido) { max-width: 1280px; padding-top: 7vh !important; }
+.st-key-acceso_dividido [data-testid="stHorizontalBlock"] { gap: 56px; align-items: flex-start; }
+.st-key-acceso_dividido [data-testid="stColumn"]:first-child { position: sticky; top: 24px; }
+@media (max-width: 1100px) {
+    .st-key-acceso_dividido [data-testid="stHorizontalBlock"] { flex-direction: column; gap: 8px; }
+    .st-key-acceso_dividido [data-testid="stColumn"] { width: 100% !important; flex: 1 1 100% !important; min-width: 100% !important; }
+    .st-key-acceso_dividido [data-testid="stColumn"]:first-child { position: static; max-width: 460px; margin: 0 auto; }
+    [data-testid="stMainBlockContainer"].block-container:has(.st-key-acceso_dividido) { padding-top: 32px !important; } }
+
 /* TITULO CELULAR */
 @media (max-width: 480px) {
     [data-testid="stMainBlockContainer"].block-container { padding-top: 32px !important; padding-bottom: 28px !important; } }

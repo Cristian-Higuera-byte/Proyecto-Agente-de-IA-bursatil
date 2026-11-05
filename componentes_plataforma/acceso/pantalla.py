@@ -112,73 +112,78 @@ def requerir_login() -> dict:
         # Con una cuenta recién creada esperando confirmar su correo se muestra «Revisa tu correo» en lugar del formulario
         if vista_revisa_correo():
             st.stop()
-        # Cabecera con logo, título y subtítulo, y las pestañas para pasar de un formulario al otro
-        if modo == "entrar":
-            cabecera("P&amp;J Finance", "Inicia sesión para acceder al panel bursátil")
-        else:
-            cabecera("Crea tu cuenta", "Te enviaremos un enlace para confirmar tu correo")
-        # Plan que el usuario escogió en la vitrina de planes (?plan=pro): en el registro se le confirma arriba del formulario y su tarjeta queda marcada abajo
-        elegido = plan_valido(st.query_params.get("plan"))
-        if modo == "crear" and elegido:
-            st.html(html_plan_elegido(elegido))
+        # Pantalla dividida: el formulario a la izquierda (fijo al bajar) y los planes con su detalle a la derecha; en pantallas angostas, uno debajo del otro (acceso/estilos.css)
+        with st.container(key="acceso_dividido"):
+            izquierda, derecha = st.columns([5, 7], gap="large")
+            with izquierda:
+                # Cabecera con logo, título y subtítulo, y las pestañas para pasar de un formulario al otro
+                if modo == "entrar":
+                    cabecera("P&amp;J Finance", "Inicia sesión para acceder al panel bursátil")
+                else:
+                    cabecera("Crea tu cuenta", "Te enviaremos un enlace para confirmar tu correo")
+                # Plan que el usuario escogió en la vitrina de planes (?plan=pro): en el registro se le confirma arriba del formulario y su tarjeta queda marcada abajo
+                elegido = plan_valido(st.query_params.get("plan"))
+                if modo == "crear" and elegido:
+                    st.html(html_plan_elegido(elegido))
 
-        with st.container(border=True):
-            pestanas(modo)
+                with st.container(border=True):
+                    pestanas(modo)
 
-            # --- Iniciar sesión ---
-            if modo == "entrar":
-                with st.form("form_login", border=False):
-                    correo = st.text_input("Correo electrónico", key="inicio_sesion_correo", placeholder="nombre@correo.com")
-                    contrasena = st.text_input("Contraseña", type="password", key="inicio_sesion_contrasena")
-                    st.markdown("<p style='text-align:right; margin:-6px 0 4px; font-size:13px;'><a href='?acceso=recordar' target='_self'>¿Olvidaste tu contraseña?</a></p>",
-                                unsafe_allow_html=True)
-                    enviar = st.form_submit_button("Entrar", width="stretch", type="primary")
-                if enviar:
-                    # Valida credenciales; si son correctas inicia sesión (rerun), si el correo no está confirmado ofrece reenviar el enlace, si no muestra el error
-                    resultado = autenticar_usuario(correo, contrasena)
-                    if resultado["ok"]:
-                        iniciar_sesion(resultado["usuario"])
-                    elif resultado.get("codigo") == "sin_verificar":
-                        st.session_state[CLAVE_PENDIENTE] = resultado["pendiente"]
+                    # --- Iniciar sesión ---
+                    if modo == "entrar":
+                        with st.form("form_login", border=False):
+                            correo = st.text_input("Correo electrónico", key="inicio_sesion_correo", placeholder="nombre@correo.com")
+                            contrasena = st.text_input("Contraseña", type="password", key="inicio_sesion_contrasena")
+                            st.markdown("<p style='text-align:right; margin:-6px 0 4px; font-size:13px;'><a href='?acceso=recordar' target='_self'>¿Olvidaste tu contraseña?</a></p>",
+                                        unsafe_allow_html=True)
+                            enviar = st.form_submit_button("Entrar", width="stretch", type="primary")
+                        if enviar:
+                            # Valida credenciales; si son correctas inicia sesión (rerun), si el correo no está confirmado ofrece reenviar el enlace, si no muestra el error
+                            resultado = autenticar_usuario(correo, contrasena)
+                            if resultado["ok"]:
+                                iniciar_sesion(resultado["usuario"])
+                            elif resultado.get("codigo") == "sin_verificar":
+                                st.session_state[CLAVE_PENDIENTE] = resultado["pendiente"]
+                            else:
+                                st.session_state.pop(CLAVE_PENDIENTE, None)
+                                st.error(resultado["mensaje"])
+                        aviso_sin_verificar()
+                        aviso_cookie()
+
+                    # --- Crear cuenta ---
                     else:
-                        st.session_state.pop(CLAVE_PENDIENTE, None)
-                        st.error(resultado["mensaje"])
-                aviso_sin_verificar()
-                aviso_cookie()
+                        with st.form("form_registro", border=False):
+                            nombre = st.text_input("Nombre", key="registro_nombre", placeholder="Ana Pérez")
+                            correo_r = st.text_input("Correo electrónico", key="registro_correo", placeholder="nombre@correo.com")
+                            contrasena_r = st.text_input("Contraseña", type="password", key="registro_contrasena")
+                            medidor_contrasena("Contraseña")
+                            acepto = casilla_aceptacion("registro_acepto")
+                            crear = st.form_submit_button("Crear cuenta", width="stretch", type="primary")
+                        medidor_en_vivo()
+                        if crear and not acepto:
+                            st.error("Para crear tu cuenta debes aceptar los términos de uso, la política de privacidad y el aviso de riesgo.")
+                        elif crear:
+                            # Registra al usuario nuevo y valida los datos (nombre, email, contraseña)
+                            resultado = registrar_usuario(nombre, correo_r, contrasena_r)
+                            if resultado["ok"]:
+                                # Deja constancia de qué versión de los documentos legales aceptó (si falla, no impide el registro)
+                                aceptaciones_legales.registrar(resultado["usuario"]["id"], list(DOCUMENTOS), VERSION)
+                            if not resultado["ok"]:
+                                st.error(resultado["mensaje"])
+                            elif resultado.get("requiere_verificacion"):
+                                # Con verificación activa no se inicia sesión: primero debe confirmar su correo
+                                st.session_state[CLAVE_REVISA] = resultado["usuario"]
+                                iniciar_espera_reenvio()
+                                st.rerun()
+                            else:
+                                # Inicia sesión automáticamente tras registrarse
+                                iniciar_sesion(resultado["usuario"])
 
-            # --- Crear cuenta ---
-            else:
-                with st.form("form_registro", border=False):
-                    nombre = st.text_input("Nombre", key="registro_nombre", placeholder="Ana Pérez")
-                    correo_r = st.text_input("Correo electrónico", key="registro_correo", placeholder="nombre@correo.com")
-                    contrasena_r = st.text_input("Contraseña", type="password", key="registro_contrasena")
-                    medidor_contrasena("Contraseña")
-                    acepto = casilla_aceptacion("registro_acepto")
-                    crear = st.form_submit_button("Crear cuenta", width="stretch", type="primary")
-                medidor_en_vivo()
-                if crear and not acepto:
-                    st.error("Para crear tu cuenta debes aceptar los términos de uso, la política de privacidad y el aviso de riesgo.")
-                elif crear:
-                    # Registra al usuario nuevo y valida los datos (nombre, email, contraseña)
-                    resultado = registrar_usuario(nombre, correo_r, contrasena_r)
-                    if resultado["ok"]:
-                        # Deja constancia de qué versión de los documentos legales aceptó (si falla, no impide el registro)
-                        aceptaciones_legales.registrar(resultado["usuario"]["id"], list(DOCUMENTOS), VERSION)
-                    if not resultado["ok"]:
-                        st.error(resultado["mensaje"])
-                    elif resultado.get("requiere_verificacion"):
-                        # Con verificación activa no se inicia sesión: primero debe confirmar su correo
-                        st.session_state[CLAVE_REVISA] = resultado["usuario"]
-                        iniciar_espera_reenvio()
-                        st.rerun()
-                    else:
-                        # Inicia sesión automáticamente tras registrarse
-                        iniciar_sesion(resultado["usuario"])
-
-        # Enlace llamativo hacia la vitrina de planes, el enlace para volver a la portada y, debajo, los cuatro planes con su detalle
-        st.html(html_pista())
-        enlaces_inferiores("<a href='./' target='_self'>← Volver a la portada</a>")
-        st.html(html_vitrina(elegido))
+                # Enlace hacia la vitrina de planes (solo se ve cuando la pantalla es angosta y los planes quedan debajo) y enlace para volver a la portada
+                st.html(html_pista())
+                enlaces_inferiores("<a href='./' target='_self'>← Volver a la portada</a>")
+            with derecha:
+                st.html(html_vitrina(elegido))
 
     # Corta la ejecución para que no se pinte el resto de la app
     st.stop()
