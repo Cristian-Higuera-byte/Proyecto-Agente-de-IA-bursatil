@@ -13,7 +13,7 @@
 
 """Vista "Planes": muestra los planes (con el diseño de la vitrina) con su precio y preguntas por semana, y registra qué plan le interesa a cada usuario (prueba de demanda).
 
-IMPORTANTE: todavía no se cobra nada. La página lo dice de entrada. Mientras dura la prueba, al pulsar «Usar este plan» la cuenta pasa a ese
+IMPORTANTE: todavía no hay pasarela de pago (Flow). Un plan de pago no se activa: «Contratar» solo deja registrado el interés. Con PLANES_LIBRES (desarrollo), al pulsar «Usar este plan» la cuenta pasa a ese
 plan al instante (se guarda con `herramientas/cuota_ia.py`: en Supabase en multiusuario, en un archivo en modo local) y la plataforma cambia sus
 límites y funciones según `herramientas/plan_funciones.json`. Además se registra el interés, se explica que es una medición y se ofrece avisar
 cuando esté disponible y una encuesta corta de dos preguntas. Los eventos se guardan con `herramientas/demanda.py` y se ven resumidos en el
@@ -117,14 +117,21 @@ def comprar_con_billetera(clave: str, precio: float, variante: int, usuario_id, 
 # TITULO USAR PLAN
 
 def _usar_plan(clave: str, precio: float, variante: int, usuario_id, origen: str) -> None:
-    """Callback del botón «Usar este plan»: pasa la cuenta a ese plan (prueba, sin cobro), guarda el clic de interés y deja anotado el plan para
-    mostrar el agradecimiento y la encuesta.
+    """Callback de los botones «Contratar» y «Pasar al plan Gratis».
 
-    Si el plan elegido es el Gratis solo se cambia de plan (no cuenta como interés en uno de pago)."""
+    El plan Gratis se activa al instante. Un plan de pago NO se activa (hasta que exista la pasarela de pago con Flow): solo se guarda el clic de interés y se deja anotado
+    el plan para mostrar el agradecimiento y la encuesta. Con `configuracion.PLANES_LIBRES` (solo desarrollo) cualquier plan se activa sin pagar."""
+    nombre_plan = configuracion.PLANES_IA[clave]["nombre"]
+    if clave != "gratis" and not configuracion.PLANES_LIBRES:
+        # Los planes de pago esperan la pasarela de pago (Flow): el clic solo deja registrado el interés y no cambia el plan
+        demanda.registrar("clic_plan", usuario_id, clave, precio, variante, origen)
+        st.session_state[_CLAVE_INTERES] = {"plan": clave, "precio": precio, "variante": variante, "origen": origen}
+        st.session_state[_CLAVE_AVISO] = f"El pago del plan {nombre_plan} con Flow estará disponible muy pronto. Dejamos registrado tu interés."
+        return
     anterior = cuota_ia.plan_actual()
     if cuota_ia.fijar_plan(clave, "prueba"):
         demanda.registrar("plan_activado", usuario_id, clave, precio, variante, origen, anterior=anterior)
-        st.session_state[_CLAVE_AVISO] = f"Ahora estás en el plan {configuracion.PLANES_IA[clave]['nombre']} (modo de prueba, sin cobro). Los límites y funciones de la plataforma ya cambiaron."
+        st.session_state[_CLAVE_AVISO] = (f"Ahora estás en el plan {configuracion.PLANES_IA[clave]['nombre']}." if not configuracion.PLANES_LIBRES else f"Ahora estás en el plan {configuracion.PLANES_IA[clave]['nombre']} (PLANES_LIBRES: sin pago, solo desarrollo). Los límites y funciones de la plataforma ya cambiaron.")
     else:
         st.session_state[_CLAVE_AVISO] = "No pudimos guardar el cambio de plan. Inténtalo de nuevo en un momento."
         return
@@ -172,11 +179,10 @@ def _tabla_comparativa(plan_actual: str) -> str:
 # TITULO FORMULARIO INTERES
 
 def _formulario_interes(usuario: dict, interes: dict) -> None:
-    """Agradecimiento y encuesta tras el clic: aclara que aún no se cobra, ofrece avisar al correo y pregunta precio justo y motivo."""
+    """Agradecimiento y encuesta tras el clic: aclara que el pago con Flow llegará pronto, ofrece avisar al correo y pregunta precio justo y motivo."""
     plan = configuracion.PLANES_IA[interes["plan"]]["nombre"]
-    st.html("<div class='planes-gracias'><b>Gracias por tu interés en el plan " + escape(plan) + ".</b> Todavía no estamos cobrando ningún plan: "
-            "estamos midiendo qué planes y precios interesan antes de lanzarlos. Tu clic ya quedó registrado; si quieres, responde estas dos "
-            "preguntas para ayudarnos a decidir.</div>")
+    st.html("<div class='planes-gracias'><b>Gracias por tu interés en el plan " + escape(plan) + ".</b> El pago con Flow estará disponible muy pronto y tu interés ya quedó "
+            "registrado. Si quieres, responde estas dos preguntas y deja tu correo para que te avisemos cuando puedas contratarlo.</div>")
     with st.form("planes_encuesta"):
         precio_justo = st.selectbox("¿Qué precio mensual te parecería justo por este plan?", demanda.RANGOS_PRECIO, index=None, placeholder="Elige una opción")
         motivo = st.selectbox("¿Qué es lo que más te interesa del plan?", demanda.MOTIVOS, index=None, placeholder="Elige una opción")
@@ -197,7 +203,7 @@ def _formulario_interes(usuario: dict, interes: dict) -> None:
 # TITULO RENDERIZAR PANEL PLANES
 
 def renderizar_panel_planes(main=None) -> None:
-    """Dibuja la vista Planes: aviso de que aún no se cobra, las tarjetas de los planes y, tras un clic, el agradecimiento con la encuesta.
+    """Dibuja la vista Planes: aviso de que el pago con Flow llegará pronto, las tarjetas de los planes y, tras un clic, el agradecimiento con la encuesta.
 
     `main` no se usa (se conserva por compatibilidad con las demás vistas). Registra una vista por visita (con su origen) y no devuelve nada."""
     st.html(_estaticos.estilos(_CSS) + vitrina_planes.estilos())
@@ -214,8 +220,9 @@ def renderizar_panel_planes(main=None) -> None:
     with st.container(key="planes_contenedor"):
         st.html("<div class='vp-cabecera'><span class='vp-etiqueta'>Planes</span><div class='vp-titulo'>Elige el plan que <span>impulsa tu trading</span></div>"
                 "<p class='vp-sub'>Cada plan te da más preguntas al agente de IA por semana, más vigilancias automáticas y más herramientas. Cambia de plan cuando quieras.</p></div>"
-                "<div class='planes-aviso'>Modo de prueba: todavía no cobramos ningún plan. Puedes cambiar de plan cuando quieras para probar cómo cambia la plataforma, y "
-                "nos ayudas a decidir qué planes y precios lanzar. También puedes «comprar» un plan con el saldo de prueba de tu Billetera.</div>")
+                "<div class='planes-aviso'>" + ("Modo de desarrollo (PLANES_LIBRES): puedes cambiar a cualquier plan sin pagar, también «comprándolo» con el saldo virtual de tu Billetera."
+                                              if configuracion.PLANES_LIBRES else
+                                              "Los planes de pago se contratan en línea con Flow. El pago estará disponible muy pronto: deja tu interés en el plan que quieres y te avisamos.") + "</div>")
         aviso = st.session_state.pop(_CLAVE_AVISO, None)
         if aviso:
             st.success(aviso)
@@ -233,11 +240,11 @@ def renderizar_panel_planes(main=None) -> None:
                     if es_actual:
                         st.button("Tu plan actual", key=f"plan_quiero_{clave}", icon=":material/check_circle:", width="stretch", disabled=True)
                     else:
-                        st.button("Usar este plan" if clave != "gratis" else "Pasar al plan Gratis", key=f"plan_quiero_{clave}",
-                                  icon=":material/bolt:" if clave != "gratis" else None,
+                        st.button(("Usar este plan" if configuracion.PLANES_LIBRES else "Contratar") if clave != "gratis" else "Pasar al plan Gratis", key=f"plan_quiero_{clave}",
+                                  icon=":material/workspace_premium:" if clave != "gratis" else None,
                                   type="primary" if clave != "gratis" else "secondary", width="stretch", on_click=_usar_plan,
                                   args=(clave, precio, variante, uid, origen))
-                        if clave != "gratis":
+                        if clave != "gratis" and configuracion.PLANES_LIBRES:
                             st.button("Comprar con billetera", key=f"plan_comprar_{clave}", icon=":material/account_balance_wallet:",
                                       width="stretch", on_click=comprar_con_billetera, args=(clave, precio, variante, uid, origen))
                     st.html(vitrina_planes.html_lista(clave))

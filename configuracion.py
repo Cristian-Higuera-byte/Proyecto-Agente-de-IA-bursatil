@@ -104,6 +104,13 @@ REINICIO_SEMANAL = {"zona": "America/Santiago", "dia": 6, "hora": 18, "minuto": 
 # limita el agente en tu propio equipo; para probar el límite, cambia el plan en el Laboratorio).
 PLAN_POR_DEFECTO = "gratis"
 PLAN_MODO_LOCAL = "avanzado"
+# Cambio de plan SIN pago. False (lanzamiento): solo el plan Gratis se activa solo; los planes de pago esperan la pasarela de pago (Flow) y, mientras tanto, el botón
+# «Contratar» solo deja registrado el interés del usuario. True (PLANES_LIBRES=true en el .env): cualquiera puede pasar a cualquier plan sin pagar, para probar cuotas
+# y funciones en desarrollo (con el saldo virtual de la Billetera y el selector de plan del Laboratorio).
+PLANES_LIBRES: bool = os.getenv("PLANES_LIBRES", "").strip().lower() in ("1", "true", "si", "sí", "yes")
+# Correos de los administradores (root), separados por comas, en la variable ROOT_CORREOS del .env. Los root ven las secciones internas (hoy, el Laboratorio). El rol también
+# puede darse en la base de datos (columna `rol` de `usuarios`, herramientas/sql/roles.sql); ver herramientas/roles.py.
+ROOT_CORREOS: frozenset = frozenset(c.strip().lower() for c in os.getenv("ROOT_CORREOS", "").split(",") if c.strip())
 # Billetera virtual de la plataforma (saldo de prueba sin valor monetario; sirve para pagar planes y queda lista para las cuentas reales).
 # moneda: moneda del saldo; bono_inicial: saldo con el que se abre la billetera; recargas: montos que ofrece el botón de recarga;
 # recarga_mensual_max: tope de recargas por mes; saldo_maximo: tope del saldo (evita acumular saldo de prueba sin límite).

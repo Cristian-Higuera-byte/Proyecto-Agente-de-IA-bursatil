@@ -20,8 +20,8 @@ Todo sale de `configuracion.PLANES_IA` (nombre, precio y preguntas por semana), 
 Solo se anuncian funciones que ya existen: las que el catálogo marca como «definido» (todavía sin programar) no aparecen.
 
 Dos usos: (1) la vitrina completa con enlaces (`html_vitrina`), debajo de los formularios de acceso, con botones que llevan a `?acceso=crear&plan=<plan>`; (2) las piezas
-sueltas (`html_cabecera` y `html_lista`) con las que la vista Planes arma cada tarjeta alrededor de sus botones reales. Hoy no se cobra ningún plan (fase de
-pruebas) y la vitrina lo dice. Los estilos están en `estilos.css` (prefijo `vp-`; las tarjetas de la vista Planes son contenedores con clave `vpc_<plan>`).
+sueltas (`html_cabecera` y `html_lista`) con las que la vista Planes arma cada tarjeta alrededor de sus botones reales. Los planes de pago se contratarán con Flow
+(muy pronto) y la vitrina lo dice. Los estilos están en `estilos.css` (prefijo `vp-`; las tarjetas de la vista Planes son contenedores con clave `vpc_<plan>`).
 """
 from html import escape
 from pathlib import Path
@@ -122,9 +122,9 @@ def html_cabecera(clave: str, elegido: str | None = None, con_boton: bool = True
         boton = "<a class='vp-boton vp-boton-lleno' href='?acceso=crear' target='_self'>Crear cuenta gratis →</a>"
     else:
         cifra = f"<b>{precio_texto(precio)}</b><span>USD al mes</span>"
-        nota = "Hoy sin cobro: fase de pruebas"
+        nota = "Pago mensual con Flow · muy pronto"
         relleno = " vp-boton-lleno" if clave == PLAN_DESTACADO else ""
-        boton = f"<a class='vp-boton{relleno}' href='?acceso=crear&amp;plan={clave}' target='_self'>Probar {escape(plan['nombre'])} →</a>"
+        boton = f"<a class='vp-boton{relleno}' href='?acceso=crear&amp;plan={clave}' target='_self'>Elegir {escape(plan['nombre'])} →</a>"
     return (f"{cinta}{sello}<div class='vp-nombre'>{escape(plan['nombre'])}</div><p class='vp-lema'>{escape(_TEXTOS['titulos'].get(clave, ''))}</p>"
             f"<div class='vp-precio'>{cifra}</div><p class='vp-nota'>{nota}</p>"
             f"<div class='vp-preguntas'><strong>{_n(plan['preguntas_semana'])}</strong><span>preguntas al agente<br>cada semana</span></div>"
@@ -152,7 +152,7 @@ def html_beneficios() -> str:
     """Bloque «Qué te llevas al crear tu cuenta» (tres beneficios reales) que se pone bajo el formulario, con la hoja de estilos. Llena la columna del formulario."""
     items = [("Cuenta demo con dinero virtual", "Practica sin arriesgar tu capital."),
              ("Un agente de IA que analiza el mercado", "Propone operaciones y tú decides cuáles se ejecutan."),
-             ("Sin tarjeta para empezar", "El plan Gratis no pide datos de pago; hoy ningún plan se cobra.")]
+             ("Sin tarjeta para empezar", "El plan Gratis no pide datos de pago.")]
     lista = "".join(f"<li><b>{escape(t)}</b><span>{escape(d)}</span></li>" for t, d in items)
     return estilos() + f"<div class='vp-beneficios'><div class='vp-ben-titulo'>Qué te llevas al crear tu cuenta</div><ul>{lista}</ul></div>"
 
@@ -167,10 +167,10 @@ def html_pista() -> str:
 # TITULO AVISO DEL PLAN ELEGIDO
 
 def html_plan_elegido(clave: str) -> str:
-    """HTML del aviso verde que confirma el plan elegido al crear la cuenta, con la hoja de estilos. Explica que se activa al entrar y que hoy no se cobra."""
+    """HTML del aviso verde que confirma el plan elegido al crear la cuenta, con la hoja de estilos. Explica que se contrata desde Planes cuando el pago con Flow esté disponible."""
     plan = configuracion.PLANES_IA[clave]
     return (estilos() + f"<div class='vp-elegido'><i>✓</i><div>Elegiste el plan <b>{escape(plan['nombre'])}</b>. Crea tu cuenta y actívalo al entrar, "
-            f"en la sección Planes (hoy sin cobro).</div></div>")
+            f"en la sección Planes (el pago con Flow estará disponible muy pronto).</div></div>")
 
 
 # TITULO PIE COMUN
@@ -180,7 +180,7 @@ def html_comun() -> str:
     comun = "".join(f"<li>{escape(texto)}</li>" for texto in _EN_TODOS)
     return (f"<div class='vp-comun'><div class='vp-comun-titulo'>Todos los planes incluyen</div><ul>{comun}</ul></div>"
             "<div class='vp-confianza'><span>Sin tarjeta para empezar</span><span>Cambia de plan cuando quieras</span>"
-            "<span>Fase de pruebas: hoy no se cobra ningún plan</span></div>"
+            "<span>Pago en línea con Flow, muy pronto</span></div>"
             "<p class='vp-pie'>Precios en USD por mes. Las preguntas al agente se renuevan cada domingo a las 18:00 (hora de Chile).</p>")
 
 

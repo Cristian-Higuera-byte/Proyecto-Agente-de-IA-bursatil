@@ -29,6 +29,7 @@ import time
 import uuid
 from contextlib import contextmanager
 
+from herramientas import carpeta_usuario as _carpetas
 from herramientas.carpeta_usuario import carpeta_usuario, ruta_archivo
 
 # Nombre del archivo de consumo de cada cuenta
@@ -99,6 +100,35 @@ def registrar(perfil: str, modelo: str, usage) -> None:
                 _recortar(ruta)
     except Exception:  # noqa: BLE001 - registrar el consumo nunca debe tumbar una respuesta del agente
         pass
+
+
+# TITULO LEER TODOS
+
+def leer_todos(desde: float = 0.0) -> list:
+    """Registros de consumo de TODA la plataforma (todas las cuentas de todos los usuarios) con hora igual o posterior a `desde`.
+
+    Cada registro trae además `usuario` (el id del dueño, o «local» si viene del archivo del modo de un solo usuario). Solo para administradores (Laboratorio):
+    el consumo de cada usuario no debe mostrarse a otros usuarios. Ignora los archivos ausentes y las líneas dañadas."""
+    rutas = [("local", os.path.join(_carpetas._DATOS, _ARCHIVO))]
+    if os.path.isdir(_carpetas._USUARIOS):
+        for usuario in sorted(os.listdir(_carpetas._USUARIOS)):
+            if usuario.isdigit():
+                rutas += [(usuario, os.path.join(_carpetas._USUARIOS, usuario, modo, _ARCHIVO)) for modo in ("demo", "real")]
+    salida = []
+    for dueno, ruta in rutas:
+        try:
+            with open(ruta, "r", encoding="utf-8") as f:
+                for linea in f:
+                    try:
+                        r = json.loads(linea)
+                    except ValueError:
+                        continue
+                    if isinstance(r, dict) and float(r.get("t", 0) or 0) >= desde:
+                        r["usuario"] = dueno
+                        salida.append(r)
+        except OSError:
+            continue
+    return salida
 
 
 # TITULO RECORTAR

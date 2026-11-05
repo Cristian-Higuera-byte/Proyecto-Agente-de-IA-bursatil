@@ -69,22 +69,6 @@ def _normalizar_precios_ia(crudos, base: dict) -> dict:
     return salida or {k: dict(v) for k, v in base.items()}
 
 
-# TITULO NORMALIZAR PLANES
-
-def _normalizar_planes(crudos, base: list) -> list:
-    """Valida la lista de planes ({nombre, precio, tope_ia}): hasta 6, con nombre de 1 a 30 letras y montos entre 0 y 10.000 dólares.
-
-    Si la lista viene vacía o dañada usa la base."""
-    if not isinstance(crudos, list):
-        return [dict(p) for p in base]
-    salida = []
-    for p in crudos[:6]:
-        if isinstance(p, dict) and isinstance(p.get("nombre"), str) and p["nombre"].strip():
-            salida.append({"nombre": p["nombre"].strip()[:30], "precio": _acotar(p.get("precio"), 0, 10000, 0.0),
-                           "tope_ia": _acotar(p.get("tope_ia"), 0, 10000, 0.0)})
-    return salida or [dict(p) for p in base]
-
-
 # TITULO NORMALIZAR PARAMETROS
 
 def normalizar_parametros(crudos: dict) -> dict:
@@ -109,7 +93,6 @@ def normalizar_parametros(crudos: dict) -> dict:
         "costo_fijo_usuario": _acotar(crudos.get("costo_fijo_usuario", b["costo_fijo_usuario"]), 0, 10000, b["costo_fijo_usuario"]),
         "conversion_interes_a_pago": _acotar(crudos.get("conversion_interes_a_pago", b["conversion_interes_a_pago"]), 0, 1, b["conversion_interes_a_pago"]),
         "precios_ia": _normalizar_precios_ia(crudos.get("precios_ia"), b["precios_ia"]),
-        "planes": _normalizar_planes(crudos.get("planes"), b["planes"]),
     }
 
 

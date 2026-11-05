@@ -119,20 +119,24 @@ def renderizar_panel_billetera(main=None) -> None:
         c.button("Depositar / retirar", key="billetera_real", icon=":material/lock:", width="stretch", disabled=True,
                  help="Disponible cuando la plataforma habilite cuentas reales.")
 
-        st.html("<div class='bil-seccion'>Pagar un plan con tu saldo</div>")
-        columnas = st.columns(len(configuracion.PLANES_IA) - 1, gap="medium")
-        for col, clave in zip(columnas, [p for p in configuracion.PLANES_IA if p != "gratis"]):
-            precio = precio_de(clave, uid)
-            variantes = max(len(p.get("precios", [0])) for p in configuracion.PLANES_IA.values())
-            with col:
-                col.html(f"<div class='bil-plan{' bil-plan-actual' if clave == actual else ''}'><div class='bil-plan-nombre'>{escape(configuracion.PLANES_IA[clave]['nombre'])}</div>"
-                         f"<div class='bil-plan-precio'>{usd_texto(precio)} USD <span>al mes</span></div></div>")
-                if clave == actual:
-                    st.button("Tu plan actual", key=f"billetera_plan_{clave}", width="stretch", disabled=True)
-                else:
-                    st.button("Comprar" if saldo >= precio else "Saldo insuficiente", key=f"billetera_plan_{clave}", width="stretch",
-                              type="primary" if saldo >= precio else "secondary", disabled=saldo < precio, on_click=comprar_con_billetera,
-                              args=(clave, precio, demanda.variante_de(uid, variantes), uid, "billetera"))
+        if configuracion.PLANES_LIBRES:      # solo en desarrollo: con el saldo virtual se compran planes sin pagar
+            st.html("<div class='bil-seccion'>Pagar un plan con tu saldo</div>")
+            columnas = st.columns(len(configuracion.PLANES_IA) - 1, gap="medium")
+            for col, clave in zip(columnas, [p for p in configuracion.PLANES_IA if p != "gratis"]):
+                precio = precio_de(clave, uid)
+                variantes = max(len(p.get("precios", [0])) for p in configuracion.PLANES_IA.values())
+                with col:
+                    col.html(f"<div class='bil-plan{' bil-plan-actual' if clave == actual else ''}'><div class='bil-plan-nombre'>{escape(configuracion.PLANES_IA[clave]['nombre'])}</div>"
+                             f"<div class='bil-plan-precio'>{usd_texto(precio)} USD <span>al mes</span></div></div>")
+                    if clave == actual:
+                        st.button("Tu plan actual", key=f"billetera_plan_{clave}", width="stretch", disabled=True)
+                    else:
+                        st.button("Comprar" if saldo >= precio else "Saldo insuficiente", key=f"billetera_plan_{clave}", width="stretch",
+                                  type="primary" if saldo >= precio else "secondary", disabled=saldo < precio, on_click=comprar_con_billetera,
+                                  args=(clave, precio, demanda.variante_de(uid, variantes), uid, "billetera"))
+        else:
+            st.html("<div class='bil-seccion'>Planes</div>")
+            st.info("El pago de los planes con Flow estará disponible muy pronto. Mientras tanto usas el plan Gratis; en la sección Planes puedes dejar tu interés en el que quieras.")
 
         st.html("<div class='bil-seccion'>Movimientos</div>")
         movs = billetera.movimientos(100)

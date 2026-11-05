@@ -14,17 +14,20 @@
 """Vista "Laboratorio": prueba, con la cuenta DEMO y sin cobrar nada, cuánto ganaría la plataforma con distintos modelos de cobro y si el
 agente de IA tiene un historial que justifique cobrarle un porcentaje al usuario.
 
+Es una sección INTERNA: solo la ven los administradores (root, herramientas/roles.py), porque muestra datos de toda la plataforma (costos, demanda y consumo de IA de
+todos los usuarios).
+
 Tiene cinco pestañas:
   - Ingresos hipotéticos: aplica a las operaciones cerradas (todas, solo las del agente o solo las manuales) cinco modelos de cobro
     (suscripción, recargo por operación, referido del broker, comisión de performance y comisión sobre patrimonio) y muestra el total,
     el aporte de cada uno y la serie por mes. Es un cálculo sobre el historial: no se cobra ni se descuenta dinero.
   - Agente como gestor: compara el historial del agente con el manual (aciertos, resultado, caída máxima), muestra cuántas de sus
     propuestas acepta el usuario y una lista de verificación para decidir si ya hay evidencia suficiente.
-  - Demanda: resultados de la prueba de interés en los planes (la vista Planes): personas que los vieron, clics por plan y por precio, origen
+  - Demanda: interés en los planes (la vista Planes): personas que los vieron, interesadas en contratar un plan de pago por plan y por precio, origen
     de los interesados y encuesta. Son cifras de intención, no de ventas.
-  - Costo y planes: cuánto cuesta la IA del agente por usuario (tokens y dólares, por origen y modelo), qué margen deja cada plan de
-    suscripción con ese consumo y el resultado neto mensual (ingresos hipotéticos menos costo de IA).
-  - Parámetros: valores de cada modelo, los planes y los precios de la IA, que se guardan por usuario y cuenta.
+  - Costo y planes: cuánto cuesta la IA del agente en TODA la plataforma (tokens y dólares, por origen y modelo), el costo por pregunta del chat, qué margen deja
+    cada plan (sus preguntas por semana salen de `configuracion.PLANES_IA`) y el resultado neto mensual de esta cuenta (ingresos hipotéticos menos costo de IA).
+  - Parámetros: valores de cada modelo y los precios de la IA, que se guardan por usuario y cuenta.
 
 La lógica de cálculo está en `herramientas/ingresos_virtuales.py` y la lectura de datos en `datos.py`.
 """
@@ -39,7 +42,7 @@ from componentes_plataforma.ingresos_virtuales import datos
 from componentes_plataforma.ingresos_virtuales.graficos import barras_apiladas_svg
 from componentes_plataforma.resumen.curva import curva_svg
 import configuracion
-from herramientas import consumo_ia, cuota_ia, demanda
+from herramientas import consumo_ia, cuota_ia, demanda, roles
 from herramientas import ingresos_virtuales as calculo
 from herramientas.estadisticas_diario import estadisticas
 
@@ -203,23 +206,26 @@ def _tokens(n: int) -> str:
 # TITULO PESTANA COSTOS
 
 def _pestana_costos(p: dict, ops: list, capital: float, dias: int) -> None:
-    """Pestaña "Costo y planes": consumo y costo de la IA del agente, margen de cada plan y resultado neto mensual."""
-    registros = consumo_ia.leer(time.time() - dias * 86400)
+    """Pestaña «Costo y planes»: consumo y costo de la IA de TODA la plataforma, costo por pregunta, margen de cada plan y resultado neto mensual de esta cuenta."""
+    desde = time.time() - dias * 86400
+    registros = consumo_ia.leer_todos(desde)
     # Para proyectar al mes se promedia sobre los días que el registro realmente cubre (no sobre todo el periodo elegido): con 5 días de
     # consumo en un periodo de un año, promediar por 365 subestimaría el gasto.
     cubiertos = max(1, min(dias, int((time.time() - min(float(x.get("t", 0) or 0) for x in registros)) // 86400) + 1)) if registros else dias
     r = consumo_ia.resumir(registros, p["precios_ia"], cubiertos)
     total = r["total"]
+    usuarios = len({x.get("usuario") for x in registros})
+    chat = r["por_origen"].get("chat")
+    costo_pregunta_real = (chat["costo"] / chat["turnos"]) if chat and chat["turnos"] else None
     if not registros:
-        st.info("Todavía no hay consumo de IA registrado en esta cuenta: se anota cada vez que el agente responde en el chat o analiza una "
-                "vigilancia. Mientras tanto puedes simular los planes con un costo supuesto (abajo).")
+        st.info("Todavía no hay consumo de IA registrado: se anota cada vez que el agente responde en el chat o analiza una vigilancia, en cualquier cuenta. "
+                "Mientras tanto puedes simular los planes con un costo supuesto por pregunta (abajo).")
     else:
-        costo_turno = total["costo"] / total["turnos"] if total["turnos"] else 0.0
         st.html("<div class='lab-cuadricula'>"
-                + _tarjeta("Costo de IA del periodo", f"{_dinero(total['costo'])} USD", f"{total['llamadas']} llamadas al modelo")
-                + _tarjeta("Turnos de conversación", str(total["turnos"]), f"{_tokens(total['entrada'])} tokens de entrada · {_tokens(total['salida'])} de salida")
-                + _tarjeta("Costo por turno", f"{costo_turno:.4f} USD", "un mensaje del usuario y todo lo que hace el agente")
-                + _tarjeta("Proyección mensual", f"{_dinero(r['mensual_proyectado'])} USD", f"promedio de {cubiertos} días con registro × 30")
+                + _tarjeta("Costo de IA del periodo", f"{_dinero(total['costo'])} USD", f"{total['llamadas']} llamadas al modelo · {usuarios} usuario{'s' if usuarios != 1 else ''} con consumo")
+                + _tarjeta("Preguntas del chat", str(chat["turnos"]) if chat else "0", f"{_tokens(total['entrada'])} tokens de entrada · {_tokens(total['salida'])} de salida")
+                + _tarjeta("Costo por pregunta", f"{costo_pregunta_real:.4f} USD" if costo_pregunta_real is not None else "—", "un mensaje del usuario y todo lo que hace el agente para responderlo")
+                + _tarjeta("Proyección mensual de la plataforma", f"{_dinero(r['mensual_proyectado'])} USD", f"promedio de {cubiertos} días con registro × 30")
                 + "</div>")
         if r["sin_precio"]:
             st.warning("Estos modelos no tienen precio en la tabla de Parámetros, así que su costo aparece en cero: " + ", ".join(r["sin_precio"]))
@@ -238,37 +244,46 @@ def _pestana_costos(p: dict, ops: list, capital: float, dias: int) -> None:
                                               etiquetas, [d[5:] for d in dias_con_datos]), unsafe_allow_html=True)
 
     st.html("<div class='lab-subtitulo'>¿Cuánto deja cada plan?</div>")
-    por_defecto = round(r["mensual_proyectado"], 2) if registros else 3.0
-    uso = st.number_input("Costo de IA mensual por usuario a usar en el cálculo (USD)", 0.0, 100000.0, por_defecto, 0.5, key=f"lab_costo_ia_{por_defecto}",
-                          help="Se llena con la proyección de esta cuenta si ya hay consumo; si no, con un valor supuesto que puedes cambiar.")
-    margenes = calculo.margen_por_plan(p["planes"], uso, p["costo_fijo_usuario"])
+    supuesto = round(costo_pregunta_real, 4) if costo_pregunta_real is not None else 0.02
+    pregunta = st.number_input("Costo de IA por pregunta a usar en el cálculo (USD)", 0.0, 100.0, supuesto, 0.005, format="%.4f", key=f"lab_costo_pregunta_{supuesto}",
+                               help="Se llena con el costo real por pregunta del chat si ya hay consumo; si no, con un valor supuesto que puedes cambiar.")
+    semanas_por_mes = 52 / 12
+    # Uso actual de IA por usuario al mes (chat y vigilancias): lo observado en toda la plataforma dividido entre los usuarios con consumo.
+    uso_actual = r["mensual_proyectado"] / usuarios if registros and usuarios else 0.0
     filas = []
-    for m in margenes:
-        clase = "lab-sube" if m["margen_tope"] > 0 else "lab-baja"
-        if m["precio"] <= 0:
-            estado = f"Plan gratuito: cuesta {_dinero(abs(m['margen_tope']))} USD al mes por usuario"
-        elif m["margen_tope"] <= 0:
-            estado = "Pierde con este uso"
+    for plan in configuracion.PLANES_IA.values():
+        precio = float((plan.get("precios") or [0])[0])
+        maximo = plan["preguntas_semana"] * semanas_por_mes * pregunta
+        peor = precio - maximo - p["costo_fijo_usuario"]
+        con_uso = precio - uso_actual - p["costo_fijo_usuario"]
+        if precio <= 0:
+            lectura = f"Plan gratuito: cuesta hasta {_dinero(maximo + p['costo_fijo_usuario'])} USD al mes por usuario"
+        elif peor >= 0:
+            lectura = "Rentable aunque use todas sus preguntas"
+        elif con_uso >= 0:
+            lectura = "Rentable con el uso actual; pierde si usa todas sus preguntas"
         else:
-            estado = "Rentable, pero supera el tope: hay que limitar el uso" if m["excede"] else "Rentable"
-        filas.append([escape(m["nombre"]), _dinero(m["precio"]), _dinero(m["tope_ia"]) if m["tope_ia"] else "sin tope",
-                      f"<span class='{clase}'>{_dinero(m['margen_tope'], True)}</span>", _dinero(m["margen_libre"], True),
-                      f"{m['margen_pct']:.0f} %" if m["margen_pct"] is not None else "—",
-                      f"{m['equilibrio']:.1f}×" if m["equilibrio"] else "—", estado])
-    st.html(_tabla_html(["Plan", "Precio/mes", "Tope de IA", "Margen con tope", "Margen si absorbes todo", "Margen %", "Aguanta tu uso", "Lectura"], filas)
+            lectura = "Pierde con este uso"
+        filas.append([escape(plan["nombre"]), _dinero(precio), str(plan["preguntas_semana"]), _dinero(maximo),
+                      f"<span class='{'lab-sube' if peor > 0 else 'lab-baja'}'>{_dinero(peor, True)}</span>",
+                      f"<span class='{'lab-sube' if con_uso > 0 else 'lab-baja'}'>{_dinero(con_uso, True)}</span>",
+                      f"{peor / precio * 100:.0f} %" if precio > 0 else "—", lectura])
+    st.html(_tabla_html(["Plan", "Precio/mes", "Preguntas por semana", "Costo máximo de IA", "Margen si usa todas sus preguntas", "Margen con el uso actual", "Margen % (peor caso)", "Lectura"], filas)
             + f"<div class='lab-pie'>Margen = precio − costo de IA − {_dinero(p['costo_fijo_usuario'])} USD de costo fijo por usuario (infraestructura y soporte). "
-              "«Con tope» supone que se limita el gasto de IA al tope del plan; «si absorbes todo», que la plataforma paga lo que consuma el usuario. "
-              "«Aguanta tu uso» dice cuántas veces el uso actual cabe en el plan antes de perder dinero.</div>")
+              f"«Costo máximo» = preguntas por semana × {semanas_por_mes:.2f} semanas por mes × costo por pregunta. «Uso actual» = {_dinero(uso_actual)} USD al mes por usuario, "
+              "promedio de lo observado en toda la plataforma (incluye las vigilancias automáticas, que gastan IA fuera de las preguntas del plan).</div>")
 
-    neto = calculo.serie_neta(_ingresos_por_mes(ops, p, capital), r["por_dia"])
+    # El resultado neto compara ingresos hipotéticos de ESTA cuenta con el costo de IA de esta misma cuenta (así los dos lados son comparables).
+    r_cuenta = consumo_ia.resumir(consumo_ia.leer(desde), p["precios_ia"], cubiertos)
+    neto = calculo.serie_neta(_ingresos_por_mes(ops, p, capital), r_cuenta["por_dia"])
     if neto:
         filas = [[mes, _dinero(v["ingresos"]), _dinero(v["costo_ia"]),
                   f"<span class='{'lab-sube' if v['neto'] > 0 else 'lab-baja'}'>{_dinero(v['neto'], True)}</span>"] for mes, v in neto.items()]
         suma = sum(v["neto"] for v in neto.values())
-        st.html("<div class='lab-subtitulo'>Resultado neto mensual: ingresos hipotéticos menos costo de IA</div>"
+        st.html("<div class='lab-subtitulo'>Resultado neto mensual de esta cuenta: ingresos hipotéticos menos costo de IA</div>"
                 + _tabla_html(["Mes", "Ingresos hipotéticos (USD)", "Costo de IA (USD)", "Neto (USD)"], filas)
                 + f"<div class='lab-pie'>Neto del periodo: <b>{_dinero(suma, True)} USD</b>. Los ingresos son los de la pestaña Ingresos hipotéticos (modelos activos, "
-                  "todas las operaciones).</div>")
+                  "todas las operaciones de esta cuenta) y el costo de IA es el de esta misma cuenta.</div>")
     st.caption("Los precios de la IA de la tabla son referenciales (tomados de fuentes de terceros): confírmalos en la página de precios de DeepSeek y "
                "edítalos en Parámetros. Las llamadas anteriores a esta versión no tienen registro de consumo.")
 
@@ -389,34 +404,33 @@ def _pestana_parametros(p: dict) -> None:
             wr_min = st.number_input("Acierto mínimo (%)", 0.0, 100.0, float(u["min_win_rate"]), 5.0)
         with u4:
             dd_max = st.number_input("Caída máxima (% del capital)", 0.0, 100.0, float(u["max_caida_pct"]), 1.0)
-        st.markdown("**Costo y planes**")
+        st.markdown("**Costo y precios de la IA**")
         costo_fijo = st.number_input("Costo fijo por usuario al mes (USD, infraestructura y soporte)", 0.0, 10000.0, p["costo_fijo_usuario"], 0.5)
         conversion = st.number_input("De los interesados en un plan, ¿qué % supones que terminaría pagando?", 0.0, 100.0, p["conversion_interes_a_pago"] * 100, 1.0,
                                      help="Se usa para el ingreso potencial de la pestaña Demanda. Es un supuesto: los clics no son pagos.")
         import pandas as pd
-        planes_editados = st.data_editor(pd.DataFrame(p["planes"]), num_rows="dynamic", key="lab_planes", width="stretch",
-                                         column_config={"nombre": "Plan", "precio": st.column_config.NumberColumn("Precio/mes (USD)", min_value=0.0),
-                                                        "tope_ia": st.column_config.NumberColumn("Tope de IA/mes (USD)", min_value=0.0)})
         precios_editados = st.data_editor(pd.DataFrame([{"modelo": m, **v} for m, v in p["precios_ia"].items()]), num_rows="dynamic", key="lab_precios_ia",
                                           width="stretch", column_config={"modelo": "Modelo (como aparece en la configuración)",
                                                                           "entrada_acierto": st.column_config.NumberColumn("Entrada en caché (USD/M)", min_value=0.0, format="%.4f"),
                                                                           "entrada_fallo": st.column_config.NumberColumn("Entrada sin caché (USD/M)", min_value=0.0, format="%.4f"),
                                                                           "salida": st.column_config.NumberColumn("Salida (USD/M)", min_value=0.0, format="%.4f")})
-        st.markdown("**Cuota de preguntas del agente**")
-        claves_planes = list(configuracion.PLANES_IA)
-        plan_cuota = st.selectbox("Plan del usuario (para probar la cuota)", claves_planes, index=claves_planes.index(cuota_ia.plan_actual()),
-                                  format_func=lambda k: f"{configuracion.PLANES_IA[k]['nombre']} · {cuota_ia.formato(configuracion.PLANES_IA[k]['preguntas_semana'])} preguntas por semana",
-                                  help="Define cuántas preguntas puede hacerle este usuario al agente por semana. Los montos de cada plan están en configuracion.py (PLANES_IA).")
+        plan_cuota = None
+        if configuracion.PLANES_LIBRES:      # solo en desarrollo: cambiar de plan sin pagar
+            st.markdown("**Cuota de preguntas del agente**")
+            claves_planes = list(configuracion.PLANES_IA)
+            plan_cuota = st.selectbox("Plan del usuario (para probar la cuota)", claves_planes, index=claves_planes.index(cuota_ia.plan_actual()),
+                                      format_func=lambda k: f"{configuracion.PLANES_IA[k]['nombre']} · {cuota_ia.formato(configuracion.PLANES_IA[k]['preguntas_semana'])} preguntas por semana",
+                                      help="Define cuántas preguntas puede hacerle este usuario al agente por semana. Los montos de cada plan están en configuracion.py (PLANES_IA).")
         guardar = st.form_submit_button("Guardar parámetros", type="primary")
     if guardar:
-        cuota_ia.fijar_plan(plan_cuota)
+        if plan_cuota is not None:
+            cuota_ia.fijar_plan(plan_cuota)
         datos.guardar_parametros({
             "activos": activos, "dias": dias, "suscripcion_mensual": suscripcion, "recargo_fijo": fijo, "recargo_por_lote": por_lote,
             "spread_usd_por_lote": spread, "referido_participacion": participacion / 100, "performance_tasa": tasa_perf / 100,
             "patrimonio_tasa_anual": tasa_pat / 100,
             "umbrales": {"min_operaciones": n_min, "min_profit_factor": pf_min, "min_win_rate": wr_min, "max_caida_pct": dd_max},
             "costo_fijo_usuario": costo_fijo, "conversion_interes_a_pago": conversion / 100,
-            "planes": [f for f in planes_editados.to_dict("records") if isinstance(f.get("nombre"), str)],
             "precios_ia": {f["modelo"]: {k: f.get(k) for k in ("entrada_acierto", "entrada_fallo", "salida")}
                            for f in precios_editados.to_dict("records") if isinstance(f.get("modelo"), str)}})
         st.rerun()
@@ -428,9 +442,12 @@ def _pestana_parametros(p: dict) -> None:
 # TITULO RENDERIZAR PANEL LABORATORIO
 
 def renderizar_panel_laboratorio(main=None):
-    """Dibuja la vista Laboratorio completa (cabecera, aviso de simulación, periodo y las tres pestañas).
+    """Dibuja la vista Laboratorio completa (cabecera, aviso de simulación, periodo y las cinco pestañas). Solo para administradores: a cualquier otro usuario le muestra un aviso.
 
     `main` no se usa (se conserva por compatibilidad con las demás vistas). No devuelve nada."""
+    if not roles.es_root(st.session_state.get("usuario_informacion")):
+        st.error("Esta sección es solo para administradores de la plataforma.")
+        return
     st.html(_estaticos.estilos(_CSS))
     p = datos.leer_parametros()
     capital, es_demo = datos.capital_de_referencia()

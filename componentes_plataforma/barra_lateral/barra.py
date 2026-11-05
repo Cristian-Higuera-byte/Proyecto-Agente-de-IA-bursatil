@@ -29,6 +29,8 @@ from functools import lru_cache
 from pathlib import Path
 
 import streamlit as st
+
+from herramientas import roles
 import streamlit.components.v1 as components
 
 from componentes_plataforma._estaticos import sin_creditos
@@ -51,6 +53,9 @@ ITEMS = [
     (":material/workspace_premium:", "planes", "Planes"),     # planes y precios (prueba de demanda: aún no se cobra)
     (":material/account_balance_wallet:", "billetera", "Billetera"),   # saldo virtual, recargas de prueba y pago de planes
 ]
+
+# Vistas internas: solo las ven los administradores (herramientas/roles.py).
+CLAVES_SOLO_ROOT = {"laboratorio"}
 
 # Anchos (px) de la barra lateral: colapsada / expandida.
 ANCHO_COLAPSADO = 70
@@ -166,7 +171,10 @@ def renderizar_barra_navegacion():
 
     # Botones SIEMPRE con solo el ícono (como la barra colapsada original);
     # el texto del modo expandido lo pone el CSS (::after).
+    es_admin = roles.es_root(st.session_state.get("usuario_informacion"))
     for icono, clave, _etiqueta in ITEMS:
+        if clave in CLAVES_SOLO_ROOT and not es_admin:
+            continue            # las secciones internas no se dibujan a los usuarios normales (y la vista vuelve a comprobarlo)
         # El botón de la vista activa se marca como primary (verde por CSS)
         activo = st.session_state.navegacion_activo == clave
         tipo = "primary" if activo else "secondary"

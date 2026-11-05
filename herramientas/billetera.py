@@ -202,6 +202,8 @@ def comprar_plan(plan: str, precio: float) -> float:
     de un mes: todavía no hay renovación ni vencimiento automáticos."""
     if plan not in configuracion.PLANES_IA or plan == "gratis":
         raise ErrorBilletera("Ese plan no se puede comprar.")
+    if not configuracion.PLANES_LIBRES:
+        raise ErrorBilletera("El pago de planes con Flow estará disponible muy pronto.")
     precio = round(float(precio), 2)
     if precio <= 0:
         raise ErrorBilletera("El precio del plan no es válido.")
