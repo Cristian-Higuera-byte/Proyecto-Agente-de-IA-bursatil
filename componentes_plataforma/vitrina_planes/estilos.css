@@ -137,50 +137,6 @@ Transportes y Servicios Ltda.
 /* Dentro de la tarjeta de la app, la cinta y el sello cuelgan del recuadro del HTML (30 px más abajo que el borde de la tarjeta): se compensa */
 [class*="st-key-vpc_"] .vp-cinta { top: -45px; }
 [class*="st-key-vpc_"] .vp-lista { margin-top: 6px; }
-/* TITULO PANEL DE FILAS COMPACTAS (acceso): los cuatro planes se ven a la vez; cada fila es un details que se despliega con la lista completa */
-.vp-izq { text-align: left; margin-bottom: 22px; }
-.vp-izq .vp-titulo { margin: 12px 0 8px; font-size: 30px !important; }
-.vp-izq .vp-sub { margin: 0; max-width: none; font-size: 15.5px; }
-.vp-izq .vp-sub b { color: #ffb067; }
-.vp-filas { display: flex; flex-direction: column; gap: 14px; padding-top: 12px; }
-.vp-fila { --acento: #3fb950; --acento-suave: rgba(63, 185, 80, .13); position: relative; border-radius: 18px; background: linear-gradient(180deg, #131b29 0%, #0e1520 100%);
-    border: 1px solid #263041; border-left: 4px solid var(--acento); transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease; animation: vp-entra .5s cubic-bezier(.2, .8, .2, 1) backwards; }
-.vp-fila:nth-child(1) { animation-delay: .05s; } .vp-fila:nth-child(2) { animation-delay: .12s; } .vp-fila:nth-child(3) { animation-delay: .19s; } .vp-fila:nth-child(4) { animation-delay: .26s; }
-.vp-fila:hover { transform: translateY(-2px); border-color: var(--acento); box-shadow: 0 12px 32px rgba(0, 0, 0, .5); }
-.vp-fila.vp-destacada { border-color: #ff8f00; border-left-width: 4px; margin-top: 4px; }
-.vp-fila.vp-elegida { border-color: #3fb950; box-shadow: 0 0 0 2px rgba(63, 185, 80, .6); }
-.vp-fila summary { list-style: none; display: grid; grid-template-columns: minmax(0, 1fr) 88px 104px 128px; align-items: center; gap: 14px; padding: 16px 18px 14px 20px; cursor: pointer; }
-.vp-fila summary::-webkit-details-marker { display: none; }
-.vp-fila summary::marker { content: ''; }
-.vp-f-cinta { position: absolute; top: -11px; left: 22px; padding: 4px 12px; border-radius: 999px; font-size: 11px; font-weight: 800; letter-spacing: .7px; color: #fff;
-    background: linear-gradient(135deg, #ff4b4b, #ff8f00); box-shadow: 0 6px 16px rgba(255, 107, 53, .45); }
-.vp-f-sello { position: absolute; top: -11px; right: 22px; padding: 4px 12px; border-radius: 999px; font-size: 11px; font-weight: 800; color: #04210c; background: #3fb950; }
-.vp-f-plan .vp-lema { min-height: 0; margin: 2px 0 8px; font-size: 12.5px; }
-.vp-f-tags { display: flex; flex-wrap: wrap; gap: 6px; }
-.vp-f-tags span { padding: 3px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 600; color: #c9d1d9; background: var(--acento-suave); border: 1px solid #263041; }
-.vp-f-mas { margin-top: 7px; font-size: 12px; font-weight: 700; color: var(--acento); }
-.vp-f-mas::before { content: '+'; display: inline-block; width: 16px; font-weight: 800; }
-.vp-fila[open] .vp-f-mas::before { content: '\2212'; }
-.vp-f-precio { text-align: right; }
-.vp-f-precio b { display: block; font-size: 28px; line-height: 1; font-weight: 800; letter-spacing: -1px; color: #fff; font-variant-numeric: tabular-nums; }
-.vp-f-precio i { display: block; margin-top: 5px; font-style: normal; font-size: 11.5px; color: #8b949e; }
-.vp-f-preg { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 6px; border-radius: 12px; text-align: center; background: var(--acento-suave); border: 1px solid var(--acento); }
-.vp-f-preg strong { font-size: 28px; line-height: 1; font-weight: 800; color: var(--acento); font-variant-numeric: tabular-nums; }
-.vp-f-preg span { font-size: 11px; line-height: 1.2; font-weight: 600; color: #e6edf3; }
-.vp-f-boton { display: flex; align-items: center; justify-content: center; padding: 12px 8px; border-radius: 12px; border: 1px solid var(--acento); font-size: 13px; font-weight: 800;
-    text-decoration: none !important; white-space: nowrap; color: var(--acento) !important; background: transparent; transition: transform .15s ease, background .15s ease; }
-.vp-f-boton:hover { transform: translateY(-2px); background: var(--acento-suave); }
-.vp-f-lleno { border-color: transparent; color: #fff !important; background: linear-gradient(135deg, #ff4b4b, #ff8f00); box-shadow: 0 8px 22px rgba(255, 107, 53, .38); }
-.vp-f-lleno:hover { background: linear-gradient(135deg, #ff5c5c, #ffa01a); }
-.vp-f-detalle { padding: 0 22px 18px 22px; }
-.vp-f-detalle .vp-lista { columns: 2; column-gap: 28px; display: block; padding-top: 16px; }
-.vp-f-detalle .vp-lista li { break-inside: avoid; margin-bottom: 11px; }
-.vp-comun-plegable { margin-top: 16px; }
-.vp-comun-plegable summary { list-style: none; cursor: pointer; text-align: center; padding: 12px; border-radius: 14px; border: 1px dashed #30363d; font-size: 13.5px; font-weight: 700; color: #9aa4b2; }
-.vp-comun-plegable summary::-webkit-details-marker { display: none; }
-.vp-comun-plegable summary:hover { color: #fff; border-color: #8b949e; }
-.vp-comun-plegable .vp-comun { margin-top: 12px; }
-
 /* TITULO BENEFICIOS bajo el formulario (llenan la columna izquierda) */
 .vp-beneficios { margin: 18px 0 0; padding: 20px 22px; border-radius: 18px; background: linear-gradient(180deg, #111926, #0d131d); border: 1px solid #222c3b; }
 .vp-ben-titulo { margin: 0 0 14px; font-size: 15px; font-weight: 800; color: #fff; }
@@ -190,14 +146,6 @@ Transportes y Servicios Ltda.
     font-size: 12px; font-weight: 800; color: #04210c; background: #3fb950; }
 .vp-beneficios li b { display: block; font-size: 14px; color: #e6edf3; }
 .vp-beneficios li span { display: block; margin-top: 2px; font-size: 13px; line-height: 1.4; color: #9aa4b2; }
-
-@media (max-width: 640px) {
-    .vp-fila summary { grid-template-columns: minmax(0, 1fr) auto; gap: 14px; padding: 18px 16px 16px; }
-    .vp-f-plan { grid-column: 1 / -1; }
-    .vp-f-precio { text-align: left; }
-    .vp-f-boton { grid-column: 1 / -1; }
-    .vp-f-detalle .vp-lista { columns: 1; }
-    .vp-izq .vp-titulo { font-size: 26px !important; } }
 
 /* TITULO ANIMACIONES */
 @keyframes vp-entra { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
@@ -211,6 +159,10 @@ Transportes y Servicios Ltda.
     .vp-cuatro { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 30px; }
     .vp-titulo { font-size: 32px; } }
 @media (min-width: 1101px) { .vp-pista { display: none; } }
+/* Rejilla adaptable (panel de acceso): dos columnas y, desde 1500 px de pantalla, las cuatro tarjetas en una fila con su orden natural */
+@media (min-width: 1500px) {
+    .vp-adaptable { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+    .vp-adaptable .vp-basico { order: 2; } .vp-adaptable .vp-pro { order: 3; } }
 @media (max-width: 640px) {
     .vp-rejilla, .vp-cuatro { grid-template-columns: minmax(0, 1fr); }
     .vp-titulo { font-size: 28px; letter-spacing: -.4px; }

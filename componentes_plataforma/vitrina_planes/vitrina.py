@@ -146,52 +146,6 @@ def _tarjeta(clave: str, elegido: str | None) -> str:
     return f"<article class='{clases}'>{html_cabecera(clave, elegido)}{html_lista(clave)}</article>"
 
 
-# TITULO ETIQUETAS
-
-def _etiquetas(clave: str) -> list[str]:
-    """Dos datos cortos que distinguen al plan `clave` en su fila compacta: el agente que usa y las vigilancias automáticas."""
-    def v(funcion):
-        """Valor de la función en este plan."""
-        return permisos_plan.valor(funcion, clave)
-    vigilancias = int(v("vigilancias_activas") or 0)
-    return [("Agente profundo" if "profundo" in (v("perfiles_ia") or []) else "Agente rápido"),
-            (f"{_n(vigilancias)} vigilancia{'s' if vigilancias != 1 else ''}" if vigilancias else "Sin vigilancias")]
-
-
-# TITULO FILA
-
-def _fila(clave: str, elegido: str | None) -> str:
-    """Fila compacta de un plan para el panel de acceso: nombre, lema y tres datos clave, precio, preguntas por semana y botón; al hacer clic en la fila se despliega la lista completa.
-
-    Es un `<details>`: la parte visible es el `<summary>` (así los cuatro planes caben a la vez en pantalla) y el detalle queda debajo, plegado."""
-    plan = configuracion.PLANES_IA[clave]
-    precio = float((plan.get("precios") or [0])[0])
-    gratis = precio <= 0
-    destacada = clave == PLAN_DESTACADO
-    clases = f"vp-fila vp-{clave}" + (" vp-destacada" if destacada else "") + (" vp-elegida" if clave == elegido else "")
-    cinta = "<span class='vp-f-cinta'>★ MÁS ELEGIDO</span>" if destacada else ""
-    sello = "<span class='vp-f-sello'>✓ Tu elección</span>" if clave == elegido else ""
-    cifra = "<b>Gratis</b><i>sin tarjeta</i>" if gratis else f"<b>{precio_texto(precio)}</b><i>USD al mes</i>"
-    href = "?acceso=crear" if gratis else f"?acceso=crear&amp;plan={clave}"
-    texto_boton = "Empezar gratis" if gratis else "Elegir"
-    boton_lleno = " vp-f-lleno" if (gratis or destacada) else ""
-    etiquetas = "".join(f"<span>{escape(t)}</span>" for t in _etiquetas(clave))
-    return (f"<details class='{clases}'>{cinta}{sello}<summary>"
-            f"<div class='vp-f-plan'><div class='vp-nombre'>{escape(plan['nombre'])}</div><div class='vp-lema'>{escape(_TEXTOS['titulos'].get(clave, ''))}</div>"
-            f"<div class='vp-f-tags'>{etiquetas}</div><div class='vp-f-mas'>Ver todo lo que incluye</div></div>"
-            f"<div class='vp-f-precio'>{cifra}</div>"
-            f"<div class='vp-f-preg'><strong>{_n(plan['preguntas_semana'])}</strong><span>preguntas<br>por semana</span></div>"
-            f"<a class='vp-f-boton{boton_lleno}' href='{href}' target='_self'>{texto_boton} →</a></summary>"
-            f"<div class='vp-f-detalle'>{html_lista(clave)}</div></details>")
-
-
-# TITULO FILAS
-
-def html_filas(elegido: str | None = None) -> str:
-    """Las cuatro filas compactas de los planes (Gratis, Básico, Profesional y Avanzado, en ese orden) para el panel de la derecha de los formularios de acceso."""
-    return "<div class='vp-filas'>" + "".join(_fila(clave, plan_valido(elegido)) for clave in configuracion.PLANES_IA) + "</div>"
-
-
 # TITULO BENEFICIOS
 
 def html_beneficios() -> str:
@@ -232,26 +186,27 @@ def html_comun() -> str:
 
 # TITULO REJILLA
 
-def html_rejilla(elegido: str | None = None, cuatro: bool = False) -> str:
-    """Las cuatro tarjetas de los planes en una rejilla: de dos columnas (el panel a la derecha de los formularios de acceso) o, con `cuatro`, de cuatro columnas
-    (la sección de planes de la portada, que es ancha). `elegido` es el plan marcado con «Tu elección»."""
+def html_rejilla(elegido: str | None = None, cuatro: bool = False, adaptable: bool = False) -> str:
+    """Las cuatro tarjetas de los planes en una rejilla: de dos columnas (el panel a la derecha de los formularios de acceso), con `cuatro` de cuatro columnas
+    (la sección de planes de la portada, que es ancha) o, con `adaptable`, de dos columnas que pasan a cuatro cuando la pantalla mide 1500 px o más.
+    `elegido` es el plan marcado con «Tu elección»."""
     tarjetas = "".join(_tarjeta(clave, plan_valido(elegido)) for clave in configuracion.PLANES_IA)
-    return f"<div class='vp-rejilla{' vp-cuatro' if cuatro else ''}'>{tarjetas}</div>"
+    return f"<div class='vp-rejilla{' vp-cuatro' if cuatro else ''}{' vp-adaptable' if adaptable else ''}'>{tarjetas}</div>"
 
 
 # TITULO HTML VITRINA
 
 def html_vitrina(elegido: str | None = None) -> str:
-    """HTML completo del panel de planes de las pantallas de acceso: encabezado, las cuatro filas compactas con su detalle plegable y lo que incluyen todos los planes.
+    """HTML completo del panel de planes de las pantallas de acceso: encabezado, las cuatro tarjetas verticales, lo que incluyen todos los planes y los avisos de confianza.
 
-    Va a la derecha del formulario (en pantallas angostas, debajo). `elegido` es el plan que el usuario escogió en el paso anterior (o None): su fila lleva el sello
-    «Tu elección». Incluye la hoja de estilos."""
+    Va a la derecha del formulario (en pantallas angostas, debajo). Las tarjetas van en dos columnas y, en pantallas de 1500 px o más, las cuatro en una fila.
+    `elegido` es el plan que el usuario escogió en el paso anterior (o None): su tarjeta lleva el sello «Tu elección». Incluye la hoja de estilos."""
     return (estilos()
-            + "<section class='vp' id='planes-acceso'><div class='vp-cabecera vp-izq'><span class='vp-etiqueta'>Planes</span>"
+            + "<section class='vp' id='planes-acceso'><div class='vp-cabecera'><span class='vp-etiqueta'>Planes</span>"
               "<div class='vp-titulo'>Elige el plan que <span>impulsa tu trading</span></div>"
-              "<p class='vp-sub'>Empieza gratis y mejora cuando quieras. <b>Hoy ningún plan se cobra</b>: es la fase de pruebas.</p></div>"
-            + html_filas(elegido)
-            + "<details class='vp-comun-plegable'><summary>Qué incluyen todos los planes</summary>" + html_comun() + "</details></section>")
+              "<p class='vp-sub'>Empieza gratis y mejora cuando quieras. Cada plan te da más preguntas al agente de IA, más vigilancias automáticas y más herramientas "
+              "para operar con respaldo.</p></div>"
+            + html_rejilla(elegido, adaptable=True) + html_comun() + "</section>")
 
 
 # -------------------------------------------------------------------------------------------------------

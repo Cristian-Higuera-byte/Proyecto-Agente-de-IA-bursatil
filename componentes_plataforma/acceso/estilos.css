@@ -36,6 +36,12 @@ div.stButton > button[kind="primary"]:disabled { background-color: #2b3138; bord
 [data-testid="stMainBlockContainer"].block-container:has(.st-key-acceso_dividido) { max-width: 1280px; padding-top: 5vh !important; }
 .st-key-acceso_dividido [data-testid="stHorizontalBlock"] { gap: 56px; align-items: flex-start; }
 .st-key-acceso_dividido [data-testid="stColumn"]:first-child { position: sticky; top: 24px; }
+/* El formulario ocupa una columna fija de 480 px y los planes todo el resto; con 1500 px de pantalla o más, el contenedor sube a 1640 px para que quepan las cuatro tarjetas en una fila. */
+@media (min-width: 1101px) {
+    .st-key-acceso_dividido [data-testid="stColumn"]:first-child { flex: 0 0 480px !important; width: 480px !important; min-width: 480px !important; }
+    .st-key-acceso_dividido [data-testid="stColumn"]:last-child { flex: 1 1 0 !important; width: auto !important; min-width: 0 !important; } }
+@media (min-width: 1500px) {
+    [data-testid="stMainBlockContainer"].block-container:has(.st-key-acceso_dividido) { max-width: 1640px; } }
 @media (max-width: 1100px) {
     .st-key-acceso_dividido [data-testid="stHorizontalBlock"] { flex-direction: column; gap: 8px; }
     .st-key-acceso_dividido [data-testid="stColumn"] { width: 100% !important; flex: 1 1 100% !important; min-width: 100% !important; }
