@@ -16,11 +16,11 @@
 Fachada de la API pública. La usan las pantallas de acceso (`acceso/pantalla.py`: vitrina completa, enlace «Mira lo que incluye cada plan» y aviso del plan elegido) y
 la vista Planes (`planes/panel.py`: cabecera y lista de cada tarjeta alrededor de sus botones). El contenido y la lógica viven en vitrina.py; los estilos, en estilos.css.
 """
-from .vitrina import (PLAN_DESTACADO, estilos, html_cabecera, html_comun, html_lista, html_pista, html_plan_elegido, html_rejilla, html_vitrina,
-                      plan_valido, precio_texto)
+from .vitrina import (PLAN_DESTACADO, estilos, html_beneficios, html_cabecera, html_comun, html_filas, html_lista, html_pista, html_plan_elegido, html_rejilla,
+                      html_vitrina, plan_valido, precio_texto)
 
-__all__ = ["PLAN_DESTACADO", "estilos", "html_cabecera", "html_comun", "html_lista", "html_pista", "html_plan_elegido", "html_rejilla", "html_vitrina",
-           "plan_valido", "precio_texto"]
+__all__ = ["PLAN_DESTACADO", "estilos", "html_beneficios", "html_cabecera", "html_comun", "html_filas", "html_lista", "html_pista", "html_plan_elegido",
+           "html_rejilla", "html_vitrina", "plan_valido", "precio_texto"]
 
 
 # -------------------------------------------------------------------------------------------------------

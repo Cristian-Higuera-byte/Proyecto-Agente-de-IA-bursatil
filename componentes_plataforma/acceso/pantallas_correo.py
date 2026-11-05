@@ -70,9 +70,7 @@ _JS_MEDIDOR = Path(__file__).parent / "estatico" / "medidor.js"
 def cabecera(titulo: str, subtitulo: str) -> None:
     """Dibuja el logo, el título y un subtítulo, centrados, como encabezado de cualquier pantalla de acceso."""
     st.markdown(
-        f"<div style='text-align:center;'>{_LOGO_HTML}"
-        f"<h2 style='margin:8px 0 2px; font-size:22px;'>{titulo}</h2>"
-        f"<p style='color:#8b949e; margin:0 0 14px; font-size:14px;'>{subtitulo}</p></div>",
+        f"<div class='acc-cabecera'>{_LOGO_HTML}<div class='acc-titulo'>{titulo}</div><div class='acc-sub'>{subtitulo}</div></div>",
         unsafe_allow_html=True,
     )
 
@@ -82,13 +80,8 @@ def cabecera(titulo: str, subtitulo: str) -> None:
 def pestanas(activa: str) -> None:
     """Dibuja las pestañas «Iniciar sesión» y «Crear cuenta» (enlaces a ?acceso=entrar y ?acceso=crear); `activa` es «entrar» o «crear»."""
     def una(destino: str, texto: str) -> str:
-        if destino == activa:
-            estilo = "color:#ff4b4b; border-bottom:2px solid #ff4b4b; font-weight:600;"
-        else:
-            estilo = "color:#8b949e; border-bottom:2px solid transparent;"
-        return f"<a href='?acceso={destino}' target='_self' style='{estilo} padding:0 4px 8px; text-decoration:none; font-size:14px;'>{texto}</a>"
-    st.markdown(f"<div style='display:flex; gap:20px; justify-content:center; border-bottom:1px solid #30363d; margin:0 0 14px;'>"
-                f"{una('entrar', 'Iniciar sesión')}{una('crear', 'Crear cuenta')}</div>", unsafe_allow_html=True)
+        return f"<a class='acc-pest{' acc-pest-activa' if destino == activa else ''}' href='?acceso={destino}' target='_self'>{texto}</a>"
+    st.markdown(f"<div class='acc-pestanas'>{una('entrar', 'Iniciar sesión')}{una('crear', 'Crear cuenta')}</div>", unsafe_allow_html=True)
 
 
 # TITULO ENLACES

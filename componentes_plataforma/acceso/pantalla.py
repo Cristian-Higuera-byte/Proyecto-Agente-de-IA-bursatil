@@ -38,7 +38,7 @@ from .pantallas_correo import (
     CLAVE_PENDIENTE, CLAVE_REVISA, aviso_sin_verificar, cabecera, enlaces_inferiores, iniciar_espera_reenvio, medidor_contrasena, medidor_en_vivo, pestanas,
     vista_olvide_contrasena, vista_recuperacion, vista_revisa_correo, vista_verificacion)
 from .sesion import cerrar_sesion, iniciar_sesion, usuario_en_sesion
-from componentes_plataforma.vitrina_planes import html_pista, html_plan_elegido, html_vitrina, plan_valido
+from componentes_plataforma.vitrina_planes import html_beneficios, html_pista, html_plan_elegido, html_vitrina, plan_valido
 
 # CSS de las pantallas de acceso (columna centrada y responsiva); se vuelve a leer solo si el archivo cambia en disco.
 _CSS = Path(__file__).parent / "estilos.css"
@@ -180,6 +180,7 @@ def requerir_login() -> dict:
                                 iniciar_sesion(resultado["usuario"])
 
                 # Enlace hacia la vitrina de planes (solo se ve cuando la pantalla es angosta y los planes quedan debajo) y enlace para volver a la portada
+                st.html(html_beneficios())
                 st.html(html_pista())
                 enlaces_inferiores("<a href='./' target='_self'>← Volver a la portada</a>")
             with derecha:

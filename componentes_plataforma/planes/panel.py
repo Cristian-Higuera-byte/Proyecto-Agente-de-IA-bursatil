@@ -212,7 +212,7 @@ def renderizar_panel_planes(main=None) -> None:
         demanda.registrar("vista_planes", uid, variante=variante, origen=origen)
     plan_actual = cuota_ia.plan_actual()
     with st.container(key="planes_contenedor"):
-        st.html("<div class='vp-cabecera'><span class='vp-etiqueta'>Planes</span><h2 class='vp-titulo'>Elige el plan que <span>impulsa tu trading</span></h2>"
+        st.html("<div class='vp-cabecera'><span class='vp-etiqueta'>Planes</span><div class='vp-titulo'>Elige el plan que <span>impulsa tu trading</span></div>"
                 "<p class='vp-sub'>Cada plan te da más preguntas al agente de IA por semana, más vigilancias automáticas y más herramientas. Cambia de plan cuando quieras.</p></div>"
                 "<div class='planes-aviso'>Modo de prueba: todavía no cobramos ningún plan. Puedes cambiar de plan cuando quieras para probar cómo cambia la plataforma, y "
                 "nos ayudas a decidir qué planes y precios lanzar. También puedes «comprar» un plan con el saldo de prueba de tu Billetera.</div>")
