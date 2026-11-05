@@ -131,6 +131,7 @@ Transportes y Servicios Ltda.
 [class*="st-key-vpc_"] div.stButton > button[kind="secondary"]:hover:not(:disabled) { border-color: var(--acento) !important; color: var(--acento) !important; }
 [class*="st-key-vpc_"] [data-testid="stPopover"] > button { min-height: 44px; border-radius: 14px !important; font-size: 14px; font-weight: 700; background: transparent !important; border: 1px solid #30363d !important; color: #c9d1d9 !important; }
 [class*="st-key-vpc_"] [data-testid="stPopover"] > button:hover { border-color: var(--acento) !important; color: var(--acento) !important; background: var(--acento-suave) !important; }
+.vp-vence { margin: -2px 0 10px; text-align: center; font-size: 12.5px; font-weight: 600; color: #3fb950; }
 /* El plan destacado lleva el botón principal con el degradado de la marca y brillo; el plan actual, un botón verde apagado */
 [class*="st-key-vpc_pro"] div.stButton > button[kind="primary"] { background: linear-gradient(135deg, #ff4b4b, #ff8f00) !important; border-color: transparent !important; color: #fff !important;
     box-shadow: 0 10px 28px rgba(255, 107, 53, .4); }

@@ -34,7 +34,9 @@ def barra_cuota(e: dict | None = None, sufijo: str = "") -> None:
     Recibe el estado de la cuota (`cuota_ia.estado()`; si no se pasa, lo calcula) y un sufijo para la clave del botón «Ver planes» (una por copia del chat). No devuelve nada."""
     e = e or cuota_ia.estado()
     detalle = (f"{cuota_ia.formato(e['usado'])} / {cuota_ia.formato(e['limite'])} preguntas · quedan {cuota_ia.formato(e['restante'])} · "
-               f"se renueva el {e['renueva']}")
+               f"se renueva el {e['renueva']}" + (f" · plan vigente hasta el {e['plan_vence']}" if e.get("plan_vence") else ""))
+    por_vencer = (f"<div class='cuota-ia-limite'>Tu plan vence en {e['dias_para_vencer']} día{'s' if e['dias_para_vencer'] != 1 else ''}: después volverás al plan Gratis.</div>"
+                  if e.get("dias_para_vencer") is not None and e["dias_para_vencer"] <= 7 else "")
     aviso = ("<div class='cuota-ia-limite'>Alcanzaste el límite de tu plan: el agente queda en pausa hasta que se renueve la cuota o cambies de plan.</div>"
              if e["agotada"] else "")
     st.html(
@@ -42,7 +44,7 @@ def barra_cuota(e: dict | None = None, sufijo: str = "") -> None:
         f"<div class='cuota-ia-fila'><span class='cuota-ia-titulo'>Uso del agente · plan {escape(e['nombre'])}</span>"
         f"<span class='cuota-ia-pct'>{e['porcentaje']:.0f} %</span></div>"
         f"<div class='cuota-ia-barra'><div class='cuota-ia-relleno' style='width:{e['porcentaje']:.1f}%'></div></div>"
-        f"<div class='cuota-ia-detalle'>{escape(detalle)}</div>{aviso}</div>"
+        f"<div class='cuota-ia-detalle'>{escape(detalle)}</div>{aviso}{por_vencer}</div>"
     )
     # Con el uso alto o agotado se ofrece ver los planes: es el momento de mayor interés (y se anota el origen en la prueba de demanda).
     if e["nivel"] != "ok":

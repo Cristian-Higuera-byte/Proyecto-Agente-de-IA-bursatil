@@ -217,6 +217,7 @@ def renderizar_panel_planes(main=None) -> None:
         st.session_state["planes_visita"] = visita
         demanda.registrar("vista_planes", uid, variante=variante, origen=origen)
     plan_actual = cuota_ia.plan_actual()
+    estado_cuota = cuota_ia.estado()
     with st.container(key="planes_contenedor"):
         st.html("<div class='vp-cabecera'><span class='vp-etiqueta'>Planes</span><div class='vp-titulo'>Elige el plan que <span>impulsa tu trading</span></div>"
                 "<p class='vp-sub'>Cada plan te da más preguntas al agente de IA por semana, más vigilancias automáticas y más herramientas. Cambia de plan cuando quieras.</p></div>"
@@ -239,6 +240,8 @@ def renderizar_panel_planes(main=None) -> None:
                     st.html(vitrina_planes.html_cabecera(clave, con_boton=False, precio=precio))
                     if es_actual:
                         st.button("Tu plan actual", key=f"plan_quiero_{clave}", icon=":material/check_circle:", width="stretch", disabled=True)
+                        if estado_cuota.get("plan_vence"):
+                            st.html(f"<div class='vp-vence'>Vigente hasta el {estado_cuota['plan_vence']}</div>")
                     elif clave == "gratis" and plan_actual != "gratis" and not configuracion.PLANES_LIBRES:
                         # Bajar a Gratis desde un plan de pago no tiene vuelta mientras no exista el pago con Flow (los planes de pago no se activan solos): se pide confirmar
                         with st.popover("Pasar al plan Gratis", width="stretch"):

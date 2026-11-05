@@ -199,6 +199,16 @@ def _renueva(ahora: datetime | None = None) -> str:
     return f"{_DIAS[siguiente.weekday()]} {siguiente.day} de {_MESES[siguiente.month - 1]} a las {siguiente:%H:%M}"
 
 
+# TITULO VENCIMIENTO DEL PLAN
+
+def vencimiento_plan() -> float | None:
+    """Cuándo vence el plan de pago del usuario actual (segundos desde 1970), o None si no tiene plan de pago, no vence o está en modo de un solo usuario."""
+    clave = sesiones_capital.clave_actual()
+    if sesiones_capital.MULTIUSUARIO and len(clave) == 2:
+        return plan_usuario.vence_de(clave[0])
+    return None
+
+
 # TITULO ESTADO
 
 def estado() -> dict:
@@ -212,7 +222,10 @@ def estado() -> dict:
     porcentaje = min(100.0, gastado / limite * 100.0) if limite > 0 else 100.0
     agotada = gastado >= limite
     nivel = ("critico" if porcentaje >= configuracion.UMBRAL_CRITICO_PCT else "aviso" if porcentaje >= configuracion.UMBRAL_AVISO_PCT else "ok")
+    vence = vencimiento_plan()
     return {"plan": plan, "nombre": configuracion.PLANES_IA[plan]["nombre"], "limite": limite, "usado": int(round(gastado)),
+            "plan_vence": datetime.fromtimestamp(vence).strftime("%d-%m-%Y") if vence else None,
+            "dias_para_vencer": max(0, int((vence - time.time()) // 86400)) if vence else None,
             "restante": max(0, int(round(limite - gastado))), "porcentaje": porcentaje, "agotada": agotada, "nivel": nivel, "renueva": _renueva()}
 
 
