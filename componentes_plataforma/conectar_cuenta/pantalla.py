@@ -24,14 +24,20 @@ el modo multiusuario está encendido (`CAPITAL_MULTIUSUARIO=true`); apagado, la 
 Antes de guardar, las credenciales se verifican contra Capital.com y se cifran (herramientas/credenciales_bolsa.py).
 Ninguna se muestra ni se registra en logs después de escribirlas.
 """
+from html import escape
+from pathlib import Path
+
 import streamlit as st
 
+from componentes_plataforma import _estaticos
 from componentes_plataforma.legal import enlaces_html
 from herramientas import credenciales_bolsa, token_datos
 from herramientas.backends import sesiones_capital
 
 from .modo import cuentas_conectadas, fijar_modo, invalidar_cuentas, restaurar_modo, usuario_id_actual
 
+# Hoja de estilos de la pantalla (estilos.css, junto a este archivo)
+_CSS = Path(__file__).parent / "estilos.css"
 # Clave de st.session_state que mantiene abierta la pantalla de gestión
 _CLAVE_GESTIONAR = "cuentas_gestionar"
 # Los dos tipos de cuenta: nombre mostrado -> es_demo
@@ -101,16 +107,17 @@ def _procesar_enlaces(cuentas: dict) -> None:
 
 # TITULO GUIA
 
-def _guia() -> None:
-    """Dibuja la guía de 4 pasos, siempre visible, para crear la API key en Capital.com."""
-    with st.container(border=True):
-        st.markdown(
-            "**Cómo crear tu API key**\n\n"
-            "1. En Capital.com entra a **Configuración → API integrations** y activa la autenticación en dos pasos.\n"
-            "2. Crea una API key nueva y define su contraseña.\n"
-            "3. Dale permiso para **operar** y **no** habilites retiros.\n"
-            "4. Copia aquí la key y su contraseña. Se guardan cifradas: en la base de datos solo hay texto ilegible y únicamente el servidor puede usarlas."
-        )
+def _html_guia() -> str:
+    """HTML de la guía de 4 pasos, siempre visible a la derecha del formulario, para crear la API key en Capital.com, con el aviso de seguridad y lo que pasa después."""
+    pasos = [("Activa la autenticación en dos pasos", "En Capital.com entra a <strong>Configuración → API integrations</strong> y activa la autenticación en dos pasos."),
+             ("Crea una API key nueva", "Define también la contraseña de la key: es distinta de la de tu cuenta."),
+             ("Dale permiso para operar", "Habilita <strong>operar</strong> y <strong>no habilites retiros</strong>: la plataforma nunca los necesita."),
+             ("Copia la key y su contraseña", "Escríbelas en el formulario de la izquierda y pulsa «Probar conexión».")]
+    lista = "".join(f"<li><span class='cc-n'>{i}</span><div><b>{titulo}</b><p>{texto}</p></div></li>" for i, (titulo, texto) in enumerate(pasos, 1))
+    return ("<div class='cc-guia'><div class='cc-guia-titulo'>Cómo crear tu API key</div><div class='cc-guia-sub'>Son 4 pasos en Capital.com.</div>"
+            f"<ol class='cc-pasos'>{lista}</ol>"
+            "<div class='cc-seguridad'><b>Tus claves están protegidas.</b> Se guardan cifradas: en la base de datos solo hay texto ilegible y únicamente el servidor puede usarlas.</div>"
+            "<div class='cc-despues'>Verificamos tu cuenta demo y tu cuenta real. La plataforma siempre empieza en demo y cambias de cuenta cuando quieras desde «Seleccione cuenta».</div></div>")
 
 
 # TITULO RESULTADO DE LA PRUEBA
@@ -186,9 +193,9 @@ def _formulario(usuario_id: int) -> None:
 def _lista_cuentas(usuario_id: int, cuentas: dict) -> None:
     """Muestra qué cuentas están conectadas, con el botón para desconectar cada una y el de continuar al panel."""
     for nombre, es_demo in _TIPOS.items():
-        columna_texto, columna_boton = st.columns([3, 1], vertical_alignment="center")
+        columna_texto, columna_boton = st.columns([3, 1.2], vertical_alignment="center")
         conectada = cuentas.get("demo" if es_demo else "real")
-        columna_texto.markdown(f"**Cuenta {nombre}:** {'conectada' if conectada else 'sin conectar'}")
+        columna_texto.html(f"<div class='cc-cuenta'><b>Cuenta {nombre}</b><span class='cc-estado{' cc-estado-ok' if conectada else ''}'>{'Conectada' if conectada else 'Sin conectar'}</span></div>")
         if conectada and columna_boton.button("Desconectar", key=f"desconectar_{nombre}", width="stretch"):
             credenciales_bolsa.eliminar_credenciales(usuario_id, es_demo)
             sesiones_capital.olvidar_usuario(usuario_id)
@@ -227,31 +234,27 @@ def requerir_cuenta(usuario: dict) -> None:
     if hay_cuenta and not st.session_state.get(_CLAVE_GESTIONAR):
         return
 
-    _, centro, _ = st.columns([1, 1.3, 1])
-    with centro:
-        # Con una cuenta ya conectada se puede volver al panel desde arriba (si no, había que bajar hasta el final de la pantalla)
-        if hay_cuenta and st.button("Volver al panel", key="cuentas_volver_arriba", icon=":material/arrow_back:"):
-            st.session_state[_CLAVE_GESTIONAR] = False
-            st.rerun()
-        st.markdown(
-            "<div style='text-align:center; margin-top:6vh;'>"
-            f"<h2 style='margin:0 0 4px;'>Hola, {usuario.get('nombre', '')}</h2>"
-            "<p style='color:#8b949e; margin:0 0 14px;'>Escribe los datos de tu API de Capital.com una sola vez: "
-            "verificamos tu cuenta demo y tu cuenta real, y eliges con cuál operar cuando quieras.</p></div>",
-            unsafe_allow_html=True,
-        )
-        _guia()
-        if hay_cuenta:
-            _lista_cuentas(usuario_id, cuentas)
-            st.divider()
-        _formulario(usuario_id)
-        # Salida para quien aún no quiere conectar una API (o la acaba de quitar): sin esto esta pantalla era una puerta sin salida, porque no deja ver nada más.
-        st.markdown(
-            "<p style='text-align:center; color:#8b949e; font-size:14px; margin:14px 0 4px;'>¿No quieres conectar tu API ahora? "
-            "<a href='?logout=1' target='_self'>Cerrar sesión</a></p>"
-            f"<p style='text-align:center; font-size:12px; margin:0;'>{enlaces_html()}</p>",
-            unsafe_allow_html=True,
-        )
+    st.html(_estaticos.estilos(_CSS))
+    with st.container(key="conectar_dividido"):
+        st.html("<div class='cc-cabecera'><div class='cc-logo'>P&amp;J</div>"
+                f"<div class='cc-titulo'>Hola, {escape(str(usuario.get('nombre', '')))}</div>"
+                "<div class='cc-sub'>Escribe los datos de tu API de Capital.com una sola vez: verificamos tu cuenta demo y tu cuenta real, y eliges con cuál operar cuando quieras.</div></div>")
+        izquierda, derecha = st.columns(2)
+        with izquierda:
+            with st.container(key="conectar_formulario"):
+                # Con una cuenta ya conectada se puede volver al panel desde arriba (si no, había que bajar hasta el final de la pantalla)
+                if hay_cuenta and st.button("Volver al panel", key="cuentas_volver_arriba", icon=":material/arrow_back:"):
+                    st.session_state[_CLAVE_GESTIONAR] = False
+                    st.rerun()
+                if hay_cuenta:
+                    _lista_cuentas(usuario_id, cuentas)
+                    st.divider()
+                _formulario(usuario_id)
+            # Salida para quien aún no quiere conectar una API (o la acaba de quitar): sin esto esta pantalla era una puerta sin salida, porque no deja ver nada más.
+            st.html("<p class='cc-pie'>¿No quieres conectar tu API ahora? <a href='?logout=1' target='_self'>Cerrar sesión</a></p>"
+                    f"<p class='cc-legal'>{enlaces_html()}</p>")
+        with derecha:
+            st.html(_html_guia())
     st.stop()
 
 
