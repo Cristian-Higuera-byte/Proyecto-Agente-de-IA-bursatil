@@ -180,7 +180,11 @@ def recargado_en_el_mes() -> float:
 # TITULO RECARGAR VIRTUAL
 
 def recargar_virtual(monto: float) -> float:
-    """Suma `monto` de saldo de prueba y devuelve el saldo nuevo. Respeta el tope mensual de recargas y el saldo máximo de `configuracion.BILLETERA`."""
+    """Suma `monto` de saldo de prueba y devuelve el saldo nuevo. Respeta el tope mensual de recargas y el saldo máximo de `configuracion.BILLETERA`.
+
+    Solo funciona con `configuracion.PLANES_LIBRES` (desarrollo): en producción no hay recargas gratis y lanza `ErrorBilletera`."""
+    if not configuracion.PLANES_LIBRES:
+        raise ErrorBilletera("Las recargas de prueba no están disponibles.")
     monto = round(float(monto), 2)
     if monto <= 0:
         raise ErrorBilletera("El monto debe ser mayor que cero.")

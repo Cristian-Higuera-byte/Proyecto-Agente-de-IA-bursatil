@@ -106,16 +106,21 @@ def renderizar_panel_billetera(main=None) -> None:
                 f"<div class='bil-nota'>Billetera virtual · {escape(cfg['moneda'])}</div></div>")
         c2.html(f"<div class='bil-tarjeta'><div class='bil-etiqueta'>Plan actual</div><div class='bil-valor'>{escape(configuracion.PLANES_IA[actual]['nombre'])}</div>"
                 f"<div class='bil-nota'>{escape(cuota_ia.formato(configuracion.PLANES_IA[actual]['preguntas_semana']))} preguntas al agente por semana</div></div>")
-        c3.html(f"<div class='bil-tarjeta'><div class='bil-etiqueta'>Recargado este mes</div><div class='bil-valor'>{escape(_usd(recargado))}</div>"
-                f"<div class='bil-nota'>Tope mensual: {escape(_usd(float(cfg['recarga_mensual_max'])))}</div></div>")
+        if configuracion.PLANES_LIBRES:
+            c3.html(f"<div class='bil-tarjeta'><div class='bil-etiqueta'>Recargado este mes</div><div class='bil-valor'>{escape(_usd(recargado))}</div>"
+                    f"<div class='bil-nota'>Tope mensual: {escape(_usd(float(cfg['recarga_mensual_max'])))}</div></div>")
 
         st.html("<div class='bil-seccion'>Agregar o retirar fondos</div>")
-        a, b, c = st.columns([3, 1.4, 1.4], gap="medium", vertical_alignment="bottom")
-        with a:
-            monto = st.segmented_control("Monto de la recarga de prueba", [float(x) for x in cfg["recargas"]], default=float(cfg["recargas"][0]),
-                                         format_func=lambda x: f"{x:,.0f} USD".replace(",", "."), key="billetera_monto")
-        b.button("Recargar saldo de prueba", key="billetera_recargar", type="primary", icon=":material/add_card:", width="stretch",
-                 on_click=_recargar, args=(monto,), disabled=monto is None)
+        if configuracion.PLANES_LIBRES:      # las recargas de prueba solo existen en desarrollo: en producción no se regala saldo
+            a, b, c = st.columns([3, 1.4, 1.4], gap="medium", vertical_alignment="bottom")
+            with a:
+                monto = st.segmented_control("Monto de la recarga de prueba", [float(x) for x in cfg["recargas"]], default=float(cfg["recargas"][0]),
+                                             format_func=lambda x: f"{x:,.0f} USD".replace(",", "."), key="billetera_monto")
+            b.button("Recargar saldo de prueba", key="billetera_recargar", type="primary", icon=":material/add_card:", width="stretch",
+                     on_click=_recargar, args=(monto,), disabled=monto is None)
+        else:
+            c = st.container()
+            c.caption("Los depósitos y retiros se habilitarán junto con el pago con Flow.")
         c.button("Depositar / retirar", key="billetera_real", icon=":material/lock:", width="stretch", disabled=True,
                  help="Disponible cuando la plataforma habilite cuentas reales.")
 
@@ -136,7 +141,7 @@ def renderizar_panel_billetera(main=None) -> None:
                                   args=(clave, precio, demanda.variante_de(uid, variantes), uid, "billetera"))
         else:
             st.html("<div class='bil-seccion'>Planes</div>")
-            st.info("El pago de los planes con Flow estará disponible muy pronto. Mientras tanto usas el plan Gratis; en la sección Planes puedes dejar tu interés en el que quieras.")
+            st.html("<div class='bil-flow'><b>El pago de los planes con Flow estará disponible muy pronto.</b> Mientras tanto usas el plan Gratis; en la sección Planes puedes dejar tu interés en el que quieras.</div>")
 
         st.html("<div class='bil-seccion'>Movimientos</div>")
         movs = billetera.movimientos(100)
