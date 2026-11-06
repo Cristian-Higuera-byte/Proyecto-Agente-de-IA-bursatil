@@ -154,9 +154,9 @@ def requerir_login() -> dict:
                     # --- Crear cuenta ---
                     else:
                         with st.form("form_registro", border=False):
-                            col_nombres, col_apellidos = st.columns(2)
-                            nombres = col_nombres.text_input("Nombres", key="registro_nombres", placeholder="Ana María")
-                            apellidos = col_apellidos.text_input("Apellidos", key="registro_apellidos", placeholder="Pérez Soto")
+                            nombres = st.text_input("Nombres", key="registro_nombres", placeholder="Ana María")
+                            apellido_paterno = st.text_input("Apellido paterno", key="registro_apellido_paterno", placeholder="Pérez")
+                            apellido_materno = st.text_input("Apellido materno", key="registro_apellido_materno", placeholder="Soto")
                             correo_r = st.text_input("Correo electrónico", key="registro_correo", placeholder="nombre@correo.com")
                             contrasena_r = st.text_input("Contraseña", type="password", key="registro_contrasena")
                             medidor_contrasena("Contraseña")
@@ -166,9 +166,10 @@ def requerir_login() -> dict:
                         if crear and not acepto:
                             st.error("Para crear tu cuenta debes aceptar los términos de uso, la política de privacidad y el aviso de riesgo.")
                         elif crear:
-                            # Registra al usuario nuevo y valida los datos (nombres, apellidos, email, contraseña)
-                            nombres, apellidos = " ".join((nombres or "").split()), " ".join((apellidos or "").split())
-                            resultado = registrar_usuario(f"{nombres} {apellidos}".strip(), correo_r, contrasena_r) if nombres and apellidos else                                 {"ok": False, "mensaje": "Completa tus nombres y apellidos.", "usuario": None}
+                            # Registra al usuario nuevo y valida los datos (nombres, apellidos, email, contraseña); el perfil guarda ambos apellidos juntos
+                            nombres, paterno, materno = (" ".join((x or "").split()) for x in (nombres, apellido_paterno, apellido_materno))
+                            apellidos = f"{paterno} {materno}".strip()
+                            resultado = registrar_usuario(f"{nombres} {apellidos}".strip(), correo_r, contrasena_r) if nombres and paterno and materno else                                 {"ok": False, "mensaje": "Completa tus nombres, apellido paterno y apellido materno.", "usuario": None}
                             if resultado["ok"]:
                                 # Guarda los nombres y apellidos por separado en el perfil (si falla, el nombre completo ya quedó en la cuenta)
                                 try:
