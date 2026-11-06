@@ -107,6 +107,8 @@ PLAN_MODO_LOCAL = "avanzado"
 # Cambio de plan SIN pago. False (lanzamiento): solo el plan Gratis se activa solo; los planes de pago esperan la pasarela de pago (Flow) y, mientras tanto, el botón
 # «Contratar» solo deja registrado el interés del usuario. True (PLANES_LIBRES=true en el .env): cualquiera puede pasar a cualquier plan sin pagar, para probar cuotas
 # y funciones en desarrollo (con el saldo virtual de la Billetera y el selector de plan del Laboratorio).
+# Tema azul: cambio de colores de toda la plataforma (azul marino con acentos azul eléctrico) y de la portada, según la propuesta del cliente. Poner False deja la plataforma con los colores de antes.
+TEMA_AZUL: bool = True
 PLANES_LIBRES: bool = os.getenv("PLANES_LIBRES", "").strip().lower() in ("1", "true", "si", "sí", "yes")
 # Correos de los administradores (root), separados por comas, en la variable ROOT_CORREOS del .env. Los root ven las secciones internas (hoy, el Laboratorio). El rol también
 # puede darse en la base de datos (columna `rol` de `usuarios`, herramientas/sql/roles.sql); ver herramientas/roles.py.
