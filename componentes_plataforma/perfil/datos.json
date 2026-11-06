@@ -417,11 +417,18 @@
      "max": 60
     },
     {
-     "id": "apellidos",
-     "etiqueta": "Apellidos",
+     "id": "apellido_paterno",
+     "etiqueta": "Apellido paterno",
      "tipo": "texto",
      "requerido": true,
-     "max": 60
+     "max": 40
+    },
+    {
+     "id": "apellido_materno",
+     "etiqueta": "Apellido materno",
+     "tipo": "texto",
+     "requerido": true,
+     "max": 40
     },
     {
      "id": "apodo",
@@ -654,7 +661,8 @@
  ],
  "requeridos_completitud": [
   "nombres",
-  "apellidos",
+  "apellido_paterno",
+  "apellido_materno",
   "fecha_nacimiento",
   "nacionalidad",
   "tipo_documento",

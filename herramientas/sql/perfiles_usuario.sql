@@ -20,6 +20,8 @@ create table if not exists perfiles_usuario (
     -- Datos personales
     nombres text,
     apellidos text,
+    apellido_paterno text,
+    apellido_materno text,
     apodo text,                              -- opcional; único sin distinguir mayúsculas (índice más abajo)
     fecha_nacimiento date,
     nacionalidad text,                       -- código de país (CL, AR...)

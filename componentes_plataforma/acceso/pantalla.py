@@ -30,7 +30,10 @@ import streamlit as st
 
 from componentes_plataforma._estaticos import estilos
 from componentes_plataforma.legal import DOCUMENTOS, VERSION, aviso_cookie, casilla_aceptacion, vista_legal
+from datetime import date
+
 from componentes_plataforma.perfil import almacen as almacen_perfil
+from componentes_plataforma.perfil.validacion import validar_nacimiento
 from herramientas import aceptaciones_legales
 from herramientas.gestor_autenticacion import autenticar_usuario, registrar_usuario
 
@@ -157,6 +160,8 @@ def requerir_login() -> dict:
                             nombres = st.text_input("Nombres", key="registro_nombres", placeholder="Ana María")
                             apellido_paterno = st.text_input("Apellido paterno", key="registro_apellido_paterno", placeholder="Pérez")
                             apellido_materno = st.text_input("Apellido materno", key="registro_apellido_materno", placeholder="Soto")
+                            nacimiento = st.date_input("Fecha de nacimiento", value=None, min_value=date(1900, 1, 1), max_value=date.today(), format="DD/MM/YYYY",
+                                                       key="registro_nacimiento", help="Debes ser mayor de 18 años para operar.")
                             correo_r = st.text_input("Correo electrónico", key="registro_correo", placeholder="nombre@correo.com")
                             contrasena_r = st.text_input("Contraseña", type="password", key="registro_contrasena")
                             medidor_contrasena("Contraseña")
@@ -166,14 +171,21 @@ def requerir_login() -> dict:
                         if crear and not acepto:
                             st.error("Para crear tu cuenta debes aceptar los términos de uso, la política de privacidad y el aviso de riesgo.")
                         elif crear:
-                            # Registra al usuario nuevo y valida los datos (nombres, apellidos, email, contraseña); el perfil guarda ambos apellidos juntos
+                            # Valida nombres, apellidos y mayoría de edad antes de crear la cuenta; el perfil guarda ambos apellidos por separado y juntos
                             nombres, paterno, materno = (" ".join((x or "").split()) for x in (nombres, apellido_paterno, apellido_materno))
                             apellidos = f"{paterno} {materno}".strip()
-                            resultado = registrar_usuario(f"{nombres} {apellidos}".strip(), correo_r, contrasena_r) if nombres and paterno and materno else                                 {"ok": False, "mensaje": "Completa tus nombres, apellido paterno y apellido materno.", "usuario": None}
+                            edad_ok, aviso_edad = validar_nacimiento(nacimiento)
+                            if not (nombres and paterno and materno):
+                                resultado = {"ok": False, "mensaje": "Completa tus nombres, apellido paterno y apellido materno.", "usuario": None}
+                            elif not edad_ok:
+                                resultado = {"ok": False, "mensaje": aviso_edad, "usuario": None}
+                            else:
+                                resultado = registrar_usuario(f"{nombres} {apellidos}", correo_r, contrasena_r)
                             if resultado["ok"]:
-                                # Guarda los nombres y apellidos por separado en el perfil (si falla, el nombre completo ya quedó en la cuenta)
+                                # Guarda los datos personales en el perfil (si falla, el nombre completo ya quedó en la cuenta)
                                 try:
-                                    almacen_perfil.guardar(resultado["usuario"]["id"], {"nombres": nombres, "apellidos": apellidos})
+                                    almacen_perfil.guardar(resultado["usuario"]["id"], {"nombres": nombres, "apellidos": apellidos, "apellido_paterno": paterno,
+                                                                                         "apellido_materno": materno, "fecha_nacimiento": nacimiento})
                                 except Exception:  # noqa: BLE001
                                     pass
                                 # Deja constancia de qué versión de los documentos legales aceptó (si falla, no impide el registro)

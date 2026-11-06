@@ -31,7 +31,7 @@ TABLA = "perfiles_usuario"
 
 # Columnas que el usuario puede escribir desde el perfil (la verificación de identidad la fija el equipo, no el formulario).
 CAMPOS = (
-    "nombres", "apellidos", "apodo", "fecha_nacimiento", "nacionalidad", "genero",
+    "nombres", "apellidos", "apellido_paterno", "apellido_materno", "apodo", "fecha_nacimiento", "nacionalidad", "genero",
     "tipo_documento", "numero_documento", "pais_documento", "vencimiento_documento",
     "telefono_prefijo", "telefono_movil", "telefono_alterno",
     "pais", "region", "ciudad", "direccion", "codigo_postal",

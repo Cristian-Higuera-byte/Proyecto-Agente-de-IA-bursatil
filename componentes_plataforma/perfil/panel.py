@@ -52,16 +52,21 @@ def _iniciales(nombre: str) -> str:
 def _nombres_sugeridos(usuario: dict[str, Any], perfil: dict[str, Any]) -> dict[str, str]:
     """Nombres y apellidos que se sugieren en el formulario cuando el perfil aún no los tiene: salen del nombre con el que se registró el usuario.
 
-    El registro guarda un solo nombre completo; aquí se reparte: con 2 palabras, nombre y apellido; con 3, un nombre y dos apellidos; con 4 o más, los
-    dos primeros son nombres y el resto apellidos. Es solo una sugerencia que el usuario puede corregir: no se guarda hasta que pulse «Guardar cambios».
-    Devuelve un diccionario vacío si el perfil ya tiene nombres o apellidos, o si no hay nombre de registro."""
-    if perfil.get("nombres") or perfil.get("apellidos"):
+    Si el perfil ya tiene apellidos juntos (cuentas antiguas), el primero se sugiere como paterno y el resto como materno. Si no hay nada, se reparte el
+    nombre de registro: con 2 palabras, nombre y apellido paterno; con 3, un nombre y dos apellidos; con 4 o más, los dos primeros son nombres y las
+    dos últimas los apellidos. Es solo una sugerencia que el usuario puede corregir: no se guarda hasta que pulse «Guardar cambios».
+    Devuelve un diccionario vacío si el perfil ya tiene apellido paterno o materno."""
+    if perfil.get("apellido_paterno") or perfil.get("apellido_materno"):
         return {}
+    if perfil.get("apellidos"):
+        partes = str(perfil["apellidos"]).split(None, 1)
+        return {"apellido_paterno": partes[0], "apellido_materno": partes[1] if len(partes) > 1 else ""}
     palabras = str(usuario.get("nombre") or "").split()
     if not palabras:
         return {}
-    corte = 1 if len(palabras) <= 3 else 2
-    return {"nombres": " ".join(palabras[:corte]), "apellidos": " ".join(palabras[corte:])}
+    corte = 1 if len(palabras) <= 3 else len(palabras) - 2
+    apellidos = palabras[corte:]
+    return {"nombres": " ".join(palabras[:corte]), "apellido_paterno": apellidos[0] if apellidos else "", "apellido_materno": " ".join(apellidos[1:])}
 
 
 # TITULO CABECERA

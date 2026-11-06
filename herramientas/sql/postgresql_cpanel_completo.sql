@@ -70,6 +70,8 @@ create table if not exists perfiles_usuario (
     usuario_id bigint primary key references usuarios(id) on delete cascade,
     nombres text,
     apellidos text,
+    apellido_paterno text,
+    apellido_materno text,
     apodo text,
     fecha_nacimiento date,
     nacionalidad text,

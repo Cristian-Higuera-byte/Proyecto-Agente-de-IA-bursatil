@@ -203,6 +203,8 @@ def _formulario(seccion: dict[str, Any], usuario: dict[str, Any], perfil: dict[s
         for e in errores:
             st.error(e)
         return
+    if "apellido_paterno" in datos and "apellido_materno" in datos:
+        datos["apellidos"] = f"{datos['apellido_paterno']} {datos['apellido_materno']}".strip()     # columna combinada que usan la cabecera y el nombre visible
     resultado = almacen.guardar(_usuario_id(usuario), datos)
     if not resultado["ok"]:
         st.error(resultado["mensaje"])
