@@ -260,6 +260,20 @@ Transportes y Servicios Ltda.
 }
 
 
+/* Avisos flotantes (st.toast) de la plataforma: mismo recuadro naranja que el aviso de la orden en el panel de órdenes (degradado rojo a naranja de la marca) */
+[data-testid="stToast"] {
+    background: linear-gradient(135deg, #ff4b4b, #ff8f00) !important;
+    border: none !important;
+    border-radius: 12px !important;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45) !important;
+    color: #ffffff !important;
+}
+[data-testid="stToast"] * { color: #ffffff !important; }
+[data-testid="stToast"] p, [data-testid="stToast"] [data-testid="stMarkdownContainer"] { font-weight: 600; }
+[data-testid="stToast"] button { opacity: 0.9; }
+[data-testid="stToast"] button:hover { opacity: 1; background: rgba(255, 255, 255, 0.18) !important; }
+
+
 /* -------------------------------------------------------------------------------------------------------
    ------------------------------------- FIN Piña y Jara estilos .CSS ------------------------------------
    ------------------------------------------------------------------------------------------------------- */
