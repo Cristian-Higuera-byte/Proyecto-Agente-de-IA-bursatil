@@ -33,6 +33,7 @@ from componentes_plataforma.legal import DOCUMENTOS, VERSION, aviso_cookie, casi
 from datetime import date
 
 from componentes_plataforma.perfil import almacen as almacen_perfil
+from componentes_plataforma.perfil.datos import nombre_de, opciones
 from componentes_plataforma.perfil.validacion import validar_nacimiento
 from herramientas import aceptaciones_legales
 from herramientas.gestor_autenticacion import autenticar_usuario, registrar_usuario
@@ -162,6 +163,8 @@ def requerir_login() -> dict:
                             apellido_materno = st.text_input("Apellido materno", key="registro_apellido_materno", placeholder="Soto")
                             nacimiento = st.date_input("Fecha de nacimiento", value=None, min_value=date(1900, 1, 1), max_value=date.today(), format="DD/MM/YYYY",
                                                        key="registro_nacimiento", help="Debes ser mayor de 18 años para operar.")
+                            genero = st.selectbox("Género (opcional)", [i for i, _ in opciones("generos")], index=None, placeholder="Selecciona…",
+                                                  format_func=lambda i: nombre_de("generos", i), key="registro_genero")
                             correo_r = st.text_input("Correo electrónico", key="registro_correo", placeholder="nombre@correo.com")
                             contrasena_r = st.text_input("Contraseña", type="password", key="registro_contrasena")
                             medidor_contrasena("Contraseña")
@@ -185,7 +188,7 @@ def requerir_login() -> dict:
                                 # Guarda los datos personales en el perfil (si falla, el nombre completo ya quedó en la cuenta)
                                 try:
                                     almacen_perfil.guardar(resultado["usuario"]["id"], {"nombres": nombres, "apellidos": apellidos, "apellido_paterno": paterno,
-                                                                                         "apellido_materno": materno, "fecha_nacimiento": nacimiento})
+                                                                                         "apellido_materno": materno, "fecha_nacimiento": nacimiento, **({"genero": genero} if genero else {})})
                                 except Exception:  # noqa: BLE001
                                     pass
                                 # Deja constancia de qué versión de los documentos legales aceptó (si falla, no impide el registro)
