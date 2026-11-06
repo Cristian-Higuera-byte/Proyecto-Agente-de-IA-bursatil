@@ -378,11 +378,16 @@ def _pestana_demanda(p: dict, dias: int) -> None:
 
 def _pestana_parametros(p: dict) -> None:
     """Pestaña "Parámetros": formulario para editar los valores de cada modelo, con guardado y restablecer."""
+    st.html("<div class='lab-aviso'>Estos valores son <b>supuestos de simulación</b> para el Laboratorio: no cambian los precios ni los límites reales de los planes "
+            "(esos se definen en configuracion.py).</div>")
     with st.form("lab_parametros"):
         activos = st.multiselect("Modelos que suman al total", list(calculo.MODELOS), default=p["activos"], format_func=calculo.MODELOS.get)
         c1, c2, c3 = st.columns(3)
         with c1:
-            suscripcion = st.number_input("Suscripción mensual (USD)", 0.0, 10000.0, p["suscripcion_mensual"], 1.0)
+            planes_pago = [k for k, v in configuracion.PLANES_IA.items() if float((v.get("precios") or [0])[0]) > 0]
+            plan_suscripcion = st.selectbox("Plan que se simula como suscripción", planes_pago, index=planes_pago.index(p["plan_suscripcion"]) if p["plan_suscripcion"] in planes_pago else 0,
+                                            format_func=lambda k: f"{configuracion.PLANES_IA[k]['nombre']} · {float(configuracion.PLANES_IA[k]['precios'][0]):.2f} USD al mes",
+                                            help="El precio es el real del plan (configuracion.py); aquí solo eliges cuál plan simular.")
             fijo = st.number_input("Recargo fijo por operación (USD)", 0.0, 1000.0, p["recargo_fijo"], 0.1)
             por_lote = st.number_input("Recargo por lote (USD)", 0.0, 1000.0, p["recargo_por_lote"], 0.1)
         with c2:
@@ -426,7 +431,7 @@ def _pestana_parametros(p: dict) -> None:
         if plan_cuota is not None:
             cuota_ia.fijar_plan(plan_cuota)
         datos.guardar_parametros({
-            "activos": activos, "dias": dias, "suscripcion_mensual": suscripcion, "recargo_fijo": fijo, "recargo_por_lote": por_lote,
+            "activos": activos, "dias": dias, "plan_suscripcion": plan_suscripcion, "recargo_fijo": fijo, "recargo_por_lote": por_lote,
             "spread_usd_por_lote": spread, "referido_participacion": participacion / 100, "performance_tasa": tasa_perf / 100,
             "patrimonio_tasa_anual": tasa_pat / 100,
             "umbrales": {"min_operaciones": n_min, "min_profit_factor": pf_min, "min_win_rate": wr_min, "max_caida_pct": dd_max},

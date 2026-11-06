@@ -270,6 +270,9 @@ Transportes y Servicios Ltda.
 }
 [data-testid="stToast"] * { color: #ffffff !important; }
 [data-testid="stToast"] p, [data-testid="stToast"] [data-testid="stMarkdownContainer"] { font-weight: 600; }
+/* Sin «view more / view less»: el aviso se muestra completo y ese botón no hace falta */
+[data-testid="stToastViewButton"] { display: none !important; }
+[data-testid="stToast"] [data-testid="stMarkdownContainer"], [data-testid="stToast"] [data-testid="stMarkdownContainer"] p { display: block !important; -webkit-line-clamp: unset !important; max-height: none !important; overflow: visible !important; }
 [data-testid="stToast"] button { opacity: 0.9; }
 [data-testid="stToast"] button:hover { opacity: 1; background: rgba(255, 255, 255, 0.18) !important; }
 

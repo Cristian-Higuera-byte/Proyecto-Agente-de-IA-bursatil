@@ -28,6 +28,7 @@ import time
 
 import streamlit as st
 
+import configuracion
 from componentes_plataforma import _estaticos
 from herramientas.carpeta_usuario import carpeta_usuario, ruta_archivo
 
@@ -79,10 +80,15 @@ def normalizar_parametros(crudos: dict) -> dict:
     crudos = crudos if isinstance(crudos, dict) else {}
     umbrales = crudos.get("umbrales") if isinstance(crudos.get("umbrales"), dict) else {}
     activos = crudos.get("activos", b["activos"])
+    # La suscripción simulada usa el precio REAL del plan elegido (configuracion.PLANES_IA): no es un número aparte que se pueda editar
+    de_pago = [k for k, v in configuracion.PLANES_IA.items() if float((v.get("precios") or [0])[0]) > 0]
+    plan_suscripcion = crudos.get("plan_suscripcion") if crudos.get("plan_suscripcion") in de_pago else ("pro" if "pro" in de_pago else (de_pago[0] if de_pago else None))
+    precio_plan = float((configuracion.PLANES_IA[plan_suscripcion].get("precios") or [0])[0]) if plan_suscripcion else b["suscripcion_mensual"]
     return {
         "activos": [k for k in (activos if isinstance(activos, list) else b["activos"]) if k in b["activos"]],
         "dias": int(_acotar(crudos.get("dias", b["dias"]), 7, 365, b["dias"])),
-        "suscripcion_mensual": _acotar(crudos.get("suscripcion_mensual", b["suscripcion_mensual"]), 0, 10000, b["suscripcion_mensual"]),
+        "plan_suscripcion": plan_suscripcion,
+        "suscripcion_mensual": precio_plan,
         "recargo_fijo": _acotar(crudos.get("recargo_fijo", b["recargo_fijo"]), 0, 1000, b["recargo_fijo"]),
         "recargo_por_lote": _acotar(crudos.get("recargo_por_lote", b["recargo_por_lote"]), 0, 1000, b["recargo_por_lote"]),
         "spread_usd_por_lote": _acotar(crudos.get("spread_usd_por_lote", b["spread_usd_por_lote"]), 0, 1000, b["spread_usd_por_lote"]),
