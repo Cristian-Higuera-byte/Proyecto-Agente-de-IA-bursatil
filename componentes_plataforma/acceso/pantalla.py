@@ -30,6 +30,7 @@ import streamlit as st
 
 from componentes_plataforma._estaticos import estilos
 from componentes_plataforma.legal import DOCUMENTOS, VERSION, aviso_cookie, casilla_aceptacion, vista_legal
+from componentes_plataforma.perfil import almacen as almacen_perfil
 from herramientas import aceptaciones_legales
 from herramientas.gestor_autenticacion import autenticar_usuario, registrar_usuario
 
@@ -153,7 +154,9 @@ def requerir_login() -> dict:
                     # --- Crear cuenta ---
                     else:
                         with st.form("form_registro", border=False):
-                            nombre = st.text_input("Nombre", key="registro_nombre", placeholder="Ana Pérez")
+                            col_nombres, col_apellidos = st.columns(2)
+                            nombres = col_nombres.text_input("Nombres", key="registro_nombres", placeholder="Ana María")
+                            apellidos = col_apellidos.text_input("Apellidos", key="registro_apellidos", placeholder="Pérez Soto")
                             correo_r = st.text_input("Correo electrónico", key="registro_correo", placeholder="nombre@correo.com")
                             contrasena_r = st.text_input("Contraseña", type="password", key="registro_contrasena")
                             medidor_contrasena("Contraseña")
@@ -163,9 +166,15 @@ def requerir_login() -> dict:
                         if crear and not acepto:
                             st.error("Para crear tu cuenta debes aceptar los términos de uso, la política de privacidad y el aviso de riesgo.")
                         elif crear:
-                            # Registra al usuario nuevo y valida los datos (nombre, email, contraseña)
-                            resultado = registrar_usuario(nombre, correo_r, contrasena_r)
+                            # Registra al usuario nuevo y valida los datos (nombres, apellidos, email, contraseña)
+                            nombres, apellidos = " ".join((nombres or "").split()), " ".join((apellidos or "").split())
+                            resultado = registrar_usuario(f"{nombres} {apellidos}".strip(), correo_r, contrasena_r) if nombres and apellidos else                                 {"ok": False, "mensaje": "Completa tus nombres y apellidos.", "usuario": None}
                             if resultado["ok"]:
+                                # Guarda los nombres y apellidos por separado en el perfil (si falla, el nombre completo ya quedó en la cuenta)
+                                try:
+                                    almacen_perfil.guardar(resultado["usuario"]["id"], {"nombres": nombres, "apellidos": apellidos})
+                                except Exception:  # noqa: BLE001
+                                    pass
                                 # Deja constancia de qué versión de los documentos legales aceptó (si falla, no impide el registro)
                                 aceptaciones_legales.registrar(resultado["usuario"]["id"], list(DOCUMENTOS), VERSION)
                             if not resultado["ok"]:
