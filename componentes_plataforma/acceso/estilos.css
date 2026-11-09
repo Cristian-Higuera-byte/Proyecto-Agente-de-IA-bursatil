@@ -67,7 +67,7 @@ div.stButton > button[kind="primary"]:disabled { background-color: #2b3138; bord
 .acc-pest-activa { color: #fff !important; background: linear-gradient(135deg, #ff4b4b, #ff8f00); box-shadow: 0 6px 18px rgba(255, 107, 53, .35); }
 /* Selectores (fecha de nacimiento y género) con la misma letra y altura que los campos de texto. Las columnas de la fecha no se apilan ni se ensanchan con las reglas de la
    pantalla dividida: esas reglas son para sus dos columnas principales, no para las anidadas del formulario. */
-.acc-etiqueta { font-size: 13px; font-weight: 600; color: #9aa4b2; margin: 2px 0 -6px; }
+.acc-etiqueta { font-size: 13px; font-weight: 600; color: #9aa4b2; margin: 2px 0 6px; }
 [data-testid="stSelectbox"] label p { font-size: 13px; font-weight: 600; color: #9aa4b2; }
 [data-testid="stSelectbox"], [data-testid="stSelectbox"] input, [data-testid="stSelectbox"] button { font-family: "Source Sans", sans-serif; }
 [data-testid="stSelectbox"] div[role="group"] { min-height: 46px; height: 46px; }
