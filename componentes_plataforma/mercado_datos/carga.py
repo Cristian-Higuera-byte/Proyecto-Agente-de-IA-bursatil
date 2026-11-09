@@ -19,6 +19,9 @@ Se ejecuta una vez por sesión de Streamlit y deja en `st.session_state` los dat
 """
 import copy
 import math
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor, wait
 from pathlib import Path
 
 import streamlit as st
@@ -28,6 +31,7 @@ from componentes_plataforma.paralelo import en_paralelo
 from componentes_plataforma.mercado_datos.entrada import construir_entrada
 from componentes_plataforma.mercado_datos.sparkline import asegurar_semilla, historial_sparkline
 from herramientas import gestor_lista_activos as wl
+from herramientas import diagnostico_rendimiento as rendimiento
 from herramientas.puente_mt5 import inicializar_mt5, precargar_precios
 
 # Valores de respaldo de la barra de índices y su símbolo en yfinance (indices_globales.json)
@@ -55,6 +59,69 @@ def _indice_global(par):
     cambio = actual - anterior
     porc = (cambio / anterior * 100) if anterior != 0 else 0.0
     return key, {"valor": actual, "var": f"{'+' if cambio >= 0 else ''}{porc:.2f}%", "sube": cambio >= 0}
+
+
+# TITULO CONSULTAR INDICES
+
+def _consultar_indices() -> dict:
+    """Pide a yfinance todos los índices globales a la vez (sin esperar más de `_ESPERA_INDICES` s) y devuelve `{clave: datos}` solo con los que llegaron.
+
+    No usa el contexto de Streamlit, así que puede correr en un hilo propio."""
+    pool = ThreadPoolExecutor(max_workers=len(_INDICES["yfinance"]))
+    futuros = []
+    for par in _INDICES["yfinance"].items():
+        futuros.append(pool.submit(lambda p=par: _indice_global(p)))
+    wait(futuros, timeout=_ESPERA_INDICES)
+    pool.shutdown(wait=False)
+    datos = {}
+    for futuro in futuros:
+        if futuro.done() and futuro.exception() is None and futuro.result():
+            clave, valor = futuro.result()
+            datos[clave] = valor
+    return datos
+
+
+# Índices globales compartidos por TODAS las sesiones del proceso: `datos` es el último resultado, `hora` cuándo se pidió (0 = nunca),
+# `actualizando` evita lanzar dos consultas a la vez. Antes cada sesión nueva esperaba a yfinance (hasta 6 s) para dibujar la página.
+_CACHE_INDICES: dict = {"datos": {}, "hora": 0.0, "actualizando": False}
+_VIGENCIA_INDICES = 300.0
+_CANDADO_INDICES = threading.Lock()
+
+
+# TITULO REFRESCAR INDICES
+
+def _refrescar_indices() -> None:
+    """Consulta los índices y guarda el resultado en la caché compartida (se usa en un hilo de segundo plano)."""
+    try:
+        datos = _consultar_indices()
+    except Exception:
+        datos = {}
+    with _CANDADO_INDICES:
+        if datos:
+            _CACHE_INDICES["datos"] = datos
+        _CACHE_INDICES["hora"] = time.time()
+        _CACHE_INDICES["actualizando"] = False
+
+
+# TITULO INDICES VIGENTES
+
+def _indices_vigentes() -> dict:
+    """Índices globales para dibujar la barra, sin hacer esperar a la página.
+
+    La primera vez que el proceso los necesita espera la consulta (como antes); después devuelve al instante lo último que se guardó y,
+    si ya pasaron `_VIGENCIA_INDICES` segundos, los renueva en segundo plano para la próxima sesión. Si yfinance falla devuelve lo
+    último bueno (o un diccionario vacío: la página usa entonces los valores de respaldo)."""
+    with _CANDADO_INDICES:
+        nunca = _CACHE_INDICES["hora"] == 0.0
+        vencidos = time.time() - _CACHE_INDICES["hora"] > _VIGENCIA_INDICES
+        lanzar = vencidos and not nunca and not _CACHE_INDICES["actualizando"]
+        if nunca or lanzar:
+            _CACHE_INDICES["actualizando"] = True
+    if nunca:
+        _refrescar_indices()
+    elif lanzar:
+        threading.Thread(target=_refrescar_indices, daemon=True).start()
+    return dict(_CACHE_INDICES["datos"])
 
 
 # TITULO CALENTAR SIMBOLO
@@ -94,10 +161,8 @@ def cargar_datos_mercado():
         st.session_state.datos_indices_globales = copy.deepcopy(_INDICES["defecto"])
     # Los índices se piden a la vez (antes uno tras otro) y sin esperar más de `_ESPERA_INDICES` s: si yfinance tarda o no hay
     # red, se conservan los valores de respaldo ya cargados y la página se dibuja igual.
-    for resultado in en_paralelo(_indice_global, _INDICES["yfinance"].items(), max_hilos=len(_INDICES["yfinance"]),
-                                  espera=_ESPERA_INDICES):
-        if resultado:
-            st.session_state.datos_indices_globales[resultado[0]] = resultado[1]
+    st.session_state.datos_indices_globales.update(_indices_vigentes())
+    rendimiento.marca("datos: índices globales")
 
     # 2. Watchlist del USUARIO (desde Supabase; si es nuevo, se siembra el default)
     # El id puede faltar (sesión sin login completo): en ese caso uid es None y el gestor decide qué devolver
@@ -106,6 +171,7 @@ def cargar_datos_mercado():
     simbolos = wl.obtener_watchlist(uid)
     if not simbolos:
         simbolos = wl.sembrar_por_defecto(uid)
+    rendimiento.marca("datos: lista de seguimiento")
     st.session_state.watchlist_simbolos = simbolos
     # Activo inicial = el primero de la lista del usuario (antes siempre arrancaba en EURUSD, aunque no estuviera).
     if simbolos and st.session_state.get("activo_seleccionado") in (None, ""):
@@ -114,9 +180,11 @@ def cargar_datos_mercado():
     # 3. Construir los datos de mercado de esos símbolos (nombre EXACTO para MT5)
     # Precarga batch: con Capital, pide todos los precios en 1 llamada (en vez de N).
     precargar_precios(simbolos)
+    rendimiento.marca("datos: precios")
     # Cada símbolo necesita varias lecturas a la API (ficha, cierre previo, histórico del sparkline): se piden todas a la vez
     # y la pasada de abajo, que arma la lista, las encuentra ya en caché (antes eran decenas de llamadas una tras otra).
     en_paralelo(_calentar_simbolo, simbolos)
+    rendimiento.marca("datos: ficha e histórico por símbolo")
     datos = {}
     for simbolo in simbolos:
         datos[simbolo] = construir_entrada(simbolo)
