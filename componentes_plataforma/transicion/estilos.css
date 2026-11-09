@@ -24,7 +24,7 @@ Transportes y Servicios Ltda.
     /* Línea fina bajo la barra superior que indica que la sección está cargando; solo aparece con la cortina puesta. */
     html.pj-navegando body::after {
         content: ""; position: fixed; left: 70px; right: 0; top: 62px; height: 2px; z-index: 100001;
-        background: linear-gradient(90deg, transparent, #22c55e, transparent);
+        background: linear-gradient(90deg, transparent, #ff8f00, transparent);
         background-size: 40% 100%; background-repeat: no-repeat; animation: pj-carga 0.9s ease-in-out infinite;
     }
     /* Desplazamiento horizontal del brillo de la barra. */
@@ -34,11 +34,19 @@ Transportes y Servicios Ltda.
     /* Si la sección tarda más de 1 s, aparece al centro del área de contenido el texto «Cargando…» (con un fundido corto), para que la
        pantalla vacía no parezca una falla. Con secciones rápidas nunca llega a verse. */
     html.pj-navegando body::before {
-        content: "Cargando…"; position: fixed; left: 70px; right: 0; top: 42%; text-align: center; z-index: 100001;
-        color: #8b949e; font-size: 14px; opacity: 0; animation: pj-aparece .25s ease 1s forwards; pointer-events: none;
+        content: "Cargando…"; position: fixed; left: 70px; right: 0; top: calc(42% + 36px); text-align: center; z-index: 100001;
+        color: #e6edf3; font-size: 16px; font-weight: 700; letter-spacing: .2px; opacity: 0; animation: pj-aparece .25s ease 1s forwards; pointer-events: none;
     }
-    /* Aparición suave del aviso. */
+    /* Anillo giratorio naranja sobre el texto (igual al de la pantalla de carga inicial); aparece junto con el texto. */
+    html.pj-navegando::before {
+        content: ""; position: fixed; left: calc(50% + 35px); top: calc(42% - 38px); width: 44px; height: 44px; margin-left: -22px; box-sizing: border-box; z-index: 100001;
+        border-radius: 50%; border: 3px solid rgba(255, 255, 255, .08); border-top-color: #ff8f00; border-right-color: #ff4b4b;
+        opacity: 0; animation: pj-giro .9s linear infinite, pj-aparece .25s ease 1s forwards; pointer-events: none;
+    }
+    /* Aparición suave del aviso y giro del anillo. */
     @keyframes pj-aparece { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes pj-giro { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { html.pj-navegando::before { animation: pj-aparece .25s ease 1s forwards; } }
 
     /* TITULO RESPUESTA INMEDIATA DE LOS BOTONES */
     /* Todo botón responde al instante al pulsarlo (hundimiento al presionar) y, hasta que la ejecución termina, muestra un anillo verde (clase pj-esperando,
