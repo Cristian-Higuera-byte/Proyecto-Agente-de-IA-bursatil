@@ -49,6 +49,22 @@ from componentes_plataforma.vitrina_planes import html_beneficios, html_pista, h
 _CSS = Path(__file__).parent / "estilos.css"
 
 
+# TITULO PANTALLA DIVIDIDA
+
+def _dividida(contenido, titulo: str, subtitulo: str) -> None:
+    """Dibuja una pantalla de acceso con el mismo diseño del inicio de sesión y el registro: a la izquierda la cabecera y una tarjeta con lo que dibuja
+    `contenido` (una función sin parámetros) y a la derecha los planes. Se usa en «Revisa tu correo» y en el resultado de confirmar el correo."""
+    with st.container(key="acceso_dividido"):
+        izquierda, derecha = st.columns([5, 7], gap="large")
+        with izquierda:
+            cabecera(titulo, subtitulo)
+            with st.container(border=True):
+                st.markdown("<span class='acc-tarjeta'></span>", unsafe_allow_html=True)
+                contenido()
+        with derecha:
+            st.html(html_vitrina(None))
+
+
 # TITULO REQUERIR LOGIN
 
 def requerir_login() -> dict:
@@ -75,7 +91,7 @@ def requerir_login() -> dict:
         st.html(estilos(_CSS))
         with st.container():
             if token_verificar:
-                vista_verificacion(token_verificar)
+                _dividida(lambda: vista_verificacion(token_verificar), "Confirmación de correo", "Un último paso para activar tu cuenta")
             else:
                 vista_recuperacion(token_recuperar)
         st.stop()
@@ -115,7 +131,8 @@ def requerir_login() -> dict:
             vista_olvide_contrasena()
             st.stop()
         # Con una cuenta recién creada esperando confirmar su correo se muestra «Revisa tu correo» en lugar del formulario
-        if vista_revisa_correo():
+        if st.session_state.get(CLAVE_REVISA):
+            _dividida(vista_revisa_correo, "Confirma tu correo", "Un último paso para activar tu cuenta")
             st.stop()
         # Pantalla dividida: el formulario a la izquierda (fijo al bajar) y los planes con su detalle a la derecha; en pantallas angostas, uno debajo del otro (acceso/estilos.css)
         with st.container(key="acceso_dividido"):
@@ -161,7 +178,9 @@ def requerir_login() -> dict:
                             nombres = st.text_input("Nombres", key="registro_nombres", placeholder="Ana María")
                             apellido_paterno = st.text_input("Apellido paterno", key="registro_apellido_paterno", placeholder="Pérez")
                             apellido_materno = st.text_input("Apellido materno", key="registro_apellido_materno", placeholder="Soto")
-                            nacimiento = st.date_input("Fecha de nacimiento", value=None, min_value=date(1900, 1, 1), max_value=date.today(), format="DD/MM/YYYY",
+                            hoy = date.today()
+                            mayor_de_edad = hoy.replace(year=hoy.year - 18, day=28) if (hoy.month, hoy.day) == (2, 29) else hoy.replace(year=hoy.year - 18)
+                            nacimiento = st.date_input("Fecha de nacimiento", value=None, min_value=date(1900, 1, 1), max_value=mayor_de_edad, format="DD/MM/YYYY",
                                                        key="registro_nacimiento", help="Debes ser mayor de 18 años para operar.")
                             genero = st.selectbox("Género (opcional)", [i for i, _ in opciones("generos")], index=None, placeholder="Selecciona…",
                                                   format_func=lambda i: nombre_de("generos", i), key="registro_genero")

@@ -53,8 +53,14 @@ div.stButton > button[kind="primary"]:disabled { background-color: #2b3138; bord
 .acc-cabecera { text-align: center; margin: 0 0 22px; }
 .acc-cabecera .acc-titulo { margin: 10px 0 6px; font-size: 28px; line-height: 1.15; font-weight: 800; letter-spacing: -.5px; color: #fff; }
 .acc-cabecera .acc-sub { font-size: 14.5px; line-height: 1.45; color: #9aa4b2; }
-[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .acc-pestanas) { border: 1px solid #263041 !important; border-radius: 22px !important; padding: 10px 14px 12px; background: linear-gradient(180deg, #121a27 0%, #0d131d 100%);
+[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .acc-pestanas),
+[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .acc-tarjeta) { border: 1px solid #263041 !important; border-radius: 22px !important; padding: 10px 14px 12px; background: linear-gradient(180deg, #121a27 0%, #0d131d 100%);
     box-shadow: 0 28px 70px rgba(0, 0, 0, .5), 0 0 0 1px rgba(255, 255, 255, .02) inset; }
+.acc-tarjeta { display: none; }
+/* Botones de enlace (por ejemplo «Ir a iniciar sesión» tras confirmar el correo) con el mismo degradado de los botones del formulario */
+.st-key-acceso_dividido [data-testid="stLinkButton"] a { min-height: 52px; border-radius: 14px; font-size: 16px; font-weight: 800; border: 0; color: #fff !important; background: linear-gradient(135deg, #ff4b4b, #ff8f00);
+    display: flex; align-items: center; justify-content: center; transition: transform .2s ease, filter .2s ease, box-shadow .2s ease; }
+.st-key-acceso_dividido [data-testid="stLinkButton"] a:hover { transform: translateY(-2px); filter: brightness(1.08); box-shadow: 0 16px 36px rgba(255, 107, 53, .55); }
 .acc-pestanas { display: flex; gap: 6px; padding: 5px; margin: 4px 0 20px; border-radius: 14px; background: #0a0f18; border: 1px solid #1f2837; }
 .acc-pest { flex: 1; text-align: center; padding: 11px 8px; border-radius: 10px; font-size: 14px; font-weight: 700; text-decoration: none !important; color: #8b949e !important; transition: color .15s ease, background .15s ease; }
 .acc-pest:hover { color: #e6edf3 !important; }
