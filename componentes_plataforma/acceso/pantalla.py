@@ -39,6 +39,7 @@ from componentes_plataforma.perfil.validacion import validar_nacimiento
 from herramientas import aceptaciones_legales
 from herramientas.gestor_autenticacion import autenticar_usuario, registrar_usuario
 
+from . import navegacion
 from .cookie import aplicar_pendiente
 from .pantallas_correo import (
     CLAVE_PENDIENTE, CLAVE_REVISA, aviso_sin_verificar, cabecera, enlaces_inferiores, iniciar_espera_reenvio, medidor_contrasena, medidor_en_vivo, pestanas,
@@ -118,6 +119,8 @@ def requerir_login() -> dict:
         return usuario
 
     # --- No autenticado ---
+    # Los enlaces entre la portada, el inicio de sesión y el registro cambian de pantalla sin recargar la página (así no se ve el esqueleto gris de Streamlit).
+    navegacion.montar()
     # Sin `?acceso=` se muestra la portada pública (presentación de la plataforma, con los botones «Iniciar sesión» y «Regístrate»); con `?acceso=entrar` o
     # `?acceso=crear` o `?acceso=recordar` (olvidé mi contraseña), el formulario correspondiente.
     modo = st.query_params.get("acceso")
