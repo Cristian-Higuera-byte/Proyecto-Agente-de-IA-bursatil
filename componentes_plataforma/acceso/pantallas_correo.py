@@ -26,6 +26,7 @@ from pathlib import Path
 import streamlit as st
 import streamlit.components.v1 as components
 
+from componentes_plataforma import recaptcha
 from herramientas import contrasenas
 from herramientas.gestor_autenticacion import (
     reenviar_verificacion, restablecer_contrasena, solicitar_recuperacion, verificar_correo)
@@ -233,8 +234,10 @@ def vista_olvide_contrasena() -> None:
     cabecera("Recupera tu cuenta", "Te enviaremos un enlace para elegir una contraseña nueva")
     with st.form("form_recordar", border=True):
         correo = st.text_input("Correo electrónico", key="recordar_correo", placeholder="nombre@correo.com")
+        recaptcha.dibujar("recordar")
         enviar = st.form_submit_button("Enviarme el enlace", width="stretch", type="primary")
     if enviar:
+        recaptcha.exigir("recordar")
         resultado = solicitar_recuperacion(correo)
         (st.success if resultado["ok"] else st.error)(resultado["mensaje"])
     enlaces_inferiores("<a href='?acceso=entrar' target='_self'>← Volver a iniciar sesión</a>")
@@ -270,9 +273,11 @@ def vista_recuperacion(token: str) -> None:
             nueva = st.text_input("Contraseña nueva", type="password", key="recuperar_nueva")
             medidor_contrasena("Contraseña nueva")
             repetida = st.text_input("Repite la contraseña", type="password", key="recuperar_repetida")
+            recaptcha.dibujar("recuperar")
             guardar = st.form_submit_button("Guardar contraseña", width="stretch", type="primary")
         medidor_en_vivo()
         if guardar:
+            recaptcha.exigir("recuperar")
             if nueva != repetida:
                 st.error("Las contraseñas no coinciden.")
             else:

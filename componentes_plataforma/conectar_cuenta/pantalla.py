@@ -29,7 +29,7 @@ from pathlib import Path
 
 import streamlit as st
 
-from componentes_plataforma import _estaticos
+from componentes_plataforma import _estaticos, recaptcha
 from componentes_plataforma.legal import enlaces_html
 from herramientas import credenciales_bolsa, token_datos
 from herramientas.backends import sesiones_capital
@@ -151,10 +151,12 @@ def _formulario(usuario_id: int) -> None:
     datos = (identificador.strip(), api_key.strip(), api_contrasena.strip())
     prueba = st.session_state.get(_CLAVE_PRUEBA)
     vigente = prueba if prueba and prueba["datos"] == datos else None
+    recaptcha.dibujar("conectar")
     if st.button("Probar conexión", width="stretch", key="conectar_probar"):
         if not all(datos):
             st.error("Completa el correo, la API key y la contraseña de la key.")
         else:
+            recaptcha.exigir("conectar")
             with st.spinner("Verificando tu cuenta demo y tu cuenta real en Capital.com..."):
                 pruebas = sesiones_capital.probar_ambas_cuentas(*datos)
             vigente = st.session_state[_CLAVE_PRUEBA] = {"datos": datos, "pruebas": pruebas}
@@ -164,6 +166,7 @@ def _formulario(usuario_id: int) -> None:
     aceptada = bool(pruebas and (pruebas["demo"]["ok"] or pruebas["real"]["ok"]))
     if not st.button("Guardar y continuar", type="primary", width="stretch", disabled=not aceptada, key="conectar_guardar"):
         return
+    recaptcha.exigir("conectar")
     previas = cuentas_conectadas()
     conectadas = []
     for nombre, es_demo in _TIPOS.items():

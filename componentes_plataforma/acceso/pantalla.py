@@ -28,6 +28,7 @@ from pathlib import Path
 
 import streamlit as st
 
+from componentes_plataforma import recaptcha
 from componentes_plataforma._estaticos import estilos
 from componentes_plataforma.legal import DOCUMENTOS, VERSION, aviso_cookie, casilla_aceptacion, vista_legal
 from datetime import date
@@ -158,8 +159,10 @@ def requerir_login() -> dict:
                             contrasena = st.text_input("Contraseña", type="password", key="inicio_sesion_contrasena")
                             st.markdown("<p style='text-align:right; margin:-6px 0 4px; font-size:13px;'><a href='?acceso=recordar' target='_self'>¿Olvidaste tu contraseña?</a></p>",
                                         unsafe_allow_html=True)
+                            recaptcha.dibujar("login")
                             enviar = st.form_submit_button("Entrar", width="stretch", type="primary")
                         if enviar:
+                            recaptcha.exigir("login")      # antes de mirar las credenciales: sin verificación no se prueba ninguna contraseña
                             # Valida credenciales; si son correctas inicia sesión (rerun), si el correo no está confirmado ofrece reenviar el enlace, si no muestra el error
                             resultado = autenticar_usuario(correo, contrasena)
                             if resultado["ok"]:
@@ -192,11 +195,13 @@ def requerir_login() -> dict:
                             contrasena_r = st.text_input("Contraseña", type="password", key="registro_contrasena")
                             medidor_contrasena("Contraseña")
                             acepto = casilla_aceptacion("registro_acepto")
+                            recaptcha.dibujar("registro")
                             crear = st.form_submit_button("Crear cuenta", width="stretch", type="primary")
                         medidor_en_vivo()
                         if crear and not acepto:
                             st.error("Para crear tu cuenta debes aceptar los términos de uso, la política de privacidad y el aviso de riesgo.")
                         elif crear:
+                            recaptcha.exigir("registro")
                             # Valida nombres, apellidos y mayoría de edad antes de crear la cuenta; el perfil guarda ambos apellidos por separado y juntos
                             nombres, paterno, materno = (" ".join((x or "").split()) for x in (nombres, apellido_paterno, apellido_materno))
                             apellidos = f"{paterno} {materno}".strip()

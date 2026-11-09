@@ -111,6 +111,16 @@ PLANES_LIBRES: bool = os.getenv("PLANES_LIBRES", "").strip().lower() in ("1", "t
 # Correos de los administradores (root), separados por comas, en la variable ROOT_CORREOS del .env. Los root ven las secciones internas (hoy, el Laboratorio). El rol también
 # puede darse en la base de datos (columna `rol` de `usuarios`, herramientas/sql/roles.sql); ver herramientas/roles.py.
 ROOT_CORREOS: frozenset = frozenset(c.strip().lower() for c in os.getenv("ROOT_CORREOS", "").split(",") if c.strip())
+# reCAPTCHA de Google en los formularios públicos y sensibles (herramientas/recaptcha.py). v3 puntúa en silencio cada envío y v2 (el casillero «No soy un robot») se pide solo si el
+# puntaje es bajo. Las claves se crean en google.com/recaptcha/admin (una para v3 y otra para v2 casillero, con los dominios de la plataforma) y se ponen en el .env: la clave del
+# sitio es pública y la secreta no debe salir del servidor. Con las cuatro puestas la protección se exige; sin ellas queda apagada (desarrollo).
+RECAPTCHA_V3_SITIO: str = os.getenv("RECAPTCHA_V3_SITIO", "").strip()
+RECAPTCHA_V3_SECRETA: str = os.getenv("RECAPTCHA_V3_SECRETA", "").strip()
+RECAPTCHA_V2_SITIO: str = os.getenv("RECAPTCHA_V2_SITIO", "").strip()
+RECAPTCHA_V2_SECRETA: str = os.getenv("RECAPTCHA_V2_SECRETA", "").strip()
+# Puntaje mínimo de v3 (0 a 1) para aceptar un envío sin pedir el casillero de v2. Google recomienda 0.5 como punto de partida.
+RECAPTCHA_UMBRAL: float = float(os.getenv("RECAPTCHA_UMBRAL", "0.5") or 0.5)
+RECAPTCHA_ACTIVO: bool = all((RECAPTCHA_V3_SITIO, RECAPTCHA_V3_SECRETA, RECAPTCHA_V2_SITIO, RECAPTCHA_V2_SECRETA))
 # Billetera virtual de la plataforma (saldo de prueba sin valor monetario; sirve para pagar planes y queda lista para las cuentas reales).
 # moneda: moneda del saldo; bono_inicial: saldo con el que se abre la billetera; recargas: montos que ofrece el botón de recarga;
 # recarga_mensual_max: tope de recargas por mes; saldo_maximo: tope del saldo (evita acumular saldo de prueba sin límite).

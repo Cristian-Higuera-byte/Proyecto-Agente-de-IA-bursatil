@@ -21,7 +21,7 @@ from pathlib import Path
 
 import streamlit as st
 
-from componentes_plataforma import _estaticos
+from componentes_plataforma import _estaticos, recaptcha
 from componentes_plataforma.acceso.sesion import usuario_en_sesion
 from componentes_plataforma.legal.contenido import CORREO
 from herramientas import soporte
@@ -54,8 +54,10 @@ def _formulario() -> None:
         tema = st.selectbox("Tema", soporte.TEMAS)
         mensaje = st.text_area("Qué pasó", placeholder="Describe qué hacías y qué viste en pantalla.", height=150, max_chars=soporte.MAXIMO_CARACTERES)
         st.caption("Adjuntamos solos tu usuario, la sección en que estabas, la hora y tu navegador. Nunca incluimos contraseñas ni claves.")
+        recaptcha.dibujar("soporte")
         enviar = st.form_submit_button("Enviar reporte", type="primary", width="stretch")
     if enviar:
+        recaptcha.exigir("soporte")
         try:
             navegador = st.context.headers.get("User-Agent", "")
         except Exception:
