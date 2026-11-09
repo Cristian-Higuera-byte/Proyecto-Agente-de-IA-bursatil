@@ -65,6 +65,16 @@ div.stButton > button[kind="primary"]:disabled { background-color: #2b3138; bord
 .acc-pest { flex: 1; text-align: center; padding: 11px 8px; border-radius: 10px; font-size: 14px; font-weight: 700; text-decoration: none !important; color: #8b949e !important; transition: color .15s ease, background .15s ease; }
 .acc-pest:hover { color: #e6edf3 !important; }
 .acc-pest-activa { color: #fff !important; background: linear-gradient(135deg, #ff4b4b, #ff8f00); box-shadow: 0 6px 18px rgba(255, 107, 53, .35); }
+/* Selectores (fecha de nacimiento y género) con la misma letra y altura que los campos de texto. Las columnas de la fecha no se apilan ni se ensanchan con las reglas de la
+   pantalla dividida: esas reglas son para sus dos columnas principales, no para las anidadas del formulario. */
+.acc-etiqueta { font-size: 13px; font-weight: 600; color: #9aa4b2; margin: 2px 0 -6px; }
+[data-testid="stSelectbox"] label p { font-size: 13px; font-weight: 600; color: #9aa4b2; }
+[data-testid="stSelectbox"], [data-testid="stSelectbox"] input, [data-testid="stSelectbox"] button { font-family: "Source Sans", sans-serif; }
+[data-testid="stSelectbox"] div[role="group"] { min-height: 46px; height: 46px; }
+[data-testid="stSelectbox"] input[role="combobox"] { font-size: 15px; height: 44px; }
+.st-key-acceso_dividido [data-testid="stColumn"] [data-testid="stHorizontalBlock"] { flex-direction: row !important; gap: 10px !important; }
+.st-key-acceso_dividido [data-testid="stColumn"] [data-testid="stHorizontalBlock"] [data-testid="stColumn"] { flex: 1 1 0 !important; width: auto !important; min-width: 0 !important;
+    position: static; max-width: none; margin: 0; }
 [data-testid="stTextInput"] label p { font-size: 13px; font-weight: 600; color: #9aa4b2; }
 [data-testid="stTextInputRootElement"] { min-height: 48px; border-radius: 12px; background: #0a0f18; border: 1px solid #263041; transition: border-color .15s ease, box-shadow .15s ease; }
 [data-testid="stTextInputRootElement"]:focus-within { border-color: #ff8f00; box-shadow: 0 0 0 3px rgba(255, 143, 0, .18); }

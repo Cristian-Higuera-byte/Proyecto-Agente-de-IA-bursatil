@@ -178,7 +178,7 @@ def requerir_login() -> dict:
                             nombres = st.text_input("Nombres", key="registro_nombres", placeholder="Ana María")
                             apellido_paterno = st.text_input("Apellido paterno", key="registro_apellido_paterno", placeholder="Pérez")
                             apellido_materno = st.text_input("Apellido materno", key="registro_apellido_materno", placeholder="Soto")
-                            st.markdown("<div style='font-size:14px; margin:2px 0 -4px;'>Fecha de nacimiento</div>", unsafe_allow_html=True)
+                            st.markdown("<div class='acc-etiqueta'>Fecha de nacimiento</div>", unsafe_allow_html=True)
                             col_dia, col_mes, col_anio = st.columns([1, 1.6, 1.2], gap="small")
                             dia = col_dia.selectbox("Día", list(range(1, 32)), index=None, placeholder="Día", key="registro_nac_dia", label_visibility="collapsed")
                             mes = col_mes.selectbox("Mes", list(range(1, 13)), index=None, placeholder="Mes", key="registro_nac_mes", label_visibility="collapsed",
