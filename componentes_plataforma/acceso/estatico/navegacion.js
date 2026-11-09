@@ -25,15 +25,40 @@ function esEnlaceDeAcceso(enlace) {
   return destino.indexOf('?acceso=') === 0 || destino === './'
 }
 
+// Clase que oculta el contenido mientras se cambia de pantalla (ver navegacion.css).
+const CLASE_CAMBIANDO = 'pj-acceso-cambiando'
+
+/** Oculta el contenido y lo vuelve a mostrar cuando Streamlit termina de dibujar la pantalla nueva (o a los 10 s, por si algo falla), de modo que no se vea el cambio a medias. */
+function ocultarHastaTerminar() {
+  const raiz = document.documentElement
+  const app = document.querySelector('[data-testid="stApp"]')
+  const direccionInicial = location.search
+  const inicio = Date.now()
+  raiz.classList.add(CLASE_CAMBIANDO)
+  if (raiz.__pjCambiando) clearInterval(raiz.__pjCambiando)
+  let corrio = false
+  raiz.__pjCambiando = setInterval(function () {
+    const estado = app ? app.getAttribute('data-test-script-state') : ''
+    if (estado === 'running') corrio = true
+    const cambio = corrio || location.search !== direccionInicial
+    if ((cambio && estado !== 'running' && Date.now() - inicio > 250) || Date.now() - inicio > 10000) {
+      clearInterval(raiz.__pjCambiando)
+      raiz.__pjCambiando = null
+      setTimeout(function () { raiz.classList.remove(CLASE_CAMBIANDO) }, 80)
+    }
+  }, 40)
+}
+
 export default function (component) {
   const { setTriggerValue } = component
 
-  /** Al pulsar un enlace de acceso: cancela la recarga y entrega a Python la dirección de destino. */
+  /** Al pulsar un enlace de acceso: cancela la recarga, oculta el contenido y entrega a Python la dirección de destino. */
   function alPulsar(evento) {
     if (evento.defaultPrevented || evento.button !== 0 || evento.metaKey || evento.ctrlKey || evento.shiftKey || evento.altKey) return
     const enlace = evento.target && evento.target.closest ? evento.target.closest('a') : null
     if (!enlace || !esEnlaceDeAcceso(enlace)) return
     evento.preventDefault()
+    ocultarHastaTerminar()
     setTriggerValue('destino', enlace.getAttribute('href'))
   }
 

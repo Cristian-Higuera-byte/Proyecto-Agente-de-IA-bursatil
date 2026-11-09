@@ -15,7 +15,8 @@
 
 Los enlaces entre esas pantallas (`?acceso=entrar`, `?acceso=crear`, `./`...) recargaban toda la página y dejaban ver el esqueleto gris de Streamlit al volver a arrancar.
 El componente de estatico/navegacion.js intercepta esos clics y avisa a Python; aquí se traduce el destino a parámetros de la dirección y Streamlit dibuja la pantalla
-nueva en la misma sesión, sin recarga. Un clic con Ctrl, Mayús o el botón medio sigue abriendo el enlace normal.
+nueva en la misma sesión, sin recarga. Mientras se dibuja, el contenido se oculta (estatico/navegacion.css) para no mostrar la pantalla vieja sin sus estilos ni la nueva a
+medias. Un clic con Ctrl, Mayús o el botón medio sigue abriendo el enlace normal.
 """
 from pathlib import Path
 from urllib.parse import parse_qs
@@ -29,7 +30,8 @@ _CLAVE = "pj_navegacion_acceso"
 _ESTATICO = Path(__file__).parent / "estatico"
 
 # El componente se declara una sola vez al importar el módulo (no dentro de la función, para no registrarlo dos veces).
-_COMPONENTE = st.components.v2.component("pj_navegacion_acceso", html="<span></span>", js=texto(_ESTATICO / "navegacion.js") + "\n", isolate_styles=False)
+_COMPONENTE = st.components.v2.component("pj_navegacion_acceso", html="<span></span>", css=texto(_ESTATICO / "navegacion.css") + "\n",
+                                         js=texto(_ESTATICO / "navegacion.js") + "\n", isolate_styles=False)
 
 
 # TITULO AL NAVEGAR
