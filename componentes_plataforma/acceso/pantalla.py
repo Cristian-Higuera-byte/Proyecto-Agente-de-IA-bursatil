@@ -49,6 +49,10 @@ from componentes_plataforma.vitrina_planes import html_beneficios, html_pista, h
 _CSS = Path(__file__).parent / "estilos.css"
 
 
+# Nombres de los meses del selector de fecha de nacimiento del registro.
+_MESES = ("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre")
+
+
 # TITULO PANTALLA CENTRADA
 
 def _centrada(contenido, titulo: str, subtitulo: str) -> None:
@@ -174,8 +178,14 @@ def requerir_login() -> dict:
                             nombres = st.text_input("Nombres", key="registro_nombres", placeholder="Ana María")
                             apellido_paterno = st.text_input("Apellido paterno", key="registro_apellido_paterno", placeholder="Pérez")
                             apellido_materno = st.text_input("Apellido materno", key="registro_apellido_materno", placeholder="Soto")
-                            nacimiento = st.date_input("Fecha de nacimiento", value=None, min_value=date(1900, 1, 1), max_value=date.today(), format="DD/MM/YYYY",
-                                                       key="registro_nacimiento", help="Debes ser mayor de 18 años para operar.")
+                            st.markdown("<div style='font-size:14px; margin:2px 0 -4px;'>Fecha de nacimiento</div>", unsafe_allow_html=True)
+                            col_dia, col_mes, col_anio = st.columns([1, 1.6, 1.2], gap="small")
+                            dia = col_dia.selectbox("Día", list(range(1, 32)), index=None, placeholder="Día", key="registro_nac_dia", label_visibility="collapsed")
+                            mes = col_mes.selectbox("Mes", list(range(1, 13)), index=None, placeholder="Mes", key="registro_nac_mes", label_visibility="collapsed",
+                                                    format_func=lambda m: _MESES[m - 1])
+                            anio = col_anio.selectbox("Año", list(range(date.today().year, 1919, -1)), index=None, placeholder="Año", key="registro_nac_anio",
+                                                      label_visibility="collapsed")
+                            st.caption("Debes ser mayor de 18 años para operar.")
                             genero = st.selectbox("Género (opcional)", [i for i, _ in opciones("generos")], index=None, placeholder="Selecciona…",
                                                   format_func=lambda i: nombre_de("generos", i), key="registro_genero")
                             correo_r = st.text_input("Correo electrónico", key="registro_correo", placeholder="nombre@correo.com")
@@ -190,6 +200,10 @@ def requerir_login() -> dict:
                             # Valida nombres, apellidos y mayoría de edad antes de crear la cuenta; el perfil guarda ambos apellidos por separado y juntos
                             nombres, paterno, materno = (" ".join((x or "").split()) for x in (nombres, apellido_paterno, apellido_materno))
                             apellidos = f"{paterno} {materno}".strip()
+                            try:
+                                nacimiento = date(anio, mes, dia) if (dia and mes and anio) else None
+                            except ValueError:
+                                nacimiento = date.max          # el día no existe en ese mes (por ejemplo 31 de febrero): validar_nacimiento lo rechaza como no válido
                             edad_ok, aviso_edad = validar_nacimiento(nacimiento)
                             if not (nombres and paterno and materno):
                                 resultado = {"ok": False, "mensaje": "Completa tus nombres, apellido paterno y apellido materno.", "usuario": None}
