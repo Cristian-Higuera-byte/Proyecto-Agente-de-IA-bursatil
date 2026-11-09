@@ -64,11 +64,11 @@ Transportes y Servicios Ltda.
     /* TITULO PANEL OTRAS FUENTES */
     /* Lista lateral de noticias que solo se abren en su sitio (contenedor key noticias_ext): fondo oscuro, borde tenue y desplazamiento propio. */
     .st-key-noticias_ext { background:#0b0f19; border:1px solid #1f2937; border-radius:12px; padding:6px 12px 12px !important; }
-    /* Botón con enlace al sitio de la noticia: discreto, de ancho completo, con borde tenue. */
-    .st-key-noticias_ext a[data-testid="stBaseLinkButton-secondary"] { background:#161b22 !important; border:1px solid #30363d !important;
-        color:#c9d1d9 !important; font-size:12px !important; min-height:32px !important; }
-    /* Resalta el botón al pasar el ratón con el verde de la plataforma. */
-    .st-key-noticias_ext a[data-testid="stBaseLinkButton-secondary"]:hover { border-color:#22c55e !important; color:#22c55e !important; }
+    /* Enlace al sitio de la noticia (dentro de la tarjeta): discreto, de ancho completo, con borde tenue, con el aspecto del botón que había antes. */
+    .noticias-ext-enlace { display:flex; align-items:center; justify-content:center; min-height:32px; margin:2px 0 10px; border-radius:8px; background:#161b22;
+        border:1px solid #30363d; color:#c9d1d9 !important; font-size:12px; text-decoration:none !important; }
+    /* Resalta el enlace al pasar el ratón con el verde de la plataforma. */
+    .noticias-ext-enlace:hover { border-color:#22c55e; color:#22c55e !important; }
 
     /* TITULO SELECTOR DE IDIOMA */
     /* Selector Español / English / Todos (widget con key noticias_idioma): alineado a la derecha y con el tema oscuro de la plataforma. */

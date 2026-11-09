@@ -107,9 +107,8 @@ def _panel_externas(externas: list) -> None:
     with st.container(height=_ALTO_PANEL, key="noticias_ext"):
         if not externas:
             st.caption("Sin noticias de otras fuentes por ahora.")
-        for n in externas[:_MAX_EXTERNAS_TOTAL]:
-            st.html(tarjeta_externa_html(n))
-            st.link_button(f"Leer en {n['fuente']} ↗", n["link"], width="stretch")
+        if externas:
+            st.html("".join(tarjeta_externa_html(n) for n in externas[:_MAX_EXTERNAS_TOTAL]))     # un solo elemento para todo el panel (antes eran dos por noticia)
 
 
 # TITULO RENDERIZAR CONTENIDO
