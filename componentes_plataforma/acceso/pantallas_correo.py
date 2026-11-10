@@ -260,7 +260,7 @@ def vista_olvide_contrasena() -> None:
     espera = max(0.0, float(st.session_state.get(CLAVE_BLOQUEO_RECUPERACION, 0.0)) - time.time())
     with st.form("form_recordar", border=True):
         correo = st.text_input("Correo electrónico", key="recordar_correo", placeholder="nombre@correo.com", max_chars=limites.CORREO)
-        recaptcha.dibujar("recordar")
+        recaptcha.dibujar("recordar", conservar=espera > 0)      # con el botón bloqueado el casillero sigue marcado
         if espera > 0:
             st.caption(f"Ya pediste un enlace. Podrás pedir otro en {math.ceil(espera / 60)} min.")
         enviar = st.form_submit_button("Enviarme el enlace", width="stretch", type="primary", disabled=espera > 0)

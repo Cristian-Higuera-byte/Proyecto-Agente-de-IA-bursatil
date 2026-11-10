@@ -35,6 +35,9 @@ export default function (component) {
   const { data, parentElement, setStateValue } = component
   const cfg = data || {}
   const raiz = parentElement
+  // Si el casillero debe quedar marcado (por ejemplo, mientras el botón de envío está bloqueado). Se guarda en el elemento y se lee AL MOMENTO de reiniciar, porque un clic
+  // programa el reinicio antes de que el servidor repita la página con este dato ya actualizado.
+  raiz.__pjConservar = !!cfg.conservarV2
   const contenedorV2 = raiz.querySelector('.pj-rc-v2')
 
   /** Pide a Google un token de v3 para la acción de este formulario y se lo entrega a Python; si falla entrega vacío, y el servidor pide entonces el casillero. */
@@ -50,7 +53,7 @@ export default function (component) {
 
   /** Tras un envío, el token del casillero ya se usó (vale una sola vez): se reinicia el casillero y se vacía su token. Si no hay casillero a la vista, no hace nada. */
   async function reiniciarV2() {
-    if (!cfg.pedirV2 || cfg.conservarV2 || raiz.__pjV2 === undefined) return
+    if (!cfg.pedirV2 || raiz.__pjConservar || raiz.__pjV2 === undefined) return
     try {
       const g = await cargarLibreria(cfg.v3)
       g.reset(raiz.__pjV2)
@@ -73,7 +76,7 @@ export default function (component) {
           'expired-callback': function () { setStateValue('v2', '') },
           'error-callback': function () { setStateValue('v2', '') }
         })
-      } else if (raiz.__pjNonceV2 !== cfg.nonce) {
+      } else if (!cfg.conservarV2 && raiz.__pjNonceV2 !== cfg.nonce) {
         g.reset(raiz.__pjV2)
         setStateValue('v2', '')
       }

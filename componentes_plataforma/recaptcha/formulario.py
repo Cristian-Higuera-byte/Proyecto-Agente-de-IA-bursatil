@@ -80,12 +80,13 @@ def _ip() -> Optional[str]:
 
 # TITULO DIBUJAR
 
-def dibujar(formulario: str, validez: int = 0) -> None:
+def dibujar(formulario: str, validez: int = 0, conservar: bool = False) -> None:
     """Pone el componente de reCAPTCHA del formulario `formulario` (con el casillero a la vista en el modo «ambos») y el aviso legal de Google.
 
     Muestra también el motivo del último rechazo, si lo hubo. Va dentro del formulario, antes del botón de enviar; sin claves configuradas no dibuja nada.
     Con `validez` (segundos) distinto de 0, si el formulario ya pasó la verificación hace menos de ese tiempo no se vuelve a pedir: en su lugar se muestra «Verificación completada».
-    Sirve para pantallas con varios botones seguidos (por ejemplo «Probar conexión» y «Guardar»), donde pedir el casillero otra vez en cada botón sería molesto."""
+    Sirve para pantallas con varios botones seguidos (por ejemplo «Probar conexión» y «Guardar»), donde pedir el casillero otra vez en cada botón sería molesto.
+    Con `conservar` el casillero marcado no se reinicia tras el envío: úsalo solo cuando después del envío no se vuelve a necesitar la verificación (por ejemplo, con el botón bloqueado)."""
     if not verificador.activo():
         return
     if _vigente(formulario, validez):
@@ -102,7 +103,7 @@ def dibujar(formulario: str, validez: int = 0) -> None:
             "accion": formulario,
             "pedirV2": configuracion.RECAPTCHA_MODO != "respaldo" or bool(st.session_state.get(_clave(formulario, "v2"))),     # en modo «ambos» el casillero siempre está a la vista
             "nonce": int(st.session_state.get(_clave(formulario, "n"), 0)),
-            "conservarV2": bool(validez),       # con vigencia, el casillero marcado no se reinicia tras el envío: la verificación sigue valiendo
+            "conservarV2": bool(validez) or conservar,       # con vigencia (o si se pide), el casillero marcado no se reinicia tras el envío
         },
         on_v3_change=lambda: None,
         on_v2_change=lambda: None,
