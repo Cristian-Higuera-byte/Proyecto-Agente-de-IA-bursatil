@@ -89,11 +89,18 @@ export default function (component) {
     renovarV3()
   }
   actualizarV2()
-  const temporizador = setInterval(renovarV3, 100000)
-  // Tras pulsar cualquier botón se pide otro token: el envío ya gastó el actual y la persona puede intentarlo de nuevo sin recargar.
+  // Hora del último botón pulsado: la renovación periódica espera 30 s tras un clic, porque entregar un token nuevo en una pantalla sin formulario hace que Streamlit
+  // repita la página y CORTARÍA una acción larga en curso (por ejemplo «Probar conexión», que tarda varios segundos).
+  let ultimoClic = 0
+  const temporizador = setInterval(function () { if (Date.now() - ultimoClic > 30000) renovarV3() }, 100000)
+  // Tras pulsar un botón se pide otro token: el envío ya gastó el actual y la persona puede intentarlo de nuevo sin recargar. Con `conservarV2` (pantallas con varios botones seguidos,
+  // donde la verificación sigue valiendo) no se pide ni se reinicia nada: el token nuevo repetiría la página en pleno envío y cortaría la acción.
   function alPulsar(evento) {
     // Solo los botones de Streamlit (enviar, probar...), no el ojito de «mostrar contraseña»: ese no debe reiniciar el casillero.
-    if (evento.target && evento.target.closest && evento.target.closest('button[data-testid^="stBaseButton"]')) { setTimeout(renovarV3, 2500); setTimeout(reiniciarV2, 2500) }
+    if (evento.target && evento.target.closest && evento.target.closest('button[data-testid^="stBaseButton"]')) {
+      ultimoClic = Date.now()
+      if (!cfg.conservarV2) { setTimeout(renovarV3, 2500); setTimeout(reiniciarV2, 2500) }
+    }
   }
   document.addEventListener('click', alPulsar, true)
 
