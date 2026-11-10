@@ -272,7 +272,8 @@ def vista_olvide_contrasena() -> None:
         if resultado["ok"]:
             # Se bloquea el botón 30 minutos exista o no la cuenta (así no se revela cuáles existen); el servidor además aplica la espera por usuario.
             # Se repite la pantalla para que el botón aparezca ya bloqueado, y el mensaje se guarda para mostrarlo después.
-            st.session_state[CLAVE_BLOQUEO_RECUPERACION] = time.time() + verificacion_correo.MINUTOS_ENTRE_RECUPERACIONES * 60
+            # Si el servidor ya había enviado un enlace, el bloqueo dura lo que falta (`espera_minutos`) y no los 30 minutos completos.
+            st.session_state[CLAVE_BLOQUEO_RECUPERACION] = time.time() + resultado.get("espera_minutos", verificacion_correo.MINUTOS_ENTRE_RECUPERACIONES) * 60
             st.session_state[CLAVE_MENSAJE_RECUPERACION] = resultado["mensaje"]
             st.rerun()
         st.error(resultado["mensaje"])
@@ -314,7 +315,7 @@ def vista_recuperacion(token: str) -> None:
         st.session_state[CLAVE_FIN_ENLACE] = (token, time.time() + restantes)
     with zona.container():
         cabecera("Elige una contraseña nueva", "Será la que uses desde ahora para entrar")
-        _cuenta_regresiva()
+        ranura_cuenta = st.empty()      # aquí va la cuenta regresiva; se llena al final, solo si la contraseña no se guardó (un fragmento con temporizador sigue corriendo y taparía la confirmación)
         # Es un formulario para que las dos contraseñas y el botón lleguen juntos al servidor (sin recargas intermedias al salir de cada campo)
         with st.form("form_recuperar", border=True):
             nueva = st.text_input("Contraseña nueva", type="password", key="recuperar_nueva", max_chars=limites.CONTRASENA)
@@ -333,7 +334,10 @@ def vista_recuperacion(token: str) -> None:
                     guardada = True
                 else:
                     st.error(resultado["mensaje"])
-        enlaces_inferiores("¿El enlace venció? <a href='?acceso=recordar' target='_self'>Pide uno nuevo</a>")
+        if not guardada:       # con la contraseña ya guardada no van ni la cuenta regresiva ni el aviso de «¿venció?»: solo la confirmación
+            enlaces_inferiores("¿El enlace venció? <a href='?acceso=recordar' target='_self'>Pide uno nuevo</a>")
+            with ranura_cuenta.container():
+                _cuenta_regresiva()
     if guardada:
         st.session_state["recuperacion_lista"] = True
         with zona.container():

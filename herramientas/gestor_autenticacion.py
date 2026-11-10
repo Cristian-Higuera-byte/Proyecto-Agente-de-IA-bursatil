@@ -31,6 +31,7 @@ SUPABASE_KEY); si faltan, las operaciones devuelven un mensaje de error.
         creado_en timestamptz default now()
     );
 """
+import math
 import os
 import hmac
 import hashlib
@@ -316,6 +317,17 @@ def solicitar_recuperacion(correo: str) -> dict:
         if filas:
             usuario = cast(dict, filas[0])
             verificacion_correo.enviar_enlace(_supabase, usuario["id"], usuario.get("nombre") or "", usuario["email"], verificacion_correo.RECUPERACION)
+    except verificacion_correo.ErrorEspera as espera:
+        # Ya se envió un enlace hace poco: se le dice a la persona cuánto falta para poder pedir otro (así sabe que el correo ya salió y dónde buscarlo).
+        minutos = max(1, math.ceil(espera.segundos / 60))
+        print(f"[Correo] Recuperación no enviada: ya se envió un enlace; faltan {minutos} min", flush=True)
+        return {"ok": True, "espera_minutos": minutos,
+                "mensaje": f"Ya enviamos un enlace a este correo hace poco. Revisa tu bandeja de entrada y la carpeta de spam. Podrás pedir otro en {minutos} min."}
+    except verificacion_correo.ErrorEnlace as limite:
+        if "demasiados" in str(limite):
+            print(f"[Correo] Recuperación no enviada: {limite}", flush=True)
+            return {"ok": False, "mensaje": "Ya pediste el máximo de enlaces por hoy. Inténtalo de nuevo mañana."}
+        print(f"[Correo] Recuperación no enviada: {limite}", flush=True)
     except Exception as e:
         print(f"[Correo] Recuperación no enviada: {e}", flush=True)
     return generico

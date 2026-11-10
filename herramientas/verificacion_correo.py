@@ -58,6 +58,16 @@ class ErrorEnlace(Exception):
     """No se pudo crear o enviar el enlace; el texto está pensado para mostrarse a la persona."""
 
 
+# TITULO ERROR ESPERA
+
+class ErrorEspera(ErrorEnlace):
+    """Se pidió un enlace demasiado pronto: ya se envió uno y hay que esperar. `segundos` es lo que falta para poder pedir otro."""
+
+    def __init__(self, mensaje: str, segundos: int):
+        super().__init__(mensaje)
+        self.segundos = segundos
+
+
 # TITULO HASH
 
 def hash_de(token: str) -> str:
@@ -103,8 +113,11 @@ def crear_enlace(cliente: Any, usuario_id: int, tipo: str, ahora: Optional[datet
                  .gte("creado_en", (ahora - timedelta(days=1)).isoformat()).order("creado_en", desc=True).execute().data or [])
     if len(recientes) >= MAXIMO_ENVIOS_POR_DIA:
         raise ErrorEnlace("Pediste demasiados enlaces hoy. Inténtalo de nuevo mañana.")
-    if recientes and (ahora - leer_fecha(recientes[0]["creado_en"])).total_seconds() < SEGUNDOS_ENTRE_ENVIOS[tipo]:
-        raise ErrorEnlace(f"Espera {MINUTOS_ENTRE_RECUPERACIONES} minutos antes de pedir otro enlace." if tipo == RECUPERACION else "Espera un minuto antes de pedir otro enlace.")
+    if recientes:
+        transcurridos = (ahora - leer_fecha(recientes[0]["creado_en"])).total_seconds()
+        if transcurridos < SEGUNDOS_ENTRE_ENVIOS[tipo]:
+            raise ErrorEspera(f"Espera {MINUTOS_ENTRE_RECUPERACIONES} minutos antes de pedir otro enlace." if tipo == RECUPERACION else "Espera un minuto antes de pedir otro enlace.",
+                              int(SEGUNDOS_ENTRE_ENVIOS[tipo] - transcurridos) + 1)
     cliente.table(TABLA).update({"usado_en": ahora.isoformat()}).eq("usuario_id", usuario_id).eq("tipo", tipo).is_("usado_en", "null").execute()
     token = secrets.token_urlsafe(32)
     cliente.table(TABLA).insert({"usuario_id": usuario_id, "tipo": tipo, "token_hash": hash_de(token),
