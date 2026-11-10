@@ -48,6 +48,16 @@ export default function (component) {
     }
   }
 
+  /** Tras un envío, el token del casillero ya se usó (vale una sola vez): se reinicia el casillero y se vacía su token. Si no hay casillero a la vista, no hace nada. */
+  async function reiniciarV2() {
+    if (!cfg.pedirV2 || raiz.__pjV2 === undefined) return
+    try {
+      const g = await cargarLibreria(cfg.v3)
+      g.reset(raiz.__pjV2)
+      setStateValue('v2', '')
+    } catch (error) { /* sin casillero que reiniciar */ }
+  }
+
   /** Muestra (o esconde) el casillero «No soy un robot» de v2; lo dibuja una sola vez y, si el servidor ya usó el token, lo reinicia. */
   async function actualizarV2() {
     if (!contenedorV2) return
@@ -82,7 +92,8 @@ export default function (component) {
   const temporizador = setInterval(renovarV3, 100000)
   // Tras pulsar cualquier botón se pide otro token: el envío ya gastó el actual y la persona puede intentarlo de nuevo sin recargar.
   function alPulsar(evento) {
-    if (evento.target && evento.target.closest && evento.target.closest('button')) setTimeout(renovarV3, 2500)
+    // Solo los botones de Streamlit (enviar, probar...), no el ojito de «mostrar contraseña»: ese no debe reiniciar el casillero.
+    if (evento.target && evento.target.closest && evento.target.closest('button[data-testid^="stBaseButton"]')) { setTimeout(renovarV3, 2500); setTimeout(reiniciarV2, 2500) }
   }
   document.addEventListener('click', alPulsar, true)
 

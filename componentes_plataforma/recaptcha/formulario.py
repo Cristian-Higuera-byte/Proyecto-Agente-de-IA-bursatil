@@ -85,7 +85,7 @@ def dibujar(formulario: str) -> None:
             "v3": configuracion.RECAPTCHA_V3_SITIO,
             "v2": configuracion.RECAPTCHA_V2_SITIO,
             "accion": formulario,
-            "pedirV2": bool(st.session_state.get(_clave(formulario, "v2"))),
+            "pedirV2": configuracion.RECAPTCHA_MODO != "respaldo" or bool(st.session_state.get(_clave(formulario, "v2"))),     # en modo «ambos» el casillero siempre está a la vista
             "nonce": int(st.session_state.get(_clave(formulario, "n"), 0)),
         },
         on_v3_change=lambda: None,

@@ -121,6 +121,9 @@ RECAPTCHA_V2_SECRETA: str = os.getenv("RECAPTCHA_V2_SECRETA", "").strip()
 # Puntaje mínimo de v3 (0 a 1) para aceptar un envío sin pedir el casillero de v2. Google recomienda 0.5 como punto de partida.
 RECAPTCHA_UMBRAL: float = float(os.getenv("RECAPTCHA_UMBRAL", "0.5") or 0.5)
 RECAPTCHA_ACTIVO: bool = all((RECAPTCHA_V3_SITIO, RECAPTCHA_V3_SECRETA, RECAPTCHA_V2_SITIO, RECAPTCHA_V2_SECRETA))
+# Cómo se combinan v3 y v2. «ambos» (por defecto): cada formulario muestra siempre el casillero «No soy un robot» (v2) y además se exige un puntaje bueno de v3 (invisible); hacen
+# falta las dos comprobaciones. «respaldo»: v3 decide en silencio y el casillero de v2 solo aparece si el puntaje es bajo. Se cambia con RECAPTCHA_MODO en el .env.
+RECAPTCHA_MODO: str = os.getenv("RECAPTCHA_MODO", "ambos").strip().lower() or "ambos"
 # Billetera virtual de la plataforma (saldo de prueba sin valor monetario; sirve para pagar planes y queda lista para las cuentas reales).
 # moneda: moneda del saldo; bono_inicial: saldo con el que se abre la billetera; recargas: montos que ofrece el botón de recarga;
 # recarga_mensual_max: tope de recargas por mes; saldo_maximo: tope del saldo (evita acumular saldo de prueba sin límite).
