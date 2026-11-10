@@ -310,7 +310,7 @@ def solicitar_recuperacion(correo: str) -> dict:
     correo = (correo or "").strip().lower()
     if not correo or "@" not in correo or limites_formularios.excede((correo, limites_formularios.CORREO)):
         return {"ok": False, "mensaje": "Escribe tu correo electrónico."}
-    generico = {"ok": True, "mensaje": "Si existe una cuenta con ese correo, te enviamos un enlace para restablecer la contraseña."}
+    generico = {"ok": True, "mensaje": f"Si existe una cuenta con ese correo, te enviamos un enlace para restablecer la contraseña. El enlace dura {verificacion_correo.MINUTOS_RECUPERACION} minutos."}
     try:
         filas = _supabase.table("usuarios").select("id,nombre,email").eq("email", correo).limit(1).execute().data
         if filas:
@@ -339,6 +339,13 @@ def restablecer_contrasena(token: str, nueva: str) -> dict:
     if aviso:
         return {"ok": False, "mensaje": aviso}
     try:
+        # Antes de gastar el enlace se comprueba que la contraseña nueva no sea igual a la actual: así quien se equivoca puede elegir otra con el mismo enlace.
+        vigente = verificacion_correo.consultar(_supabase, token, verificacion_correo.RECUPERACION)
+        if vigente is None:
+            return {"ok": False, "mensaje": "El enlace no es válido o ya venció. Pide uno nuevo."}
+        actual = _supabase.table("usuarios").select("password_hash").eq("id", vigente[0]).limit(1).execute().data
+        if actual and _verificar_contrasena(nueva, actual[0].get("password_hash", "")):
+            return {"ok": False, "mensaje": "La contraseña nueva no puede ser igual a la actual. Elige otra."}
         usuario_id = verificacion_correo.consumir(_supabase, token, verificacion_correo.RECUPERACION)
         if usuario_id is None:
             return {"ok": False, "mensaje": "El enlace no es válido o ya venció. Pide uno nuevo."}
@@ -351,6 +358,23 @@ def restablecer_contrasena(token: str, nueva: str) -> dict:
         return {"ok": True, "mensaje": "Contraseña actualizada. Ya puedes iniciar sesión."}
     except Exception as e:
         return _error_neutro("el restablecimiento de la contraseña", e)
+
+
+# TITULO SEGUNDOS RESTANTES RECUPERACION
+
+def segundos_restantes_recuperacion(token: str) -> Optional[int]:
+    """Segundos que le quedan al enlace de recuperación `token` (0 o más), o None si no es válido, ya se usó o ya venció. No gasta el enlace.
+
+    Lo usa la pantalla de la contraseña nueva para mostrar la cuenta regresiva y no dejar escribir una contraseña si el enlace ya no sirve."""
+    if _supabase is None:
+        return None
+    try:
+        vigente = verificacion_correo.consultar(_supabase, token, verificacion_correo.RECUPERACION)
+    except Exception:  # noqa: BLE001 - un fallo de la base no debe romper la pantalla
+        return None
+    if vigente is None:
+        return None
+    return max(0, int((vigente[1] - verificacion_correo.ahora_utc()).total_seconds()))
 
 
 # TITULO ACTUALIZAR NOMBRE

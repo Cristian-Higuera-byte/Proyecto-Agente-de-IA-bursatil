@@ -19,9 +19,10 @@ Enlaces de un solo uso que se envían por correo para confirmar una cuenta o rec
 Cómo funciona:
   - Se genera un token aleatorio. En la base de datos (tabla `enlaces_correo`, herramientas/sql/verificacion_correo.sql) se guarda solo su hash SHA-256, con
     el usuario, el tipo (verificacion o recuperacion) y el vencimiento; el token viaja únicamente en el correo, dentro de un enlace de la plataforma.
-  - Un enlace vence (24 horas el de verificación, 60 minutos el de recuperación) y solo sirve una vez: `consumir` lo marca como usado y comprueba que
+  - Un enlace vence (24 horas el de verificación, 5 minutos el de recuperación) y solo sirve una vez: `consumir` lo marca como usado y comprueba que
     no haya vencido en una sola sentencia, de modo que dos clics a la vez no pueden usarlo dos veces.
-  - Pedir un enlace nuevo invalida los anteriores del mismo tipo. Hay límites para evitar abusos: un envío por minuto y cinco al día por usuario y tipo.
+  - Pedir un enlace nuevo invalida los anteriores del mismo tipo. Hay límites para evitar abusos: entre un envío y otro pasa un minuto (30 minutos en el de recuperación) y se
+    permiten cinco al día por usuario y tipo.
 Las funciones reciben el cliente de la base de datos como parámetro (el mismo que usa gestor_autenticacion), así se pueden probar sin una base real.
 """
 import hashlib
@@ -40,10 +41,11 @@ RECUPERACION = "recuperacion"
 
 # Cuánto dura cada tipo de enlace.
 HORAS_VERIFICACION = 24
-MINUTOS_RECUPERACION = 60
+MINUTOS_RECUPERACION = 5
 
-# Límites contra abusos: separación mínima entre envíos y máximo de envíos por día, para cada usuario y tipo.
-SEGUNDOS_ENTRE_ENVIOS = 60
+# Límites contra abusos: separación mínima entre envíos (en segundos, según el tipo) y máximo de envíos por día, para cada usuario y tipo.
+MINUTOS_ENTRE_RECUPERACIONES = 30
+SEGUNDOS_ENTRE_ENVIOS = {VERIFICACION: 60, RECUPERACION: MINUTOS_ENTRE_RECUPERACIONES * 60}
 MAXIMO_ENVIOS_POR_DIA = 5
 
 # Nombre del parámetro de la dirección con que la plataforma reconoce cada enlace (por ejemplo https://sitio/?verificar=TOKEN).
@@ -101,8 +103,8 @@ def crear_enlace(cliente: Any, usuario_id: int, tipo: str, ahora: Optional[datet
                  .gte("creado_en", (ahora - timedelta(days=1)).isoformat()).order("creado_en", desc=True).execute().data or [])
     if len(recientes) >= MAXIMO_ENVIOS_POR_DIA:
         raise ErrorEnlace("Pediste demasiados enlaces hoy. Inténtalo de nuevo mañana.")
-    if recientes and (ahora - leer_fecha(recientes[0]["creado_en"])).total_seconds() < SEGUNDOS_ENTRE_ENVIOS:
-        raise ErrorEnlace("Espera un minuto antes de pedir otro enlace.")
+    if recientes and (ahora - leer_fecha(recientes[0]["creado_en"])).total_seconds() < SEGUNDOS_ENTRE_ENVIOS[tipo]:
+        raise ErrorEnlace(f"Espera {MINUTOS_ENTRE_RECUPERACIONES} minutos antes de pedir otro enlace." if tipo == RECUPERACION else "Espera un minuto antes de pedir otro enlace.")
     cliente.table(TABLA).update({"usado_en": ahora.isoformat()}).eq("usuario_id", usuario_id).eq("tipo", tipo).is_("usado_en", "null").execute()
     token = secrets.token_urlsafe(32)
     cliente.table(TABLA).insert({"usuario_id": usuario_id, "tipo": tipo, "token_hash": hash_de(token),
@@ -125,6 +127,21 @@ def consumir(cliente: Any, token: str, tipo: str, ahora: Optional[datetime] = No
     filas = (cliente.table(TABLA).update({"usado_en": ahora.isoformat()}).eq("token_hash", hash_de(token)).eq("tipo", tipo)
              .is_("usado_en", "null").gt("expira_en", ahora.isoformat()).execute().data or [])
     return int(filas[0]["usuario_id"]) if filas else None
+
+
+# TITULO CONSULTAR
+
+def consultar(cliente: Any, token: str, tipo: str, ahora: Optional[datetime] = None) -> Optional[tuple]:
+    """Mira un enlace SIN usarlo: devuelve `(id del usuario, fecha de vencimiento)` si existe, es del tipo pedido, no venció y no se había usado; si no, None.
+
+    Sirve para comprobar el enlace antes de gastarlo (por ejemplo, para no gastarlo si la contraseña nueva es igual a la actual) y para mostrar cuánto tiempo le queda."""
+    token = (token or "").strip()
+    if not token:
+        return None
+    ahora = ahora or ahora_utc()
+    filas = (cliente.table(TABLA).select("usuario_id,expira_en").eq("token_hash", hash_de(token)).eq("tipo", tipo)
+             .is_("usado_en", "null").gt("expira_en", ahora.isoformat()).execute().data or [])
+    return (int(filas[0]["usuario_id"]), leer_fecha(filas[0]["expira_en"])) if filas else None
 
 
 # TITULO ARMAR ENLACE

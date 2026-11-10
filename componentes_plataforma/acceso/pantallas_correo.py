@@ -20,6 +20,7 @@ contraseña, «Revisa tu correo» (con reenvío y espera), confirmación del cor
 contraseñas en herramientas/contrasenas.py. El diseño sigue la maqueta aprobada: tarjetas oscuras, íconos en círculo y el rojo de la marca en los botones.
 """
 import json
+import math
 import time
 from pathlib import Path
 
@@ -29,8 +30,16 @@ import streamlit.components.v1 as components
 from componentes_plataforma import recaptcha
 from herramientas import contrasenas
 from herramientas import limites_formularios as limites
+from herramientas import verificacion_correo
 from herramientas.gestor_autenticacion import (
-    reenviar_verificacion, restablecer_contrasena, solicitar_recuperacion, verificar_correo)
+    reenviar_verificacion, restablecer_contrasena, segundos_restantes_recuperacion, solicitar_recuperacion, verificar_correo)
+
+# Hora (segundos desde 1970) hasta la que este navegador no puede pedir otro enlace de recuperación (30 minutos tras el último pedido); la espera real la aplica el servidor por usuario.
+CLAVE_BLOQUEO_RECUPERACION = "recordar_bloqueo_hasta"
+# Mensaje de la última solicitud, que se sigue mostrando mientras dura la espera.
+CLAVE_MENSAJE_RECUPERACION = "recordar_mensaje"
+# Hora a la que vence el enlace de la contraseña nueva que se está usando, para la cuenta regresiva.
+CLAVE_FIN_ENLACE = "recuperar_fin_enlace"
 
 # Logo "P&J" en HTML en línea (color naranja de la marca).
 _LOGO_HTML = (
@@ -136,6 +145,21 @@ def medidor_en_vivo() -> None:
     components.html(f"<script>var CFG = {json.dumps(configuracion)};\n{_JS_MEDIDOR.read_text(encoding='utf-8')}</script>", height=0)
 
 
+# TITULO CUENTA REGRESIVA
+
+@st.fragment(run_every=1)
+def _cuenta_regresiva() -> None:
+    """Muestra cuánto le queda al enlace de la contraseña nueva («Este enlace vence en 4:32») y se actualiza cada segundo sin repetir el resto de la página.
+
+    Al llegar a cero repite la página completa, que vuelve a comprobar el enlace y muestra el aviso de que venció."""
+    queda = float(st.session_state.get(CLAVE_FIN_ENLACE, (None, 0))[1]) - time.time()
+    if queda <= 0:
+        st.rerun()
+    minutos, segundos = divmod(int(queda), 60)
+    color = "#ff8f00" if queda > 60 else "#ff4b4b"
+    st.markdown(f"<div style='text-align:center; font-size:14px; color:{color}; margin:-6px 0 10px;'>Este enlace vence en <b>{minutos}:{segundos:02d}</b></div>", unsafe_allow_html=True)
+
+
 # TITULO REENVIAR ENLACE
 
 def _zona_reenvio(cuenta: dict) -> None:
@@ -233,14 +257,25 @@ def vista_verificacion(token: str) -> None:
 def vista_olvide_contrasena() -> None:
     """Formulario «Olvidé mi contraseña»: pide el correo y envía el enlace; responde igual exista o no la cuenta."""
     cabecera("Recupera tu cuenta", "Te enviaremos un enlace para elegir una contraseña nueva")
+    espera = max(0.0, float(st.session_state.get(CLAVE_BLOQUEO_RECUPERACION, 0.0)) - time.time())
     with st.form("form_recordar", border=True):
         correo = st.text_input("Correo electrónico", key="recordar_correo", placeholder="nombre@correo.com", max_chars=limites.CORREO)
         recaptcha.dibujar("recordar")
-        enviar = st.form_submit_button("Enviarme el enlace", width="stretch", type="primary")
+        if espera > 0:
+            st.caption(f"Ya pediste un enlace. Podrás pedir otro en {math.ceil(espera / 60)} min.")
+        enviar = st.form_submit_button("Enviarme el enlace", width="stretch", type="primary", disabled=espera > 0)
+    if espera > 0 and not enviar:
+        st.success(st.session_state.get(CLAVE_MENSAJE_RECUPERACION, ""))
     if enviar:
         recaptcha.exigir("recordar")
         resultado = solicitar_recuperacion(correo)
-        (st.success if resultado["ok"] else st.error)(resultado["mensaje"])
+        if resultado["ok"]:
+            # Se bloquea el botón 30 minutos exista o no la cuenta (así no se revela cuáles existen); el servidor además aplica la espera por usuario.
+            # Se repite la pantalla para que el botón aparezca ya bloqueado, y el mensaje se guarda para mostrarlo después.
+            st.session_state[CLAVE_BLOQUEO_RECUPERACION] = time.time() + verificacion_correo.MINUTOS_ENTRE_RECUPERACIONES * 60
+            st.session_state[CLAVE_MENSAJE_RECUPERACION] = resultado["mensaje"]
+            st.rerun()
+        st.error(resultado["mensaje"])
     enlaces_inferiores("<a href='?acceso=entrar' target='_self'>← Volver a iniciar sesión</a>")
 
 
@@ -267,8 +302,19 @@ def vista_recuperacion(token: str) -> None:
             _contrasena_actualizada()
         return
     guardada = False
+    # El enlace dura pocos minutos: antes de mostrar el formulario se comprueba (sin gastarlo) que siga vigente y se guarda a qué hora vence para la cuenta regresiva.
+    restantes = segundos_restantes_recuperacion(token)
+    if restantes is None:
+        with zona.container():
+            cabecera("El enlace ya no sirve", "Venció o ya se usó")
+            st.error("El enlace no es válido o ya venció. Pide uno nuevo.")
+            enlaces_inferiores("<a href='?acceso=recordar' target='_self'>Pedir un enlace nuevo</a>")
+        return
+    if st.session_state.get(CLAVE_FIN_ENLACE, (None, 0))[0] != token:
+        st.session_state[CLAVE_FIN_ENLACE] = (token, time.time() + restantes)
     with zona.container():
         cabecera("Elige una contraseña nueva", "Será la que uses desde ahora para entrar")
+        _cuenta_regresiva()
         # Es un formulario para que las dos contraseñas y el botón lleguen juntos al servidor (sin recargas intermedias al salir de cada campo)
         with st.form("form_recuperar", border=True):
             nueva = st.text_input("Contraseña nueva", type="password", key="recuperar_nueva", max_chars=limites.CONTRASENA)
