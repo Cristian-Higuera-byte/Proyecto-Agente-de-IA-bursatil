@@ -41,7 +41,7 @@ from typing import Any, Optional, cast
 
 from dotenv import load_dotenv
 
-from herramientas import base_datos, contrasenas, verificacion_correo
+from herramientas import base_datos, contrasenas, limites_formularios, verificacion_correo
 from herramientas import correo as servicio_correo
 
 load_dotenv()
@@ -151,6 +151,8 @@ def registrar_usuario(nombre: str, correo: str, contrasena: str) -> dict:
     correo = (correo or "").strip().lower()
     if not nombre or not correo or not contrasena:
         return {"ok": False, "mensaje": "Completa nombre, email y contraseña.", "usuario": None}
+    if limites_formularios.excede((nombre, limites_formularios.NOMBRE_COMPLETO), (correo, limites_formularios.CORREO), (contrasena, limites_formularios.CONTRASENA)):
+        return {"ok": False, "mensaje": "Revisa los datos: alguno es demasiado largo.", "usuario": None}
     aviso_contrasena = validar_contrasena(contrasena)
     if aviso_contrasena:
         return {"ok": False, "mensaje": aviso_contrasena, "usuario": None}
@@ -203,6 +205,8 @@ def autenticar_usuario(correo: str, contrasena: str) -> dict:
     correo = (correo or "").strip().lower()
     if not correo or not contrasena:
         return {"ok": False, "mensaje": "Ingresa email y contraseña.", "usuario": None}
+    if limites_formularios.excede((correo, limites_formularios.CORREO), (contrasena, limites_formularios.CONTRASENA)):
+        return {"ok": False, "mensaje": "Email o contraseña incorrectos.", "usuario": None}      # mismo texto genérico: no se revela nada y no se gasta tiempo cifrando un texto enorme
 
     try:
         resultado = _supabase.table("usuarios").select("*").eq("email", correo).limit(1).execute()
@@ -304,7 +308,7 @@ def solicitar_recuperacion(correo: str) -> dict:
     if not servicio_correo.configurado():
         return {"ok": False, "mensaje": "La recuperación de contraseña no está disponible en este momento."}
     correo = (correo or "").strip().lower()
-    if not correo or "@" not in correo:
+    if not correo or "@" not in correo or limites_formularios.excede((correo, limites_formularios.CORREO)):
         return {"ok": False, "mensaje": "Escribe tu correo electrónico."}
     generico = {"ok": True, "mensaje": "Si existe una cuenta con ese correo, te enviamos un enlace para restablecer la contraseña."}
     try:
@@ -329,6 +333,8 @@ def restablecer_contrasena(token: str, nueva: str) -> dict:
     """
     if _supabase is None:
         return {"ok": False, "mensaje": "La base de datos no está configurada."}
+    if limites_formularios.excede((nueva, limites_formularios.CONTRASENA)):
+        return {"ok": False, "mensaje": f"La contraseña no puede tener más de {limites_formularios.CONTRASENA} caracteres."}
     aviso = validar_contrasena(nueva)
     if aviso:
         return {"ok": False, "mensaje": aviso}

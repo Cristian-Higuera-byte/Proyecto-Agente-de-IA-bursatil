@@ -18,9 +18,14 @@ Transportes y Servicios Ltda.
    barra superior y el gráfico (cabecera de precio y sus márgenes); --pj-graf-min: alto mínimo del gráfico. */
 :root { --pj-top-h: 62px; --pj-nav-h: 64px; --pj-cab-h: 68px; --pj-graf-min: 220px; }
 
-/* Ocultar la barra propia de Streamlit */
-[data-testid="stHeader"] { display: none; }
-[data-testid="stToolbar"] { display: none; }
+/* Ocultar la barra propia de Streamlit */
+[data-testid="stHeader"] { display: none; }
+[data-testid="stToolbar"] { display: none; }
+
+/* Sin el texto «Press Enter to submit form» (o «Press Enter to apply») que Streamlit muestra en inglés dentro de los campos de texto al escribir. Se oculta solo esa frase:
+   el contador de caracteres («12/254»), que es el segundo texto del bloque, se conserva, sin el punto que lo separaba de la frase. */
+[data-testid="InputInstructions"] > span:first-child { display: none; }
+[data-testid="InputInstructions"] > span:last-child::before { content: none; }
 
 /* Ajuste de márgenes generales de la página.
    1er valor (padding-top) = hueco bajo la barra superior fija.

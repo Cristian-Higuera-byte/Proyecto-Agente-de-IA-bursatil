@@ -37,6 +37,7 @@ from componentes_plataforma.perfil import almacen as almacen_perfil
 from componentes_plataforma.perfil.datos import nombre_de, opciones
 from componentes_plataforma.perfil.validacion import validar_nacimiento
 from herramientas import aceptaciones_legales
+from herramientas import limites_formularios as limites
 from herramientas.gestor_autenticacion import autenticar_usuario, registrar_usuario
 
 from . import navegacion
@@ -158,8 +159,8 @@ def requerir_login() -> dict:
                     # --- Iniciar sesión ---
                     if modo == "entrar":
                         with st.form("form_login", border=False):
-                            correo = st.text_input("Correo electrónico", key="inicio_sesion_correo", placeholder="nombre@correo.com")
-                            contrasena = st.text_input("Contraseña", type="password", key="inicio_sesion_contrasena")
+                            correo = st.text_input("Correo electrónico", key="inicio_sesion_correo", placeholder="nombre@correo.com", max_chars=limites.CORREO)
+                            contrasena = st.text_input("Contraseña", type="password", key="inicio_sesion_contrasena", max_chars=limites.CONTRASENA)
                             st.markdown("<p style='text-align:right; margin:-6px 0 4px; font-size:13px;'><a href='?acceso=recordar' target='_self'>¿Olvidaste tu contraseña?</a></p>",
                                         unsafe_allow_html=True)
                             recaptcha.dibujar("login")
@@ -181,9 +182,9 @@ def requerir_login() -> dict:
                     # --- Crear cuenta ---
                     else:
                         with st.form("form_registro", border=False):
-                            nombres = st.text_input("Nombres", key="registro_nombres", placeholder="Ana María")
-                            apellido_paterno = st.text_input("Apellido paterno", key="registro_apellido_paterno", placeholder="Pérez")
-                            apellido_materno = st.text_input("Apellido materno", key="registro_apellido_materno", placeholder="Soto")
+                            nombres = st.text_input("Nombres", key="registro_nombres", placeholder="Ana María", max_chars=limites.NOMBRES)
+                            apellido_paterno = st.text_input("Apellido paterno", key="registro_apellido_paterno", placeholder="Pérez", max_chars=limites.APELLIDO)
+                            apellido_materno = st.text_input("Apellido materno", key="registro_apellido_materno", placeholder="Soto", max_chars=limites.APELLIDO)
                             st.markdown("<div class='acc-etiqueta'>Fecha de nacimiento</div>", unsafe_allow_html=True)
                             col_dia, col_mes, col_anio = st.columns([1, 1.6, 1.2], gap="small")
                             dia = col_dia.selectbox("Día", list(range(1, 32)), index=None, placeholder="Día", key="registro_nac_dia", label_visibility="collapsed")
@@ -194,8 +195,8 @@ def requerir_login() -> dict:
                             st.caption("Debes ser mayor de 18 años para operar.")
                             genero = st.selectbox("Género (opcional)", [i for i, _ in opciones("generos")], index=None, placeholder="Selecciona…",
                                                   format_func=lambda i: nombre_de("generos", i), key="registro_genero")
-                            correo_r = st.text_input("Correo electrónico", key="registro_correo", placeholder="nombre@correo.com")
-                            contrasena_r = st.text_input("Contraseña", type="password", key="registro_contrasena")
+                            correo_r = st.text_input("Correo electrónico", key="registro_correo", placeholder="nombre@correo.com", max_chars=limites.CORREO)
+                            contrasena_r = st.text_input("Contraseña", type="password", key="registro_contrasena", max_chars=limites.CONTRASENA)
                             medidor_contrasena("Contraseña")
                             acepto = casilla_aceptacion("registro_acepto")
                             recaptcha.dibujar("registro")

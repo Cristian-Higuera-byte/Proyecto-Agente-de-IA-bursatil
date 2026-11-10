@@ -31,7 +31,7 @@ import streamlit as st
 
 from componentes_plataforma import _estaticos, recaptcha
 from componentes_plataforma.legal import enlaces_html
-from herramientas import credenciales_bolsa, token_datos
+from herramientas import credenciales_bolsa, limites_formularios as limites, token_datos
 from herramientas.backends import sesiones_capital
 
 from .modo import cuentas_conectadas, fijar_modo, invalidar_cuentas, restaurar_modo, usuario_id_actual
@@ -144,9 +144,9 @@ def _formulario(usuario_id: int) -> None:
 
     «Probar conexión» verifica ambas cuentas y muestra el resultado de cada una. «Guardar y continuar» solo se habilita si la prueba corresponde a lo que hay
     escrito (si se cambia un dato, hay que probar de nuevo) y guarda, cifradas, las cuentas que Capital.com aceptó. Siempre se empieza en demo."""
-    identificador = st.text_input("Correo de tu cuenta de Capital.com", placeholder="tucorreo@dominio.com", key=_CLAVES_CAMPOS[0])
-    api_key = st.text_input("API key", type="password", key=_CLAVES_CAMPOS[1])
-    api_contrasena = st.text_input("Contraseña de la API key", type="password", key=_CLAVES_CAMPOS[2],
+    identificador = st.text_input("Correo de tu cuenta de Capital.com", placeholder="tucorreo@dominio.com", key=_CLAVES_CAMPOS[0], max_chars=limites.CORREO)
+    api_key = st.text_input("API key", type="password", key=_CLAVES_CAMPOS[1], max_chars=limites.API_KEY)
+    api_contrasena = st.text_input("Contraseña de la API key", type="password", key=_CLAVES_CAMPOS[2], max_chars=limites.API_CONTRASENA,
                                    help="La que definiste al crear la key, no la de tu cuenta.")
     datos = (identificador.strip(), api_key.strip(), api_contrasena.strip())
     prueba = st.session_state.get(_CLAVE_PRUEBA)
@@ -155,6 +155,8 @@ def _formulario(usuario_id: int) -> None:
     if st.button("Probar conexión", width="stretch", key="conectar_probar"):
         if not all(datos):
             st.error("Completa el correo, la API key y la contraseña de la key.")
+        elif limites.excede((datos[0], limites.CORREO), (datos[1], limites.API_KEY), (datos[2], limites.API_CONTRASENA)):
+            st.error("Revisa los datos: alguno es demasiado largo.")
         else:
             recaptcha.exigir("conectar")
             with st.spinner("Verificando tu cuenta demo y tu cuenta real en Capital.com..."):

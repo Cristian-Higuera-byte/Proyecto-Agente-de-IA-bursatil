@@ -28,6 +28,7 @@ import streamlit.components.v1 as components
 
 from componentes_plataforma import recaptcha
 from herramientas import contrasenas
+from herramientas import limites_formularios as limites
 from herramientas.gestor_autenticacion import (
     reenviar_verificacion, restablecer_contrasena, solicitar_recuperacion, verificar_correo)
 
@@ -233,7 +234,7 @@ def vista_olvide_contrasena() -> None:
     """Formulario «Olvidé mi contraseña»: pide el correo y envía el enlace; responde igual exista o no la cuenta."""
     cabecera("Recupera tu cuenta", "Te enviaremos un enlace para elegir una contraseña nueva")
     with st.form("form_recordar", border=True):
-        correo = st.text_input("Correo electrónico", key="recordar_correo", placeholder="nombre@correo.com")
+        correo = st.text_input("Correo electrónico", key="recordar_correo", placeholder="nombre@correo.com", max_chars=limites.CORREO)
         recaptcha.dibujar("recordar")
         enviar = st.form_submit_button("Enviarme el enlace", width="stretch", type="primary")
     if enviar:
@@ -270,9 +271,9 @@ def vista_recuperacion(token: str) -> None:
         cabecera("Elige una contraseña nueva", "Será la que uses desde ahora para entrar")
         # Es un formulario para que las dos contraseñas y el botón lleguen juntos al servidor (sin recargas intermedias al salir de cada campo)
         with st.form("form_recuperar", border=True):
-            nueva = st.text_input("Contraseña nueva", type="password", key="recuperar_nueva")
+            nueva = st.text_input("Contraseña nueva", type="password", key="recuperar_nueva", max_chars=limites.CONTRASENA)
             medidor_contrasena("Contraseña nueva")
-            repetida = st.text_input("Repite la contraseña", type="password", key="recuperar_repetida")
+            repetida = st.text_input("Repite la contraseña", type="password", key="recuperar_repetida", max_chars=limites.CONTRASENA)
             recaptcha.dibujar("recuperar")
             guardar = st.form_submit_button("Guardar contraseña", width="stretch", type="primary")
         medidor_en_vivo()
