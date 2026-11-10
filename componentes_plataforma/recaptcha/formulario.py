@@ -24,6 +24,7 @@ Uso en un formulario (los dos pasos van con el mismo nombre de formulario, por e
 
 Si las claves de reCAPTCHA no están en el .env, ambas funciones no hacen nada (desarrollo).
 """
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -57,6 +58,15 @@ def _clave(formulario: str, parte: str) -> str:
     return f"rc_{parte}_{formulario}"
 
 
+# TITULO VIGENTE
+
+def _vigente(formulario: str, validez: int) -> bool:
+    """¿Este formulario ya pasó la verificación hace menos de `validez` segundos en esta sesión? Siempre False si `validez` es 0 (cada envío se verifica)."""
+    if not validez:
+        return False
+    return time.time() - float(st.session_state.get(_clave(formulario, "ok"), 0.0)) < validez
+
+
 # TITULO IP
 
 def _ip() -> Optional[str]:
@@ -70,11 +80,16 @@ def _ip() -> Optional[str]:
 
 # TITULO DIBUJAR
 
-def dibujar(formulario: str) -> None:
-    """Pone el componente de reCAPTCHA del formulario `formulario` (sin altura mientras no se pida el casillero) y el aviso legal de Google.
+def dibujar(formulario: str, validez: int = 0) -> None:
+    """Pone el componente de reCAPTCHA del formulario `formulario` (con el casillero a la vista en el modo «ambos») y el aviso legal de Google.
 
-    Muestra también el motivo del último rechazo, si lo hubo. Va dentro del formulario, antes del botón de enviar; sin claves configuradas no dibuja nada."""
+    Muestra también el motivo del último rechazo, si lo hubo. Va dentro del formulario, antes del botón de enviar; sin claves configuradas no dibuja nada.
+    Con `validez` (segundos) distinto de 0, si el formulario ya pasó la verificación hace menos de ese tiempo no se vuelve a pedir: en su lugar se muestra «Verificación completada».
+    Sirve para pantallas con varios botones seguidos (por ejemplo «Probar conexión» y «Guardar»), donde pedir el casillero otra vez en cada botón sería molesto."""
     if not verificador.activo():
+        return
+    if _vigente(formulario, validez):
+        st.markdown("<div style='font-size:13px; color:#3fb950; margin:2px 0 8px;'>✓ Verificación completada.</div>", unsafe_allow_html=True)
         return
     mensaje = st.session_state.pop(_clave(formulario, "msg"), None)
     if mensaje:
@@ -87,6 +102,7 @@ def dibujar(formulario: str) -> None:
             "accion": formulario,
             "pedirV2": configuracion.RECAPTCHA_MODO != "respaldo" or bool(st.session_state.get(_clave(formulario, "v2"))),     # en modo «ambos» el casillero siempre está a la vista
             "nonce": int(st.session_state.get(_clave(formulario, "n"), 0)),
+            "conservarV2": bool(validez),       # con vigencia, el casillero marcado no se reinicia tras el envío: la verificación sigue valiendo
         },
         on_v3_change=lambda: None,
         on_v2_change=lambda: None,
@@ -96,18 +112,22 @@ def dibujar(formulario: str) -> None:
 
 # TITULO EXIGIR
 
-def exigir(formulario: str) -> None:
+def exigir(formulario: str, validez: int = 0) -> None:
     """Comprueba en el servidor que el envío del formulario `formulario` pasó reCAPTCHA; si no pasó, avisa y repite la pantalla (`st.rerun()`), de modo que el código que sigue no se ejecuta.
 
     Usa el token de v3 y, si lo hay, el del casillero de v2 que guardó el componente. Un token solo sirve una vez: se sube el contador para que el navegador pida otro. Si v3 puntúa
-    bajo, falta o es inválido, se activa el casillero de v2 en la próxima pasada. Sin claves configuradas no hace nada."""
-    if not verificador.activo():
+    bajo, falta o es inválido, se activa el casillero de v2 en la próxima pasada. Sin claves configuradas no hace nada.
+
+    Con `validez` (segundos) distinto de 0, una verificación aprobada vale ese tiempo para este formulario: los envíos siguientes dentro de ese plazo pasan sin pedirla de nuevo."""
+    if not verificador.activo() or _vigente(formulario, validez):
         return
     estado = st.session_state.get(f"rc_{formulario}") or {}
     veredicto = verificador.verificar(formulario, str(estado.get("v3") or ""), str(estado.get("v2") or ""), _ip())
     st.session_state[_clave(formulario, "n")] = int(st.session_state.get(_clave(formulario, "n"), 0)) + 1
     if veredicto.ok:
         st.session_state.pop(_clave(formulario, "v2"), None)
+        if validez:
+            st.session_state[_clave(formulario, "ok")] = time.time()
         return
     if veredicto.pedir_v2:
         st.session_state[_clave(formulario, "v2")] = True

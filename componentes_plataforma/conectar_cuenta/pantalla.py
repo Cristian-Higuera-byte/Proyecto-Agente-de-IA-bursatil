@@ -137,6 +137,8 @@ def _filas_resultado(pruebas: dict) -> None:
 # Claves de st.session_state: el resultado de la última prueba (con los datos probados) y los campos del formulario
 _CLAVE_PRUEBA = "cuentas_prueba"
 _CLAVES_CAMPOS = ("conectar_identificador", "conectar_api_key", "conectar_api_contrasena")
+# Segundos que vale la verificación de reCAPTCHA en esta pantalla: una vez aprobada, «Probar conexión» y «Guardar y continuar» no la piden de nuevo (cada token de Google sirve una sola vez).
+_VALIDEZ_VERIFICACION = 600
 
 
 def _formulario(usuario_id: int) -> None:
@@ -151,14 +153,14 @@ def _formulario(usuario_id: int) -> None:
     datos = (identificador.strip(), api_key.strip(), api_contrasena.strip())
     prueba = st.session_state.get(_CLAVE_PRUEBA)
     vigente = prueba if prueba and prueba["datos"] == datos else None
-    recaptcha.dibujar("conectar")
+    recaptcha.dibujar("conectar", validez=_VALIDEZ_VERIFICACION)
     if st.button("Probar conexión", width="stretch", key="conectar_probar"):
         if not all(datos):
             st.error("Completa el correo, la API key y la contraseña de la key.")
         elif limites.excede((datos[0], limites.CORREO), (datos[1], limites.API_KEY), (datos[2], limites.API_CONTRASENA)):
             st.error("Revisa los datos: alguno es demasiado largo.")
         else:
-            recaptcha.exigir("conectar")
+            recaptcha.exigir("conectar", validez=_VALIDEZ_VERIFICACION)
             with st.spinner("Verificando tu cuenta demo y tu cuenta real en Capital.com..."):
                 pruebas = sesiones_capital.probar_ambas_cuentas(*datos)
             vigente = st.session_state[_CLAVE_PRUEBA] = {"datos": datos, "pruebas": pruebas}
@@ -168,7 +170,7 @@ def _formulario(usuario_id: int) -> None:
     aceptada = bool(pruebas and (pruebas["demo"]["ok"] or pruebas["real"]["ok"]))
     if not st.button("Guardar y continuar", type="primary", width="stretch", disabled=not aceptada, key="conectar_guardar"):
         return
-    recaptcha.exigir("conectar")
+    recaptcha.exigir("conectar", validez=_VALIDEZ_VERIFICACION)
     previas = cuentas_conectadas()
     conectadas = []
     for nombre, es_demo in _TIPOS.items():

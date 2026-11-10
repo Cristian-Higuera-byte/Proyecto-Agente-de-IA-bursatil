@@ -14,8 +14,8 @@ Transportes y Servicios Ltda.
    ------------------------------------------------------------------------------------------------------- */
 
 // [recaptcha] Componente de reCAPTCHA de Google para un formulario de la plataforma (Streamlit CCv2).
-// Recibe en `data`: v3 (clave del sitio de v3), v2 (clave del sitio de v2), accion (nombre del formulario), pedirV2 (si hay que mostrar el casillero) y nonce (sube
-// cada vez que el servidor ya usó el token, para pedir uno nuevo). Devuelve a Python, con setStateValue, `v3` (token invisible) y `v2` (token del casillero).
+// Recibe en `data`: v3 (clave del sitio de v3), v2 (clave del sitio de v2), accion (nombre del formulario), pedirV2 (si hay que mostrar el casillero), conservarV2 (si el casillero
+// marcado no se reinicia tras un envío) y nonce (sube cada vez que el servidor ya usó el token, para pedir uno nuevo). Devuelve a Python, con setStateValue, `v3` (token invisible) y `v2` (token del casillero).
 
 /** Carga una sola vez por página la librería de Google con la clave de v3 y devuelve una promesa con el objeto grecaptcha, ya listo para usarse. */
 function cargarLibreria(claveV3) {
@@ -50,7 +50,7 @@ export default function (component) {
 
   /** Tras un envío, el token del casillero ya se usó (vale una sola vez): se reinicia el casillero y se vacía su token. Si no hay casillero a la vista, no hace nada. */
   async function reiniciarV2() {
-    if (!cfg.pedirV2 || raiz.__pjV2 === undefined) return
+    if (!cfg.pedirV2 || cfg.conservarV2 || raiz.__pjV2 === undefined) return
     try {
       const g = await cargarLibreria(cfg.v3)
       g.reset(raiz.__pjV2)
