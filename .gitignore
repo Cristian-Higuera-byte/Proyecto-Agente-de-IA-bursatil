@@ -53,3 +53,6 @@ outputs/
 referencias/
 data/alertas_activas.json
 _descubrir_capital.py
+
+# Secretos de Streamlit (cliente OAuth de Google, cookie_secret): nunca van a git
+.streamlit/secrets.toml

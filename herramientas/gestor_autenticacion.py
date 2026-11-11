@@ -37,6 +37,7 @@ import hmac
 import hashlib
 import binascii
 import re
+import secrets
 import sys
 from typing import Any, Optional, cast
 
@@ -190,6 +191,68 @@ def registrar_usuario(nombre: str, correo: str, contrasena: str) -> dict:
         return {"ok": False, "mensaje": "No se pudo crear la cuenta.", "usuario": None}
     except Exception as e:
         return {"ok": False, "mensaje": f"Error al registrar: {e}", "usuario": None}
+
+
+# TITULO ACCESO CON GOOGLE
+
+def acceso_con_google(correo: str) -> dict:
+    """Resuelve el ingreso de alguien que Google ya identificó (correo verificado por Google).
+
+    Retorna {"ok": True, "usuario": {id, nombre, email}} si el correo ya tiene cuenta (y, como Google lo verificó, la deja con el correo confirmado);
+    {"ok": False, "codigo": "nuevo"} si no existe y hay que pedirle los datos para crearla; {"ok": False, "mensaje": ...} si el correo no sirve o falla la base.
+    """
+    if _supabase is None:
+        return {"ok": False, "mensaje": "La base de datos no está configurada (revisa BASE_DATOS y las variables de conexión en .env)."}
+    correo = (correo or "").strip().lower()
+    if not correo or limites_formularios.excede((correo, limites_formularios.CORREO)):
+        return {"ok": False, "mensaje": "Google no entregó un correo válido."}
+    try:
+        existe = _supabase.table("usuarios").select("*").eq("email", correo).limit(1).execute()
+        if not existe.data:
+            aviso_correo = correos_temporales.validar(correo)
+            if aviso_correo:
+                return {"ok": False, "mensaje": aviso_correo}
+            return {"ok": False, "codigo": "nuevo"}
+        usuario = cast(dict, existe.data[0])
+        if verificacion_activa() and usuario.get("correo_verificado") is False:
+            _supabase.table("usuarios").update({"correo_verificado": True}).eq("id", usuario.get("id")).execute()
+        return {"ok": True, "usuario": {"id": usuario.get("id"), "nombre": usuario.get("nombre"), "email": usuario.get("email")}}
+    except Exception as e:
+        return _error_neutro("el acceso con Google", e)
+
+
+# TITULO REGISTRAR CON GOOGLE
+
+def registrar_con_google(nombre: str, correo: str) -> dict:
+    """Crea la cuenta de alguien que entró con Google. Retorna {"ok": bool, "mensaje": str, "usuario": dict|None}.
+
+    El correo ya viene verificado por Google, así que no se envía enlace de confirmación. La cuenta se crea con una contraseña aleatoria que nadie conoce:
+    la persona entra siempre con Google, y si algún día quiere una contraseña propia la elige con «Olvidé mi contraseña».
+    """
+    if _supabase is None:
+        return {"ok": False, "mensaje": "La base de datos no está configurada (revisa BASE_DATOS y las variables de conexión en .env).", "usuario": None}
+    nombre = (nombre or "").strip()
+    correo = (correo or "").strip().lower()
+    if not nombre or not correo:
+        return {"ok": False, "mensaje": "Faltan datos para crear la cuenta.", "usuario": None}
+    if limites_formularios.excede((nombre, limites_formularios.NOMBRE_COMPLETO), (correo, limites_formularios.CORREO)):
+        return {"ok": False, "mensaje": "Revisa los datos: alguno es demasiado largo.", "usuario": None}
+    aviso_correo = correos_temporales.validar(correo)
+    if aviso_correo:
+        return {"ok": False, "mensaje": aviso_correo, "usuario": None}
+    try:
+        if _supabase.table("usuarios").select("id").eq("email", correo).execute().data:
+            return {"ok": False, "mensaje": "Ya existe una cuenta con ese email.", "usuario": None}
+        registro = {"nombre": nombre, "email": correo, "password_hash": _cifrar_contrasena(secrets.token_urlsafe(32))}
+        if verificacion_activa():
+            registro["correo_verificado"] = True
+        resultado = _supabase.table("usuarios").insert(registro).execute()
+        if resultado.data:
+            usuario = cast(dict, resultado.data[0])
+            return {"ok": True, "mensaje": "Cuenta creada correctamente.", "usuario": {"id": usuario.get("id"), "nombre": usuario.get("nombre"), "email": usuario.get("email")}}
+        return {"ok": False, "mensaje": "No se pudo crear la cuenta.", "usuario": None}
+    except Exception as e:
+        return {**_error_neutro("el registro con Google", e), "usuario": None}
 
 
 # TITULO AUTENTICAR USUARIO

@@ -40,7 +40,7 @@ from herramientas import aceptaciones_legales
 from herramientas import limites_formularios as limites
 from herramientas.gestor_autenticacion import autenticar_usuario, registrar_usuario
 
-from . import navegacion
+from . import google, navegacion
 from .cookie import aplicar_pendiente
 from .pantallas_correo import (
     CLAVE_PENDIENTE, CLAVE_REVISA, aviso_sin_verificar, cabecera, enlaces_inferiores, iniciar_espera_reenvio, medidor_contrasena, medidor_en_vivo, pestanas,
@@ -120,6 +120,8 @@ def requerir_login() -> dict:
         return usuario
 
     # --- No autenticado ---
+    # Si la persona vuelve de Google (o hay un ingreso con Google a medias) se resuelve aquí, antes de dibujar la portada o el formulario
+    google.atender_retorno(_CSS)
     # Los enlaces entre la portada, el inicio de sesión y el registro cambian de pantalla sin recargar la página (así no se ve el esqueleto gris de Streamlit).
     navegacion.montar()
     # Sin `?acceso=` se muestra la portada pública (presentación de la plataforma, con los botones «Iniciar sesión» y «Regístrate»); con `?acceso=entrar` o
@@ -176,6 +178,7 @@ def requerir_login() -> dict:
                             else:
                                 st.session_state.pop(CLAVE_PENDIENTE, None)
                                 st.error(resultado["mensaje"])
+                        google.boton("google_entrar")
                         aviso_sin_verificar()
                         aviso_cookie()
 
@@ -202,6 +205,7 @@ def requerir_login() -> dict:
                             recaptcha.dibujar("registro")
                             crear = st.form_submit_button("Crear cuenta", width="stretch", type="primary")
                         medidor_en_vivo()
+                        google.boton("google_crear")
                         if crear and not acepto:
                             st.error("Para crear tu cuenta debes aceptar los términos de uso, la política de privacidad y el aviso de riesgo.")
                         elif crear:
