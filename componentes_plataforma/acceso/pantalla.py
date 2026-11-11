@@ -204,8 +204,8 @@ def requerir_login() -> dict:
                             acepto = casilla_aceptacion("registro_acepto")
                             recaptcha.dibujar("registro")
                             crear = st.form_submit_button("Crear cuenta", width="stretch", type="primary")
+                        google.boton("google_crear")      # antes del medidor: este es un elemento de altura 0 que, puesto entre el botón y el separador, sumaba 16 px de más arriba de la línea «o»
                         medidor_en_vivo()
-                        google.boton("google_crear")
                         if crear and not acepto:
                             st.error("Para crear tu cuenta debes aceptar los términos de uso, la política de privacidad y el aviso de riesgo.")
                         elif crear:
