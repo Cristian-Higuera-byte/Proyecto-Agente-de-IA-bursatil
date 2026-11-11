@@ -42,7 +42,7 @@ from typing import Any, Optional, cast
 
 from dotenv import load_dotenv
 
-from herramientas import base_datos, contrasenas, limites_formularios, verificacion_correo
+from herramientas import base_datos, contrasenas, correos_temporales, limites_formularios, verificacion_correo
 from herramientas import correo as servicio_correo
 
 load_dotenv()
@@ -154,6 +154,9 @@ def registrar_usuario(nombre: str, correo: str, contrasena: str) -> dict:
         return {"ok": False, "mensaje": "Completa nombre, email y contraseña.", "usuario": None}
     if limites_formularios.excede((nombre, limites_formularios.NOMBRE_COMPLETO), (correo, limites_formularios.CORREO), (contrasena, limites_formularios.CONTRASENA)):
         return {"ok": False, "mensaje": "Revisa los datos: alguno es demasiado largo.", "usuario": None}
+    aviso_correo = correos_temporales.validar(correo)
+    if aviso_correo:
+        return {"ok": False, "mensaje": aviso_correo, "usuario": None}
     aviso_contrasena = validar_contrasena(contrasena)
     if aviso_contrasena:
         return {"ok": False, "mensaje": aviso_contrasena, "usuario": None}
