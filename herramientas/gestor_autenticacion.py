@@ -209,7 +209,7 @@ def acceso_con_google(correo: str) -> dict:
     try:
         existe = _supabase.table("usuarios").select("*").eq("email", correo).limit(1).execute()
         if not existe.data:
-            aviso_correo = correos_temporales.validar(correo)
+            aviso_correo = correos_temporales.validar(correo, verificado_por_google=True)
             if aviso_correo:
                 return {"ok": False, "mensaje": aviso_correo}
             return {"ok": False, "codigo": "nuevo"}
@@ -237,7 +237,7 @@ def registrar_con_google(nombre: str, correo: str) -> dict:
         return {"ok": False, "mensaje": "Faltan datos para crear la cuenta.", "usuario": None}
     if limites_formularios.excede((nombre, limites_formularios.NOMBRE_COMPLETO), (correo, limites_formularios.CORREO)):
         return {"ok": False, "mensaje": "Revisa los datos: alguno es demasiado largo.", "usuario": None}
-    aviso_correo = correos_temporales.validar(correo)
+    aviso_correo = correos_temporales.validar(correo, verificado_por_google=True)
     if aviso_correo:
         return {"ok": False, "mensaje": aviso_correo, "usuario": None}
     try:

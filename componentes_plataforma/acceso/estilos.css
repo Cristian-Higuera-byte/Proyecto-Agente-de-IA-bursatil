@@ -87,7 +87,7 @@ div.stButton > button[kind="primary"]:disabled { background-color: #2b3138; bord
 @media (max-width: 480px) {
     [data-testid="stMainBlockContainer"].block-container { padding-top: 32px !important; padding-bottom: 28px !important; } }
 
-.acc-separador { display: flex; align-items: center; gap: 12px; margin: 14px 0 10px; color: #8b949e; font-size: 13px; }
+.acc-separador { display: flex; align-items: center; gap: 12px; margin: 2px 0 18px; color: #8b949e; font-size: 13px; }
 .acc-separador::before, .acc-separador::after { content: ""; flex: 1; height: 1px; background: #3d4655; }
 
 /* TITULO BOTON DE GOOGLE: mismo alto y esquinas que el botón principal, pero sobrio (fondo de campo, borde fino) para que el degradado siga siendo el protagonista; al pasar el cursor el borde toma el naranja de la marca */

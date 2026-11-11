@@ -20,6 +20,10 @@ Los servicios de correo temporal (10minutemail, Guerrilla Mail, Mailinator, etc.
 con uno puede confirmar el enlace, pero la cuenta queda sin un correo real para recuperar la contraseña, enviar avisos o aplicar los límites por
 persona. La plataforma compara el dominio del correo contra una lista de dominios desechables conocidos (incluidos los subdominios).
 
+- Lista blanca (activa por defecto): solo se aceptan correos de proveedores conocidos (Gmail, Outlook, Hotmail, Yahoo, iCloud, Proton, los de cada país de Latinoamérica,
+  universidades y organismos públicos de la región) más los dominios de CORREOS_DOMINIOS_PERMITIDOS_EXTRA. Es la defensa que de verdad funciona contra el correo temporal: los servicios
+  cambian de dominio todos los días y una lista de bloqueo siempre llega tarde. CORREOS_SOLO_CONOCIDOS=false la apaga y deja solo la lista de bloqueo. Quien entra
+  con Google no pasa por la lista blanca (Google ya verificó su identidad), pero sí por la de bloqueo.
 - La lista integrada cubre los servicios más usados y se suma la lista pública de herramientas/listas/dominios_temporales.txt (se actualiza con actualizar_dominios_temporales.py); se puede ampliar sin tocar el código con CORREOS_TEMPORALES_EXTRA en el .env (dominios separados por coma).
 - CORREOS_TEMPORALES_PERMITIDOS (también en el .env) saca dominios de la lista, por si alguno se bloquea por error.
 - Un dominio que no esté en la lista no se detecta: la lista hay que mantenerla al día.
@@ -65,7 +69,7 @@ trbvm.com trbvn.com turual.com twinmail.de tyldd.com uggsrock.com upliftnow.com 
 viralplays.com vpn.st vsimcard.com webemail.me wh4f.org whyspam.me willhackforfood.biz winemaven.info wronghead.com wuzup.net wuzupmail.net
 xagloo.com xemaps.com xents.com xmaily.com xoxy.net yapped.net yogamaven.com yomail.info yuurok.com zehnminutenmail.de
 zippymail.info zoaxe.com zoemail.org
-gmailnator.com emailnator.com smailpro.com
+gmailnator.com emailnator.com smailpro.com artegin.com bwingmedia.com
 chacuo.net eyepaste.com filzmail.com get2mail.fr gishpuppy.com great-host.in grr.la guerillamail.com haltospam.com hidemail.de hulapla.de
 ieatspam.eu ieatspam.info imails.info inboxalias.com incognitomail.org instant-mail.de jnxjn.com junk1e.com kasmail.com klzlk.com
 koszmail.pl kulturbetrieb.info lifebyfood.com link2mail.net listomail.com lopl.co.cz mailbidon.com mailblocks.com mailchop.com
@@ -77,6 +81,51 @@ safetymail.info sendspamhere.com shiftmail.com shitmail.me skeefmail.com slopsbo
 spamavert.com spambox.info spamcero.com spamcorptastic.com spamday.com spamfree24.com spamhereplease.com spamhole.com spamify.com
 spaml.com spammotel.com spamobox.com spamspot.com spamthis.co.uk spamtroll.net
 """.split())
+
+
+# Códigos de país de Latinoamérica (más España y Portugal, de donde vienen muchos proveedores que se usan en la región)
+_PAISES = ("ar", "bo", "br", "cl", "co", "cr", "cu", "do", "ec", "sv", "gt", "hn", "mx", "ni", "pa", "py", "pe", "pr", "uy", "ve", "es", "pt")
+
+# Proveedores que existen con la misma marca en muchos países (hotmail.com, hotmail.com.mx, hotmail.cl, outlook.com.ar…): se aceptan con «.com», «.es»,
+# «.<país>», «.com.<país>» y «.co.<país>». Un servicio temporal no se registra con estos nombres.
+_MARCAS_CON_PAIS = frozenset("hotmail outlook live msn yahoo ymail".split())
+
+# Proveedores y dominios conocidos que SÍ se aceptan (en minúsculas, sin "@"); los subdominios también valen
+_PROVEEDORES_CONOCIDOS = frozenset("""
+gmail.com googlemail.com icloud.com me.com mac.com proton.me protonmail.com pm.me aol.com gmx.com gmx.net gmx.es zoho.com fastmail.com yandex.com mail.com
+vtr.net entel.cl movistar.cl tie.cl manquehue.net terra.cl
+telmexmail.com prodigy.net.mx prodigy.net.mx megacable.com.mx totalplay.net.mx
+fibertel.com.ar speedy.com.ar arnet.com.ar ciudad.com.ar telecentro.com.ar
+uol.com.br bol.com.br terra.com.br globo.com ig.com.br r7.com oi.com.br zipmail.com.br globomail.com
+une.net.co etb.net.co telecom.com.co
+terra.com.pe telefonica.net.pe
+adinet.com.uy vera.com.uy movistar.com.uy
+cantv.net movistar.com.ve
+ice.co.cr racsa.co.cr
+cwpanama.net
+claro.com.co claro.com.pe claro.com.ar
+terra.es telefonica.net movistar.es orange.es ono.com
+duocuc.cl duoc.cl uc.cl puc.cl uchile.cl usach.cl udec.cl inacap.cl santotomas.cl uai.cl udd.cl utem.cl
+unam.mx itesm.mx tec.mx ipn.mx uba.ar usp.br unicamp.br unal.edu.co uniandes.edu.co
+pinayjara.cl rmcabogados.cl
+""".split())
+
+# Terminaciones de dominio aceptadas: instituciones educativas y públicas de la región (.edu.mx, .gob.pe, .gov.br, .gub.uy, .ac.cr…)
+_SUFIJOS_CONOCIDOS = tuple(sorted({".edu", ".gov", ".mil"} | {f".{tipo}.{pais}" for tipo in ("edu", "gob", "gov", "gub", "mil", "ac", "jus", "leg") for pais in _PAISES}))
+
+
+# TITULO ES MARCA CON PAIS
+
+def _es_marca_con_pais(dominio: str) -> bool:
+    """True si el dominio es de una marca multinacional con terminación de país: hotmail/outlook/live/msn/yahoo/ymail con `.com`, `.es`, `.<país>`, `.com.<país>` o `.co.<país>`."""
+    partes = dominio.split(".")
+    for i in range(len(partes) - 1):
+        if partes[i] not in _MARCAS_CON_PAIS:
+            continue
+        resto = partes[i + 1:]
+        if resto == ["com"] or (len(resto) == 1 and resto[0] in _PAISES) or (len(resto) == 2 and resto[0] in ("com", "co") and resto[1] in _PAISES):
+            return True
+    return False
 
 
 # TITULO DOMINIOS DEL ARCHIVO
@@ -141,14 +190,41 @@ def es_temporal(correo: str) -> bool:
     return False
 
 
+# TITULO SOLO CONOCIDOS
+
+def solo_conocidos() -> bool:
+    """True si la lista blanca está activa (por defecto sí; CORREOS_SOLO_CONOCIDOS=false la apaga)."""
+    return os.environ.get("CORREOS_SOLO_CONOCIDOS", "true").strip().lower() not in ("0", "false", "no", "apagado")
+
+
+# TITULO ES CONOCIDO
+
+def es_conocido(correo: str) -> bool:
+    """True si el dominio del correo es de un proveedor conocido, termina en un sufijo aceptado (.edu, .gob.cl…) o figura en CORREOS_DOMINIOS_PERMITIDOS_EXTRA (también sus subdominios)."""
+    dominio = dominio_de(correo)
+    if not dominio:
+        return False
+    if dominio.endswith(_SUFIJOS_CONOCIDOS) or _es_marca_con_pais(dominio):
+        return True
+    permitidos = _PROVEEDORES_CONOCIDOS | _desde_entorno("CORREOS_DOMINIOS_PERMITIDOS_EXTRA")
+    partes = dominio.split(".")
+    return any(".".join(partes[i:]) in permitidos for i in range(len(partes) - 1))
+
+
 # TITULO VALIDAR
 
-def validar(correo: str) -> str | None:
-    """Devuelve el aviso a mostrar si el correo no sirve para crear una cuenta (formato inválido o servicio temporal), o None si es aceptable."""
+def validar(correo: str, verificado_por_google: bool = False) -> str | None:
+    """Devuelve el aviso a mostrar si el correo no sirve para crear una cuenta, o None si es aceptable.
+
+    Rechaza el formato inválido, los servicios de correo temporal (lista de bloqueo) y, con la lista blanca activa, los dominios que no son de un proveedor conocido.
+    Con `verificado_por_google=True` (el correo viene de «Continuar con Google») no se exige la lista blanca: Google ya comprobó que la persona es dueña del correo."""
     if not formato_valido(correo):
         return "Escribe un correo válido (por ejemplo, nombre@dominio.com)."
     if es_temporal(correo):
         return "No se aceptan correos temporales. Usa un correo personal o de tu empresa."
+    if solo_conocidos() and not verificado_por_google and not es_conocido(correo):
+        return ("Usa un correo de un proveedor conocido (Gmail, Outlook, Hotmail, Yahoo, iCloud…) o de tu institución. "
+                "Si quieres registrarte con el correo de tu empresa, escríbenos desde Soporte.")
     return None
 
 
