@@ -18,9 +18,10 @@ acceso/google.py
 
 Cómo funciona:
 1. El botón llama a `st.login("google")`; Google autentica a la persona y vuelve a `/oauth2callback` (la URI registrada en Google Cloud).
-2. Al volver, `atender_retorno()` (que `requerir_login` llama antes de dibujar nada) copia los datos que entregó Google a `st.session_state` y cierra la identidad de
-   Streamlit con `st.logout()`: así la sesión de la plataforma sigue siendo SOLO la propia (token `?s=` y cookie de «mantener sesión») y cerrar sesión en la plataforma
-   no deja a la persona entrando sola de nuevo.
+2. Al volver, `atender_retorno()` (que `requerir_login` llama antes de dibujar nada) copia los datos que entregó Google a `st.session_state` UNA sola vez y sigue con
+   la sesión propia de la plataforma (token `?s=` y cookie de «mantener sesión»). NO se llama a `st.logout()`: ese comando navega a otra página, la sesión de la pestaña se
+   pierde y la persona vuelve a la portada (o queda en un bucle si el navegador conserva la identidad). En su lugar, cada identidad de Google se «consume» una vez
+   (huella de su cookie en `_CONSUMIDAS`) y se ignora si es antigua: así cerrar sesión en la plataforma no deja a la persona entrando sola de nuevo.
 3. Si el correo ya tiene cuenta, se inicia sesión. Si no, se pide lo que Google no entrega (nombres, apellidos, fecha de nacimiento 18+ y aceptar los documentos legales)
    y se crea la cuenta sin contraseña propia (ver `gestor_autenticacion.registrar_con_google`).
 
@@ -35,6 +36,8 @@ plataforma funciona como antes. Configuración (el archivo no va a git):
     client_secret = "<secreto del cliente>"
     server_metadata_url = "https://accounts.google.com/.well-known/openid-configuration"
 """
+import hashlib
+import time
 from datetime import date
 
 import streamlit as st
@@ -53,6 +56,11 @@ from .sesion import iniciar_sesion
 
 # Clave de session_state con los datos que entregó Google mientras se resuelve el ingreso
 CLAVE_GOOGLE = "_google_identidad"
+
+# Identidades de Google ya atendidas (huella -> momento): cada inicio de sesión con Google se aprovecha una sola vez. Vive en el proceso del servidor, compartido por todas las pestañas.
+_CONSUMIDAS: dict[str, float] = {}
+# Una identidad de Google más antigua que esto (segundos) no es un ingreso recién hecho sino un resto del navegador, y se ignora
+_VIGENCIA_SEGUNDOS = 600
 
 _MESES = ("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre")
 
@@ -84,13 +92,50 @@ def boton(clave: str) -> None:
 def _datos_de_google() -> dict | None:
     """Lee la identidad que dejó Google (nombre, correo y si el correo está verificado), o None si no hay una sesión de Google en curso."""
     try:
-        if not st.user.get("is_logged_in", False):
+        if not (getattr(st.user, "is_logged_in", False) or st.user.get("is_logged_in", False)):
             return None
         return {"email": (st.user.get("email") or "").strip().lower(), "verificado": bool(st.user.get("email_verified")),
                 "nombres": (st.user.get("given_name") or "").strip(), "apellidos": (st.user.get("family_name") or "").strip(),
-                "nombre": (st.user.get("name") or "").strip()}
+                "nombre": (st.user.get("name") or "").strip(), "emitido": st.user.get("iat")}
     except Exception:  # noqa: BLE001 - si Streamlit no puede leer la identidad se trata como «sin Google»
         return None
+
+
+# TITULO HUELLA DE LA IDENTIDAD
+
+def _huella(datos: dict) -> str:
+    """Identificador de ESTE inicio de sesión con Google: el resumen de las cookies de identidad de Streamlit (cambian con cada ingreso) o, si no se pueden leer, del
+    correo y el instante en que Google emitió la identidad."""
+    try:
+        base = "|".join(f"{k}={v}" for k, v in sorted(st.context.cookies.items()) if k.startswith("_streamlit_user"))
+    except Exception:  # noqa: BLE001
+        base = ""
+    return hashlib.sha256((base or f"{datos['email']}|{datos.get('emitido')}").encode("utf-8")).hexdigest()
+
+
+# TITULO ES RECIENTE
+
+def _es_reciente(datos: dict) -> bool:
+    """True si la identidad se emitió hace poco (o si Google no informa cuándo): un ingreso recién hecho, no una identidad vieja que quedó en el navegador."""
+    emitido = datos.get("emitido")
+    return not isinstance(emitido, (int, float)) or abs(time.time() - emitido) <= _VIGENCIA_SEGUNDOS
+
+
+# TITULO TOMAR IDENTIDAD NUEVA
+
+def _tomar_identidad_nueva() -> dict | None:
+    """Devuelve la identidad de Google SOLO si es un ingreso nuevo (reciente y no atendido antes) y la marca como atendida; en cualquier otro caso, None."""
+    datos = _datos_de_google()
+    if datos is None or not _es_reciente(datos):
+        return None
+    huella = _huella(datos)
+    if huella in _CONSUMIDAS:
+        return None
+    ahora = time.time()
+    for antigua in [h for h, t in _CONSUMIDAS.items() if ahora - t > 24 * 3600]:
+        del _CONSUMIDAS[antigua]
+    _CONSUMIDAS[huella] = ahora
+    return datos
 
 
 # TITULO ATENDER RETORNO
@@ -98,18 +143,16 @@ def _datos_de_google() -> dict | None:
 def atender_retorno(css) -> None:
     """Resuelve el ingreso con Google si hay uno en curso; no hace nada si no lo hay.
 
-    Primero guarda la identidad que entregó Google y cierra la de Streamlit (`st.logout()` reejecuta la página). Después, con la identidad guardada: si el correo no está
-    verificado lo rechaza; si ya tiene cuenta inicia sesión; si es nuevo muestra la pantalla para completar los datos y detiene la ejecución."""
+    Toma la identidad que entregó Google (una sola vez) y la guarda en la sesión de la pestaña. Con ella: si el correo no está verificado lo rechaza; si ya tiene cuenta
+    inicia sesión; si es nuevo muestra la pantalla para completar los datos y detiene la ejecución."""
     if not disponible():
         return
-    datos = _datos_de_google()
-    if datos is not None:
-        st.session_state[CLAVE_GOOGLE] = datos
-        st.logout()
-        st.stop()
     datos = st.session_state.get(CLAVE_GOOGLE)
     if not datos:
-        return
+        datos = _tomar_identidad_nueva()
+        if datos is None:
+            return
+        st.session_state[CLAVE_GOOGLE] = datos
     st.html(estilos(css))
     if not datos["verificado"] or not datos["email"]:
         st.session_state.pop(CLAVE_GOOGLE, None)
