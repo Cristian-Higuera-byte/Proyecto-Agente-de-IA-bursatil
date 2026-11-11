@@ -37,10 +37,12 @@ plataforma funciona como antes. Configuración (el archivo no va a git):
     server_metadata_url = "https://accounts.google.com/.well-known/openid-configuration"
 """
 import hashlib
+import json
 import time
 from datetime import date
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 from componentes_plataforma._estaticos import estilos
 from componentes_plataforma.legal import DOCUMENTOS, VERSION, casilla_aceptacion
@@ -61,6 +63,10 @@ CLAVE_GOOGLE = "_google_identidad"
 _CONSUMIDAS: dict[str, float] = {}
 # Una identidad de Google más antigua que esto (segundos) no es un ingreso recién hecho sino un resto del navegador, y se ignora
 _VIGENCIA_SEGUNDOS = 600
+
+# Cookie (10 minutos) que recuerda desde qué pestaña se pulsó el botón: «crear» (registro) o «entrar» (inicio de sesión). Al volver de Google la sesión de la pestaña es
+# nueva y no recuerda nada, así que el navegador lleva la respuesta en esta cookie. Si falta, se trata como «entrar».
+_COOKIE_INTENTO = "pj_google_intento"
 
 _MESES = ("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre")
 
@@ -85,6 +91,27 @@ def boton(clave: str) -> None:
     st.markdown("<div class='acc-separador'><span>o</span></div>", unsafe_allow_html=True)
     if st.button("Continuar con Google", key=clave, width="stretch"):
         st.login("google")
+    _recordar_intento("crear" if clave == "google_crear" else "entrar")
+
+
+# TITULO RECORDAR INTENTO
+
+def _recordar_intento(intento: str) -> None:
+    """Deja en el navegador la cookie que dice si el botón se pulsó desde «Crear cuenta» o desde «Iniciar sesión» (un script de altura 0, como el de la cookie de sesión)."""
+    nombre, valor = json.dumps(_COOKIE_INTENTO), json.dumps(intento)
+    components.html("<script>(function(){var D;try{D=window.parent.document;}catch(e){return;}"
+                    "var seguro=(window.parent.location.protocol==='https:')?'; Secure':'';"
+                    f"D.cookie={nombre}+'='+{valor}+'; Max-Age=600; Path=/; SameSite=Lax'+seguro;}})();</script>", height=0)
+
+
+# TITULO INTENTO
+
+def _intento() -> str:
+    """Desde dónde se pulsó el botón de Google: «crear» o «entrar» (por defecto, «entrar»)."""
+    try:
+        return "crear" if st.context.cookies.get(_COOKIE_INTENTO) == "crear" else "entrar"
+    except Exception:  # noqa: BLE001
+        return "entrar"
 
 
 # TITULO DATOS DE GOOGLE
@@ -161,6 +188,9 @@ def atender_retorno(css) -> None:
     resultado = acceso_con_google(datos["email"])
     if resultado["ok"]:
         st.session_state.pop(CLAVE_GOOGLE, None)
+        if _intento() == "crear":
+            _pantalla_cuenta_existente(datos["email"])
+            return
         iniciar_sesion(resultado["usuario"])
         return
     if resultado.get("codigo") != "nuevo":
@@ -168,6 +198,19 @@ def atender_retorno(css) -> None:
         _pantalla_error(resultado.get("mensaje", "No pudimos completar el ingreso con Google."))
         return
     _pantalla_completar(datos)
+    st.stop()
+
+
+# TITULO PANTALLA CUENTA EXISTENTE
+
+def _pantalla_cuenta_existente(correo: str) -> None:
+    """Pantalla para quien pulsó «Continuar con Google» desde «Crear cuenta» con un correo que ya tiene cuenta: se le avisa y se le ofrece ir a iniciar sesión (no se inicia sesión sola)."""
+    with st.container(key="acceso_centrado"):
+        cabecera("Ya tienes una cuenta", "Ese correo ya está registrado")
+        with st.container(border=True):
+            st.markdown("<span class='acc-tarjeta'></span>", unsafe_allow_html=True)
+            st.warning(f"Ya existe una cuenta con {correo}. Inicia sesión para entrar; no hace falta crear otra.")
+            st.link_button("Ir a iniciar sesión", "?acceso=entrar", type="primary", width="stretch")
     st.stop()
 
 
