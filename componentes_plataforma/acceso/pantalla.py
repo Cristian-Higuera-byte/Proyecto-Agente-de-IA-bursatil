@@ -117,6 +117,7 @@ def requerir_login() -> dict:
             if destino != "1":
                 st.session_state.perfil_seccion = destino
             del st.query_params["perfil"]
+        navegacion.montar_menu_aplicacion()      # Perfil, Configuración y cuentas del menú se abren sin recargar la página
         return usuario
 
     # --- No autenticado ---

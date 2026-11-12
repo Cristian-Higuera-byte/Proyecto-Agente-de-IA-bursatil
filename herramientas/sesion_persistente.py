@@ -21,10 +21,12 @@ Cómo funciona:
     Supabase solo su hash SHA-256, con el usuario y la fecha de vencimiento (tabla `sesiones_persistentes`, herramientas/sql/).
   - Al abrir la web sin sesión, la cookie llega al servidor; `validar` busca su hash en la tabla y, si no venció, devuelve el usuario.
   - Cerrar sesión borra la fila (`revocar`), de modo que la cookie queda inservible aunque alguien la conserve.
-El almacén en memoria (almacen_sesiones.py) sigue siendo el que usa cada pestaña con su token `?s=`; este módulo es el respaldo de larga duración.
+Desde el 12-11-2026 esta cookie es lo ÚNICO que mantiene la sesión (la dirección ya no lleva `?s=`): cada recarga de la página (F5, un enlace del menú) la valida
+aquí. Por eso `validar` recuerda 30 segundos las sesiones ya comprobadas, para que las recargas seguidas no repitan las consultas a la base.
 """
 import hashlib
 import secrets
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -35,6 +37,9 @@ NOMBRE_COOKIE = "pj_sesion"
 DIAS_DURACION = 30
 # Máximo de dispositivos con sesión abierta por usuario; al iniciar sesión en uno más se cierra la sesión que hace más tiempo no se usa.
 MAX_DISPOSITIVOS = 5
+# Segundos que `validar` recuerda una sesión ya comprobada, y las sesiones recordadas {hash del token: (usuario, instante)}. Cerrar sesión (`revocar`, `revocar_todas`) las olvida al instante.
+MEMORIA_S = 30
+_validadas: dict = {}
 
 
 # TITULO HASH
@@ -62,6 +67,7 @@ def crear(usuario_id, dispositivo: str = "", reemplaza_token: str = "") -> Optio
     try:
         cliente.table("sesiones_persistentes").delete().lt("expira_en", ahora.isoformat()).execute()
         if reemplaza_token:
+            _validadas.pop(_hash(reemplaza_token), None)
             cliente.table("sesiones_persistentes").delete().eq("token_hash", _hash(reemplaza_token)).execute()
         cliente.table("sesiones_persistentes").insert({
             "usuario_id": usuario_id,
@@ -88,6 +94,9 @@ def validar(token: str) -> Optional[dict]:
     cliente = gestor_autenticacion._supabase
     if cliente is None or not token:
         return None
+    recordada = _validadas.get(_hash(token))
+    if recordada is not None and time.time() - recordada[1] < MEMORIA_S:
+        return dict(recordada[0])
     try:
         fila = cliente.table("sesiones_persistentes").select("id, usuario_id, expira_en").eq("token_hash", _hash(token)).limit(1).execute()
         if not fila.data:
@@ -100,7 +109,11 @@ def validar(token: str) -> Optional[dict]:
         if not usuario.data:
             return None
         datos = usuario.data[0]
-        return {"id": datos.get("id"), "nombre": datos.get("nombre"), "email": datos.get("email")}
+        validado = {"id": datos.get("id"), "nombre": datos.get("nombre"), "email": datos.get("email")}
+        if len(_validadas) > 2000:
+            _validadas.clear()
+        _validadas[_hash(token)] = (validado, time.time())
+        return dict(validado)
     except Exception:
         return None
 
@@ -109,6 +122,8 @@ def validar(token: str) -> Optional[dict]:
 
 def revocar(token: str) -> None:
     """Borra la sesión persistente de ese token (cerrar sesión); no hace nada si no existe o falla la conexión."""
+    if token:
+        _validadas.pop(_hash(token), None)
     cliente = gestor_autenticacion._supabase
     if cliente is None or not token:
         return
@@ -122,6 +137,8 @@ def revocar(token: str) -> None:
 
 def revocar_todas(usuario_id) -> None:
     """Borra todas las sesiones persistentes de un usuario (por ejemplo, tras cambiar su contraseña)."""
+    for hash_token in [h for h, (u, _) in _validadas.items() if str(u.get("id")) == str(usuario_id)]:
+        _validadas.pop(hash_token, None)
     cliente = gestor_autenticacion._supabase
     if cliente is None or usuario_id is None:
         return
