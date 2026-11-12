@@ -138,9 +138,10 @@ def tickets_del_agente() -> dict:
     El origen es "agente" (propuesta que el usuario confirmó) o "automatica" (vigilancia autorizada). Lee `data/ordenes.db` sin
     modificarla; si la base no existe o falla, devuelve un diccionario vacío (todas las operaciones se tratan como manuales)."""
     try:
-        from nucleo_agente.ordenes.base_datos import _consultar
+        from nucleo_agente.ordenes.base_datos import _consultar, condicion_dueno
+        dueno, valores = condicion_dueno()
         filas = _consultar("SELECT ticket_resultado, origen FROM ordenes WHERE accion = 'abrir' AND estado = 'EJECUTADA' "
-                           "AND ticket_resultado IS NOT NULL AND ticket_resultado != ''")
+                           "AND ticket_resultado IS NOT NULL AND ticket_resultado != ''" + dueno, valores)
     except Exception:  # noqa: BLE001 - sin base de órdenes no hay operaciones del agente que reconocer
         return {}
     return {str(f["ticket_resultado"]): (f["origen"] or "agente") for f in filas}
@@ -153,8 +154,9 @@ def resumen_propuestas() -> dict:
 
     Devuelve {estado: cantidad}; vacío si no hay base de órdenes. Sirve para ver cuántas propuestas acepta el usuario."""
     try:
-        from nucleo_agente.ordenes.base_datos import _consultar
-        filas = _consultar("SELECT estado, COUNT(*) AS n FROM ordenes WHERE accion = 'abrir' GROUP BY estado")
+        from nucleo_agente.ordenes.base_datos import _consultar, condicion_dueno
+        dueno, valores = condicion_dueno()
+        filas = _consultar("SELECT estado, COUNT(*) AS n FROM ordenes WHERE accion = 'abrir'" + dueno + " GROUP BY estado", valores)
     except Exception:  # noqa: BLE001
         return {}
     return {f["estado"]: int(f["n"]) for f in filas}

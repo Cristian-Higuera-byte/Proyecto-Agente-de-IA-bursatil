@@ -25,6 +25,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from herramientas.backends import sesiones_capital
 from herramientas.recursos import sin_creditos
 from nucleo_agente.ordenes.limites import LIMITES
 
@@ -42,6 +43,14 @@ _SQL_VIGILANCIAS = sin_creditos((_AQUI / "sql" / "vigilancias.sql").read_text(en
 
 # Columnas añadidas después de la primera versión: se agregan a las bases ya existentes (migración).
 _COLUMNAS_NUEVAS_ORDENES = tuple(tuple(c) for c in json.loads((_AQUI / "sql" / "columnas_nuevas.json").read_text(encoding="utf-8")))
+
+
+# Texto que se anota en las propuestas pendientes de antes de que existiera el dueño (solo en el modo multiusuario): no se puede saber de quién eran.
+_MOTIVO_SIN_DUENO = "Propuesta anterior al control por usuario y cuenta: no se puede comprobar de quién era. Pídele al agente que la genere de nuevo."
+
+
+class SinSesionError(RuntimeError):
+    """No hay un usuario identificado: no se puede crear ni tocar ninguna propuesta de órdenes."""
 
 
 _DB_PREPARADA: Path | None = None   # ruta de la base ya inicializada en este proceso
@@ -71,6 +80,9 @@ def _conectar() -> sqlite3.Connection:
             for nombre, definicion in _COLUMNAS_NUEVAS_ORDENES:   # bases creadas antes de estas columnas
                 if nombre not in existentes:
                     con.execute(f"ALTER TABLE ordenes ADD COLUMN {nombre} {definicion}")
+            con.execute("CREATE INDEX IF NOT EXISTS ordenes_dueno ON ordenes (usuario_id, cuenta, estado)")
+            if sesiones_capital.MULTIUSUARIO:    # las propuestas pendientes sin dueño comprobable no se muestran a nadie: se vencen para que no queden colgadas
+                con.execute("UPDATE ordenes SET estado = 'EXPIRADA', detalle = ? WHERE usuario_id IS NULL AND estado = 'PENDIENTE'", (_MOTIVO_SIN_DUENO,))
             con.execute(_SQL_VIGILANCIAS)
             con.execute("CREATE TABLE IF NOT EXISTS estado (clave TEXT PRIMARY KEY, valor TEXT)")
             con.commit()
@@ -104,6 +116,34 @@ def _ahora() -> str:
     return datetime.now().isoformat(timespec="seconds")
 
 
+# TITULO DUENO ACTUAL
+
+def dueno_actual() -> tuple[str, str] | None:
+    """Dueño de las propuestas con las que se trabaja ahora: (usuario_id, cuenta), o None si no hay un usuario identificado.
+
+    Sale de la misma clave que decide con qué cuenta de Capital.com se opera (sesiones_capital.clave_actual): el usuario autenticado y si está en demo o real, o
+    ('legado', 'legado') con el modo multiusuario apagado. Nunca viene de un parámetro del navegador ni del modelo."""
+    clave = sesiones_capital.clave_actual()
+    if clave == ("legado",):
+        return ("legado", "legado")
+    if len(clave) == 2:
+        return (str(int(clave[0])), "demo" if clave[1] else "real")
+    return None
+
+
+# TITULO CONDICION DUENO
+
+def condicion_dueno() -> tuple[str, tuple]:
+    """Texto SQL y valores que limitan una consulta a las propuestas del usuario y la cuenta actuales, para añadirlos con `+` al final de un WHERE.
+
+    Devuelve (" AND COALESCE(usuario_id, 'legado') = ? AND COALESCE(cuenta, 'legado') = ?", (usuario, cuenta)); sin usuario identificado devuelve una condición que nunca
+    se cumple. Las filas antiguas sin dueño se leen como 'legado': solo las ve el modo de un solo usuario, nunca un usuario del modo multiusuario."""
+    dueno = dueno_actual()
+    if dueno is None:
+        return " AND 1 = 0", ()
+    return " AND COALESCE(usuario_id, 'legado') = ? AND COALESCE(cuenta, 'legado') = ?", dueno
+
+
 # TITULO INSERTAR
 
 def _insertar(**campos: Any) -> str:
@@ -111,7 +151,11 @@ def _insertar(**campos: Any) -> str:
 
     Genera un id corto aleatorio (8 caracteres), la fecha de creación y la de expiración (ahora más
     LIMITES.vigencia_propuesta_min); los campos recibidos por nombre completan o sustituyen esos valores.
-    Los nombres de columna son fijos del código, nunca provienen del modelo."""
+    Los nombres de columna son fijos del código, nunca provienen del modelo. El dueño (usuario y cuenta) lo fija siempre el servidor con `dueno_actual`, aunque el
+    llamador pase otro valor; sin usuario identificado lanza SinSesionError y no guarda nada."""
+    dueno = dueno_actual()
+    if dueno is None:
+        raise SinSesionError("No hay una sesión de usuario: no se puede registrar la propuesta.")
     id_ = uuid.uuid4().hex[:8]
     ahora = datetime.now()
     base = {
@@ -120,6 +164,7 @@ def _insertar(**campos: Any) -> str:
         "expira": (ahora + timedelta(minutes=LIMITES.vigencia_propuesta_min)).isoformat(timespec="seconds"),
     }
     base.update(campos)
+    base["usuario_id"], base["cuenta"] = dueno
     columnas = ", ".join(base)
     marcas = ", ".join("?" for _ in base)
     _ejecutar(f"INSERT INTO ordenes ({columnas}) VALUES ({marcas})", tuple(base.values()))

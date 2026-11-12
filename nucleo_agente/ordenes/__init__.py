@@ -50,6 +50,9 @@ from nucleo_agente.ordenes.limites import (
 from nucleo_agente.ordenes.base_datos import (
     DIR_DATOS,
     RUTA_DB,
+    SinSesionError,
+    condicion_dueno,
+    dueno_actual,
     interruptor_emergencia_activo,
     fijar_interruptor_emergencia,
     _COLUMNAS_NUEVAS_ORDENES,

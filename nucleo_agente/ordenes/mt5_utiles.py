@@ -22,7 +22,7 @@ from typing import Any
 
 from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
-from nucleo_agente.ordenes.base_datos import _ahora, _consultar, interruptor_emergencia_activo
+from nucleo_agente.ordenes.base_datos import _ahora, _consultar, condicion_dueno, interruptor_emergencia_activo
 from nucleo_agente.ordenes.limites import LIMITES, limites_actuales
 from herramientas.puente_mt5 import MT5_LOCK, NOMBRE_BROKER, PROVEEDOR, inicializar_mt5, resolver_simbolo
 
@@ -154,12 +154,13 @@ def _riesgo_expuesto(cuenta: Any, incluir_pendientes: bool) -> float:
             total += max(0.0, -resultado) if resultado is not None else 0.0
         elif limites_actuales().riesgo_max_por_operacion_pct is not None:  # sin stop loss el riesgo es desconocido: se asume el máximo por operación que definió el usuario
             total += cuenta.equity * limites_actuales().riesgo_max_por_operacion_pct / 100
-    # Opcionalmente suma el riesgo de propuestas de apertura aún vigentes que el usuario no ha resuelto.
+    # Opcionalmente suma el riesgo de propuestas de apertura aún vigentes que el usuario no ha resuelto (solo las suyas, en esta cuenta).
     if incluir_pendientes:
+        dueno, valores = condicion_dueno()
         filas = _consultar(
             "SELECT COALESCE(SUM(riesgo_dinero), 0) AS total FROM ordenes "
-            "WHERE estado = 'PENDIENTE' AND accion = 'abrir' AND expira > ?",
-            (_ahora(),),
+            "WHERE estado = 'PENDIENTE' AND accion = 'abrir' AND expira > ?" + dueno,
+            (_ahora(), *valores),
         )
         total += float(filas[0]["total"] or 0)
     return total

@@ -22,7 +22,7 @@ from typing import Any
 from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
 from herramientas.tickets import ticket as _tk
-from nucleo_agente.ordenes.base_datos import _ahora, _consultar, _insertar, interruptor_emergencia_activo
+from nucleo_agente.ordenes.base_datos import _ahora, _consultar, _insertar, condicion_dueno, interruptor_emergencia_activo
 from nucleo_agente.ordenes.limites import LIMITES, limites_actuales
 from nucleo_agente.ordenes.mt5_utiles import (NOMBRE_BROKER, _chequeos_globales, _con_candado, _perdida_del_dia, _preparar_mt5,
                                      _resolver_simbolo, _riesgo_expuesto)
@@ -32,12 +32,13 @@ from nucleo_agente.ordenes.validacion import _evaluar_apertura
 # TITULO PROPUESTA PENDIENTE
 
 def _propuesta_pendiente(accion: str, **filtros: Any) -> str | None:
-    """id de una propuesta PENDIENTE (no vencida) con esa acción y esos campos, o None."""
+    """id de una propuesta PENDIENTE (no vencida) del usuario y la cuenta actuales con esa acción y esos campos, o None (nunca una de otro usuario)."""
     condiciones = "".join(f" AND {campo} = ?" for campo in filtros)  # los nombres de campo son fijos, no vienen del agente
+    dueno, valores = condicion_dueno()
     filas = _consultar(
-        f"SELECT id FROM ordenes WHERE estado = 'PENDIENTE' AND accion = ? AND expira > ?{condiciones} "
+        f"SELECT id FROM ordenes WHERE estado = 'PENDIENTE' AND accion = ? AND expira > ?{condiciones}{dueno} "
         "ORDER BY creada LIMIT 1",
-        (accion, _ahora(), *filtros.values()),
+        (accion, _ahora(), *filtros.values(), *valores),
     )
     return filas[0]["id"] if filas else None
 
