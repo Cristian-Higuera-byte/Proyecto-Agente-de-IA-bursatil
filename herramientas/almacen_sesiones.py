@@ -17,12 +17,10 @@ almacen_sesiones.py
 Almacén de sesiones EN MEMORIA del servidor. Vive mientras el proceso de
 Streamlit (la consola) esté encendido; al apagarlo, se borra todo.
 
-Se combina con un token en la URL (?s=<token>) que sí sobrevive al F5:
-  - F5 del navegador  -> la URL conserva el token -> el servidor lo encuentra
-                         aquí y restaura la sesión (sigues dentro).
-  - Apagar la consola -> este diccionario se vacía -> el token queda inválido
-                         -> pide login de nuevo.
-  - Cerrar sesión     -> se elimina el token de aquí.
+Cada sesión se identifica con el identificador de su dispositivo (resumen de la cookie de sesión; ver acceso/sesion.py), que NO viaja en la dirección:
+  - F5 o enlace del menú -> la cookie restaura la sesión y el identificador es el mismo -> los datos guardados aquí (la cuenta elegida) siguen ahí.
+  - Apagar la consola    -> este diccionario se vacía; la cookie vuelve a registrar la sesión y los datos de la sesión (como la cuenta elegida) se pierden.
+  - Cerrar sesión        -> se elimina el identificador de aquí.
 """
 import secrets
 import time
@@ -50,6 +48,14 @@ def crear(usuario: dict) -> str:
     token = secrets.token_urlsafe(24)
     _sesiones[token] = usuario
     return token
+
+
+# TITULO REGISTRAR
+
+def registrar(identificador: str, usuario: dict) -> None:
+    """Registra la sesión de un dispositivo con su identificador (ver acceso/sesion.py). Si ya estaba registrada se conservan sus datos guardados (la cuenta elegida)."""
+    if identificador:
+        _sesiones[identificador] = usuario
 
 
 # TITULO OBTENER

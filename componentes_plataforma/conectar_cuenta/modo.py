@@ -98,11 +98,19 @@ def modo_activo_demo() -> bool:
 def fijar_modo(es_demo: bool) -> None:
     """Elige la cuenta con la que se opera: True = demo, False = real.
 
-    Además de la sesión de la pestaña, lo guarda junto a la sesión del servidor (token `s` de la URL): así la elección
+    Además de la sesión de la pestaña, lo guarda junto a la sesión del servidor (identificador de la sesión de este dispositivo): así la elección
     sobrevive a un F5 y a los enlaces del menú (Perfil, Configuración) que recargan la página. Un inicio de sesión
     nuevo no la hereda: siempre parte en demo."""
     st.session_state[_CLAVE_MODO] = bool(es_demo)
-    almacen_sesiones.guardar_dato(str(st.query_params.get("s", "")), "modo_demo", bool(es_demo))
+    almacen_sesiones.guardar_dato(_identificador_sesion(), "modo_demo", bool(es_demo))
+
+
+# TITULO IDENTIFICADOR DE LA SESION
+
+def _identificador_sesion() -> str:
+    """Identificador de la sesión de este dispositivo (ver acceso/sesion.py). Se importa al usarlo para evitar un ciclo de importación con el paquete de acceso."""
+    from componentes_plataforma.acceso.sesion import identificador
+    return identificador()
 
 
 # TITULO REINICIAR MODO
@@ -110,7 +118,7 @@ def fijar_modo(es_demo: bool) -> None:
 def reiniciar_modo() -> None:
     """Olvida la cuenta elegida (demo o real), en la pestaña y junto a la sesión del servidor; se usa al quitar la API, para que no quede ninguna elección vieja."""
     st.session_state.pop(_CLAVE_MODO, None)
-    almacen_sesiones.guardar_dato(str(st.query_params.get("s", "")), "modo_demo", None)
+    almacen_sesiones.guardar_dato(_identificador_sesion(), "modo_demo", None)
 
 
 # TITULO RESTAURAR MODO
@@ -119,7 +127,7 @@ def restaurar_modo() -> None:
     """Si la pestaña acaba de recargarse (sin cuenta elegida), recupera la que el usuario había elegido en esta sesión."""
     if _CLAVE_MODO in st.session_state:
         return
-    guardado = almacen_sesiones.leer_dato(str(st.query_params.get("s", "")), "modo_demo")
+    guardado = almacen_sesiones.leer_dato(_identificador_sesion(), "modo_demo")
     if guardado is not None:
         st.session_state[_CLAVE_MODO] = bool(guardado)
 
@@ -146,7 +154,7 @@ def url_servidor(url_base: str) -> str:
     usuario_id = usuario_id_actual()
     if usuario_id is None:
         return url_base
-    return token_datos.url_con_token(url_base, usuario_id, modo_activo_demo(), token_datos.huella_sesion(str(st.query_params.get("s", ""))))
+    return token_datos.url_con_token(url_base, usuario_id, modo_activo_demo(), _identificador_sesion())
 
 
 # TITULO REGISTRAR RESOLVEDOR

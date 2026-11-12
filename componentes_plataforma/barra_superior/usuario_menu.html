@@ -36,13 +36,13 @@ Transportes y Servicios Ltda.
                             background:#0f1620; border:1px solid #30363d; border-radius:10px;
                             min-width:210px; padding:6px; z-index:3000;
                             box-shadow:0 8px 24px rgba(0,0,0,0.5);'>
-                    <!-- Opcion Mi perfil: el parametro perfil=1 lo procesa acceso/pantalla.py (requerir_login); s conserva la sesion -->
-                    <a href='?perfil=1&s=__TOKEN__' target='_self' class='navegacion-menu-elemento'
+                    <!-- Opcion Mi perfil: el parametro perfil=1 lo procesa acceso/pantalla.py (requerir_login); la sesion se conserva con la cookie, no con la direccion -->
+                    <a href='?perfil=1' target='_self' class='navegacion-menu-elemento'
                        style='display:flex; align-items:center; gap:10px;
                          padding:9px 12px; border-radius:6px; color:#e6edf3; font-size:13px;
                          cursor:pointer; text-decoration:none;'><svg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round' style='flex:none; color:#8b949e;'><path d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'/><circle cx='12' cy='7' r='4'/></svg>Mi perfil</a>
                     <!-- Opcion Configuracion: abre el perfil en la seccion de preferencias -->
-                    <a href='?perfil=preferencias&s=__TOKEN__' target='_self' class='navegacion-menu-elemento'
+                    <a href='?perfil=preferencias' target='_self' class='navegacion-menu-elemento'
                        style='display:flex; align-items:center; gap:10px;
                          padding:9px 12px; border-radius:6px; color:#e6edf3; font-size:13px;
                          cursor:pointer; text-decoration:none;'><svg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round' style='flex:none; color:#8b949e;'><line x1='21' y1='4' x2='14' y2='4'/><line x1='10' y1='4' x2='3' y2='4'/><line x1='21' y1='12' x2='12' y2='12'/><line x1='8' y1='12' x2='3' y2='12'/><line x1='21' y1='20' x2='16' y2='20'/><line x1='12' y1='20' x2='3' y2='20'/><line x1='14' y1='2' x2='14' y2='6'/><line x1='8' y1='10' x2='8' y2='14'/><line x1='16' y1='18' x2='16' y2='22'/></svg>Configuración</a>

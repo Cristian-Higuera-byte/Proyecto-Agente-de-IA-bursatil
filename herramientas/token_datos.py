@@ -154,8 +154,8 @@ def url_con_token(url_base: str, usuario_id: int, es_demo: bool, sesion: str = "
 # TITULO HUELLA DE LA SESION
 
 def huella_sesion(token_sesion: str) -> str:
-    """Resumen corto (16 caracteres hexadecimales) del token `?s=` de la sesión de Streamlit, o '' si no hay. Va dentro del token de datos y en `revocaciones_acceso`
-    en lugar del token de la sesión, que no debe viajar ni guardarse."""
+    """Resumen corto (16 caracteres hexadecimales) de un token de sesión (la cookie de «mantener sesión»), o '' si no hay. Es el identificador de la sesión (acceso/sesion.py):
+    va dentro del token de datos y en `revocaciones_acceso` en lugar del token de la sesión, que no debe viajar ni guardarse."""
     return hashlib.sha256(token_sesion.encode("utf-8")).hexdigest()[:16] if token_sesion else ""
 
 
@@ -190,9 +190,8 @@ def _revocar(usuario_id, sesion) -> bool:
 
 # TITULO REVOCAR SESION
 
-def revocar_sesion(usuario_id, token_sesion: str) -> bool:
-    """Invalida los tokens de datos emitidos desde esa sesión de Streamlit (cerrar sesión en este dispositivo)."""
-    huella = huella_sesion(token_sesion)
+def revocar_sesion(usuario_id, huella: str) -> bool:
+    """Invalida los tokens de datos emitidos desde esa sesión (cerrar sesión en este dispositivo); `huella` es el identificador de la sesión (`huella_sesion`)."""
     return _revocar(usuario_id, huella) if huella else False
 
 

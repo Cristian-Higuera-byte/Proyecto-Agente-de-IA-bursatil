@@ -21,7 +21,6 @@ Los enlaces del menú llevan el token de sesión (`s`) para que el cambio de cue
 `pantalla.requerir_cuenta`.
 """
 import html
-from urllib.parse import quote
 
 import streamlit as st
 
@@ -68,14 +67,13 @@ def entradas_menu() -> str:
     if not sesiones_capital.MULTIUSUARIO:
         return ""
     cuentas = cuentas_conectadas()
-    token = quote(str(st.query_params.get("s", "")), safe="")
     en_demo = modo_activo_demo()
     entradas = []
     if cuentas.get("demo") and cuentas.get("real"):
         destino, rotulo = ("real", "Cambiar a cuenta Real") if en_demo else ("demo", "Cambiar a cuenta Demo")
-        entradas.append(f"<a href='?cuenta={destino}&s={token}' target='_self' class='navegacion-menu-elemento' "
+        entradas.append(f"<a href='?cuenta={destino}' target='_self' class='navegacion-menu-elemento' "
                         f"style='{_ESTILO_ENTRADA}'>{_ICONO_CAMBIAR}{html.escape(rotulo)}</a>")
-    entradas.append(f"<a href='?cuentas=1&s={token}' target='_self' class='navegacion-menu-elemento' "
+    entradas.append(f"<a href='?cuentas=1' target='_self' class='navegacion-menu-elemento' "
                     f"style='{_ESTILO_ENTRADA}'>{_ICONO_CUENTAS}Mis cuentas</a>")
     return "".join(entradas) + "<div style='height:1px; background:#30363d; margin:4px 6px;'></div>"
 

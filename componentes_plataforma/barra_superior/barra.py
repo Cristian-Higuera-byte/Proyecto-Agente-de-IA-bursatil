@@ -109,7 +109,6 @@ def renderizar_barra_navegacion(usuario: str = "Emilio Fuentes",
     # Menú del usuario: plantilla HTML con marcadores sustituidos por las iniciales y el nombre
     html_usuario = (texto(_DIR / "usuario_menu.html")
                     .replace("__INICIALES__", html.escape(iniciales)).replace("__USUARIO__", html.escape(usuario))
-                    .replace("__TOKEN__", str(st.query_params.get("s", "")))
                     .replace("__ENTRADAS_CUENTA__", entradas_menu()))
 
     # ☰ + buscador (corto, a la izquierda) + espacio + saldo/tema + campana + usuario
