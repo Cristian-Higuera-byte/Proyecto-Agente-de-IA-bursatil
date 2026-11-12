@@ -28,7 +28,7 @@ import time
 
 import streamlit as st
 
-from herramientas import almacen_sesiones, sesion_persistente
+from herramientas import almacen_sesiones, sesion_persistente, token_datos
 
 from . import cookie
 
@@ -42,6 +42,7 @@ def cerrar_sesion_en_todos(usuario_id) -> None:
     ya estaban abiertas se cierran en su próxima ejecución completa (el celular, al recargar o pulsar algo). Luego cierra la de este dispositivo."""
     sesion_persistente.revocar_todas(usuario_id)
     almacen_sesiones.revocar_usuario(usuario_id)
+    token_datos.revocar_usuario(usuario_id)       # el token del servidor de datos (otro proceso) y sus conexiones en vivo también dejan de servir
     cerrar_sesion()
 
 
@@ -54,6 +55,10 @@ def cerrar_sesion() -> None:
     el parámetro `s` de la URL y borra de `st.session_state` las claves `usuario_autenticado`
     y `usuario_informacion`, revoca la sesión persistente de la cookie y programa borrar esa cookie. No devuelve nada; el llamador decide si limpia la URL y reejecuta.
     """
+    # El token del servidor de datos de esta sesión (y sus conexiones en vivo) deja de servir; debe hacerse antes de olvidar quién es el usuario
+    usuario_id = (st.session_state.get("usuario_informacion") or {}).get("id")
+    if usuario_id is not None:
+        token_datos.revocar_sesion(usuario_id, str(st.query_params.get("s", "")))
     # Invalida el token en el servidor para que un F5 ya no restaure la sesión
     almacen_sesiones.eliminar(st.query_params.get("s", ""))
     # Invalida también la sesión de larga duración (cookie) y deja pendiente borrarla del navegador

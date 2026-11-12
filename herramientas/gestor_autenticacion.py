@@ -431,8 +431,9 @@ def restablecer_contrasena(token: str, nueva: str) -> dict:
         if verificacion_activa():
             cambios.update({"correo_verificado": True, "correo_verificado_en": verificacion_correo.ahora_utc().isoformat()})
         _supabase.table("usuarios").update(cambios).eq("id", usuario_id).execute()
-        from herramientas import sesion_persistente
+        from herramientas import sesion_persistente, token_datos
         sesion_persistente.revocar_todas(usuario_id)
+        token_datos.revocar_usuario(usuario_id)      # el token del servidor de datos y sus conexiones en vivo también dejan de servir
         return {"ok": True, "mensaje": "Contraseña actualizada. Ya puedes iniciar sesión."}
     except Exception as e:
         return _error_neutro("el restablecimiento de la contraseña", e)

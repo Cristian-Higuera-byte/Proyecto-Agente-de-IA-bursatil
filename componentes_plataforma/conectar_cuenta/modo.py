@@ -146,7 +146,7 @@ def url_servidor(url_base: str) -> str:
     usuario_id = usuario_id_actual()
     if usuario_id is None:
         return url_base
-    return token_datos.url_con_token(url_base, usuario_id, modo_activo_demo())
+    return token_datos.url_con_token(url_base, usuario_id, modo_activo_demo(), token_datos.huella_sesion(str(st.query_params.get("s", ""))))
 
 
 # TITULO REGISTRAR RESOLVEDOR

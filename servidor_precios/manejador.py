@@ -39,6 +39,10 @@ from .simbolos import listar_simbolos
 from .velas import obtener_ultima, obtener_velas, precalentar
 
 
+# Cada cuántos segundos una conexión de precios en vivo vuelve a comprobar que el token sigue vigente
+REVISION_STREAM_S = 5
+
+
 # TITULO LISTA SIMBOLOS
 
 def _lista_simbolos(qs) -> list:
@@ -107,12 +111,15 @@ class Manejador(BaseHTTPRequestHandler):
 
     # TITULO IDENTIFICAR
 
-    def _identificar(self):
+    def _identificar(self, mutacion=False):
         """Averigua de qué cuenta es la petición y deja `self.path` sin el prefijo del token.
 
         La dirección puede venir como `/t/<token>/ruta`. Con el modo multiusuario apagado devuelve la cuenta del .env
         ("legado",). Encendido, devuelve (usuario_id, es_demo) si el token es auténtico y vigente; si no, responde 401
-        y devuelve None (quien llama debe terminar). `/salud` es pública."""
+        y devuelve None (quien llama debe terminar). `/salud` es pública.
+
+        El token firmado no basta: se consulta si la persona cerró sesión (en este dispositivo, en todos o al cambiar la contraseña) después de emitirlo, y si es así responde
+        401. Si no se puede comprobar (la base no responde) las lecturas siguen con el último resultado conocido, pero una petición que modifica (`mutacion=True`) se rechaza con 503."""
         analizada = urlparse(self.path)
         partes = analizada.path.split("/")
         token = ""
@@ -123,11 +130,19 @@ class Manejador(BaseHTTPRequestHandler):
             return ("legado",)
         if urlparse(self.path).path.strip("/") == "salud":
             return ("anonimo",)
-        identidad = token_datos.verificar(token) if token else None
-        if identidad is None:
+        datos = token_datos.leer(token) if token else None
+        if datos is None:
             self._rechazar(401, "no autorizado")
             return None
-        return identidad
+        revocado = token_datos.esta_revocado(datos)
+        if revocado:
+            self._rechazar(401, "sesión cerrada")
+            return None
+        if revocado is None and mutacion:
+            self._rechazar(503, "no se pudo comprobar la sesión")
+            return None
+        self._datos_token = datos
+        return (datos["u"], datos["d"])
 
     # TITULO STREAM
 
@@ -152,10 +167,18 @@ class Manejador(BaseHTTPRequestHandler):
         # seq = último cambio ya enviado a este cliente
         seq = 0
         ultimo_envio = time.time()
+        datos_token = getattr(self, "_datos_token", None)     # None con el modo multiusuario apagado
+        ultima_revision = time.time()
         try:
             # Indica al navegador reconectar a los 2 s si se corta
             self.wfile.write(b"retry: 2000\n\n")
             while not motor._detenido:     # si el motor se apagó, se corta: el navegador reconecta y recibe uno nuevo
+                # Cada pocos segundos se vuelve a comprobar el token: si la persona cerró sesión o el token venció, se corta la conexión (la reconexión recibe 401)
+                if datos_token is not None and time.time() - ultima_revision >= REVISION_STREAM_S:
+                    ultima_revision = time.time()
+                    if datos_token["e"] < ultima_revision or token_datos.esta_revocado(datos_token):
+                        self.close_connection = True
+                        break
                 # Solo lo que cambió desde la última secuencia enviada
                 nuevo, ticks, cuenta = motor.foto(simbolos, seq)
                 seq = nuevo
@@ -261,7 +284,7 @@ class Manejador(BaseHTTPRequestHandler):
 
     def do_POST(self):
         """Identifica la cuenta de la petición (token) y atiende el POST con la sesión de esa cuenta."""
-        clave = self._identificar()
+        clave = self._identificar(mutacion=True)
         if clave is None:
             return
         with sesiones_capital.con_clave(clave):
