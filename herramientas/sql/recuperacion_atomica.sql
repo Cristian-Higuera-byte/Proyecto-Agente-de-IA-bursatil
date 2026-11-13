@@ -124,13 +124,14 @@
 
     -- TITULO SEGURIDAD
 
-        -- Descripción: RLS activo y sin políticas en la tabla nueva (la clave pública anon no puede leer ni escribir nada). El servidor usa service_role (o el usuario de la base en
+        -- Descripción: en Supabase, RLS activo y sin políticas en la tabla nueva (la clave pública anon no puede leer ni escribir nada). El servidor usa service_role (o el usuario de la base en
         -- PostgreSQL de cPanel), que necesita permisos explícitos porque las tablas se crean sin permisos (sin ellos aparece "permission denied", código 42501).
-        -- Los permisos de `service_role` solo se dan si ese rol existe (Supabase); en el PostgreSQL de cPanel no existe y se dan al usuario de la base (ver la nota de abajo).
-        ALTER TABLE solicitudes_recuperacion ENABLE ROW LEVEL SECURITY;
+        -- Solo si existe el rol `service_role` (Supabase) se activa RLS y se le dan permisos. En el PostgreSQL de cPanel NO se activa RLS: el usuario de la base no es el dueño de la tabla y, sin
+        -- una política, RLS le impediría escribir ("new row violates row-level security policy"); allí los permisos se dan al usuario de la base (ver la nota de abajo).
         DO $$
         BEGIN
             IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+                ALTER TABLE solicitudes_recuperacion ENABLE ROW LEVEL SECURITY;
                 GRANT USAGE ON SCHEMA public TO service_role;
                 GRANT ALL ON TABLE public.solicitudes_recuperacion TO service_role;
                 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO service_role;
