@@ -367,8 +367,10 @@ def solicitar_recuperacion(correo: str) -> dict:
     """
     Envía el enlace para restablecer la contraseña. Retorna {"ok": bool, "mensaje": str}.
 
-    Responde siempre el mismo mensaje exista o no una cuenta con ese correo, para no revelar qué cuentas existen. Los fallos (por ejemplo, pedirlo muy
-    seguido) se anotan en el registro del servidor y no se muestran. Efecto secundario: una lectura en `usuarios` y, si existe, un correo.
+    Responde igual exista o no una cuenta con ese correo, para no revelar qué cuentas existen: el mensaje, la espera visible («podrás pedir otro en X min») y el máximo diario
+    se aplican por CORREO (no por cuenta) en una reserva atómica de la base de datos, así dos solicitudes simultáneas no envían dos correos; el envío sale en un hilo aparte para que
+    tampoco el tiempo de respuesta delate la cuenta. Los demás fallos se anotan en el registro del servidor y no se muestran. Efecto secundario: una lectura en `usuarios`, la reserva
+    y, si la cuenta existe, un correo.
     """
     if _supabase is None:
         return {"ok": False, "mensaje": "La base de datos no está configurada."}
@@ -380,9 +382,10 @@ def solicitar_recuperacion(correo: str) -> dict:
     generico = {"ok": True, "mensaje": f"Si existe una cuenta con ese correo, te enviamos un enlace para restablecer la contraseña. El enlace dura {verificacion_correo.MINUTOS_RECUPERACION} minutos."}
     try:
         filas = _supabase.table("usuarios").select("id,nombre,email").eq("email", correo).limit(1).execute().data
-        if filas:
-            usuario = cast(dict, filas[0])
-            verificacion_correo.enviar_enlace(_supabase, usuario["id"], usuario.get("nombre") or "", usuario["email"], verificacion_correo.RECUPERACION)
+        usuario = cast(dict, filas[0]) if filas else None
+        token, solicitud = verificacion_correo.reservar_recuperacion(_supabase, correo, usuario["id"] if usuario else None)
+        if usuario:
+            verificacion_correo.en_segundo_plano(lambda: verificacion_correo.enviar_recuperacion(_supabase, usuario["id"], usuario.get("nombre") or "", usuario["email"], token, solicitud))
     except verificacion_correo.ErrorEspera as espera:
         # Ya se envió un enlace hace poco: se le dice a la persona cuánto falta para poder pedir otro (así sabe que el correo ya salió y dónde buscarlo).
         minutos = max(1, math.ceil(espera.segundos / 60))
@@ -405,9 +408,9 @@ def restablecer_contrasena(token: str, nueva: str) -> dict:
     """
     Cambia la contraseña con el enlace de recuperación. Retorna {"ok": bool, "mensaje": str}.
 
-    Valida la contraseña nueva ANTES de usar el enlace, así una contraseña débil no lo gasta. Al terminar, la cuenta queda con el correo verificado (quien
-    recibió el enlace demostró que controla ese correo) y se cierran todas sus sesiones guardadas. Efecto secundario: actualizaciones en
-    `enlaces_correo`, `usuarios` y `sesiones_persistentes`.
+    Valida la contraseña nueva ANTES de usar el enlace, así una contraseña débil no lo gasta. El enlace se usa y la contraseña se guarda en UNA sola transacción de la base de datos
+    (`restablecer_contrasena_atomico`): si el guardado falla, el enlace sigue sirviendo y la contraseña anterior no cambia. Al terminar, la cuenta queda con el correo verificado (quien
+    recibió el enlace demostró que controla ese correo) y se cierran todas sus sesiones guardadas. Efecto secundario: actualizaciones en `enlaces_correo`, `usuarios` y `sesiones_persistentes`.
     """
     if _supabase is None:
         return {"ok": False, "mensaje": "La base de datos no está configurada."}
@@ -424,13 +427,9 @@ def restablecer_contrasena(token: str, nueva: str) -> dict:
         actual = _supabase.table("usuarios").select("password_hash").eq("id", vigente[0]).limit(1).execute().data
         if actual and _verificar_contrasena(nueva, actual[0].get("password_hash", "")):
             return {"ok": False, "mensaje": "La contraseña nueva no puede ser igual a la actual. Elige otra."}
-        usuario_id = verificacion_correo.consumir(_supabase, token, verificacion_correo.RECUPERACION)
+        usuario_id = verificacion_correo.restablecer_atomico(_supabase, token, _cifrar_contrasena(nueva), verificacion_activa())
         if usuario_id is None:
             return {"ok": False, "mensaje": "El enlace no es válido o ya venció. Pide uno nuevo."}
-        cambios = {"password_hash": _cifrar_contrasena(nueva)}
-        if verificacion_activa():
-            cambios.update({"correo_verificado": True, "correo_verificado_en": verificacion_correo.ahora_utc().isoformat()})
-        _supabase.table("usuarios").update(cambios).eq("id", usuario_id).execute()
         from herramientas import sesion_persistente, token_datos
         sesion_persistente.revocar_todas(usuario_id)
         token_datos.revocar_usuario(usuario_id)      # el token del servidor de datos y sus conexiones en vivo también dejan de servir

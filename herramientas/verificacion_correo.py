@@ -23,12 +23,17 @@ Cómo funciona:
     no haya vencido en una sola sentencia, de modo que dos clics a la vez no pueden usarlo dos veces.
   - Pedir un enlace nuevo invalida los anteriores del mismo tipo. Hay límites para evitar abusos: entre un envío y otro pasa un minuto (30 minutos en el de recuperación) y se
     permiten cinco al día por usuario y tipo.
+  - RECUPERACIÓN DE CONTRASEÑA (corrección de la auditoría, 13-11-2026): dos funciones de la base de datos (herramientas/sql/recuperacion_atomica.sql) la hacen atómica.
+    `reservar_recuperacion` reserva el envío de forma atómica (dos solicitudes simultáneas no pueden enviar dos correos) y aplica la espera y el máximo diario por CORREO, exista o no
+    una cuenta con él, para que la respuesta sea idéntica y no se pueda averiguar qué cuentas existen; el correo sale en un hilo aparte para que tampoco el tiempo de respuesta
+    lo delate. `restablecer_contrasena_atomico` usa el enlace y guarda la contraseña nueva en una sola transacción: si el guardado falla, el enlace sigue sirviendo.
 Las funciones reciben el cliente de la base de datos como parámetro (el mismo que usa gestor_autenticacion), así se pueden probar sin una base real.
 """
 import hashlib
 import os
 import secrets
 import sys
+import threading
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
@@ -50,6 +55,14 @@ MAXIMO_ENVIOS_POR_DIA = 5
 
 # Nombre del parámetro de la dirección con que la plataforma reconoce cada enlace (por ejemplo https://sitio/?verificar=TOKEN).
 PARAMETRO = {VERIFICACION: "verificar", RECUPERACION: "recuperar"}
+
+# Funciones y tabla de la base de datos de la recuperación atómica (herramientas/sql/recuperacion_atomica.sql).
+FUNCION_RESERVAR = "reservar_recuperacion"
+FUNCION_RESTABLECER = "restablecer_contrasena_atomico"
+TABLA_SOLICITUDES = "solicitudes_recuperacion"
+
+# Si es True (producción) el correo de recuperación se envía en un hilo aparte, así la respuesta tarda igual exista o no la cuenta. Las pruebas lo apagan para comprobar el envío enseguida.
+ENVIO_EN_SEGUNDO_PLANO = True
 
 
 # TITULO ERROR
@@ -155,6 +168,87 @@ def consultar(cliente: Any, token: str, tipo: str, ahora: Optional[datetime] = N
     filas = (cliente.table(TABLA).select("usuario_id,expira_en").eq("token_hash", hash_de(token)).eq("tipo", tipo)
              .is_("usado_en", "null").gt("expira_en", ahora.isoformat()).execute().data or [])
     return (int(filas[0]["usuario_id"]), leer_fecha(filas[0]["expira_en"])) if filas else None
+
+
+# TITULO HASH DE CORREO
+
+def hash_de_correo(correo: str) -> str:
+    """Hash SHA-256 (hexadecimal) del correo ya normalizado (minúsculas y sin espacios): con él se cuentan las solicitudes de recuperación sin guardar el correo."""
+    return hashlib.sha256((correo or "").strip().lower().encode("utf-8")).hexdigest()
+
+
+# TITULO RESERVAR RECUPERACION
+
+def reservar_recuperacion(cliente: Any, correo: str, usuario_id: Optional[int] = None, ahora: Optional[datetime] = None) -> tuple:
+    """Reserva de forma atómica el envío de un enlace de recuperación y devuelve `(token, id de la solicitud)`; el token es None si el correo no tiene cuenta (`usuario_id` None).
+
+    La espera entre solicitudes y el máximo diario se aplican por CORREO, exista o no una cuenta, para que la respuesta sea la misma en ambos casos. Lanza ErrorEspera si todavía
+    no pasó la espera (con los segundos que faltan) y ErrorEnlace si ya se pidió el máximo del día. Con usuario, la función de la base invalida sus enlaces de recuperación anteriores y crea el
+    nuevo; el token solo existe aquí y en el correo. Efecto secundario: una llamada a `reservar_recuperacion` en la base de datos."""
+    ahora = ahora or ahora_utc()
+    token = secrets.token_urlsafe(32) if usuario_id is not None else None
+    filas = cliente.rpc(FUNCION_RESERVAR, {"p_correo_hash": hash_de_correo(correo), "p_usuario": usuario_id, "p_token_hash": hash_de(token) if token else None,
+                                           "p_espera_s": SEGUNDOS_ENTRE_ENVIOS[RECUPERACION], "p_maximo_dia": MAXIMO_ENVIOS_POR_DIA,
+                                           "p_vigencia_s": int(duracion_de(RECUPERACION).total_seconds()), "p_ahora": ahora.isoformat()}).execute().data or []
+    if not filas:
+        raise ErrorEnlace("No se pudo reservar el envío del enlace.")
+    estado = filas[0].get("estado")
+    if estado == "limite":
+        raise ErrorEnlace("Pediste demasiados enlaces hoy. Inténtalo de nuevo mañana.")
+    if estado == "espera":
+        raise ErrorEspera(f"Espera {MINUTOS_ENTRE_RECUPERACIONES} minutos antes de pedir otro enlace.", int(filas[0].get("segundos") or 0))
+    if estado != "reservado":
+        raise ErrorEnlace("No se pudo reservar el envío del enlace.")
+    return token, filas[0].get("solicitud_id")
+
+
+# TITULO ENVIAR RECUPERACION
+
+def enviar_recuperacion(cliente: Any, usuario_id: int, nombre: str, destinatario: str, token: str, solicitud_id: Any) -> bool:
+    """Envía el correo de un enlace ya reservado y devuelve True si salió. Si falla, borra el enlace y libera la solicitud para que un fallo del correo no cuente contra el límite diario.
+
+    Nunca lanza: corre en un hilo aparte, así que el detalle técnico solo queda en el registro del servidor."""
+    try:
+        asunto, texto, cuerpo = correo.plantilla_recuperacion(nombre, armar_enlace(token, RECUPERACION), MINUTOS_RECUPERACION)
+        correo.enviar(destinatario, asunto, texto, cuerpo)
+        return True
+    except (correo.ErrorCorreo, ErrorEnlace) as error:
+        print(f"[Correo] No se pudo enviar el enlace de recuperación al usuario {usuario_id}: {error}", file=sys.stderr, flush=True)
+    except Exception as error:  # noqa: BLE001 - un hilo no debe morir en silencio
+        print(f"[Correo] Fallo inesperado al enviar la recuperación al usuario {usuario_id}: {error}", file=sys.stderr, flush=True)
+    try:
+        cliente.table(TABLA).delete().eq("token_hash", hash_de(token)).execute()
+        if solicitud_id is not None:
+            cliente.table(TABLA_SOLICITUDES).delete().eq("id", solicitud_id).execute()
+    except Exception as error:  # noqa: BLE001
+        print(f"[Correo] No se pudo liberar la solicitud de recuperación: {error}", file=sys.stderr, flush=True)
+    return False
+
+
+# TITULO EN SEGUNDO PLANO
+
+def en_segundo_plano(tarea: Any) -> None:
+    """Ejecuta `tarea` (una función sin argumentos) en un hilo aparte, o enseguida si ENVIO_EN_SEGUNDO_PLANO está apagado (pruebas)."""
+    if not ENVIO_EN_SEGUNDO_PLANO:
+        tarea()
+        return
+    threading.Thread(target=tarea, name="envio-recuperacion", daemon=True).start()
+
+
+# TITULO RESTABLECER ATOMICO
+
+def restablecer_atomico(cliente: Any, token: str, contrasena_cifrada: str, verificar_correo: bool, ahora: Optional[datetime] = None) -> Optional[int]:
+    """Usa el enlace de recuperación Y guarda la contraseña nueva (ya cifrada) en una sola transacción de la base de datos; devuelve el id del usuario, o None si el enlace no sirve.
+
+    Si algo falla al guardar la contraseña, la transacción se deshace y el enlace NO queda gastado; la excepción sube a quien llama. Con `verificar_correo` deja además el correo como
+    verificado. Efecto secundario: una llamada a `restablecer_contrasena_atomico` en la base de datos."""
+    token = (token or "").strip()
+    if not token:
+        return None
+    ahora = ahora or ahora_utc()
+    filas = cliente.rpc(FUNCION_RESTABLECER, {"p_token_hash": hash_de(token), "p_password_hash": contrasena_cifrada, "p_verificar": bool(verificar_correo),
+                                              "p_ahora": ahora.isoformat()}).execute().data or []
+    return int(filas[0]["id_usuario"]) if filas else None
 
 
 # TITULO ARMAR ENLACE
