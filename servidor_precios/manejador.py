@@ -114,9 +114,9 @@ class Manejador(BaseHTTPRequestHandler):
     def _identificar(self, mutacion=False):
         """Averigua de qué cuenta es la petición y deja `self.path` sin el prefijo del token.
 
-        La dirección puede venir como `/t/<token>/ruta`. Con el modo multiusuario apagado devuelve la cuenta del .env
-        ("legado",). Encendido, devuelve (usuario_id, es_demo) si el token es auténtico y vigente; si no, responde 401
-        y devuelve None (quien llama debe terminar). `/salud` es pública.
+        La dirección puede venir como `/t/<token>/ruta`. Encendido el multiusuario, devuelve (usuario_id, es_demo) si el token es auténtico y vigente; si no, responde 401
+        y devuelve None (quien llama debe terminar). En modo legado (multiusuario apagado) se devuelve ("legado",) pero se exige token válido para cualquier mutación (POST).
+        `/salud` es pública.
 
         El token firmado no basta: se consulta si la persona cerró sesión (en este dispositivo, en todos o al cambiar la contraseña) después de emitirlo, y si es así responde
         401. Si no se puede comprobar (la base no responde) las lecturas siguen con el último resultado conocido, pero una petición que modifica (`mutacion=True`) se rechaza con 503."""
@@ -126,10 +126,12 @@ class Manejador(BaseHTTPRequestHandler):
         if len(partes) >= 3 and partes[1] == "t":
             token = unquote(partes[2])
             self.path = "/" + "/".join(partes[3:]) + (("?" + analizada.query) if analizada.query else "")
-        if not sesiones_capital.MULTIUSUARIO:
-            return ("legado",)
         if urlparse(self.path).path.strip("/") == "salud":
             return ("anonimo",)
+        # En modo legado, solo se exige token para mutaciones (POST); los GET sin token se permiten
+        if not sesiones_capital.MULTIUSUARIO and not mutacion:
+            return ("legado",)
+        # Validar token: requerido en multiusuario o en mutaciones de legado
         datos = token_datos.leer(token) if token else None
         if datos is None:
             self._rechazar(401, "no autorizado")
@@ -142,7 +144,7 @@ class Manejador(BaseHTTPRequestHandler):
             self._rechazar(503, "no se pudo comprobar la sesión")
             return None
         self._datos_token = datos
-        return (datos["u"], datos["d"])
+        return (datos["u"], datos["d"]) if sesiones_capital.MULTIUSUARIO else ("legado",)
 
     # TITULO STREAM
 
