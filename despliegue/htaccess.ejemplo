@@ -50,6 +50,14 @@ RedirectMatch 404 ^/\.git
 
 RewriteEngine On
 
+# TITULO PAGINAS DE ERROR (IMPRESCINDIBLE, VA PRIMERO)
+
+# Cuando una regla rechaza una petición (403, 404, 413...), Apache hace una petición interna a la página de error de ese código. Esa petición volvería a pasar por
+# este archivo y caería en la regla final del proxy: Streamlit contestaría con su página y el cliente vería un 200 en vez del rechazo. Estas dos líneas dejan
+# esas peticiones internas fuera del proxy. Sin ellas NINGUNA regla de rechazo de abajo funciona (comprobado el 13-11-2026: TRACE, salud y cuerpo grande daban 200).
+RewriteCond %{ENV:REDIRECT_STATUS} ^[0-9]+$
+RewriteRule .* - [L]
+
 # TITULO RENOVACION DEL CERTIFICADO (AutoSSL)
 
 # La validación del certificado pide archivos en /.well-known/: se sirven directo desde la carpeta, sin pasarlos a Streamlit ni redirigirlos.
@@ -58,15 +66,17 @@ RewriteRule ^\.well-known/ - [L]
 # TITULO REDIRIGIR HTTP A HTTPS
 
 # Todo lo que llegue por el puerto 80 se manda a la misma ruta en HTTPS con 308 (conserva el método: un POST no se convierte en GET).
-RewriteCond %{HTTPS} !=on
+# En el servidor la redirección que se ve (301) la hace Apache por el interruptor «Forzar redireccionamiento HTTPS» de cPanel (Dominios), que actúa antes
+# que este archivo: dejar ese interruptor activado. Esta regla queda como respaldo.
+RewriteCond %{SERVER_PORT} ^80$
 RewriteCond %{HTTP:X-Forwarded-Proto} !https [NC]
 RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R=308,L]
 
 # TITULO BLOQUEAR TRACE Y TRACK
 
-# Métodos de depuración que reflejan la petición: se rechazan siempre (403). GET, POST, HEAD y OPTIONS no se tocan.
+# Métodos de depuración que reflejan la petición: se rechazan siempre (el servidor responde 405). GET, POST, HEAD y OPTIONS no se tocan.
 RewriteCond %{REQUEST_METHOD} ^(TRACE|TRACK)$ [NC]
-RewriteRule ^ - [F,L]
+RewriteRule .* - [F,L]
 
 # TITULO PAGINA DE MANTENIMIENTO
 
@@ -78,7 +88,7 @@ RewriteRule ^mantenimiento\.html$ - [L]
 # TITULO LIMITE DE TAMANO DE LAS PETICIONES AL SERVIDOR DE PRECIOS
 
 # Las órdenes pesan menos de 1 KB y la aplicación ya rechaza más de 16 KB (413). Aquí se corta antes, sin molestar a Python, todo POST que declare
-# 100 000 bytes o más (6 dígitos o más en Content-Length).
+# 100 000 bytes o más (6 dígitos o más en Content-Length). Responde 413. OJO: un cuerpo enviado «por partes» no declara Content-Length y pasa a la aplicación.
 RewriteCond %{REQUEST_METHOD} =POST
 RewriteCond %{HTTP:Content-Length} ^[0-9]{6,}$
 RewriteRule ^t/ - [R=413,L]
@@ -91,9 +101,9 @@ RewriteRule ^salud$ http://127.0.0.1:28000/salud [P,L]
 # TITULO RUTA DE SALUD DE STREAMLIT
 
 # /_stcore/health lo consulta el propio navegador de la plataforma (para saber si el servidor volvió) y revivir_procesos.py, este por el puerto 28501
-# directo (no pasa por aquí). Una consulta pública sin Referer del propio sitio recibe 404 (sección 12.4).
+# directo (no pasa por aquí). Una consulta pública sin Referer del propio sitio recibe 403 (sección 12.4).
 RewriteCond %{HTTP_REFERER} !^https://pyj\.rmcabogados\.cl/ [NC]
-RewriteRule ^_stcore/health$ - [R=404,L]
+RewriteRule ^_stcore/health$ - [F,L]
 
 # TITULO WEBSOCKET DE STREAMLIT
 
