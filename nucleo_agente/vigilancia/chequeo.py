@@ -65,8 +65,8 @@ def chequear(vid: str) -> dict[str, Any]:
         _finalizar(v, FINALIZADA, f"Vigilancia finalizada · {v['simbolo']}",
                    f"Se realizaron las {v['max_operaciones']} operaciones previstas y no queda ninguna posición abierta.")
         return {"ok": True, "estado": FINALIZADA}
-    if ordenes.interruptor_emergencia_activo() and not posiciones:
-        _actualizar(vid, ultimo_resumen="En pausa: el interruptor de emergencia bloquea las aperturas.")
+    if ordenes.aperturas_bloqueadas() and not posiciones:
+        _actualizar(vid, ultimo_resumen="En pausa: un interruptor de emergencia (o la política de apertura) bloquea las aperturas.")
         return {"ok": True, "estado": "EN_PAUSA"}
 
     # Paso 5: si el último tick es el mismo del chequeo anterior, el mercado no se movió y no se analiza.

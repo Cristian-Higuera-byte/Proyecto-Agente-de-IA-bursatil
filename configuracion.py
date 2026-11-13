@@ -128,9 +128,10 @@ RECAPTCHA_MODO: str = os.getenv("RECAPTCHA_MODO", "ambos").strip().lower() or "a
 # moneda: moneda del saldo; bono_inicial: saldo con el que se abre la billetera; recargas: montos que ofrece el botón de recarga;
 # recarga_mensual_max: tope de recargas por mes; saldo_maximo: tope del saldo (evita acumular saldo de prueba sin límite).
 BILLETERA: dict = {"moneda": "USD", "bono_inicial": 0.0, "recargas": [50, 100, 500, 1000], "recarga_mensual_max": 5000.0, "saldo_maximo": 10000.0}
-# Cuenta real: True deja operar con la cuenta real de Capital.com todo lo que antes era solo de la cuenta demo (órdenes propuestas por el agente y manuales,
-# vigilancias automáticas y copy trading). False vuelve al modo anterior, en que el agente y el copy trading solo operan en cuenta demo.
-OPERAR_EN_CUENTA_REAL: bool = True
+# Cuenta real: DESHABILITADA por defecto. Mientras sea False no se puede abrir NINGUNA operación en la cuenta real de Capital.com, por ningún camino (gráfico, ticket, agente, copy trading):
+# la política de apertura (herramientas/politica_apertura.py) lo rechaza y el agente y el copy trading solo operan en cuenta demo. Se habilita a propósito con OPERAR_EN_CUENTA_REAL=true en el
+# .env del servidor, cuando las protecciones de la auditoría de seguridad estén probadas y la revisión legal lo permita. Cerrar posiciones y cancelar órdenes siguen disponibles.
+OPERAR_EN_CUENTA_REAL: bool = os.getenv("OPERAR_EN_CUENTA_REAL", "false").strip().lower() in ("1", "true", "si", "sí")
 # Copy trading: requisitos para ser gestor y límites de una estrategia.
 # dias_minimos y operaciones_minimas: historial registrado que se pide para publicar; max_estrategias: estrategias vigentes por gestor (las cerradas
 # no cuentan); comision_max y comision_defecto: comisión de rendimiento (%) que el gestor cobra a quien copia; inversion_minima: mínimo (USD) para copiar;

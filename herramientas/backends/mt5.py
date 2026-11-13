@@ -496,8 +496,17 @@ def _modo_llenado(simulado_info):
 
 # TITULO EJECUTAR ORDEN MERCADO
 
+def _bloqueo_apertura():
+    """Motivo por el que NO se puede abrir ahora (parada global, sin usuario, parada de la persona o cuenta real deshabilitada), o None; ver herramientas/politica_apertura.py. Se importa al usarlo para evitar ciclos."""
+    from herramientas import politica_apertura
+    return politica_apertura.motivo_de_bloqueo()
+
+
 def ejecutar_orden_mercado(symbol: str, tipo: str, volumen: float, stop_loss: float = 0.0, take_profit: float = 0.0) -> dict:
-    """Ejecuta una orden de compra o venta a mercado en MT5. tipo: 'BUY' o 'SELL'."""
+    """Ejecuta una orden de compra o venta a mercado en MT5. tipo: 'BUY' o 'SELL'. Pasa por la política de apertura (paradas de emergencia y cuenta real)."""
+    bloqueo = _bloqueo_apertura()
+    if bloqueo:
+        return {"error": bloqueo}
     symbol = resolver_simbolo(symbol)
     with _ORDEN_CANDADO:
         if not inicializar_mt5():
@@ -567,7 +576,11 @@ def colocar_orden_pendiente(symbol: str, tipo: str, volumen: float, precio: floa
     El tipo se deduce del precio pedido respecto del mercado:
       COMPRA bajo el ask -> BUY_LIMIT · sobre el ask -> BUY_STOP
       VENTA sobre el bid -> SELL_LIMIT · bajo el bid -> SELL_STOP
-    hasta_cancelar=True -> vigente hasta cancelarla (GTC); False -> solo hoy (DAY)."""
+    hasta_cancelar=True -> vigente hasta cancelarla (GTC); False -> solo hoy (DAY).
+    Abrir una pendiente pasa por la política de apertura (paradas de emergencia y cuenta real)."""
+    bloqueo = _bloqueo_apertura()
+    if bloqueo:
+        return {"error": bloqueo}
     symbol = resolver_simbolo(symbol)
     with _ORDEN_CANDADO:
         if not inicializar_mt5():
@@ -711,7 +724,12 @@ def modificar_orden(ticket: int, precio=None, stop_loss=None, take_profit=None,
     None = conserva el valor actual; 0 en sl/tp = lo quita.
     caducidad: "gtc" | "day" | "specified" (esta última con `expiracion` en
     segundos, hora del SERVIDOR del bróker, como la muestra MT5).
-    (Líneas del gráfico y ventana "Modificar orden".)"""
+    (Líneas del gráfico y ventana "Modificar orden".)
+    Cambiar el precio de entrada puede abrir la posición, así que pasa por la política de apertura; mover solo SL o TP no."""
+    if precio is not None:
+        bloqueo = _bloqueo_apertura()
+        if bloqueo:
+            return {"error": bloqueo}
     with MT5_LOCK:
         if not inicializar_mt5():
             return {"error": "Sin conexión con MT5"}

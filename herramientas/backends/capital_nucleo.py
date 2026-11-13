@@ -1504,8 +1504,17 @@ def _confirmar(dealReference: str) -> dict:
 
 # TITULO EJECUTAR ORDEN MERCADO
 
+def _bloqueo_apertura():
+    """Motivo por el que NO se puede abrir ahora (parada global, sin usuario, parada de la persona o cuenta real deshabilitada), o None; ver herramientas/politica_apertura.py. Se importa al usarlo para evitar ciclos."""
+    from herramientas import politica_apertura
+    return politica_apertura.motivo_de_bloqueo()
+
+
 def ejecutar_orden_mercado(symbol: str, tipo: str, volumen: float, stop_loss: float = 0.0, take_profit: float = 0.0) -> dict:
-    """Orden a mercado (BUY/SELL). Abre una posición en Capital.com."""
+    """Orden a mercado (BUY/SELL). Abre una posición en Capital.com. Antes de salir pasa por la política de apertura (paradas de emergencia y cuenta real)."""
+    bloqueo = _bloqueo_apertura()
+    if bloqueo:
+        return {"error": bloqueo}
     epic = resolver_simbolo(symbol)
     cuerpo = {"epic": epic, "direction": tipo.upper(), "size": round(float(volumen) * factor_lote_epic(epic), 6)}
     if stop_loss and stop_loss > 0:
@@ -1542,7 +1551,11 @@ def colocar_orden_pendiente(symbol: str, tipo: str, volumen: float, precio: floa
     """Orden pendiente "al llegar a este precio" (working order).
     El tipo (LIMIT/STOP) se deduce igual que en MT5, según el precio vs mercado:
       COMPRA bajo el ask -> Buy Limit · sobre el ask -> Buy Stop
-      VENTA sobre el bid -> Sell Limit · bajo el bid -> Sell Stop"""
+      VENTA sobre el bid -> Sell Limit · bajo el bid -> Sell Stop
+    Abrir una pendiente pasa por la política de apertura (paradas de emergencia y cuenta real)."""
+    bloqueo = _bloqueo_apertura()
+    if bloqueo:
+        return {"error": bloqueo}
     epic = resolver_simbolo(symbol)
     precio_actual = obtener_precio_actual(epic)
     if "error" in precio_actual:
@@ -1643,7 +1656,11 @@ _NOMBRE_PENDIENTE = {"LIMIT": "Limit", "STOP": "Stop"}
 
 def modificar_orden(ticket, precio=None, stop_loss=None, take_profit=None,
                     caducidad=None, expiracion=None) -> dict:
-    """Modifica una orden PENDIENTE (precio de entrada, SL, TP y/o caducidad)."""
+    """Modifica una orden PENDIENTE (precio de entrada, SL, TP y/o caducidad). Cambiar el precio de entrada puede abrir la posición, así que pasa por la política de apertura; mover solo SL o TP no."""
+    if precio is not None:
+        bloqueo = _bloqueo_apertura()
+        if bloqueo:
+            return {"error": bloqueo}
     # Capital reemplaza los niveles en cada PUT (lo no enviado se elimina): se parte de los vigentes.
     # None = conserva el valor actual · 0 = quita ese nivel.
     actual = {}

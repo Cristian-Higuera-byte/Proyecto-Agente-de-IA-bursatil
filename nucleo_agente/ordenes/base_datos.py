@@ -25,6 +25,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from herramientas import paradas_emergencia
 from herramientas.backends import sesiones_capital
 from herramientas.recursos import sin_creditos
 from nucleo_agente.ordenes.limites import LIMITES
@@ -85,6 +86,13 @@ def _conectar() -> sqlite3.Connection:
                 con.execute("UPDATE ordenes SET estado = 'EXPIRADA', detalle = ? WHERE usuario_id IS NULL AND estado = 'PENDIENTE'", (_MOTIVO_SIN_DUENO,))
             con.execute(_SQL_VIGILANCIAS)
             con.execute("CREATE TABLE IF NOT EXISTS estado (clave TEXT PRIMARY KEY, valor TEXT)")
+            try:     # el interruptor antiguo era UNA clave para todos: si estaba activado, pasa a ser la parada global del operador (no se pierde un bloqueo)
+                antiguo = con.execute("SELECT valor FROM estado WHERE clave = 'kill_switch'").fetchone()
+                if antiguo and antiguo[0] == "1":
+                    paradas_emergencia.fijar_global(True)
+                    con.execute("UPDATE estado SET valor = '0' WHERE clave = 'kill_switch'")
+            except Exception:  # noqa: BLE001 - la migración es de una sola vez: si falla se reintenta en el próximo arranque
+                pass
             con.commit()
             _DB_PREPARADA = RUTA_DB
     return con
@@ -174,20 +182,37 @@ def _insertar(**campos: Any) -> str:
 # TITULO INTERRUPTOR EMERGENCIA ACTIVO
 
 def interruptor_emergencia_activo() -> bool:
-    """Indica si el interruptor de emergencia está activado (bloquea nuevas aperturas). Lee la tabla estado."""
-    filas = _consultar("SELECT valor FROM estado WHERE clave = 'kill_switch'")
-    return bool(filas) and filas[0]["valor"] == "1"
+    """Indica si el usuario actual activó SU interruptor de emergencia en la cuenta actual (herramientas/paradas_emergencia.py). No mira la parada global del operador."""
+    return paradas_emergencia.activa_usuario()
+
+
+# TITULO APERTURAS BLOQUEADAS
+
+def aperturas_bloqueadas() -> bool:
+    """True si ahora NO se puede abrir por cualquier motivo de la política de apertura: parada global, parada del usuario, cuenta real deshabilitada o sin sesión."""
+    from herramientas import politica_apertura
+    return politica_apertura.motivo_de_bloqueo() is not None
+
+
+# TITULO PARADA GLOBAL ACTIVA
+
+def parada_global_activa() -> bool:
+    """True si el operador de la plataforma bloqueó las aperturas de todos los usuarios."""
+    return paradas_emergencia.activa_global()
+
+
+# TITULO FIJAR PARADA GLOBAL
+
+def fijar_parada_global(activa: bool) -> None:
+    """Activa o desactiva la parada global. Solo la llama el panel de los administradores, que comprueba el rol antes."""
+    paradas_emergencia.fijar_global(bool(activa))
 
 
 # TITULO FIJAR INTERRUPTOR EMERGENCIA
 
 def fijar_interruptor_emergencia(activo: bool) -> None:
-    """Activa o desactiva el interruptor de emergencia guardando "1" o "0" en la tabla estado (upsert)."""
-    _ejecutar(
-        "INSERT INTO estado (clave, valor) VALUES ('kill_switch', ?) "
-        "ON CONFLICT(clave) DO UPDATE SET valor = excluded.valor",
-        ("1" if activo else "0",),
-    )
+    """Activa o desactiva el interruptor de emergencia DEL USUARIO ACTUAL en la cuenta actual; la parada de otro usuario no se toca."""
+    paradas_emergencia.fijar_usuario(bool(activo))
 
 
 # -------------------------------------------------------------------------------------------------------

@@ -22,6 +22,7 @@ from typing import Any
 
 from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
+from herramientas import politica_apertura
 from nucleo_agente.ordenes.base_datos import _ahora, _consultar, condicion_dueno, interruptor_emergencia_activo
 from nucleo_agente.ordenes.limites import LIMITES, limites_actuales
 from herramientas.puente_mt5 import MT5_LOCK, NOMBRE_BROKER, PROVEEDOR, inicializar_mt5, resolver_simbolo
@@ -212,8 +213,9 @@ def _chequeos_globales(para_abrir: bool) -> tuple[Any, str | None]:
         return cuenta, "BLOQUEADO: la cuenta conectada NO es demo y la Fase 1 solo opera en cuenta demo."
     # Paso 3: restricciones que solo aplican a abrir posiciones.
     if para_abrir:
-        if interruptor_emergencia_activo():
-            return cuenta, "Las nuevas aperturas están bloqueadas (interruptor de emergencia activado por el usuario)."
+        motivo_bloqueo = politica_apertura.motivo_de_bloqueo()
+        if motivo_bloqueo:
+            return cuenta, motivo_bloqueo
         # Pérdida diaria acumulada frente al tope que definió el usuario (si lo hay; % del balance).
         limites = limites_actuales()
         if limites.perdida_max_diaria_pct is not None:

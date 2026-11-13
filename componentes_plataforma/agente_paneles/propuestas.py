@@ -23,6 +23,8 @@ import streamlit as st
 from componentes_plataforma.agente_paneles.datos import CLAVE_AVISO
 from componentes_plataforma.agente_paneles.formato import cabecera_agente, clase_lado, escapar_html, hora, par_clave_valor, numero, titulo, vacio
 from componentes_plataforma.agente_paneles.vigilancias import seccion_vigilancias, usuario_id
+from herramientas import roles
+from herramientas.backends import sesiones_capital
 from nucleo_agente import ordenes, vigilancia
 
 
@@ -72,6 +74,14 @@ def alternar_bloqueo() -> None:
     ordenes.fijar_interruptor_emergencia(bool(st.session_state.get("parada_emergencia_interruptor_ui")))
 
 
+# TITULO ALTERNAR PARADA GLOBAL
+
+def alternar_parada_global() -> None:
+    """Callback del interruptor del operador: activa o desactiva la parada que bloquea las aperturas de TODOS los usuarios. Vuelve a comprobar en el servidor que la persona sea administradora."""
+    if roles.es_root(st.session_state.get("usuario_informacion")):
+        ordenes.fijar_parada_global(bool(st.session_state.get("parada_global_interruptor_ui")))
+
+
 # TITULO RENDERIZAR ORDENES PROPUESTAS
 
 def renderizar_ordenes_propuestas(altura: int = 300) -> None:
@@ -89,6 +99,7 @@ def renderizar_ordenes_propuestas(altura: int = 300) -> None:
     try:
         pendientes = ordenes.listar_pendientes()
         bloqueado = ordenes.interruptor_emergencia_activo()
+        parada_global = ordenes.parada_global_activa()
         uid = usuario_id()
         vigs = vigilancia.listar(uid)
     except Exception as e:  # noqa: BLE001
@@ -112,6 +123,14 @@ def renderizar_ordenes_propuestas(altura: int = 300) -> None:
                 "⛔ Bloquear aperturas", key="parada_emergencia_interruptor_ui", on_change=alternar_bloqueo,
                 help="Interruptor de emergencia: no se podrán proponer ni confirmar aperturas.",
             )
+
+        # Parada global del operador: la ven todos los usuarios; solo los administradores pueden cambiarla
+        if sesiones_capital.MULTIUSUARIO and roles.es_root(st.session_state.get("usuario_informacion")):
+            st.session_state["parada_global_interruptor_ui"] = parada_global
+            st.toggle("🛑 Parada global (operador)", key="parada_global_interruptor_ui", on_change=alternar_parada_global,
+                      help="Solo administradores: bloquea las aperturas de TODOS los usuarios de la plataforma. Los cierres siguen disponibles.")
+        elif parada_global:
+            st.warning("El operador de la plataforma bloqueó las nuevas aperturas. Puedes seguir cerrando posiciones.")
 
         # Sin nada que mostrar: mensaje vacío y fin
         if not pendientes and not vigs:
