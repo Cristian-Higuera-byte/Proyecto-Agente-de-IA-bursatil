@@ -17,13 +17,20 @@ Define `Manejador`, el BaseHTTPRequestHandler que usa ejecucion.py. Los GET solo
 del motor o del broker; los POST modifican posiciones/órdenes y solo se aceptan desde páginas
 de los orígenes permitidos (protección CORS/Origin) y bajo CANDADO_MT5.
 
+LÍMITES Y ERRORES (V04): tamaño del cuerpo, tiempo por conexión, conexiones y streams simultáneos y frecuencia por cuenta viven en
+limites.py; los datos de cada orden se validan antes de llamar al bróker (400). Ante una excepción el cliente recibe un mensaje
+neutro con un ID de correlación (el detalle queda solo en el registro del servidor) y cada acción de trading queda en la auditoría.
+
 MULTIUSUARIO: con `CAPITAL_MULTIUSUARIO` encendido cada petición debe traer el token firmado del usuario dentro de la
 dirección (`/t/<token>/stream?...`, ver herramientas/token_datos.py); sin token válido responde 401 (salvo /salud).
 El token dice quién es el usuario y con qué cuenta (demo o real) opera: la petición entera se ejecuta con la sesión de
 Capital.com, el motor y las carpetas de datos de ESA cuenta, nunca con las de otra.
 """
 import json
+import sys
+import threading
 import time
+import traceback
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, unquote, urlparse
 
@@ -33,6 +40,7 @@ from herramientas.puente_mt5 import (colocar_orden_pendiente, ejecutar_orden_mer
                                      modificar_orden, modificar_sltp)
 
 from herramientas.tickets import ticket as _tk
+from . import limites
 from .constantes import CANDADO_MT5, HOSTS_PERMITIDOS, PING_SSE, VERSION_API
 from .motor import MOTORES
 from .simbolos import listar_simbolos
@@ -41,6 +49,11 @@ from .velas import obtener_ultima, obtener_velas, precalentar
 
 # Cada cuántos segundos una conexión de precios en vivo vuelve a comprobar que el token sigue vigente
 REVISION_STREAM_S = 5
+
+# Contadores compartidos por todas las peticiones: frecuencia por cuenta, streams abiertos por cuenta y conexiones abiertas en total
+_FRECUENCIA = limites.Frecuencia()
+_STREAMS = limites.StreamsAbiertos()
+_CONEXIONES = threading.BoundedSemaphore(limites.MAX_CONEXIONES)
 
 
 # TITULO LISTA SIMBOLOS
@@ -65,6 +78,27 @@ class Manejador(BaseHTTPRequestHandler):
 
     # HTTP/1.1 es necesario para mantener abierta la conexión del flujo SSE
     protocol_version = "HTTP/1.1"
+
+    # Segundos máximos sin leer o escribir en la conexión: corta a los clientes lentos o colgados (el SSE escribe seguido, no se ve afectado)
+    timeout = limites.TIEMPO_ESPERA_CONEXION
+
+    # TITULO HANDLE
+
+    def handle(self):
+        """Atiende la conexión solo si hay cupo (MAX_CONEXIONES); si no, responde 503 y la cierra sin leer nada."""
+        if not _CONEXIONES.acquire(blocking=False):
+            try:
+                cuerpo = json.dumps({"error": limites.MENSAJE_DEMASIADAS}).encode("utf-8")
+                self.wfile.write(b"HTTP/1.1 503 Service Unavailable\r\nContent-Type: application/json\r\nRetry-After: 5\r\nConnection: close\r\nContent-Length: "
+                                 + str(len(cuerpo)).encode() + b"\r\n\r\n" + cuerpo)
+            except OSError:
+                pass
+            self.close_connection = True
+            return
+        try:
+            super().handle()
+        finally:
+            _CONEXIONES.release()
 
     # TITULO ORIGEN PERMITIDO
 
@@ -93,6 +127,7 @@ class Manejador(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(cuerpo)))
+        self.send_header("Cache-Control", "no-store")     # datos de la cuenta: ni el navegador ni un proxy los guardan
         self._cabecera_cors()   # permite el fetch desde el iframe del gráfico (solo localhost)
         self.end_headers()
         self.wfile.write(cuerpo)
@@ -105,9 +140,23 @@ class Manejador(BaseHTTPRequestHandler):
         self.send_response(codigo)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(cuerpo)))
+        self.send_header("Cache-Control", "no-store")
         self._cabecera_cors()
         self.end_headers()
         self.wfile.write(cuerpo)
+
+    # TITULO ERROR INTERNO
+
+    def _error_interno(self, contexto, error, id_correlacion=None):
+        """Registra el detalle de una excepción SOLO en el servidor y responde 500 con un mensaje neutro y un ID de correlación (V04); si la petición ya tenía ID se reutiliza."""
+        id_correlacion = id_correlacion or limites.nuevo_id()
+        print(f"[servidor] error id={id_correlacion} {contexto}: {type(error).__name__}: {error}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
+        try:
+            self._rechazar(500, limites.mensaje_con_id(limites.MENSAJE_ERROR_INTERNO, id_correlacion))
+        except Exception:
+            pass
+        return id_correlacion
 
     # TITULO IDENTIFICAR
 
@@ -208,6 +257,9 @@ class Manejador(BaseHTTPRequestHandler):
         clave = self._identificar()
         if clave is None:
             return
+        if clave != ("anonimo",) and not _FRECUENCIA.permitir(clave, "lectura", limites.LECTURAS_POR_MINUTO):
+            self._rechazar(429, limites.MENSAJE_DEMASIADAS)
+            return
         with sesiones_capital.con_clave(clave):
             self._atender_get(clave)
 
@@ -224,10 +276,20 @@ class Manejador(BaseHTTPRequestHandler):
         qs = parse_qs(parsed.query)
         temporalidad = qs.get("tf", ["H1"])[0]
         try:
+            if temporalidad not in limites.TEMPORALIDADES:
+                raise limites.ErrorSolicitud("tf: temporalidad no válida")
+            if len(partes) >= 2 and partes[0] in ("dom", "velas", "ultima"):
+                limites.simbolo_valido(partes[1])
             if partes and partes[0] == "stream":
-                simbolos = _lista_simbolos(qs)
-                precalentar(simbolos)          # velas de la lista de activos listas en memoria (solo Capital.com)
-                self._stream(simbolos, MOTORES.de(clave), clave)
+                if not _STREAMS.entrar(clave, limites.MAX_STREAMS_POR_CUENTA):
+                    self._rechazar(429, limites.MENSAJE_DEMASIADAS)
+                    return
+                try:
+                    simbolos = _lista_simbolos(qs)
+                    precalentar(simbolos)          # velas de la lista de activos listas en memoria (solo Capital.com)
+                    self._stream(simbolos, MOTORES.de(clave), clave)
+                finally:
+                    _STREAMS.salir(clave)
             elif partes and partes[0] == "ticks":
                 simbolos = _lista_simbolos(qs)
                 motor = MOTORES.de(clave)
@@ -248,17 +310,16 @@ class Manejador(BaseHTTPRequestHandler):
                 else:
                     self._responder({"disponible": False, "motivo": "Solo disponible con Capital.com."})
             elif len(partes) >= 2 and partes[0] == "velas":
-                n = int(qs.get("n", ["150"])[0])
+                n = max(1, min(int(qs.get("n", ["150"])[0]), limites.MAX_VELAS))
                 self._responder(obtener_velas(partes[1], temporalidad, n))
             elif len(partes) >= 2 and partes[0] == "ultima":
                 self._responder(obtener_ultima(partes[1], temporalidad))
             else:
                 self._responder({"error": "ruta no reconocida"})
+        except (limites.ErrorSolicitud, ValueError):
+            self._rechazar(400, limites.MENSAJE_SOLICITUD_INVALIDA)
         except Exception as e:
-            try:
-                self._responder({"error": str(e)})
-            except Exception:
-                pass
+            self._error_interno(f"GET {parsed.path}", e)
 
     # TITULO ORIGEN LOCAL
 
@@ -289,17 +350,22 @@ class Manejador(BaseHTTPRequestHandler):
         clave = self._identificar(mutacion=True)
         if clave is None:
             return
+        if not _FRECUENCIA.permitir(clave, "orden", limites.ORDENES_POR_MINUTO):
+            limites.auditar(limites.nuevo_id(), limites.texto_actor(clave), urlparse(self.path).path.strip("/"), "rechazada_frecuencia")
+            self._rechazar(429, limites.MENSAJE_DEMASIADAS)
+            return
         with sesiones_capital.con_clave(clave):
-            self._atender_post()
+            self._atender_post(clave)
 
     # TITULO ATENDER POST
 
-    def _atender_post(self):
+    def _atender_post(self, clave):
         """Enruta las órdenes de trading: /sltp, /orden, /orden/modificar, /orden/eliminar y /mercado.
 
-        Rechaza con 403 los orígenes que no sean locales. Lee el cuerpo JSON, ejecuta la
-        operación en MT5 bajo CANDADO_MT5 mediante herramientas.puente_mt5 y responde con el
-        resultado (o {"error": ...}). Efecto: modifica posiciones u órdenes reales en MT5.
+        Rechaza con 403 los orígenes que no sean locales, con 413 los cuerpos mayores que MAX_CUERPO_POST y con 400 los datos que no
+        pasan la validación (tipos, rangos, valores finitos), todo ANTES de llamar al bróker. Ejecuta la operación bajo CANDADO_MT5
+        mediante herramientas.puente_mt5 y responde con el resultado (o {"error": ...}). Una excepción inesperada devuelve un 500 neutro con
+        ID de correlación. Cada orden queda en la auditoría (actor, ruta, operación y resultado, sin cuerpo ni token).
         """
         # Bloquea peticiones de páginas externas (CSRF)
         if not self._origen_local():
@@ -310,41 +376,52 @@ class Manejador(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(cuerpo)
             return
+        ruta = urlparse(self.path).path.strip("/")
+        actor = limites.texto_actor(clave)
+        id_correlacion = limites.nuevo_id()
         try:
-            # Lee y decodifica el cuerpo JSON según Content-Length
-            n = int(self.headers.get("Content-Length", 0) or 0)
-            datos = json.loads(self.rfile.read(n) or b"{}")
-            ruta = urlparse(self.path).path.strip("/")
+            # Tamaño declarado del cuerpo: se comprueba antes de leer nada
+            try:
+                n = int(self.headers.get("Content-Length", 0) or 0)
+            except ValueError:
+                n = -1
+            if n < 0:
+                self.close_connection = True
+                limites.auditar(id_correlacion, actor, ruta, "rechazada_solicitud")
+                self._rechazar(400, limites.mensaje_con_id(limites.MENSAJE_SOLICITUD_INVALIDA, id_correlacion))
+                return
+            if n > limites.MAX_CUERPO_POST:
+                self.close_connection = True           # el cuerpo no se lee: la conexión no se puede reutilizar
+                limites.auditar(id_correlacion, actor, ruta, "rechazada_tamano")
+                self._rechazar(413, limites.mensaje_con_id(limites.MENSAJE_CUERPO_GRANDE, id_correlacion))
+                return
+            try:
+                datos = limites.validar_orden(ruta, json.loads(self.rfile.read(n) or b"{}"))
+            except (limites.ErrorSolicitud, ValueError) as motivo:
+                print(f"[servidor] solicitud no válida id={id_correlacion} actor={actor} ruta={ruta}: {motivo}", file=sys.stderr)
+                limites.auditar(id_correlacion, actor, ruta, "rechazada_solicitud")
+                self._rechazar(400, limites.mensaje_con_id(limites.MENSAJE_SOLICITUD_INVALIDA, id_correlacion))
+                return
             with CANDADO_MT5:   # mismo candado que el motor: la API de MT5 no es thread-safe
                 if ruta == "sltp":
-                    resultado = modificar_sltp(_tk(datos["ticket"]), datos.get("sl"), datos.get("tp"))
+                    resultado = modificar_sltp(_tk(datos["ticket"]), datos["sl"], datos["tp"])
                 elif ruta == "orden":
-                    resultado = colocar_orden_pendiente(datos["symbol"], datos["lado"],
-                                                  float(datos["volumen"]), float(datos["precio"]))
+                    resultado = colocar_orden_pendiente(datos["symbol"], datos["lado"], datos["volumen"], datos["precio"])
                 elif ruta == "orden/modificar":
-                    resultado = modificar_orden(_tk(datos["ticket"]), datos.get("precio"),
-                                          datos.get("sl"), datos.get("tp"),
-                                          datos.get("caducidad"), datos.get("expiracion"))
+                    resultado = modificar_orden(_tk(datos["ticket"]), datos["precio"], datos["sl"], datos["tp"], datos["caducidad"], datos["expiracion"])
                 elif ruta == "orden/eliminar":
                     resultado = eliminar_orden(_tk(datos["ticket"]))
-                elif ruta == "mercado":
-                    lado = str(datos.get("lado", "")).upper()
-                    volumen = float(datos["volumen"])
-                    if lado not in ("BUY", "SELL") or not volumen > 0:
-                        resultado = {"error": "Orden a mercado no válida (lado o volumen)"}
-                    else:
-                        resultado = ejecutar_orden_mercado(str(datos["symbol"]), lado, volumen)
                 else:
-                    resultado = None
-            if resultado is not None:
-                self._responder(resultado)
-            else:
-                self._responder({"error": "ruta no reconocida"})
+                    resultado = ejecutar_orden_mercado(datos["symbol"], datos["lado"], datos["volumen"])
+            limites.auditar(id_correlacion, actor, ruta, "error" if isinstance(resultado, dict) and resultado.get("error") else "ok",
+                            datos.get("symbol"), datos.get("lado"), datos.get("volumen"))
+            self._responder(resultado)
+        except TimeoutError:
+            self.close_connection = True
+            limites.auditar(id_correlacion, actor, ruta, "rechazada_tiempo")
         except Exception as e:
-            try:
-                self._responder({"error": str(e)})
-            except Exception:
-                pass
+            limites.auditar(id_correlacion, actor, ruta, "error_interno")
+            self._error_interno(f"POST /{ruta} actor={actor}", e, id_correlacion)
 
     # TITULO LOG MESSAGE
 
