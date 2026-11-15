@@ -21,6 +21,8 @@ from nucleo_agente.turnos.formato import formatear_duracion
 from nucleo_agente.turnos.turno import VISTA_RECIENTE_S, Turno
 
 
+# TITULO AVISAR
+
 def _avisar(turno: Turno) -> None:
     """Deja el aviso en la campana. Si el usuario está viendo el chat, nace ya leído."""
     # Si la interfaz mostró el turno hace poco, el usuario lo está viendo y no hace falta marcarlo sin leer.
@@ -41,6 +43,7 @@ def _avisar(turno: Turno) -> None:
     # Se registra la notificación vinculada al turno (ref) para poder marcarla leída al recogerlo.
     notificaciones.agregar(
         turno.usuario_id, titulo, f"{pregunta} · {tiempo}", tipo=tipo, ref=turno.id, leida=viendo,
+        categoria="ordenes_agente" if tipo == "orden" else None,   # las respuestas y los errores del chat no se pueden apagar
     )
 
 

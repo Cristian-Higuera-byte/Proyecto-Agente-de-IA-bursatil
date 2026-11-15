@@ -35,12 +35,14 @@ Transportes y Servicios Ltda.
   // Contenido: icono, mensaje y boton de cierre (X)
   el.innerHTML = '<span style="font-size:18px;line-height:1.2">__ICONO__</span>'+
     '<span style="flex:1;line-height:1.4">'+__MSG__+'</span>'+
-    '<span id="pj-tx" style="cursor:pointer;opacity:.85;font-size:15px;padding:0 2px">&#10005;</span>';
+    '<span id="pj-texto" style="cursor:pointer;opacity:.85;font-size:15px;padding:0 2px">&#10005;</span>';
   D.body.appendChild(el);
   // Al siguiente fotograma se muestra con opacidad plena y en su posicion final (dispara la transicion)
   P.requestAnimationFrame(function(){ el.style.opacity='1'; el.style.transform='translateY(0)'; });
   // tmr: temporizador del cierre automatico
   var tmr;
+  // TITULO CERRAR
+
   /** Cierra el aviso: lo desvanece, lo elimina del DOM tras 220 ms y cancela el temporizador. */
   function cerrar(){
     if (!el) return;
@@ -49,7 +51,7 @@ Transportes y Servicios Ltda.
     el = null; P.clearTimeout(tmr);
   }
   // La X cierra de inmediato; si no, se cierra solo a los 6 segundos
-  el.querySelector('#pj-tx').onclick = cerrar;
+  el.querySelector('#pj-texto').onclick = cerrar;
   tmr = P.setTimeout(cerrar, 6000);
 })();
 

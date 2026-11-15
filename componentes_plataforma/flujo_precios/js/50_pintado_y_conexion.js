@@ -13,6 +13,8 @@ Transportes y Servicios Ltda.
    ----------------------------- INICIO Piña y Jara 50_pintado_y_conexion .JS ----------------------------
    ------------------------------------------------------------------------------------------------------- */
 
+  // TITULO PINTAR
+
   /**
    * Repinta el DOM con los últimos ticks conocidos.
    * `solo` (opcional) es un objeto con los símbolos que cambiaron; si es null se repintan todos.
@@ -23,7 +25,7 @@ Transportes y Servicios Ltda.
       var s = el.getAttribute('data-pj-s');
       if (solo && !(s in solo)) return;
       var t = ultimo[s];
-      if (t) pintarElem(el, t);
+      if (t) pintarElemento(el, t);
     });
     D.querySelectorAll('[data-pj-spark]').forEach(function(el){
       var s = el.getAttribute('data-pj-spark');
@@ -32,12 +34,16 @@ Transportes y Servicios Ltda.
     pintarCuenta();
   }
 
+  // TITULO SIMBOLOS
+
   /** Devuelve los símbolos distintos marcados con data-pj-s en la página, ordenados y unidos por comas. */
   function simbolos(){
     var set = {};
     D.querySelectorAll('[data-pj-s]').forEach(function(el){ set[el.getAttribute('data-pj-s')] = 1; });
     return Object.keys(set).sort().join(',');
   }
+
+  // TITULO CONECTAR
 
   /**
    * Abre (o reabre) la conexión SSE a `/stream` para la lista de símbolos `lista`.
@@ -61,6 +67,8 @@ Transportes y Servicios Ltda.
       if (bc) bc.postMessage(m);
     };
   }
+
+  // TITULO REVISAR
 
   // Revisa si cambió el conjunto de símbolos (cambio de vista/activo) y repinta
   // lo que Streamlit acaba de redibujar con valores viejos.

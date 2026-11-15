@@ -27,6 +27,8 @@ from herramientas import almacen_oco, almacen_stop_dinamico
 from herramientas.puente_mt5 import MT5_LOCK, inicializar_mt5
 
 
+# TITULO INICIALES
+
 def iniciales(real: str) -> dict:
     """Posiciones y órdenes del símbolo con el mismo formato que el feed
     (`acc.pi` / `acc.ord`), más volumen mínimo, distancia mínima y desfase horario.
@@ -53,8 +55,8 @@ def iniciales(real: str) -> dict:
             si = mt5.symbol_info(real)
             tick = mt5.symbol_info_tick(real)
         # k = valor del tick / tamaño del tick: convierte una diferencia de precio en dinero por lote.
-        ts = float(getattr(si, "trade_tick_size", 0) or 0)
-        k = (float(si.trade_tick_value) / ts) if si and ts else 0.0
+        marca_tiempo = float(getattr(si, "trade_tick_size", 0) or 0)
+        k = (float(si.trade_tick_value) / marca_tiempo) if si and marca_tiempo else 0.0
         # sm = distancia mínima (en precio) que el bróker exige entre el precio y un SL/TP.
         sm = float(getattr(si, "trade_stops_level", 0) or 0) * float(getattr(si, "point", 0) or 0)
         # Datos estables del símbolo (no cambian a cada segundo, para no recargar el iframe).

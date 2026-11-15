@@ -29,6 +29,8 @@ from herramientas_agente.macro_eventos_herramientas.auxiliares import CATEGORIAS
 _ESQ = cargar_json(Path(__file__).parent / "esquemas.json")
 
 
+# TITULO EVALUAR RIESGO NOTICIAS PROXIMAS
+
 @herramienta(**_ESQ["evaluar_riesgo_noticias_proximas"])
 def evaluar_riesgo_noticias_proximas(
     divisa: str = "ALL",
@@ -53,11 +55,11 @@ def evaluar_riesgo_noticias_proximas(
     fallos = 0
     for categoria in CATEGORIAS:
         try:
-            res = investing_fuente.noticias(categoria=categoria, cantidad=cantidad_titulares)
+            resultado = investing_fuente.noticias(categoria=categoria, cantidad=cantidad_titulares)
         except Exception:  # noqa: BLE001 - se informa abajo; no se inventa nada
             fallos += 1
             continue
-        titulares.extend(res.get("noticias", []))
+        titulares.extend(resultado.get("noticias", []))
 
     # Si todas las categorías fallaron, no hay base para evaluar.
     if fallos == len(CATEGORIAS):

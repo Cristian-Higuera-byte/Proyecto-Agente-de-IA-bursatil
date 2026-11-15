@@ -19,6 +19,7 @@ from typing import Any
 
 from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
+from herramientas import consumo_ia
 from nucleo_agente import ordenes
 from nucleo_agente.vigilancia import analisis
 from nucleo_agente.vigilancia.analisis import _mensaje_analisis
@@ -28,6 +29,8 @@ from nucleo_agente.vigilancia.ejecucion import _aplicar
 from nucleo_agente.vigilancia.posiciones import _posiciones_de
 from nucleo_agente.vigilancia.utilidades import _actualizar, _finalizar, _iso, obtener
 
+
+# TITULO CHEQUEAR
 
 def chequear(vid: str) -> dict[str, Any]:
     """Un chequeo: analiza el activo y, si el modelo lo decide, ejecuta. Lo lanza el motor.
@@ -53,7 +56,7 @@ def chequear(vid: str) -> dict[str, Any]:
         _finalizar(v, ERROR, f"Vigilancia detenida · {v['simbolo']}", motivo, tipo="error")
         return {"ok": False, "motivo": motivo}
     if motivo:                              # MT5 sin conexión: se reintenta en el próximo chequeo
-        _actualizar(vid, ultimo_resumen=f"Sin conexión con MetaTrader 5; se reintenta. ({motivo})"[:300])
+        _actualizar(vid, ultimo_resumen=f"Sin conexión con {ordenes.NOMBRE_BROKER}; se reintenta. ({motivo})"[:300])
         return {"ok": False, "motivo": motivo}
 
     # Paso 4: fin natural (operaciones agotadas y sin posición) o pausa por el interruptor de emergencia.
@@ -62,8 +65,8 @@ def chequear(vid: str) -> dict[str, Any]:
         _finalizar(v, FINALIZADA, f"Vigilancia finalizada · {v['simbolo']}",
                    f"Se realizaron las {v['max_operaciones']} operaciones previstas y no queda ninguna posición abierta.")
         return {"ok": True, "estado": FINALIZADA}
-    if ordenes.kill_switch_activo() and not posiciones:
-        _actualizar(vid, ultimo_resumen="En pausa: el interruptor de emergencia bloquea las aperturas.")
+    if ordenes.aperturas_bloqueadas() and not posiciones:
+        _actualizar(vid, ultimo_resumen="En pausa: un interruptor de emergencia (o la política de apertura) bloquea las aperturas.")
         return {"ok": True, "estado": "EN_PAUSA"}
 
     # Paso 5: si el último tick es el mismo del chequeo anterior, el mercado no se movió y no se analiza.
@@ -76,7 +79,8 @@ def chequear(vid: str) -> dict[str, Any]:
 
     # Paso 6: análisis del modelo; los fallos se cuentan y, al llegar al máximo seguido, se detiene la vigilancia.
     try:
-        texto = analisis.fabrica_agente().responder(_mensaje_analisis(v, posiciones))
+        with consumo_ia.origen("vigilancia"):     # el gasto de este análisis se anota como de la vigilancia, no del chat
+            texto = analisis.fabrica_agente().responder(_mensaje_analisis(v, posiciones))
     except Exception as e:  # noqa: BLE001 - el fallo del modelo no debe tumbar el motor
         errores = (v.get("errores") or 0) + 1
         _actualizar(vid, errores=errores, ultimo_resumen=f"Falló el análisis: {e}"[:300])

@@ -33,7 +33,7 @@ marque como "sin usar" los nombres que solo se reexportan."""
 from fuentes.investing_fuente.constantes import (
     AVISO_FUENTE,
     FEEDS,
-    HEADERS,
+    CABECERAS,
 )  # noqa: F401
 # Excepción propia de la fuente.
 from fuentes.investing_fuente.errores import (

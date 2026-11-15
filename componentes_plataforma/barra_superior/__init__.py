@@ -22,7 +22,7 @@ Barra de navegación superior del dashboard (estilo terminal de trading).
   (perfil / configuración / cerrar sesión) — con <details>, sin recargar.
 
 La barra queda FIJA arriba y a todo el ancho gracias al contenedor
-`st.container(key="barra_nav_fija")` de aplicacion.py + su CSS (position: fixed).
+`st.container(key="barra_navegacion_fija")` de aplicacion.py + su CSS (position: fixed).
 
 Archivos: barra.py (arma la barra), notificaciones.py (campana), tarjetas.py (Capital/Riesgo/Drawdown/Mercado),
 datos.py + iconos.json, usuario_menu.html (menú del usuario), estilos.py y estilos.css.

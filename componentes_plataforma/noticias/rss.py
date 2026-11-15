@@ -36,9 +36,14 @@ from componentes_plataforma.noticias.datos import (FUENTES, FUENTES_MAS, INTERVA
                                                    MAX_POR_FUENTE, MAX_VERIFICAR, PLACEHOLDER)
 
 _AGENTE = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36"
-# Segundos máximos de espera por una fuente y por el conjunto de fuentes que se refrescan a la vez.
+# Segundos máximos de espera por una fuente (la petición HTTP) y, antes de dibujar, por las fuentes que se refrescan a la vez:
+# con noticias ya cargadas casi no se espera (se dibuja lo que hay y el refresco sigue en segundo plano); la primera vez, sin
+# nada que mostrar, se espera lo justo para que salgan las fuentes más rápidas y el resto aparece en la siguiente revisión.
 _ESPERA_FUENTE = 8
-_ESPERA_TOTAL = 10
+_ESPERA_FRIA = 2.5
+_ESPERA_CALIENTE = 0.8
+# Hilos que revisan las fuentes, compartidos por todas las sesiones.
+_REFRESCADOR = ThreadPoolExecutor(max_workers=8)
 # Estado por dirección: {"items", "etag", "modificado", "ultima" (instante de la última revisión), "fallos"}.
 _ESTADO: dict = {}
 _CANDADO = threading.Lock()
@@ -46,14 +51,21 @@ _CANDADO = threading.Lock()
 _LECTURA: dict = {}
 _EN_CURSO: set = set()
 _VERIFICADOR = ThreadPoolExecutor(max_workers=4)
-# Segundos que se espera, como máximo, a que terminen las comprobaciones pendientes antes de dibujar.
-_ESPERA_VERIFICACION = 8
+# Segundos que se espera, como máximo, a que terminen las comprobaciones pendientes antes de dibujar (las que no alcancen se
+# resuelven en segundo plano y esas noticias aparecen en la siguiente revisión).
+_ESPERA_VERIFICACION = 1.0
+# Marca de que ya se lanzó la precarga de las fuentes (una vez por proceso).
+_PRECARGADO = threading.Event()
 
+
+# TITULO ETIQUETA
 
 def _etiqueta(el) -> str:
     """Nombre de una etiqueta XML sin su espacio de nombres (`{...}content` pasa a `content`); vacío si no es etiqueta."""
     return el.tag.rsplit("}", 1)[-1] if isinstance(el.tag, str) else ""
 
+
+# TITULO HIJO
 
 def _hijo(el, nombre: str):
     """Primer hijo directo cuyo nombre (sin espacio de nombres) coincide, o None."""
@@ -63,11 +75,15 @@ def _hijo(el, nombre: str):
     return None
 
 
+# TITULO LIMPIAR
+
 def _limpiar(texto: str) -> str:
     """Quita las etiquetas HTML de un texto, decodifica las entidades (&amp;, etc.) y recorta los espacios.
     Acepta None o vacío y devuelve cadena vacía."""
     return html.unescape(re.sub(r"<[^>]+>", "", texto or "")).strip()
 
+
+# TITULO A PARRAFOS
 
 def _a_parrafos(fragmento_html: str) -> str:
     """Convierte el HTML de un artículo (`content:encoded`) en texto plano con un párrafo por línea.
@@ -80,7 +96,9 @@ def _a_parrafos(fragmento_html: str) -> str:
     return "\n".join(ln for ln in lineas if ln)
 
 
-def _fecha_a_ts(pubdate: str) -> float:
+# TITULO FECHA A MARCA TIEMPO
+
+def _fecha_a_marca_tiempo(pubdate: str) -> float:
     """Convierte la fecha de publicación de un item RSS en una marca de tiempo unix.
 
     Intenta primero el formato RFC 822 de RSS y luego el formato ISO `AAAA-MM-DD HH:MM:SS` (interpretado en
@@ -92,21 +110,25 @@ def _fecha_a_ts(pubdate: str) -> float:
         return parsedate_to_datetime(pubdate).timestamp()
     except Exception:
         pass
-    txt = pubdate[:19].replace("T", " ")
+    texto = pubdate[:19].replace("T", " ")
     try:
-        return datetime.strptime(txt, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc).timestamp()
+        return datetime.strptime(texto, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc).timestamp()
     except Exception:
         return 0.0
 
 
-def _fecha_local(ts: float, raw: str) -> str:
+# TITULO FECHA LOCAL
+
+def _fecha_local(marca_tiempo: float, raw: str) -> str:
     """Formatea la marca de tiempo como `dd-mm-aaaa hh:mm` en hora local; si no hay `ts` o falla, devuelve el
     texto original `raw`."""
     try:
-        return datetime.fromtimestamp(ts).strftime("%d-%m-%Y %H:%M") if ts else raw
+        return datetime.fromtimestamp(marca_tiempo).strftime("%d-%m-%Y %H:%M") if marca_tiempo else raw
     except Exception:
         return raw
 
+
+# TITULO IMAGEN
 
 def _imagen(it, crudo: str) -> str:
     """Dirección de la imagen de una noticia: `enclosure`, `media:content`, `media:thumbnail` o la primera `<img>` del
@@ -122,6 +144,8 @@ def _imagen(it, crudo: str) -> str:
     return m.group(1) if m and m.group(1).startswith("http") else ""
 
 
+# TITULO PARSEAR
+
 def _parsear(cuerpo: bytes, fuente: dict) -> list:
     """Convierte el XML de un RSS en la lista de noticias de la fuente (las más nuevas primero, hasta MAX_POR_FUENTE).
 
@@ -136,22 +160,22 @@ def _parsear(cuerpo: bytes, fuente: dict) -> list:
     for it in raiz.findall(".//item"):
         h_t, h_l = _hijo(it, "title"), _hijo(it, "link")
         titulo = _limpiar(h_t.text if h_t is not None else "")
-        link = ((h_l.text if h_l is not None else "") or "").strip()
-        if not titulo or not link:
+        enlace = ((h_l.text if h_l is not None else "") or "").strip()
+        if not titulo or not enlace:
             continue
         h_d, h_c, h_f = _hijo(it, "description"), _hijo(it, "encoded"), _hijo(it, "pubDate")
         crudo = ET.tostring(it, encoding="unicode")
-        ts = _fecha_a_ts((h_f.text if h_f is not None else "") or "")
+        marca_tiempo = _fecha_a_marca_tiempo((h_f.text if h_f is not None else "") or "")
         texto = "\n".join(limpiar_lineas(_a_parrafos(h_c.text).split("\n"))) if h_c is not None and h_c.text else ""
         salida.append({
-            "id": hashlib.sha1(link.encode("utf-8")).hexdigest()[:12],
+            "id": hashlib.sha1(enlace.encode("utf-8")).hexdigest()[:12],
             "title": titulo,
-            "link": link,
+            "link": enlace,
             "desc": _limpiar(h_d.text if h_d is not None else "") or texto[:300],
             "texto": texto if len(texto) > 600 else "",
             "img": _imagen(it, crudo) or PLACEHOLDER,
-            "_ts": ts,
-            "fecha": _fecha_local(ts, ((h_f.text if h_f is not None else "") or "")[:16]),
+            "_ts": marca_tiempo,
+            "fecha": _fecha_local(marca_tiempo, ((h_f.text if h_f is not None else "") or "")[:16]),
             "fuente": fuente["nombre"],
             "idioma": fuente["idioma"],
             "extraer": bool(fuente.get("extraer")),
@@ -160,6 +184,8 @@ def _parsear(cuerpo: bytes, fuente: dict) -> list:
     salida.sort(key=lambda n: n["_ts"], reverse=True)
     return salida[:MAX_POR_FUENTE]
 
+
+# TITULO REFRESCAR
 
 def _refrescar(fuente: dict) -> None:
     """Revisa una fuente si ya pasó su intervalo y actualiza su estado.
@@ -198,20 +224,24 @@ def _refrescar(fuente: dict) -> None:
             est["fallos"] += 1
 
 
+# TITULO VERIFICAR
+
 def _verificar(link: str) -> None:
     """Comprueba si la página de una noticia entrega texto de artículo y guarda el resultado en `_LECTURA`.
 
     Se ejecuta en un hilo de fondo; el texto queda en la caché de `articulo`, así que al abrir la noticia es instantáneo."""
     try:
-        ok = bool(texto_articulo(link))
+        correcto = bool(texto_articulo(link))
     except Exception:
-        ok = False
+        correcto = False
     with _CANDADO:
         if len(_LECTURA) >= 2000:
             _LECTURA.pop(next(iter(_LECTURA)), None)
-        _LECTURA[link] = ok
+        _LECTURA[link] = correcto
         _EN_CURSO.discard(link)
 
+
+# TITULO PEDIR VERIFICACIONES
 
 def _pedir_verificaciones(listas: list) -> list:
     """Lanza en segundo plano la comprobación de las noticias recientes que aún no se han comprobado.
@@ -235,6 +265,8 @@ def _pedir_verificaciones(listas: list) -> list:
     return tareas
 
 
+# TITULO CLASIFICAR
+
 def _clasificar(n: dict):
     """Devuelve la noticia con su campo `lectura` definitivo, o None si todavía no se sabe.
 
@@ -246,29 +278,31 @@ def _clasificar(n: dict):
     if not n["extraer"]:
         return dict(n, lectura=False)
     with _CANDADO:
-        ok = _LECTURA.get(n["link"])
-    return None if ok is None else dict(n, lectura=ok)
+        correcto = _LECTURA.get(n["link"])
+    return None if correcto is None else dict(n, lectura=correcto)
 
+
+# TITULO JUNTAR
 
 def _juntar(fuentes: list) -> list:
     """Noticias de varias fuentes, sin enlaces ni títulos repetidos y de la más nueva a la más vieja.
 
-    Revisa en paralelo las fuentes que lo necesitan (espera como máximo `_ESPERA_TOTAL` segundos; las que no alcancen
-    siguen en segundo plano y se verán en la próxima lectura), comprueba en segundo plano qué noticias entregan texto
-    (espera como máximo `_ESPERA_VERIFICACION` segundos) y reúne lo que hay en el estado de cada fuente. Cada noticia
-    sale con `lectura` verdadero solo si de verdad se puede leer aquí."""
+    Revisa en paralelo las fuentes que lo necesitan, sin hacer esperar la página: con noticias ya cargadas espera como máximo
+    `_ESPERA_CALIENTE` segundos y la primera vez (sin nada que mostrar) `_ESPERA_FRIA`; las fuentes que no alcancen siguen en
+    segundo plano y se verán en la próxima lectura. Comprueba en segundo plano qué noticias entregan texto (espera como máximo
+    `_ESPERA_VERIFICACION` segundos) y reúne lo que hay en el estado de cada fuente. Cada noticia sale con `lectura` verdadero
+    solo si de verdad se puede leer aquí."""
     pendientes = [f for f in fuentes if time.time() - _ESTADO.get(f["url"], {}).get("ultima", 0.0)
                   >= (INTERVALO_CONDICIONAL if f.get("condicional") else INTERVALO_NORMAL)]
     if pendientes:
-        pool = ThreadPoolExecutor(max_workers=min(8, len(pendientes)))
-        wait([pool.submit(_refrescar, f) for f in pendientes], timeout=_ESPERA_TOTAL)
-        pool.shutdown(wait=False)
+        con_datos = any(_ESTADO.get(f["url"], {}).get("items") for f in fuentes)
+        wait([_REFRESCADOR.submit(_refrescar, f) for f in pendientes], timeout=_ESPERA_CALIENTE if con_datos else _ESPERA_FRIA)
     with _CANDADO:
         listas = [list(_ESTADO.get(f["url"], {}).get("items", [])) for f in fuentes]
     tareas = _pedir_verificaciones(listas)
     if tareas:
         wait(tareas, timeout=_ESPERA_VERIFICACION)
-    vistos_link: set = set()
+    vistos_enlace: set = set()
     vistos_titulo: set = set()
     todas = []
     for lista in listas:
@@ -277,19 +311,52 @@ def _juntar(fuentes: list) -> list:
             if n is None:
                 continue
             clave = re.sub(r"\W+", "", n["title"].lower())
-            if n["link"] in vistos_link or clave in vistos_titulo:
+            if n["link"] in vistos_enlace or clave in vistos_titulo:
                 continue
-            vistos_link.add(n["link"])
+            vistos_enlace.add(n["link"])
             vistos_titulo.add(clave)
             todas.append(n)
     todas.sort(key=lambda n: n["_ts"], reverse=True)
     return todas
 
 
+# TITULO HAY DATOS
+
+def hay_datos() -> bool:
+    """¿Ya hay noticias cargadas de alguna fuente principal? Sirve para decidir si la página muestra un aviso de carga."""
+    with _CANDADO:
+        return any(_ESTADO.get(f["url"], {}).get("items") for f in FUENTES)
+
+
+# TITULO PRECARGAR
+
+def precargar() -> None:
+    """Empieza a leer todas las fuentes en segundo plano, una sola vez por proceso (las siguientes llamadas no hacen nada).
+
+    Se llama al iniciar la sesión del usuario: cuando abre la sección Noticias, las fuentes ya están leídas y las noticias que
+    necesitan comprobar su texto ya se están comprobando, así que la página se dibuja al instante. No espera ni devuelve nada."""
+    if _PRECARGADO.is_set():
+        return
+    _PRECARGADO.set()
+
+    def _tarea() -> None:
+        """Lee las fuentes y, cuando llegan, lanza la comprobación del texto de sus noticias."""
+        fuentes = FUENTES + FUENTES_MAS
+        wait([_REFRESCADOR.submit(_refrescar, f) for f in fuentes], timeout=_ESPERA_FUENTE + 2)
+        with _CANDADO:
+            listas = [list(_ESTADO.get(f["url"], {}).get("items", [])) for f in fuentes]
+        _pedir_verificaciones(listas)
+    threading.Thread(target=_tarea, name="pj-noticias-precarga", daemon=True).start()
+
+
+# TITULO CARGAR NOTICIAS
+
 def cargar_noticias() -> list:
     """Noticias de las fuentes principales (`FUENTES`). Alimentan la noticia principal y el carrusel."""
     return _juntar(FUENTES)
 
+
+# TITULO CARGAR MAS NOTICIAS
 
 def cargar_mas_noticias() -> list:
     """Noticias de las fuentes de "Más noticias" (`FUENTES_MAS`)."""

@@ -29,6 +29,8 @@ from componentes_plataforma._estaticos import sin_creditos
 _ESTATICO = Path(__file__).resolve().parent / "estatico"
 
 
+# TITULO LEER ESTATICO
+
 @lru_cache(maxsize=None)
 def leer_estatico(nombre: str) -> str:
     """Lee un archivo de panel_orden/estatico/ (CSS/JS). Cacheado en memoria por proceso.
@@ -41,6 +43,8 @@ def leer_estatico(nombre: str) -> str:
         return ""
 
 
+# TITULO CARGAR CSS
+
 def cargar_css() -> None:
     """Inyecta el CSS del ticket (estatico/ticket.css).
 
@@ -48,15 +52,17 @@ def cargar_css() -> None:
     st.html(f"<style>{leer_estatico('ticket.css')}</style>")
 
 
+# TITULO CAMPO
+
 def campo(clave: str, etiqueta: str, sufijo: str = ""):
     """Contenedor de un campo tipo tarjeta: etiqueta dentro (arriba) + sufijo opcional.
 
-    Crea un contenedor con key `ord_box_{clave}` (el CSS le da aspecto de tarjeta), le pinta la etiqueta y el
+    Crea un contenedor con key `orden_caja_{clave}` (el CSS le da aspecto de tarjeta), le pinta la etiqueta y el
     sufijo (por ejemplo la moneda o %), y lo devuelve para que quien llama use `with campo(...)` y coloque
     dentro el `number_input`."""
-    cont = st.container(key=f"ord_box_{clave}")
-    cont.html(f"<div class='ord-box-lbl'>{etiqueta}</div>"
-              + (f"<div class='ord-box-suf'>{sufijo}</div>" if sufijo else ""))
+    cont = st.container(key=f"orden_caja_{clave}")
+    cont.html(f"<div class='orden-caja-etiqueta'>{etiqueta}</div>"
+              + (f"<div class='orden-caja-sufijo'>{sufijo}</div>" if sufijo else ""))
     return cont
 
 

@@ -39,6 +39,8 @@ from herramientas_agente.graficos_herramientas.auxiliares import (
 import matplotlib.pyplot as plt  # noqa: E402
 
 
+# TITULO GENERAR GRAFICO FINANCIERO
+
 @herramienta(
     descripcion=(
         "Genera gráficos bursátiles en alta resolución y los muestra al usuario en el chat. "
@@ -109,20 +111,20 @@ def generar_grafico_financiero(
     # Obtener velas desde MT5 o YFinance
     # velas_data: lista de velas OHLC; tf_real: temporalidad realmente usada.
     velas_data: list[dict[str, Any]] = []
-    tf_real = timeframe
-    fuente_datos = "MetaTrader 5"
+    temporalidad_real = timeframe
+    fuente_datos = mt5_fuente.NOMBRE_FUENTE
     try:
-        mt5_res = mt5_fuente.velas(simbolo=simbolo_clean, timeframe=timeframe, cantidad=n_velas, ultimas_velas=n_velas)
-        velas_data = mt5_res.get("ultimas_velas", [])
+        mt5_resultado = mt5_fuente.velas(simbolo=simbolo_clean, timeframe=timeframe, cantidad=n_velas, ultimas_velas=n_velas)
+        velas_data = mt5_resultado.get("ultimas_velas", [])
     except Exception:
         pass
 
     # Respaldo: si MT5 no entregó velas, usa Yahoo Finance.
     if not velas_data:
         try:
-            yf_sym = _mapear_simbolo_yf(simbolo_clean)
-            yf_res = yf_fuente.historico(simbolo=yf_sym, periodo="1mo", intervalo="1d", ultimas_velas=n_velas)
-            for v in yf_res.get("ultimas_velas", []):
+            yahoo_simbolo = _mapear_simbolo_yf(simbolo_clean)
+            yahoo_resultado = yf_fuente.historico(simbolo=yahoo_simbolo, periodo="1mo", intervalo="1d", ultimas_velas=n_velas)
+            for v in yahoo_resultado.get("ultimas_velas", []):
                 velas_data.append({
                     "time": v["fecha"],
                     "open": v["apertura"],
@@ -132,7 +134,7 @@ def generar_grafico_financiero(
                     "tick_volume": v["volumen"] or 0,
                 })
             # Respaldo: yfinance entrega velas diarias, sin importar el timeframe pedido.
-            tf_real = "D1"
+            temporalidad_real = "D1"
             fuente_datos = "Yahoo Finance (velas diarias)"
         except Exception as e:
             return {"error": f"No se pudieron obtener datos históricos para graficar {simbolo_clean}: {e}"}
@@ -166,8 +168,8 @@ def generar_grafico_financiero(
                 cierres_act = [v["close"] for v in data_act.get("ultimas_velas", []) if v.get("close")]
                 if cierres_act:
                     base = cierres_act[0]
-                    rend_pct = [((c / base) - 1.0) * 100.0 for c in cierres_act]
-                    ax.plot(rend_pct, label=f"{act} (%)", linewidth=2.0)
+                    rend_porcentaje = [((c / base) - 1.0) * 100.0 for c in cierres_act]
+                    ax.plot(rend_porcentaje, label=f"{act} (%)", linewidth=2.0)
                     graficados.append(act)
             except Exception:
                 continue
@@ -177,7 +179,7 @@ def generar_grafico_financiero(
             plt.close(fig)
             return {
                 "error": (
-                    "No se pudo armar el comparativo: solo hubo datos de MT5 para "
+                    f"No se pudo armar el comparativo: solo hubo datos de {mt5_fuente.NOMBRE_FUENTE} para "
                     f"{', '.join(graficados) or 'ningún activo'} (de {', '.join(activos)})."
                 )
             }
@@ -196,14 +198,14 @@ def generar_grafico_financiero(
         # Dos paneles: precio (3/4 de la altura) y RSI (1/4), con el eje X compartido.
         gs = fig.add_gridspec(2, 1, height_ratios=[3, 1], hspace=0.15)
         ax_main = fig.add_subplot(gs[0])
-        ax_sub = fig.add_subplot(gs[1], sharex=ax_main)
+        ax_subtitulo = fig.add_subplot(gs[1], sharex=ax_main)
 
         ax_main.set_facecolor("#1A1D29")
-        ax_sub.set_facecolor("#1A1D29")
+        ax_subtitulo.set_facecolor("#1A1D29")
 
         # Series auxiliares: cierres, etiquetas de fecha e índices del eje X.
         cierres = [v["close"] for v in velas_data]
-        fechas_str = [_etiqueta_fecha(v.get("time", i), tf_real) for i, v in enumerate(velas_data)]
+        fechas_str = [_etiqueta_fecha(v.get("time", i), temporalidad_real) for i, v in enumerate(velas_data)]
         indices = list(range(len(velas_data)))
 
         # Dibuja la serie principal según el tipo elegido.
@@ -229,31 +231,31 @@ def generar_grafico_financiero(
             ax_main.plot(indices[-len(sma50):], sma50, color="#E040FB", linewidth=1.3, label="SMA 50")
 
         # Panel Inferior: Oscilador RSI(14)
-        rsi_series = []
+        rsi_serie = []
         for i in range(14, len(cierres) + 1):
             r = analisis_herramientas._rsi(cierres[:i], 14)
             if r is not None:
-                rsi_series.append(r)
+                rsi_serie.append(r)
 
-        if rsi_series:
-            ax_sub.plot(indices[-len(rsi_series):], rsi_series, color="#00E676", linewidth=1.4, label="RSI (14)")
-            ax_sub.axhline(70, color="#FF5252", linestyle="--", alpha=0.7, linewidth=0.8)
-            ax_sub.axhline(30, color="#00B0FF", linestyle="--", alpha=0.7, linewidth=0.8)
-            ax_sub.fill_between(indices[-len(rsi_series):], rsi_series, 70, where=[x >= 70 for x in rsi_series], color="#FF5252", alpha=0.3)
-            ax_sub.fill_between(indices[-len(rsi_series):], rsi_series, 30, where=[x <= 30 for x in rsi_series], color="#00B0FF", alpha=0.3)
-            ax_sub.set_ylim(10, 90)
+        if rsi_serie:
+            ax_subtitulo.plot(indices[-len(rsi_serie):], rsi_serie, color="#00E676", linewidth=1.4, label="RSI (14)")
+            ax_subtitulo.axhline(70, color="#FF5252", linestyle="--", alpha=0.7, linewidth=0.8)
+            ax_subtitulo.axhline(30, color="#00B0FF", linestyle="--", alpha=0.7, linewidth=0.8)
+            ax_subtitulo.fill_between(indices[-len(rsi_serie):], rsi_serie, 70, where=[x >= 70 for x in rsi_serie], color="#FF5252", alpha=0.3)
+            ax_subtitulo.fill_between(indices[-len(rsi_serie):], rsi_serie, 30, where=[x <= 30 for x in rsi_serie], color="#00B0FF", alpha=0.3)
+            ax_subtitulo.set_ylim(10, 90)
 
         # Configuración de Ejes y Leyendas
-        ax_main.set_title(f"Análisis Bursátil Professional: {simbolo_clean} ({tf_real})", color="#FFFFFF", fontsize=13, pad=12)
+        ax_main.set_title(f"Análisis Bursátil Professional: {simbolo_clean} ({temporalidad_real})", color="#FFFFFF", fontsize=13, pad=12)
         if ax_main.get_legend_handles_labels()[0]:
             ax_main.legend(loc="upper left", facecolor="#12141D", edgecolor="#2A2E3D")
         ax_main.grid(True, color="#2A2E3D", linestyle=":", alpha=0.6)
-        ax_sub.grid(True, color="#2A2E3D", linestyle=":", alpha=0.6)
+        ax_subtitulo.grid(True, color="#2A2E3D", linestyle=":", alpha=0.6)
 
         # Etiquetar fechas en eje X
         paso = max(1, len(indices) // 8)
-        ax_sub.set_xticks(indices[::paso])
-        ax_sub.set_xticklabels(fechas_str[::paso], rotation=30, ha="right", color="#AAAAAA")
+        ax_subtitulo.set_xticks(indices[::paso])
+        ax_subtitulo.set_xticklabels(fechas_str[::paso], rotation=30, ha="right", color="#AAAAAA")
         plt.setp(ax_main.get_xticklabels(), visible=False)
 
     # Ajusta márgenes para que no se corten títulos ni etiquetas.
@@ -270,12 +272,12 @@ def generar_grafico_financiero(
         "fuente_datos": fuente_datos,
         "simbolo": simbolo_clean,
         "tipo_grafico": tipo_grafico,
-        "timeframe": tf_real,
+        "timeframe": temporalidad_real,
         "velas_graficadas": len(velas_data),
         "ultimo_cierre": velas_data[-1].get("close"),
         "archivo_guardado": filepath,
         "mensaje": (
-            f"Gráfico {tipo_grafico} de {simbolo_clean} ({tf_real}) generado y mostrado al usuario en el chat. "
+            f"Gráfico {tipo_grafico} de {simbolo_clean} ({temporalidad_real}) generado y mostrado al usuario en el chat. "
             "No incluyas rutas ni enlaces a la imagen en tu respuesta."
         ),
     }

@@ -17,6 +17,8 @@ from datetime import datetime
 from herramientas_agente.base import herramienta
 
 
+# TITULO OBTENER FECHA HORA
+
 @herramienta(
     descripcion=(
         "Devuelve la fecha y hora actual del sistema del usuario. Úsala cuando necesites "

@@ -30,6 +30,8 @@ from herramientas_agente.ordenes_herramientas.auxiliares import _a_numero
 _ESQ = cargar_json(Path(__file__).parent / "esquemas.json")
 
 
+# TITULO PROPONER ORDEN
+
 @herramienta(**_ESQ["proponer_orden"])
 def proponer_orden(
     simbolo: str,
@@ -64,11 +66,15 @@ def proponer_orden(
     )
 
 
+# TITULO PROPONER CIERRE POSICION
+
 @herramienta(**_ESQ["proponer_cierre_posicion"])
 def proponer_cierre_posicion(ticket: int, justificacion: str) -> dict[str, Any]:
     """Registra una propuesta de cierre de la posición con el ticket indicado, pendiente de confirmación del usuario."""
     return ordenes.proponer_cierre(ticket=ticket, justificacion=justificacion)
 
+
+# TITULO VER POSICIONES
 
 @herramienta(**_ESQ["ver_posiciones"])
 def ver_posiciones() -> dict[str, Any]:
@@ -76,11 +82,15 @@ def ver_posiciones() -> dict[str, Any]:
     return ordenes.resumen_posiciones()
 
 
+# TITULO VER LIMITES RIESGO
+
 @herramienta(**_ESQ["ver_limites_riesgo"])
 def ver_limites_riesgo() -> dict[str, Any]:
     """Devuelve los límites de riesgo del agente y cuánto de ellos está usado (solo lectura)."""
     return ordenes.estado_riesgo()
 
+
+# TITULO PROPONER VIGILANCIA
 
 @herramienta(**_ESQ["proponer_vigilancia"])
 def proponer_vigilancia(
@@ -122,11 +132,15 @@ def proponer_vigilancia(
     }
 
 
+# TITULO DETENER VIGILANCIA
+
 @herramienta(**_ESQ["detener_vigilancia"])
 def detener_vigilancia(simbolo: str | None = None, id: str | None = None) -> dict[str, Any]:  # noqa: A002
     """Detiene la vigilancia indicada por ``id`` o las del ``simbolo`` del usuario actual y devuelve el resultado de ``vigilancia.detener``."""
     return vigilancia.detener(contexto.usuario_actual(), vid=id, simbolo=simbolo)
 
+
+# TITULO VER VIGILANCIAS
 
 @herramienta(**_ESQ["ver_vigilancias"])
 def ver_vigilancias() -> dict[str, Any]:

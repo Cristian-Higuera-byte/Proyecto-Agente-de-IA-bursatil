@@ -13,7 +13,7 @@
 
 """Sesión del chat: quién es el usuario, qué agente usa y con qué perfil.
 
-Guarda en st.session_state: usuario_info (datos del login), agente_ia (instancia del
+Guarda en st.session_state: usuario_informacion (datos del login), agente_ia (instancia del
 Agente) y perfil_agente (perfil elegido en el selector). El agente se registra además en
 nucleo_agente.turnos para que sobreviva a recargas de la página.
 """
@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from herramientas import permisos_plan
 from nucleo_agente import turnos
 from nucleo_agente.agente import Agente  # type: ignore[import-untyped]
 
@@ -31,13 +32,17 @@ SALUDO = (
 )
 
 
+# TITULO USUARIO ID
+
 def usuario_id() -> str:
     """Id del usuario con sesión iniciada: clave del turno en segundo plano y de las notificaciones.
 
     Devuelve el id como texto, o "local" si no hay sesión iniciada.
     """
-    return str((st.session_state.get("usuario_info") or {}).get("id") or "local")
+    return str((st.session_state.get("usuario_informacion") or {}).get("id") or "local")
 
+
+# TITULO OBTENER AGENTE
 
 def obtener_agente():
     """Devuelve (agente, mensaje_error). Un agente por usuario: sobrevive a recargas de la página,
@@ -65,14 +70,27 @@ def obtener_agente():
     return agente, ""
 
 
-def cambiar_perfil():
-    """Callback del selector de perfil: aplica al agente el perfil elegido en st.session_state.perfil_agente.
+# TITULO CAMBIAR PERFIL
 
-    No hace nada si todavía no hay agente en la sesión.
+def cambiar_perfil(clave: str = "perfil_agente"):
+    """Callback del selector de perfil: aplica al agente el perfil elegido en st.session_state[clave].
+
+    `clave` es la clave del selector que cambió (cada copia del chat tiene el suyo: «perfil_agente» en el chat de la fila de abajo y «perfil_agente_flot» en el
+    chat lateral y flotante); todas las copias leen el perfil del mismo agente.
+
+    Si el perfil elegido no lo incluye el plan del usuario, lo devuelve al anterior y deja en `bloqueo_pendiente` la función bloqueada para que
+    el panel abra el aviso con el acceso a Planes. No hace nada si todavía no hay agente en la sesión.
     """
     agente = st.session_state.get("agente_ia")
+    # Un perfil con candado (que el plan no incluye) no se aplica: se vuelve al anterior y se pide abrir el aviso del plan.
+    elegido = st.session_state[clave]
+    permitidos = permisos_plan.valor("perfiles_ia")
+    if permitidos and elegido not in permitidos:
+        st.session_state[clave] = agente.perfil if agente is not None and agente.perfil in permitidos else permitidos[0]
+        st.session_state["bloqueo_pendiente"] = "perfiles_ia"
+        return
     if agente is not None:
-        agente.perfil = st.session_state["perfil_agente"]
+        agente.perfil = elegido
 
 
 # -------------------------------------------------------------------------------------------------------

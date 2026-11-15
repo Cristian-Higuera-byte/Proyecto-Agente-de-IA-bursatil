@@ -41,7 +41,7 @@ from nucleo_agente.turnos.formato import formatear_duracion, formatear_reloj
 from nucleo_agente.turnos.hilo import _correr  # noqa: F401
 from nucleo_agente.turnos.imagenes import _EXT_IMAGEN, _buscar_rutas_imagen, imagenes_de_resultado  # noqa: F401
 from nucleo_agente.turnos.registro import (
-    _AGENTES, _LOCK, _TURNOS, agente_de, cancelar, hay_turno_en_curso, iniciar, recoger, registrar_agente, turno_de,
+    _AGENTES, _CANDADO, _TURNOS, agente_de, cancelar, hay_turno_en_curso, iniciar, recoger, registrar_agente, turno_de,
 )  # noqa: F401
 from nucleo_agente.turnos.turno import VISTA_RECIENTE_S, Turno
 

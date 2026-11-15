@@ -21,8 +21,12 @@ import configuracion
 from nucleo_agente.agente.eventos import EventoAgente
 
 
+# TITULO CICLO MIXIN
+
 class _CicloMixin:
     """Mixin con el bucle de herramientas; espera que la clase tenga `llm`, `registro`, `historial` y `perfil`."""
+
+    # TITULO CICLO
 
     def _ciclo(self) -> Iterator[EventoAgente]:
         """Ejecuta el bucle modelo -> herramientas -> modelo hasta obtener una respuesta final.
@@ -40,11 +44,11 @@ class _CicloMixin:
         for _ in range(configuracion.MAX_ITERACIONES_HERRAMIENTAS):
             final = None
             # Se retransmite el streaming al llamador y se captura la respuesta final ensamblada.
-            for ev in self.llm.chat_stream(self.historial, esquemas, self.perfil):
-                if ev.tipo == "final":
-                    final = ev.respuesta
+            for evento in self.llm.chat_stream(self.historial, esquemas, self.perfil):
+                if evento.tipo == "final":
+                    final = evento.respuesta
                 else:
-                    yield EventoAgente(ev.tipo, ev.texto)
+                    yield EventoAgente(evento.tipo, evento.texto)
 
             if final is None:
                 raise RuntimeError("El LLM no devolvió una respuesta final para este turno.")

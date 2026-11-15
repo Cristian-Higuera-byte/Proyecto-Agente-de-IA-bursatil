@@ -13,6 +13,8 @@ Transportes y Servicios Ltda.
    -------------------------------- INICIO Piña y Jara 10_grafico_base .JS -------------------------------
    ------------------------------------------------------------------------------------------------------- */
 
+  // TITULO INICIAR
+
 // [grafico] Creación del gráfico, volumen y tipos de serie
   /** Crea el gráfico principal de lightweight-charts, la serie de volumen y la serie de precio. Si la librería aún no cargó, se reintenta cada 60 ms. Abre el ámbito donde viven el resto de fragmentos (dibujo, indicadores, datos, etc.). */
   function iniciar(){
@@ -62,12 +64,12 @@ Transportes y Servicios Ltda.
         // monta con nuestras líneas de posición/orden (verde compra/TP, rojo venta/pérdida,
         // naranja SL). Dashed para leerse como "precio en vivo", no como un nivel propio.
         // lastValueVisible:false -> la ETIQUETA del eje la dibuja nuestro overlay
-        // (componentes_plataforma/posiciones_grafico.py) para que quede del mismo tamaño que las
+        // (componentes_plataforma/posiciones/) para que quede del mismo tamaño que las
         // nuestras, pegada y llegando al borde; aquí solo queda la línea.
         serie.applyOptions({ priceLineVisible: true, priceLineColor: '#e6edf3',
                              priceLineWidth: 1, priceLineStyle: 2, lastValueVisible: false });
-        if (typeof rpTrasCrearSerie === 'function') rpTrasCrearSerie();   // el replay vuelve a pintar las líneas de su posición
-        if (typeof aplicarMarcasBT === 'function') aplicarMarcasBT();   // las operaciones del backtest se mantienen al cambiar de tipo de gráfico
+        if (typeof repeticionTrasCrearSerie === 'function') repeticionTrasCrearSerie();   // el replay vuelve a pintar las líneas de su posición
+        if (typeof aplicarMarcasBacktest === 'function') aplicarMarcasBacktest();   // las operaciones del backtest se mantienen al cambiar de tipo de gráfico
       }
     }
 

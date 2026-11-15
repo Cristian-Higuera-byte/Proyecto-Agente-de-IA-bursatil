@@ -13,8 +13,8 @@
 
 """HTML de la escalera del DOM: filas Ask (arriba) y Bid (abajo) alrededor del spread.
 
-Contiene funciones puras que reciben precios y volúmenes y devuelven cadenas HTML (clases `dom-row`, `dom-bar`,
-`dom-px`, `dom-spread`, `dom-nota`, `dom-cols` definidas en `estilos.css`). Ofrece dos variantes: la profundidad
+Contiene funciones puras que reciben precios y volúmenes y devuelven cadenas HTML (clases `dom-fila`, `dom-barra`,
+`dom-precio`, `dom-spread`, `dom-nota`, `dom-columnas` definidas en `estilos.css`). Ofrece dos variantes: la profundidad
 real del bróker y una vista demostrativa con volúmenes de muestra. No toca MT5 ni Streamlit.
 """
 from __future__ import annotations
@@ -29,23 +29,29 @@ VOL_BID = [6, 9, 13, 18, 25]   # arriba (mejor bid) → abajo (lejos)
 MAXVOL = max(VOL_ASK + VOL_BID)
 
 
-def _fila(lado: str, volumen_txt: str, precio_txt: str, ancho: int) -> str:
+# TITULO FILA
+
+def _fila(lado: str, volumen_texto: str, precio_texto: str, ancho: int) -> str:
     """Devuelve el HTML de una fila de la escalera.
 
     Recibe `lado` ('ask' o 'bid', determina el color), `volumen_txt` y `precio_txt` ya formateados, y `ancho`, el
     porcentaje (0-100) de la barra de volumen."""
-    return (f"<div class='dom-row'><div class='dom-bar {lado}'>"
-            f"<div style='width:{ancho}%'></div><span>{volumen_txt}</span></div>"
-            f"<div class='dom-px {lado}'>{precio_txt}</div></div>")
+    return (f"<div class='dom-fila'><div class='dom-barra {lado}'>"
+            f"<div style='width:{ancho}%'></div><span>{volumen_texto}</span></div>"
+            f"<div class='dom-precio {lado}'>{precio_texto}</div></div>")
 
 
-def _spread(ask: float, bid: float, dig: int) -> str:
+# TITULO SPREAD
+
+def _spread(ask: float, bid: float, digitos: int) -> str:
     """Devuelve el HTML de la fila central con el spread (Ask menos Bid) redondeado a `dig` decimales."""
     return (f"<div class='dom-spread'><span class='k'>spread</span>"
-            f"<span class='v'>{round(ask - bid, dig):,.{dig}f}</span></div>")
+            f"<span class='v'>{round(ask - bid, digitos):,.{digitos}f}</span></div>")
 
 
-def filas_reales(dom: dict, bid: float, ask: float, dig: int) -> tuple[str, str]:
+# TITULO FILAS REALES
+
+def filas_reales(dom: dict, bid: float, ask: float, digitos: int) -> tuple[str, str]:
     """Escalera con la PROFUNDIDAD REAL del bróker. Devuelve (filas, nota).
 
     Recibe `dom` (diccionario con listas `ask` y `bid` de niveles con `price` y `volume`), el `bid` y `ask`
@@ -55,46 +61,50 @@ def filas_reales(dom: dict, bid: float, ask: float, dig: int) -> tuple[str, str]
     asks = list(reversed(dom["ask"]))      # mayor precio arriba
     bids = dom["bid"]                      # mejor bid arriba
     # Volumen máximo del libro (1 si está vacío, para evitar división por cero).
-    vols = [e["volume"] for e in asks + bids] or [1]
-    mx = max(vols)
+    volumenes = [e["volume"] for e in asks + bids] or [1]
+    mx = max(volumenes)
     # Se arma la escalera: asks, spread y bids.
     filas = ""
     for e in asks:
-        filas += _fila("ask", f"{e['volume']:g}", f"{e['price']:,.{dig}f}", int(e["volume"] / mx * 100))
-    filas += _spread(ask, bid, dig)
+        filas += _fila("ask", f"{e['volume']:g}", f"{e['price']:,.{digitos}f}", int(e["volume"] / mx * 100))
+    filas += _spread(ask, bid, digitos)
     for e in bids:
-        filas += _fila("bid", f"{e['volume']:g}", f"{e['price']:,.{dig}f}", int(e["volume"] / mx * 100))
+        filas += _fila("bid", f"{e['volume']:g}", f"{e['price']:,.{digitos}f}", int(e["volume"] / mx * 100))
     nota = "<div class='dom-nota'>Profundidad real del bróker (libro de órdenes).</div>"
     return filas, nota
 
 
-def filas_demo(bid: float, ask: float, dig: int, point: float) -> tuple[str, str]:
+# TITULO FILAS DEMO
+
+def filas_demo(bid: float, ask: float, digitos: int, punto: float) -> tuple[str, str]:
     """Sin profundidad del bróker: escalera DEMO sobre el precio en vivo. Devuelve (filas, nota).
 
     Recibe `bid`, `ask`, `dig` (decimales) y `point` (tamaño del punto). Genera niveles escalonados alrededor del
     spread con los volúmenes de muestra `VOL_ASK` y `VOL_BID`; los precios son reales y los volúmenes ficticios, lo
     que advierte la `nota`."""
     # Separación entre niveles: el spread, con un mínimo de 5 puntos para que las filas no se solapen.
-    paso = round(max(ask - bid, point * 5), dig) or point
+    paso = round(max(ask - bid, punto * 5), digitos) or punto
     filas = ""
     # Asks: del nivel más lejano (arriba) al mejor ask (pegado al spread).
-    for i, vol in enumerate(VOL_ASK):
+    for i, volumen in enumerate(VOL_ASK):
         nivel = len(VOL_ASK) - 1 - i
-        px = round(ask + nivel * paso, dig)
-        filas += _fila("ask", str(vol), f"{px:,.{dig}f}", int(vol / MAXVOL * 100))
-    filas += _spread(ask, bid, dig)
+        precio = round(ask + nivel * paso, digitos)
+        filas += _fila("ask", str(volumen), f"{precio:,.{digitos}f}", int(volumen / MAXVOL * 100))
+    filas += _spread(ask, bid, digitos)
     # Bids: del mejor bid (pegado al spread) hacia abajo.
-    for i, vol in enumerate(VOL_BID):
-        px = round(bid - i * paso, dig)
-        filas += _fila("bid", str(vol), f"{px:,.{dig}f}", int(vol / MAXVOL * 100))
+    for i, volumen in enumerate(VOL_BID):
+        precio = round(bid - i * paso, digitos)
+        filas += _fila("bid", str(volumen), f"{precio:,.{digitos}f}", int(volumen / MAXVOL * 100))
     nota = ("<div class='dom-nota'><b>Vista demostrativa.</b> Precios Bid/Ask reales "
             "en vivo; volúmenes de muestra (XM no entrega profundidad de mercado).</div>")
     return filas, nota
 
 
+# TITULO HTML ESCALERA
+
 def html_escalera(filas: str, nota: str) -> str:
     """Devuelve el HTML final del DOM: encabezado de columnas (Volumen/Precio), las `filas` y la `nota`."""
-    return "<div class='dom-cols'><span>Volumen</span><span>Precio</span></div>" + filas + nota
+    return "<div class='dom-columnas'><span>Volumen</span><span>Precio</span></div>" + filas + nota
 
 
 # -------------------------------------------------------------------------------------------------------

@@ -46,6 +46,8 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 TIPOS_VALIDOS = ("velas", "lineas", "barras_ohlc", "comparativo")
 
 
+# TITULO MAPEAR SIMBOLO YF
+
 def _mapear_simbolo_yf(simbolo: str) -> str:
     """Traduce un símbolo de MT5 al ticker equivalente de Yahoo Finance.
 
@@ -70,6 +72,8 @@ def _mapear_simbolo_yf(simbolo: str) -> str:
     return s
 
 
+# TITULO ETIQUETA FECHA
+
 def _etiqueta_fecha(valor: Any, timeframe: str) -> str:
     """Etiqueta legible para el eje X. D1 muestra la fecha; el resto, día-mes y hora.
 
@@ -88,6 +92,8 @@ def _etiqueta_fecha(valor: Any, timeframe: str) -> str:
         return str(valor)[-8:]
 
 
+# TITULO DIBUJAR VELAS
+
 def _dibujar_velas(ax, df_velas: list[dict[str, Any]]):
     """Dibuja velas japonesas personalizadas con mechas y cuerpos alcistas/bajistas.
 
@@ -103,8 +109,8 @@ def _dibujar_velas(ax, df_velas: list[dict[str, Any]]):
         ax.plot([i, i], [l, h], color=color, linewidth=1.0)
         # Cuerpo: rectángulo entre apertura y cierre (altura mínima para dojis).
         altura = max(abs(c - o), (h - l) * 0.001)
-        bottom = min(o, c)
-        rect = Rectangle((i - 0.35, bottom), 0.7, altura, facecolor=color, edgecolor=color, alpha=0.9)
+        abajo = min(o, c)
+        rect = Rectangle((i - 0.35, abajo), 0.7, altura, facecolor=color, edgecolor=color, alpha=0.9)
         ax.add_patch(rect)
 
 

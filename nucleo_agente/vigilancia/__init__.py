@@ -20,7 +20,7 @@ Cómo funciona
   1. El usuario pide en el chat que el agente vigile un activo y opere por su cuenta.
   2. El agente llama a la herramienta `proponer_vigilancia`: queda PENDIENTE_AUTORIZACION con sus
      términos (activo, riesgo, máx. operaciones, duración, intervalo). NO hace nada todavía.
-  3. El usuario pulsa «Autorizar» en el panel (componentes_plataforma/panel_ordenes.py). Solo entonces pasa a ACTIVA.
+  3. El usuario pulsa «Autorizar» en el panel (componentes_plataforma/agente_paneles/). Solo entonces pasa a ACTIVA.
   4. Un motor en segundo plano (iniciar_motor) despierta cada pocos segundos y, cuando a una vigilancia
      le toca, le pide al agente un análisis. El agente responde con una DECISIÓN estructurada
      (esperar / abrir / cerrar) y el MOTOR (no el modelo) la valida y la ejecuta.
@@ -69,7 +69,7 @@ from nucleo_agente.vigilancia.configuracion import (
     PENDIENTE,
     PERFIL_VIGILANCIA,
     PREFIJO_HILO_CHEQUEO,
-    RIESGO_DEFECTO_PCT,
+    RIESGO_DEFECTO_PORCENTAJE,
     VIGENTES,
 )  # noqa: F401
 # Utilidades de base de datos, notificación y conversión (utilidades.py).
@@ -82,7 +82,7 @@ from nucleo_agente.vigilancia.utilidades import (
     _consultar,
     _finalizar,
     _iso,
-    _lado_txt,
+    _lado_texto,
     _notificar,
 )  # noqa: F401
 # Posiciones abiertas por cada vigilancia (posiciones.py).
@@ -120,7 +120,7 @@ from nucleo_agente.vigilancia.chequeo import (
 from nucleo_agente.vigilancia.motor import (
     iniciar_motor,
     tick,
-    _LOCK_MOTOR,
+    _CANDADO_MOTOR,
     _bucle,
     _chequear_seguro,
     _chequeo_en_curso,

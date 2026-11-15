@@ -21,6 +21,8 @@ from herramientas_agente.base import herramienta
 from herramientas.gestor_rag import consultar_rag
 
 
+# TITULO BUSCAR EN BASE DE CONOCIMIENTO
+
 @herramienta(
     descripcion=(
         "Consulta la base de conocimiento interna en Supabase para obtener "

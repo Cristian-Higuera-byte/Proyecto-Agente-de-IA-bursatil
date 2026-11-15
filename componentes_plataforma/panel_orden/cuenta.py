@@ -23,6 +23,8 @@ from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 from herramientas.puente_mt5 import MT5_LOCK
 
 
+# TITULO INFO SIMBOLO
+
 def info_simbolo(real):
     """symbol_info del símbolo (dígitos, volúmenes, contrato...). None si no está.
 
@@ -35,6 +37,8 @@ def info_simbolo(real):
     except Exception:
         return None
 
+
+# TITULO MARGEN
 
 def margen(real, volumen, precio, tipo):
     """Margen requerido para una orden del lado `tipo` ('BUY'/'SELL'). None si falla.
@@ -50,6 +54,8 @@ def margen(real, volumen, precio, tipo):
         return None
 
 
+# TITULO MARGEN LIBRE
+
 def margen_libre():
     """Margen libre de la cuenta (account_info().margin_free) o None."""
     try:
@@ -59,6 +65,8 @@ def margen_libre():
     except Exception:
         return None
 
+
+# TITULO CAPITAL CUENTA
 
 def capital_cuenta():
     """Equity y moneda de la cuenta (base de la Calculadora de riesgo): (equity, moneda).

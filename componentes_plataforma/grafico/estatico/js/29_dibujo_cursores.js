@@ -21,6 +21,8 @@ Transportes y Servicios Ltda.
     // Modos de cursor que no son una herramienta de dibujo: al activarlos solo cambian el cursor y se vuelve a la herramienta de cruz.
     var CURSORES_PUROS = { dot: 1, pointer: 1, demo: 1 };
 
+    // TITULO APLICAR MODO CURSOR
+
     /** Aplica un modo de cursor al gráfico: muestra u oculta las líneas de la cruz (y sus etiquetas), alterna las clases modo-punto, modo-flecha y modo-demo del contenedor y limpia la estela si no es la demostración. Recibe 'cross', 'dot', 'pointer' o 'demo'. */
     function aplicarModoCursor(m){
       modoCursor = m;
@@ -28,9 +30,9 @@ Transportes y Servicios Ltda.
       try {
         chart.applyOptions({ crosshair: { vertLine: { visible: linea, labelVisible: m === 'cross' || m === 'dot' }, horzLine: { visible: linea, labelVisible: m === 'cross' || m === 'dot' } } });
       } catch (e) {}
-      wrapEl.classList.toggle('modo-punto', m === 'dot');
-      wrapEl.classList.toggle('modo-flecha', m === 'pointer');
-      wrapEl.classList.toggle('modo-demo', m === 'demo');
+      contenedorEl.classList.toggle('modo-punto', m === 'dot');
+      contenedorEl.classList.toggle('modo-flecha', m === 'pointer');
+      contenedorEl.classList.toggle('modo-demo', m === 'demo');
       if (m !== 'demo') { demoPuntos = []; redibujarTodo(); }
     }
 
@@ -47,39 +49,39 @@ Transportes y Servicios Ltda.
       if (borrador) t = 'cross';
       modoBorrador = borrador;
       activarAntesCursores(t);
-      var btn = document.getElementById('tool-cross');
+      var btn = document.getElementById('herramienta-cruz');
       if (btn) { btn.setAttribute('data-tool', borrador ? 'eraser' : 'cross'); if (borrador) btn.classList.add('active'); }
-      wrapEl.classList.toggle('modo-borrador', borrador);
+      contenedorEl.classList.toggle('modo-borrador', borrador);
       if (borrador) { seleccionadoId = null; redibujarTodo(); }
     };
     // elegir "Cruce" en el menú devuelve el cursor normal
     // elegir "Cruce" en el menú devuelve el cursor normal
-    /** Función autoejecutable que conecta la opción "Cruce" del menú de cursores (#cursor-flyout) para restablecer el modo de cursor normal. */
+    /** Función autoejecutable que conecta la opción "Cruce" del menú de cursores (#cursor-desplegable) para restablecer el modo de cursor normal. */
     (function(){
-      var it = document.querySelector('#cursor-flyout .tvtool-flyout-item[data-tool="cross"]');
+      var it = document.querySelector('#cursor-desplegable .tvtool-desplegable-elemento[data-tool="cross"]');
       if (it) it.addEventListener('click', function(){ aplicarModoCursor('cross'); });
     })();
 
     // Clic con el borrador activo (fase de captura): elimina el dibujo bajo el cursor y confirma el cambio.
     window.addEventListener('mousedown', function(e){
       if (!modoBorrador || e.button !== 0 || bloqueado || !serie) return;
-      if (!wrapEl.contains(e.target) || (e.target.closest && e.target.closest('.tv-ui'))) return;
-      var pos = posMouse(e), ap = areaTrazado();
+      if (!contenedorEl.contains(e.target) || (e.target.closest && e.target.closest('.tradingview-ui'))) return;
+      var pos = posicionRaton(e), ap = areaTrazado();
       if (pos.x < 0 || pos.y < 0 || pos.x > ap.w || pos.y > ap.h) return;
       var hit = elementoBajo(pos.x, pos.y);
       if (!hit) return;
       e.preventDefault(); e.stopPropagation();
-      elementosDibujados.splice(hit.idx, 1); seleccionadoId = null; hoverId = null; confirmarCambio();
+      elementosDibujados.splice(hit.idx, 1); seleccionadoId = null; encimaId = null; confirmarCambio();
     }, true);
     // Mouse move en modo demostración: acumula los puntos del ratón (máximo 60) para la estela láser y repinta.
     window.addEventListener('mousemove', function(e){
-      if (modoCursor === 'demo' && activeTool === 'cross' && !modoBorrador) {
-        var p = posMouse(e);
+      if (modoCursor === 'demo' && activoHerramienta === 'cross' && !modoBorrador) {
+        var p = posicionRaton(e);
         if (p.x >= 0 && p.y >= 0 && p.x <= cssW && p.y <= cssH) { demoPuntos.push({ x: p.x, y: p.y, t: Date.now() }); if (demoPuntos.length > 60) demoPuntos.shift(); redibujarTodo(); }
       }
     });
     // Al salir el ratón del gráfico se borra la estela de la demostración.
-    wrapEl.addEventListener('mouseleave', function(){ if (demoPuntos.length) { demoPuntos = []; redibujarTodo(); } });
+    contenedorEl.addEventListener('mouseleave', function(){ if (demoPuntos.length) { demoPuntos = []; redibujarTodo(); } });
 
     // ---------- Demostración: puntero láser con estela ----------
     // ---------- Demostración: puntero láser con estela ----------

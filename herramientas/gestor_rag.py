@@ -21,20 +21,23 @@ Expone `consultar_rag`, que el agente usa para traer fragmentos de documentos
 internos (tabla `documentos_rag`) como contexto adicional. Las credenciales se
 leen del archivo .env (SUPABASE_URL y SUPABASE_KEY).
 """
-import os
-from typing import cast
+from typing import Any, Optional, cast
 from dotenv import load_dotenv
-from supabase import Client, create_client  # type: ignore[import-not-found]
+
+from herramientas import base_datos
 
 load_dotenv()
 
-# Credenciales de Supabase (URL del proyecto y clave de API), leídas del entorno
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
+# Cliente único de base de datos compartido por el módulo (Supabase o PostgreSQL, según BASE_DATOS del .env); None si faltan credenciales
+supabase: Optional[Any] = None
+if base_datos.hay_credenciales():
+    try:
+        supabase = base_datos.crear_cliente()
+    except Exception:
+        supabase = None
 
-# Cliente único de Supabase compartido por el módulo (se crea al importar)
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+# TITULO CONSULTAR RAG
 
 def consultar_rag(pregunta: str, limite: int = 3) -> str:
     """
@@ -54,8 +57,8 @@ def consultar_rag(pregunta: str, limite: int = 3) -> str:
     mensaje de texto en lugar de lanzar excepción.
     """
     # Verifica que haya credenciales antes de consultar.
-    if not SUPABASE_URL or not SUPABASE_KEY:
-        return "Advertencia: Las credenciales de Supabase (SUPABASE_URL, SUPABASE_KEY) no están configuradas en el archivo .env."
+    if supabase is None:
+        return "Advertencia: Las credenciales de la base de datos (SUPABASE_URL y SUPABASE_KEY, o las POSTGRES_* si BASE_DATOS=postgres) no están configuradas en el archivo .env."
     try:
         # Lee contenido y metadata de los primeros documentos indexados.
         respuesta = supabase.table("documentos_rag").select("contenido, metadata").limit(limite).execute()
@@ -63,14 +66,14 @@ def consultar_rag(pregunta: str, limite: int = 3) -> str:
             return "No se encontraron documentos indexados en la base de conocimiento interna."
         # Concatena cada fragmento numerado con su fuente (si la metadata la trae).
         contexto_acumulado = "--- CONTEXTO RECUPERADO DE DOCUMENTOS INTERNOS ---\n"
-        for idx, item in enumerate(respuesta.data, 1):
-            doc = cast(dict, item)
+        for indice, elemento in enumerate(respuesta.data, 1):
+            doc = cast(dict, elemento)
             metadata = doc.get("metadata", {})
             fuente = "Documento interno"
             if isinstance(metadata, dict):
                 fuente = metadata.get("fuente", "Documento interno")
             contenido = doc.get("contenido", "")
-            contexto_acumulado += f"[{idx}] (Fuente: {fuente})\n{contenido}\n\n"
+            contexto_acumulado += f"[{indice}] (Fuente: {fuente})\n{contenido}\n\n"
         return contexto_acumulado
     except Exception as e:
         return f"Error al consultar el sistema RAG: {str(e)}"

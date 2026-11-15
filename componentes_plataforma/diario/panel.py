@@ -25,6 +25,8 @@ from herramientas import estadisticas_diario
 from herramientas.puente_mt5 import NOMBRE_PROVEEDOR, inicializar_mt5, obtener_info_cuenta
 
 
+# TITULO RENDERIZAR PANEL JOURNAL
+
 def renderizar_panel_journal(main=None):
     """Dibuja la vista completa del Diario.
 
@@ -35,12 +37,12 @@ def renderizar_panel_journal(main=None):
     # Conexión a MT5 (necesaria para las cuentas y las velas) y estilos de la vista.
     inicializar_mt5()
     st.html(CSS)
-    # Contenedor con clave jr_wrap: limita el ancho máximo (ver estilos.css).
-    with st.container(key="jr_wrap"):
+    # Contenedor con clave diario_contenedor: limita el ancho máximo (ver estilos.css).
+    with st.container(key="diario_contenedor"):
         st.html(
-            "<div class='jr-head'><div class='ic'><span class='jrmi'>menu_book</span></div>"
-            "<div><div class='jr-title'>Diario</div>"
-            "<div class='jr-sub'>Trading journal: registro automático, métricas y notas por operación</div>"
+            "<div class='diario-cabecera'><div class='ic'><span class='jrmi'>menu_book</span></div>"
+            "<div><div class='diario-titulo'>Diario</div>"
+            "<div class='diario-subtitulo'>Trading journal: registro automático, métricas y notas por operación</div>"
             "</div></div>"
         )
         # Moneda de la cuenta (USD por defecto si MT5 no responde).
@@ -59,7 +61,7 @@ def renderizar_panel_journal(main=None):
             nota = ("Operaciones reconstruidas emparejando los deals de entrada y salida de "
                     "MetaTrader 5. El R/R planificado aparece en operaciones abiertas con SL/TP; "
                     "la captura es un mini-gráfico generado automáticamente.")
-        st.html(f"<div class='jr-note'>{nota}</div>")
+        st.html(f"<div class='diario-nota'>{nota}</div>")
 
 
 # -------------------------------------------------------------------------------------------------------

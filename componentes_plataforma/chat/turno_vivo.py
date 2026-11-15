@@ -14,7 +14,7 @@
 """Burbuja de la respuesta que el agente está escribiendo, con cronómetro y botón Detener.
 
 Lo usa historial.pintar_mensajes mientras hay un turno en curso. Los estilos de la burbuja
-(clases ag-live, ag-dot, ag-fase y ag-reloj) están en el CSS del chat.
+(clases agente-live, agente-dot, agente-fase y agente-reloj) están en el CSS del chat.
 """
 from __future__ import annotations
 
@@ -23,15 +23,19 @@ from html import escape
 
 import streamlit as st
 
+from componentes_plataforma.refresco_fragmentos import pedir_refresco
 from nucleo_agente import turnos
 
 
+# TITULO BURBUJA EN VIVO
+
 @st.fragment(run_every="1s")
-def burbuja_en_vivo(usuario_id: str, turno_id: str) -> None:
+def burbuja_en_vivo(usuario_id: str, turno_id: str, sufijo: str = "") -> None:
     """Respuesta que se está escribiendo, con cronómetro. Se refresca sola cada segundo (solo este
     bloque, no la página). Cuando el turno termina, refresca la app entera para incorporar la respuesta.
 
-    Parámetros: usuario_id (clave del turno) y turno_id (turno que debe mostrar). Dibuja la
+    Parámetros: usuario_id (clave del turno), turno_id (turno que debe mostrar) y sufijo (texto que se suma a la clave del botón Detener para que cada copia
+    del chat —fila de abajo, lateral y flotante— tenga la suya). Dibuja la
     fase actual, el reloj, el botón Detener (o "Deteniendo…" si ya se solicitó) y el texto
     parcial con un cursor. Efectos: marca el turno como visible (ui_viva), puede cancelarlo
     con turnos.cancelar y relanza la app o el fragmento. No devuelve nada.
@@ -39,18 +43,25 @@ def burbuja_en_vivo(usuario_id: str, turno_id: str) -> None:
     # Turno actual del usuario; si cambió o terminó, se relanza la app para incorporar la respuesta.
     t = turnos.turno_de(usuario_id)
     if t is None or t.id != turno_id or t.terminado:
-        st.rerun(scope="app")
+        # El turno terminó: se pide refrescar (sin reiniciar la página) el chat, el historial y las órdenes propuestas del agente y la campana de avisos; al volver a dibujarse el
+        # chat ya no trae esta burbuja y su temporizador se detiene. Si el refresco no llegara en 5 s, red de seguridad: se reejecuta la página completa, como antes.
+        pedir_refresco("todo_agente", marca=f"fin-{turno_id}{sufijo}")
+        inicio = st.session_state.setdefault(f"_fin_turno_{turno_id}{sufijo}", time.time())
+        if time.time() - inicio > 5:
+            st.session_state.pop(f"_fin_turno_{turno_id}{sufijo}", None)
+            st.rerun(scope="app")
+        return
     t.ui_viva = time.time()   # la interfaz lo está mostrando: el aviso final nacerá ya leído
     with st.chat_message("assistant"):
         st.html(
-            "<div class='ag-live'><span class='ag-dot'></span>"
-            f"<span class='ag-fase'>{escape(t.fase)}</span>"
-            f"<span class='ag-reloj'>⏱ {turnos.formatear_reloj(t.duracion)}</span></div>"
+            "<div class='agente-live'><span class='agente-dot'></span>"
+            f"<span class='agente-fase'>{escape(t.fase)}</span>"
+            f"<span class='agente-reloj'>⏱ {turnos.formatear_reloj(t.duracion)}</span></div>"
         )
         # Detener: avisa al agente y se detiene en cuanto emita su siguiente evento (ver nucleo_agente/turnos.py).
         if t.cancelar_solicitado:
-            st.button("Deteniendo…", key=f"agc_stop_{turno_id}", icon=":material/hourglass_top:", disabled=True)
-        elif st.button("Detener", key=f"agc_stop_{turno_id}", icon=":material/stop_circle:",
+            st.button("Deteniendo…", key=f"agente_chat_stop_{turno_id}{sufijo}", icon=":material/hourglass_top:", disabled=True)
+        elif st.button("Detener", key=f"agente_chat_stop_{turno_id}{sufijo}", icon=":material/stop_circle:",
                        help="Detiene la consulta en curso"):
             turnos.cancelar(usuario_id)
             st.rerun(scope="fragment")

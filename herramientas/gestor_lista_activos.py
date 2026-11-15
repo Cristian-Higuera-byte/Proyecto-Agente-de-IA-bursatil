@@ -25,28 +25,48 @@ Supabase no está configurado o la consulta falla. Las credenciales se leen de
 .env (SUPABASE_URL y SUPABASE_KEY).
 """
 import os
-from typing import Optional
+import unicodedata
+from concurrent.futures import ThreadPoolExecutor
+from typing import Any, Callable, Optional
 
 from dotenv import load_dotenv
-from supabase import Client, create_client  # type: ignore[import-not-found]
+
+from herramientas import base_datos
 
 load_dotenv()
 
-# URL y clave de Supabase leídas del entorno (.env); vacías si no existen
-_URL = os.environ.get("SUPABASE_URL", "")
-_KEY = os.environ.get("SUPABASE_KEY", "")
-
-# Cliente Supabase compartido del módulo; None si no hay credenciales o falla la conexión
-_supabase: Optional[Client] = None
-if _URL and _KEY:
+# Cliente de base de datos compartido del módulo (Supabase o PostgreSQL, según BASE_DATOS del .env); None si no hay credenciales o falla la conexión
+_supabase: Optional[Any] = None
+if base_datos.hay_credenciales():
     try:
-        _supabase = create_client(_URL, _KEY)
+        _supabase = base_datos.crear_cliente()
     except Exception:
         _supabase = None
 
-# Watchlist por defecto para usuarios nuevos (nombres EXACTOS del broker)
-DEFAULTS = ["EURUSD...", "GBPUSD...", "USDJPY...", "XAUUSD...", "BTCUSD", "ETHUSD", "US30"]
+# Watchlist por defecto para usuarios nuevos (nombres EXACTOS del broker). Con Capital.com se usan sus nombres propios
+# (el oro es GOLD y no hay sufijo "..."); con MT5 los de ese terminal.
+if os.environ.get("PROVEEDOR", "mt5").strip().lower() == "capital":
+    DEFAULTS = ["EURUSD", "GBPUSD", "USDJPY", "GOLD", "BTCUSD", "ETHUSD", "US30"]
+else:
+    DEFAULTS = ["EURUSD...", "GBPUSD...", "USDJPY...", "XAUUSD...", "BTCUSD", "ETHUSD", "US30"]
 
+
+# Cola de un solo hilo para las escrituras en Supabase que no necesitan esperarse: así se hacen en el orden en que se pidieron
+# (agregar y luego quitar el mismo símbolo no se cruzan) y sin que el clic del usuario espere la red.
+_ESCRITOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="pj-lista-activos")
+
+
+# TITULO EN SEGUNDO PLANO
+
+def en_segundo_plano(funcion: Callable, *argumentos) -> None:
+    """Ejecuta `funcion(*argumentos)` (una escritura en Supabase) en un hilo aparte, en orden y sin esperar el resultado.
+
+    La pantalla ya muestra el cambio (se hace sobre la sesión antes de persistir), así que el clic no espera a la base de datos.
+    Las funciones de este módulo no lanzan excepciones: ante un fallo devuelven False y el cambio queda solo en la sesión."""
+    _ESCRITOR.submit(funcion, *argumentos)
+
+
+# TITULO NOMBRE VISIBLE
 
 def nombre_visible(simbolo: str) -> str:
     """
@@ -60,40 +80,72 @@ def nombre_visible(simbolo: str) -> str:
     s = (simbolo or "").replace("...", "")
     # Si queda un sufijo corto alfabético tras el último punto, se descarta.
     if "." in s:
-        base, suf = s.rsplit(".", 1)
-        if suf.isalpha() and 1 <= len(suf) <= 3:
+        base, sufijo = s.rsplit(".", 1)
+        if sufijo.isalpha() and 1 <= len(sufijo) <= 3:
             s = base
     return s
 
 
+# Instrumentos que Capital.com publica con nombre propio (no con el XAU/XAG de MT5) y que son metales o energía.
+_METALES = {"GOLD", "SILVER", "PLATINUM", "PALLADIUM", "COPPER", "ALUMINIUM", "ALUMINUM", "NICKEL", "ZINC", "LEAD", "TIN"}
+_ENERGIA = {"OIL_CRUDE", "OIL_BRENT", "CRUDEOIL", "BRENT", "NATURALGAS", "NATGAS", "GASOLINE", "HEATINGOIL", "GAS_OIL"}
+
+
+# TITULO SIN ACENTOS
+
+def _sin_acentos(texto: str) -> str:
+    """Devuelve `texto` en minúsculas y sin tildes, para comparar palabras clave sin que importe cómo estén escritas."""
+    return "".join(c for c in unicodedata.normalize("NFD", (texto or "").lower()) if unicodedata.category(c) != "Mn")
+
+
+# TITULO CATEGORIA SIMBOLO
+
 def categoria_simbolo(path: str, name: str) -> str:
     """
-    Clasifica un símbolo en una categoría legible (METALES, CRIPTO, FOREX,
-    ENERGÍA, ÍNDICE, ACCIONES, FUTUROS u OTROS).
+    Clasifica un símbolo en una categoría legible (METALES, CRIPTO, FOREX, ENERGÍA, ÍNDICE, ACCIONES, ETF, BONOS,
+    TASAS, MATERIAS PRIMAS, FUTUROS u OTROS).
 
-    Recibe el 'path' del símbolo en MT5 (carpeta del broker) y su nombre, y
-    busca palabras clave en ese orden de prioridad; el primer grupo que coincide
-    gana. Devuelve "OTROS" si nada coincide.
+    Recibe el 'path' del símbolo (carpeta del broker: la de MT5 o la que arma el catálogo de Capital.com) y su nombre, y
+    busca palabras clave en ese orden de prioridad; el primer grupo que coincide gana. Reconoce los nombres propios de
+    Capital.com (GOLD, SILVER, OIL_CRUDE…) y las carpetas en español o inglés, sin importar tildes ni mayúsculas.
+    Devuelve "OTROS" si nada coincide.
     """
-    # Normaliza: path en minúsculas, nombre en mayúsculas.
-    p = (path or "").lower()
+    # Normaliza: path en minúsculas y sin tildes, nombre en mayúsculas.
+    p = _sin_acentos(path)
     n = (name or "").upper()
-    if n.startswith("XAU") or n.startswith("XAG") or "metal" in p or "gold" in p:
+    carpeta = p.split("\\")[0]
+    directorio = p.rsplit("\\", 1)[0] if "\\" in p else ""    # el path sin el último tramo, que es el propio símbolo
+    base = n.split("_")[0]
+    # Las acciones y los ETF se reconocen por su carpeta antes que por el nombre: el ticker de una acción puede parecerse al de
+    # un metal o contener "gas" u "oil" sin serlo.
+    if carpeta in ("stocks", "acciones", "shares"):
+        return "ACCIONES"
+    if carpeta.startswith("etf"):
+        return "ETF"
+    if n.startswith("XAU") or n.startswith("XAG") or "metal" in p or "gold" in p or n in _METALES or base in _METALES:
         return "METALES"
     if "crypto" in p or "cripto" in p:
         return "CRIPTO"
-    if "forex" in p or "mb pro" in p or "currenc" in p:
+    if "forex" in p or "mb pro" in p or "currenc" in p or "divisa" in p:
         return "FOREX"
-    if "oil" in p or "energ" in p or "gas" in p:
+    if "oil" in directorio or "energ" in directorio or "gas" in directorio or n in _ENERGIA or n.startswith("OIL_"):
         return "ENERGÍA"
     if "indic" in p or "index" in p or "cash indices" in p:
         return "ÍNDICE"
-    if "shares" in p or "stock" in p or "equit" in p:
+    if "shares" in p or "stock" in p or "equit" in p or "accion" in p:
         return "ACCIONES"
     if "futures" in p or "futuro" in p:
         return "FUTUROS"
+    if carpeta.startswith(("bond", "bono")):
+        return "BONOS"
+    if carpeta.startswith(("rate", "tasa", "interest")):
+        return "TASAS"
+    if carpeta.startswith(("commodit", "materia")):
+        return "MATERIAS PRIMAS"
     return "OTROS"
 
+
+# TITULO OBTENER WATCHLIST
 
 def obtener_watchlist(usuario_id) -> list[str]:
     """
@@ -110,10 +162,12 @@ def obtener_watchlist(usuario_id) -> list[str]:
              .eq("usuario_id", usuario_id)
              .order("creado_en")
              .execute())
-        return [row["simbolo"] for row in (r.data or [])]
+        return [fila["simbolo"] for fila in (r.data or [])]
     except Exception:
         return []
 
+
+# TITULO AGREGAR SIMBOLO
 
 def agregar_simbolo(usuario_id, simbolo: str) -> bool:
     """
@@ -133,6 +187,8 @@ def agregar_simbolo(usuario_id, simbolo: str) -> bool:
         return False  # normalmente: ya existe (restricción unique)
 
 
+# TITULO QUITAR SIMBOLO
+
 def quitar_simbolo(usuario_id, simbolo: str) -> bool:
     """
     Elimina un símbolo de la watchlist del usuario.
@@ -151,7 +207,9 @@ def quitar_simbolo(usuario_id, simbolo: str) -> bool:
         return False
 
 
-def sembrar_defaults(usuario_id) -> list[str]:
+# TITULO SEMBRAR POR DEFECTO
+
+def sembrar_por_defecto(usuario_id) -> list[str]:
     """
     Inserta la watchlist por defecto (`DEFAULTS`) para un usuario nuevo.
 
@@ -164,8 +222,8 @@ def sembrar_defaults(usuario_id) -> list[str]:
         return list(DEFAULTS)
     try:
         # Conjunto de favoritos por defecto para marcar cada fila.
-        favs_def = set(FAVORITOS_DEFAULT)
-        filas = [{"usuario_id": usuario_id, "simbolo": s, "favorito": s in favs_def}
+        favoritos_def = set(FAVORITOS_DEFAULT)
+        filas = [{"usuario_id": usuario_id, "simbolo": s, "favorito": s in favoritos_def}
                  for s in DEFAULTS]
         # Inserta todas las filas en una sola llamada.
         _supabase.table("watchlist_usuario").insert(filas).execute()
@@ -176,9 +234,11 @@ def sembrar_defaults(usuario_id) -> list[str]:
 
 # --- Favoritos (barra superior): subconjunto de la watchlist marcado con `favorito` ---
 # Símbolos marcados como favoritos al sembrar la watchlist de un usuario nuevo
-# (se define después de `sembrar_defaults`, pero se resuelve en tiempo de ejecución).
-FAVORITOS_DEFAULT = ["BTCUSD", "ETHUSD", "XAUUSD...", "EURUSD...", "US30"]
+# (se define después de `sembrar_por_defecto`, pero se resuelve en tiempo de ejecución).
+FAVORITOS_DEFAULT = ["BTCUSD", "ETHUSD", "GOLD", "EURUSD", "US30"] if DEFAULTS[0] == "EURUSD" else ["BTCUSD", "ETHUSD", "XAUUSD...", "EURUSD...", "US30"]
 
+
+# TITULO OBTENER FAVORITOS
 
 def obtener_favoritos(usuario_id) -> list[str]:
     """
@@ -195,10 +255,12 @@ def obtener_favoritos(usuario_id) -> list[str]:
              .eq("favorito", True)
              .order("creado_en")
              .execute())
-        return [row["simbolo"] for row in (r.data or [])]
+        return [fila["simbolo"] for fila in (r.data or [])]
     except Exception:
         return []
 
+
+# TITULO MARCAR FAVORITO
 
 def marcar_favorito(usuario_id, simbolo: str, valor: bool) -> bool:
     """

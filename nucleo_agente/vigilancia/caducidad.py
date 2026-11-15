@@ -20,6 +20,8 @@ from nucleo_agente.vigilancia.posiciones import _posiciones_de
 from nucleo_agente.vigilancia.utilidades import _consultar, _finalizar
 
 
+# TITULO CADUCAR AUTORIZACIONES
+
 def _caducar_autorizaciones() -> None:
     """Pasa a EXPIRADA las vigilancias que siguen PENDIENTE_AUTORIZACION después de su plazo de autorización."""
     ordenes._ejecutar(
@@ -27,6 +29,8 @@ def _caducar_autorizaciones() -> None:
         "WHERE estado = 'PENDIENTE_AUTORIZACION' AND expira_autorizacion <= ?", (ordenes._ahora(),),
     )
 
+
+# TITULO CADUCAR VENCIDAS
 
 def _caducar_vencidas() -> None:
     """Finaliza como EXPIRADA las vigilancias ACTIVA cuyo tiempo total (`vence`) ya pasó y avisa al usuario.

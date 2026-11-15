@@ -28,6 +28,8 @@ from componentes_plataforma.chat.turno_vivo import burbuja_en_vivo
 from nucleo_agente import turnos
 
 
+# TITULO INICIAR CONVERSACION
+
 def iniciar_conversacion() -> None:
     """Crea la conversación de la sesión con el saludo inicial si todavía no existe.
 
@@ -38,10 +40,14 @@ def iniciar_conversacion() -> None:
         st.session_state.mensajes_ui = [{"role": "assistant", "content": SALUDO}]
 
 
+# TITULO REINICIAR CONVERSACION
+
 def reiniciar_conversacion() -> None:
     """Descarta los mensajes de la sesión y deja solo el saludo inicial (botón "Nueva conversación")."""
     st.session_state.mensajes_ui = [{"role": "assistant", "content": SALUDO}]
 
+
+# TITULO SINCRONIZAR TURNO
 
 def sincronizar_turno(uid: str):
     """El turno del agente corre en segundo plano (nucleo_agente/turnos.py): no se corta al cambiar de sección.
@@ -72,15 +78,17 @@ def sincronizar_turno(uid: str):
     return turno, en_curso, vistos
 
 
-def pintar_mensajes(uid: str, turno, en_curso: bool) -> None:
+# TITULO PINTAR MENSAJES
+
+def pintar_mensajes(uid: str, turno, en_curso: bool, sufijo: str = "", altura: int = 450) -> None:
     """Zona con scroll: mensajes guardados y, si hay un turno en curso, su burbuja en vivo.
 
-    Parámetros: uid (id del usuario), turno (turno actual o None) y en_curso (si el agente
-    sigue respondiendo). Dibuja cada mensaje con texto, imágenes existentes en disco y pie.
+    Parámetros: uid (id del usuario), turno (turno actual o None), en_curso (si el agente
+    sigue respondiendo), sufijo (se suma a las claves, para tener varias copias del chat) y altura (alto en px de la zona con scroll). Dibuja cada mensaje con texto, imágenes existentes en disco y pie.
     No devuelve nada.
     """
-    # Contenedor de altura fija con scroll (clave agc_scroll, estilizada en el CSS del chat).
-    contenedor_chat_central = st.container(height=450, border=False, key="agc_scroll")
+    # Contenedor de altura fija con scroll (clave agente_chat_desplazamiento, estilizada en el CSS del chat).
+    contenedor_chat_central = st.container(height=altura, border=False, key=f"agente_chat_desplazamiento{sufijo}")
     with contenedor_chat_central:
         # Mensajes ya guardados, con sus imágenes (solo si el archivo todavía existe) y pie.
         for mensaje in st.session_state.mensajes_ui:
@@ -93,7 +101,7 @@ def pintar_mensajes(uid: str, turno, en_curso: bool) -> None:
                     st.caption(mensaje["pie"])
         # Respuesta en construcción, que se refresca sola cada segundo.
         if en_curso and turno is not None:
-            burbuja_en_vivo(uid, turno.id)
+            burbuja_en_vivo(uid, turno.id, sufijo)
 
 
 # -------------------------------------------------------------------------------------------------------

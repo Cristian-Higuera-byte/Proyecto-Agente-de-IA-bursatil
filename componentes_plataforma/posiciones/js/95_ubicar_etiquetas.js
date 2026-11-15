@@ -13,6 +13,33 @@ Transportes y Servicios Ltda.
    ------------------------------ INICIO Piña y Jara 95_ubicar_etiquetas .JS -----------------------------
    ------------------------------------------------------------------------------------------------------- */
 
+      // TITULO AMPLIAR ESCALA
+
+      // Serie a la que ya se le puso el proveedor de escala (se vuelve a poner si el gráfico cambia de tipo y crea otra serie).
+      var serieEscala = null;
+      // Fracción del precio hasta la que un nivel (entrada, SL o TP) ensancha la escala; más lejos queda fijado al borde (ver colocar).
+      var ALCANCE_ESCALA = 0.08;
+
+      /**
+       * Proveedor de autoescala de la serie: amplía el rango de precios para que la entrada, el SL y el TP de las posiciones y órdenes cercanos al precio queden
+       * dentro del gráfico. Los niveles muy lejanos no se incluyen para no aplastar las velas. Recibe la función que calcula el rango normal y devuelve el rango.
+       */
+      function ampliarEscala(original){
+        var r = original();
+        if (!r || !r.priceRange) return r;
+        var ref = BID || (r.priceRange.minValue + r.priceRange.maxValue) / 2, lo = r.priceRange.minValue, hi = r.priceRange.maxValue;
+        for (var id in ITEMS){
+          ['po', 'sl', 'tp'].forEach(function(f){
+            var v = +ITEMS[id][f];
+            if (v > 0 && Math.abs(v - ref) <= ref * ALCANCE_ESCALA){ lo = Math.min(lo, v); hi = Math.max(hi, v); }
+          });
+        }
+        r.priceRange = { minValue: lo, maxValue: hi };
+        return r;
+      }
+
+      // TITULO UBICAR
+
       /**
        * Bucle de dibujo (una vez por fotograma con requestAnimationFrame): ajusta la capa al tamaño del gráfico, convierte
        * cada precio en altura con la escala de la serie, coloca líneas, etiquetas, insignias y conectores, refresca el
@@ -22,6 +49,7 @@ Transportes y Servicios Ltda.
       function ubicar(){
         requestAnimationFrame(ubicar);
         if (!serie) return;
+        if (serie !== serieEscala){ serieEscala = serie; serie.applyOptions({ autoscaleInfoProvider: ampliarEscala }); }
         // Tamaño actual del gráfico y sincronización de la capa con su posición.
         var w = containerEl.clientWidth, h = containerEl.clientHeight;
         actualizarMercado();
@@ -37,7 +65,7 @@ Transportes y Servicios Ltda.
         if (ed){
           txt(ed.querySelector('.b'), BID ? fmt(BID, DIGITS) : '—');
           txt(ed.querySelector('.a'), ASK ? fmt(ASK, DIGITS) : '—');
-          if (!ITEMS[edPrev ? edPrev.id : ''] && edPrev) cerrarEditor();   // la orden se ejecutó o se canceló
+          if (!ITEMS[edAnterior ? edAnterior.id : ''] && edAnterior) cerrarEditor();   // la orden se ejecutó o se canceló
         }
         for (var id in nodos){
           var it = ITEMS[id], n = nodos[id];
@@ -45,13 +73,13 @@ Transportes y Servicios Ltda.
           // Por cada elemento: color según el lado, estado de arrastre y precio de entrada efectivo (arrastrado, en edición o real).
           var lado = esCompra(it) ? COMPRA : VENTA;
           var arrPo = drag && drag.id === id && drag.f === 'po';
-          var prev = edPrev && edPrev.id === id ? edPrev : null;
+          var prev = edAnterior && edAnterior.id === id ? edAnterior : null;
           var entrada = arrPo ? drag.px : (prev ? prev.po : precioEntrada(it, n));
           // Línea principal: posiciones con lotes con signo y P/G en vivo; órdenes con tipo, volumen y precio.
           var y0 = serie.priceToCoordinate(entrada), visible;
           if (it.kind === 'pos'){
             visible = colocar(n.main, y0, w, h, eje, lado, (esCompra(it) ? '+' : '-') + fmt(it.v, 2),
-                              pgTxt(it.p || 0), (it.p || 0) >= 0 ? COMPRA : VENTA, it.po, false, false);
+                              gananciaPerdidaTexto(it.p || 0), (it.p || 0) >= 0 ? COMPRA : VENTA, it.po, false, false);
             n.main.querySelector('.tg').title = TIPO[it.t] + ' ' + fmt(it.v, 2) + ' lote(s) a ' + fmt(it.po, DIGITS);
           } else {
             visible = colocar(n.main, y0, w, h, eje,
@@ -60,7 +88,8 @@ Transportes y Servicios Ltda.
           }
           // Clases de estado: pendiente de confirmación e inválida (precio de entrada mal ubicado).
           var malPo = arrPo && validar(it, 'po', entrada, entrada);
-          n.main.className = 'pl ' + (it.kind === 'ord' ? 'po' : 'pm') +
+          if (visible) y0 = n.main._y;   // si el precio quedó fuera del rango, la línea está fijada al borde
+          n.main.className = 'pl ' + (it.kind === 'ord' ? 'po' : 'pm') + (n.main._fuera ? ' fuera' : '') +
             ((n.pend.po !== undefined || n.pend.del) ? ' pend' : '') + (malPo ? ' mal' : '');
           if (visible) cajas.push({ej: n.main.querySelector('.ej'), y: y0});
           // ys: alturas de las líneas del elemento (para el conector); hay: niveles TP y SL existentes.
@@ -72,23 +101,23 @@ Transportes y Servicios Ltda.
             var el = n[f];
             if (!px){ el.style.display = 'none'; return; }
             hay[f] = true;
-            var col = f === 'tp' ? C_TP : C_SL, g = pgEn(it, entrada, px);
+            var col = f === 'tp' ? C_TAKE_PROFIT : C_STOP_LOSS, g = gananciaPerdidaEn(it, entrada, px);
             var y = serie.priceToCoordinate(px);
             var etq = f.toUpperCase() + (f === 'sl' && it.tr ? ' auto' : '') + ' ' + fmt(it.v, 2);
             if (f === 'sl') el.querySelector('.x').title = it.tr
               ? 'Gestionado por el stop dinámico (quítalo en Cartera)' : 'Quitar Stop Loss';
-            if (colocar(el, y, w, h, eje, col, etq, pgTxt(g),
-                        g >= 0 ? COMPRA : VENTA, px, true, false)){ ys.push(y); cajas.push({ej: el.querySelector('.ej'), y: y}); }
-            el.className = 'pl lv' + ((f in n.pend) ? ' pend' : '') +
+            if (colocar(el, y, w, h, eje, col, etq, gananciaPerdidaTexto(g),
+                        g >= 0 ? COMPRA : VENTA, px, true, false)){ y = el._y; ys.push(y); cajas.push({ej: el.querySelector('.ej'), y: y}); }
+            el.className = 'pl lv' + (el._fuera ? ' fuera' : '') + ((f in n.pend) ? ' pend' : '') +
                            (arrastra && validar(it, f, px, entrada) ? ' mal' : '');
           });
           // Insignias TP / SL (solo para los niveles que faltan)
           n.bdTp.style.display = hay.tp ? 'none' : '';
           n.bdSl.style.display = hay.sl ? 'none' : '';
-          if (visible && (!hay.tp || !hay.sl) && !n.pend.del){
+          if (visible && !n.main._fuera && (!hay.tp || !hay.sl) && !n.pend.del){
             n.bds.style.display = '';
             n.bds.style.top = (Math.round(y0) - 11) + 'px';
-            n.bds.style.right = (eje + SEP + n.main.querySelector('.tg').offsetWidth + 6) + 'px';
+            n.bds.style.right = (eje + SEPARADOR + n.main.querySelector('.tg').offsetWidth + 6) + 'px';
           } else {
             n.bds.style.display = 'none';
           }

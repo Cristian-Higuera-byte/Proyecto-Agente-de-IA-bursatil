@@ -43,29 +43,37 @@ import os
 import tempfile
 import threading
 import time
+from herramientas.tickets import ticket as _tk
 
-# Carpeta `data/` en la raíz del proyecto.
-_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+from herramientas.carpeta_usuario import carpeta_usuario, ruta_archivo
+
 # Archivo JSON compartido entre Streamlit y el motor con los pares OCO.
-_RUTA = os.path.join(_DIR, "oco.json")
+# Nombre del archivo; la carpeta depende del usuario y la cuenta (ver herramientas/carpeta_usuario.py)
+_NOMBRE_ARCHIVO = "oco.json"
 # Candado que serializa las modificaciones dentro del proceso.
-_LOCK = threading.Lock()
+_CANDADO = threading.Lock()
 
+
+# TITULO PAR ID
 
 def _par_id(a: int, b: int) -> str:
     """Construye el id del par "<menor>-<mayor>" a partir de dos tickets, sin importar el orden."""
-    x, y = sorted((int(a), int(b)))
+    x, y = sorted((_tk(a), _tk(b)), key=lambda t: (isinstance(t, str), t if isinstance(t, int) else 0, str(t)))
     return f"{x}-{y}"
 
+
+# TITULO LEER CRUDO
 
 def _leer_crudo() -> dict:
     """Lee `oco.json` tal cual (sin validar); devuelve {} si falta o está corrupto."""
     try:
-        with open(_RUTA, "r", encoding="utf-8") as f:
+        with open(ruta_archivo(_NOMBRE_ARCHIVO), "r", encoding="utf-8") as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         return {}
 
+
+# TITULO LEER
 
 def leer() -> dict:
     """Devuelve {par_id(str): {"a": int, "b": int, "symbol": str, "ts": float}}."""
@@ -73,12 +81,14 @@ def leer() -> dict:
     # Normaliza tipos y descarta entradas dañadas sin interrumpir la lectura.
     for k, v in _leer_crudo().items():
         try:
-            out[str(k)] = {"a": int(v["a"]), "b": int(v["b"]),
+            out[str(k)] = {"a": _tk(v["a"]), "b": _tk(v["b"]),
                            "symbol": str(v.get("symbol", "")), "ts": float(v.get("ts", 0.0))}
         except (ValueError, TypeError, KeyError, AttributeError):
             continue
     return out
 
+
+# TITULO TICKETS EN OCO
 
 def tickets_en_oco() -> set:
     """Conjunto de todos los tickets que participan en algún par OCO (para la UI/feed)."""
@@ -89,18 +99,22 @@ def tickets_en_oco() -> set:
     return s
 
 
+# TITULO GUARDAR
+
 def _guardar(d: dict) -> None:
     """Escribe el diccionario de pares en `oco.json` de forma atómica (temporal + fsync + os.replace)."""
-    os.makedirs(_DIR, exist_ok=True)
-    tmp = tempfile.NamedTemporaryFile("w", delete=False, dir=_DIR, encoding="utf-8")
+    os.makedirs(carpeta_usuario(), exist_ok=True)
+    tmp = tempfile.NamedTemporaryFile("w", delete=False, dir=carpeta_usuario(), encoding="utf-8")
     try:
         json.dump(d, tmp)
         tmp.flush()
         os.fsync(tmp.fileno())
     finally:
         tmp.close()
-    os.replace(tmp.name, _RUTA)   # atómico: el otro proceso nunca ve un archivo a medias
+    os.replace(tmp.name, ruta_archivo(_NOMBRE_ARCHIVO))   # atómico: el otro proceso nunca ve un archivo a medias
 
+
+# TITULO FIJAR
 
 def fijar(a: int, b: int, symbol: str = "") -> str:
     """Vincula dos órdenes pendientes como un par OCO y lo guarda. Devuelve el par_id.
@@ -108,28 +122,32 @@ def fijar(a: int, b: int, symbol: str = "") -> str:
     Recibe los tickets `a` y `b` y el nombre real del símbolo (informativo).
     Si el par ya existía, lo reemplaza con una marca de tiempo nueva.
     """
-    with _LOCK:
+    with _CANDADO:
         d = leer()
         pid = _par_id(a, b)
-        d[pid] = {"a": int(a), "b": int(b), "symbol": str(symbol or ""), "ts": time.time()}
+        d[pid] = {"a": _tk(a), "b": _tk(b), "symbol": str(symbol or ""), "ts": time.time()}
         _guardar(d)
         return pid
 
 
+# TITULO QUITAR PAR
+
 def quitar_par(par_id: str) -> None:
     """Elimina un par OCO por su id (si existía)."""
-    with _LOCK:
+    with _CANDADO:
         d = leer()
         if str(par_id) in d:
             d.pop(str(par_id))
             _guardar(d)
 
 
-def quitar_ticket(ticket: int) -> None:
+# TITULO QUITAR TICKET
+
+def quitar_ticket(ticket) -> None:
     """Elimina cualquier par que contenga este ticket (si existía)."""
-    with _LOCK:
+    with _CANDADO:
         d = leer()
-        tk = int(ticket)
+        tk = _tk(ticket)
         cambio = False
         # Busca todos los pares donde el ticket sea pata A o B.
         for pid in [p for p, v in d.items() if v["a"] == tk or v["b"] == tk]:
@@ -139,10 +157,12 @@ def quitar_ticket(ticket: int) -> None:
             _guardar(d)
 
 
+# TITULO MTIME
+
 def mtime() -> float:
     """Marca de tiempo del archivo (para recargar solo cuando cambió)."""
     try:
-        return os.path.getmtime(_RUTA)
+        return os.path.getmtime(ruta_archivo(_NOMBRE_ARCHIVO))
     except OSError:
         return 0.0
 

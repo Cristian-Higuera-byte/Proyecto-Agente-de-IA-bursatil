@@ -32,6 +32,8 @@ from herramientas_agente.cuantitativo_herramientas.auxiliares import _obtener_re
 _ESQ = cargar_json(Path(__file__).parent / "esquemas.json")
 
 
+# TITULO CALCULAR MATRIZ CORRELACION
+
 @herramienta(**_ESQ["calcular_matriz_correlacion"])
 def calcular_matriz_correlacion(
     simbolos: str,
@@ -51,10 +53,10 @@ def calcular_matriz_correlacion(
 
     # Retornos por símbolo; se omiten los que no devuelven datos.
     retornos_dict: dict[str, list[float]] = {}
-    for sym in lista_simbolos:
-        rets = _obtener_retornos_historicos(sym, cantidad=cantidad_dias)
+    for simbolo in lista_simbolos:
+        rets = _obtener_retornos_historicos(simbolo, cantidad=cantidad_dias)
         if rets:
-            retornos_dict[sym] = rets
+            retornos_dict[simbolo] = rets
 
     activos_validos = list(retornos_dict.keys())
     if len(activos_validos) < 2:
@@ -106,6 +108,8 @@ def calcular_matriz_correlacion(
     }
 
 
+# TITULO SIMULAR MONTE CARLO CARTERA
+
 @herramienta(**_ESQ["simular_monte_carlo_cartera"])
 def simular_monte_carlo_cartera(
     dias_proyeccion: int = 30,
@@ -146,7 +150,7 @@ def simular_monte_carlo_cartera(
     for _ in range(num_simulaciones):
         patrimonio = capital
         pico = capital
-        max_dd = 0.0
+        max_drawdown = 0.0
 
         # Cada día el patrimonio se multiplica por (1 + retorno aleatorio normal(mu, sigma)).
         for _ in range(dias_proyeccion):
@@ -154,21 +158,21 @@ def simular_monte_carlo_cartera(
             patrimonio *= (1.0 + r)
             if patrimonio > pico:
                 pico = patrimonio
-            dd = (pico - patrimonio) / pico if pico > 0 else 0.0
-            if dd > max_dd:
-                max_dd = dd
+            drawdown = (pico - patrimonio) / pico if pico > 0 else 0.0
+            if drawdown > max_drawdown:
+                max_drawdown = drawdown
 
         resultados_finales.append(patrimonio)
-        max_drawdowns.append(max_dd)
+        max_drawdowns.append(max_drawdown)
 
     # Se ordenan para leer percentiles por índice.
     resultados_finales.sort()
     max_drawdowns.sort()
 
-    pct_5 = round(resultados_finales[int(num_simulaciones * 0.05)], 2)
+    porcentaje_5 = round(resultados_finales[int(num_simulaciones * 0.05)], 2)
     mediana = round(resultados_finales[int(num_simulaciones * 0.50)], 2)
-    pct_95 = round(resultados_finales[int(num_simulaciones * 0.95)], 2)
-    peor_dd_esperado = round(max_drawdowns[int(num_simulaciones * 0.95)] * 100, 2)
+    porcentaje_95 = round(resultados_finales[int(num_simulaciones * 0.95)], 2)
+    peor_drawdown_esperado = round(max_drawdowns[int(num_simulaciones * 0.95)] * 100, 2)
     prob_pérdida = round(sum(1 for x in resultados_finales if x < capital) / num_simulaciones * 100, 2)
 
     return {
@@ -181,16 +185,18 @@ def simular_monte_carlo_cartera(
             "volatilidad_diaria_pct": round(sigma * 100, 4),
         },
         "proyeccion_patrimonio_usd": {
-            "escenario_pesimista_p5": pct_5,
+            "escenario_pesimista_p5": porcentaje_5,
             "escenario_mediana_p50": mediana,
-            "escenario_optimista_p95": pct_95,
+            "escenario_optimista_p95": porcentaje_95,
         },
         "metricas_riesgo_monte_carlo": {
-            "max_drawdown_esperado_p95_pct": peor_dd_esperado,
+            "max_drawdown_esperado_p95_pct": peor_drawdown_esperado,
             "probabilidad_capital_menor_inicial_pct": prob_pérdida,
         },
     }
 
+
+# TITULO EVALUAR METRICAS RENDIMIENTO
 
 @herramienta(**_ESQ["evaluar_metricas_rendimiento"])
 def evaluar_metricas_rendimiento(
@@ -227,8 +233,8 @@ def evaluar_metricas_rendimiento(
 
     # Sortino Ratio (considera solo volatilidad a la baja)
     retornos_negativos = [r for r in retornos if r < 0]
-    s_down = stdev(retornos_negativos) if len(retornos_negativos) > 1 else 0.0001
-    sortino = ((m_ret - r_diario_rf) / s_down) * math.sqrt(252) if s_down != 0 else 0.0
+    s_baja = stdev(retornos_negativos) if len(retornos_negativos) > 1 else 0.0001
+    sortino = ((m_ret - r_diario_rf) / s_baja) * math.sqrt(252) if s_baja != 0 else 0.0
 
     # Win Rate y Profit Factor
     ganadoras = [r for r in retornos if r > 0]
@@ -241,8 +247,8 @@ def evaluar_metricas_rendimiento(
     capital = cuenta.get("equidad") or 10000.0
 
     # Z de 95% = 1.645 y de 99% = 2.326; un VaR negativo se trunca a 0 al reportar.
-    var_95_pct = -(m_ret - (1.645 * s_ret))
-    var_99_pct = -(m_ret - (2.326 * s_ret))
+    variacion_95_porcentaje = -(m_ret - (1.645 * s_ret))
+    variacion_99_porcentaje = -(m_ret - (2.326 * s_ret))
 
     return {
         "fuente": "Evaluador de Métricas Cuantitativas",
@@ -255,10 +261,10 @@ def evaluar_metricas_rendimiento(
             "win_rate_pct": round(win_rate, 2),
         },
         "value_at_risk_1dia": {
-            "var_95_pct": round(max(0.0, var_95_pct * 100), 2),
-            "var_95_usd": round(max(0.0, var_95_pct * capital), 2),
-            "var_99_pct": round(max(0.0, var_99_pct * 100), 2),
-            "var_99_usd": round(max(0.0, var_99_pct * capital), 2),
+            "var_95_pct": round(max(0.0, variacion_95_porcentaje * 100), 2),
+            "var_95_usd": round(max(0.0, variacion_95_porcentaje * capital), 2),
+            "var_99_pct": round(max(0.0, variacion_99_porcentaje * 100), 2),
+            "var_99_usd": round(max(0.0, variacion_99_porcentaje * capital), 2),
         },
     }
 

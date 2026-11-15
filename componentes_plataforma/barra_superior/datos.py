@@ -24,7 +24,7 @@ from componentes_plataforma._estaticos import datos_json
 _D = datos_json(Path(__file__).parent / "iconos.json")
 
 # Ícono SVG del botón de tema (se dibuja junto al saldo en la barra).
-IC_TEMA = _D["tema"]
+ICONO_TEMA = _D["tema"]
 # Tipo de notificación -> emoji usado en la lista y en el toast.
 ICONO_TIPO = _D["tipo_notificacion"]
 

@@ -25,6 +25,8 @@ import streamlit as st
 API_URL = os.environ.get("MT5_API_URL", "http://localhost:8000")
 
 
+# TITULO FLUJO ACTIVO
+
 @st.cache_data(ttl=15, show_spinner=False)
 def flujo_activo() -> bool:
     """True si servidor_datos.py responde (se revisa como máximo cada 15 s).
@@ -40,6 +42,8 @@ def flujo_activo() -> bool:
         # Servidor caído, URL inválida o timeout: se considera inactivo.
         return False
 
+
+# TITULO INTERVALO
 
 def intervalo(rapido: str = "2s", lento: str | None = None) -> str | None:
     """Intervalo de los fragmentos `run_every`. Con feed en vivo, por defecto

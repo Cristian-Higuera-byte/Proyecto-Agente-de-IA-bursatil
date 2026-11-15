@@ -25,7 +25,7 @@ superior no se tocan.
 Cómo funciona: `pagina.py` guarda la vista dentro del contenedor con clave `pj_vista`; `transicion.js` (en un iframe
 sin altura, como el del rail) detecta el clic en un botón de navegación, pone la clase `pj-navegando` en el elemento
 html y la retira cuando Streamlit termina de ejecutar el script; `estilos.css` oculta `pj_vista` mientras esa clase
-esté puesta y muestra una barra fina de progreso arriba. Si algo falla, un tope de 8 s retira la cortina.
+esté puesta y muestra una barra fina de progreso arriba. Si algo falla, un tope de 25 s (con el aviso «Cargando…» si pasa de 1 s) retira la cortina.
 
 Archivos: transicion.py (inyecta CSS y script), estilos.css, transicion.js.
 """

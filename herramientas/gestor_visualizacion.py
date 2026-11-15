@@ -31,6 +31,8 @@ import yfinance as yf  # type: ignore[import-untyped]
 OUTPUT_DIR = "outputs"
 
 
+# TITULO GENERAR GRAFICO RENDIMIENTO
+
 def generar_grafico_rendimiento(ticker: str, periodo: str = "6mo") -> str:
     """
     Genera y guarda un gráfico de líneas con la evolución del precio de cierre de un activo.
@@ -48,13 +50,13 @@ def generar_grafico_rendimiento(ticker: str, periodo: str = "6mo") -> str:
     t = ticker.upper().strip()
     try:
         # Descarga el histórico de precios.
-        tk = yf.Ticker(t)
-        hist = tk.history(period=periodo)
-        if hist.empty:
+        ticket = yf.Ticker(t)
+        historial = ticket.history(period=periodo)
+        if historial.empty:
             return f"❌ No hay datos históricos suficientes para graficar {t} en el período {periodo}."
         # Dibuja la línea de cierre con título, ejes y cuadrícula.
         plt.figure(figsize=(10, 5))
-        plt.plot(hist.index, hist["Close"], label=f"Precio Cierre ({t})", color="#1f77b4", linewidth=2)
+        plt.plot(historial.index, historial["Close"], label=f"Precio Cierre ({t})", color="#1f77b4", linewidth=2)
         plt.title(f"Evolución de Precio: {t} (Período: {periodo})", fontsize=14, fontweight="bold")
         plt.xlabel("Fecha", fontsize=10)
         plt.ylabel("Precio (USD)", fontsize=10)
@@ -69,6 +71,8 @@ def generar_grafico_rendimiento(ticker: str, periodo: str = "6mo") -> str:
     except Exception as e:
         return f"❌ Error generando el gráfico para {t}: {str(e)}"
 
+
+# TITULO GENERAR GRAFICO BARRAS COMPARATIVO
 
 def generar_grafico_barras_comparativo(tickers: list, periodo: str = "1mo") -> str:
     """
@@ -91,13 +95,13 @@ def generar_grafico_barras_comparativo(tickers: list, periodo: str = "1mo") -> s
     for ticker in tickers:
         t = ticker.upper().strip()
         try:
-            tk = yf.Ticker(t)
-            hist = tk.history(period=periodo)
-            if not hist.empty:
-                precio_inicio = float(hist["Close"].iloc[0])
-                precio_fin = float(hist["Close"].iloc[-1])
-                rendimiento_pct = ((precio_fin - precio_inicio) / precio_inicio) * 100
-                rendimientos[t] = round(rendimiento_pct, 2)
+            ticket = yf.Ticker(t)
+            historial = ticket.history(period=periodo)
+            if not historial.empty:
+                precio_inicio = float(historial["Close"].iloc[0])
+                precio_fin = float(historial["Close"].iloc[-1])
+                rendimiento_porcentaje = ((precio_fin - precio_inicio) / precio_inicio) * 100
+                rendimientos[t] = round(rendimiento_porcentaje, 2)
         except Exception:
             continue
     if not rendimientos:
@@ -132,6 +136,8 @@ def generar_grafico_barras_comparativo(tickers: list, periodo: str = "1mo") -> s
     return f"✅ Gráfico de barras comparativo generado exitosamente y guardado en: {ruta_archivo}"
 
 
+# TITULO GENERAR GRAFICO PREDICTIVO
+
 def generar_grafico_predictivo(ticker: str, periodo: str = "6mo", dias_futuros: int = 30) -> str:
     """
     Genera un gráfico que muestra el histórico de precios de un activo y añade
@@ -154,30 +160,30 @@ def generar_grafico_predictivo(ticker: str, periodo: str = "6mo", dias_futuros: 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     t = ticker.upper().strip()
     try:
-        tk = yf.Ticker(t)
-        hist = tk.history(period=periodo)
-        if hist.empty or len(hist) < 30:
+        ticket = yf.Ticker(t)
+        historial = ticket.history(period=periodo)
+        if historial.empty or len(historial) < 30:
             return f"❌ No hay suficientes datos históricos para proyectar una tendencia para {t}."
         # Datos históricos
-        fechas_hist = hist.index
-        precios_hist = hist["Close"].values
+        fechas_historial = historial.index
+        precios_historial = historial["Close"].values
         # Crear eje numérico para la regresión lineal
-        x_hist = np.arange(len(precios_hist))
-        y_hist = precios_hist
+        x_historial = np.arange(len(precios_historial))
+        y_historial = precios_historial
         # Calcular regresión lineal (tendencia de fondo)
-        m, b = np.polyfit(x_hist, y_hist, 1)
+        m, b = np.polyfit(x_historial, y_historial, 1)
         # Generar fechas y precios futuros proyectados
-        ultima_fecha = fechas_hist[-1]
+        ultima_fecha = fechas_historial[-1]
         fechas_futuras = [ultima_fecha + timedelta(days=i) for i in range(1, dias_futuros + 1)]
-        x_futuro = np.arange(len(x_hist), len(x_hist) + dias_futuros)
+        x_futuro = np.arange(len(x_historial), len(x_historial) + dias_futuros)
         y_futuro = m * x_futuro + b
         # Crear el gráfico
         plt.figure(figsize=(11, 6))
         # Graficar histórico y tendencia proyectada
-        plt.plot(fechas_hist, y_hist, label=f"Precio Histórico ({t})", color="#1f77b4", linewidth=2)
+        plt.plot(fechas_historial, y_historial, label=f"Precio Histórico ({t})", color="#1f77b4", linewidth=2)
         plt.plot(fechas_futuras, y_futuro, label=f"Tendencia Estimada ({dias_futuros} días)", color="#ff7f0e", linestyle="--", linewidth=2)
         # Intervalo de confianza visual básico (banda alrededor de la tendencia estimada)
-        desviacion = np.std(y_hist - (m * x_hist + b))
+        desviacion = np.std(y_historial - (m * x_historial + b))
         plt.fill_between(
             fechas_futuras,
             y_futuro - (1.96 * desviacion),
@@ -196,11 +202,11 @@ def generar_grafico_predictivo(ticker: str, periodo: str = "6mo", dias_futuros: 
         plt.close()
         # Calcula el resumen numérico de la proyección.
         precio_final_estimado = y_futuro[-1]
-        variacion_estimada = ((precio_final_estimado - y_hist[-1]) / y_hist[-1]) * 100
+        variacion_estimada = ((precio_final_estimado - y_historial[-1]) / y_historial[-1]) * 100
         return (
             f"✅ Gráfico predictivo generado con éxito y guardado en: {ruta_archivo}\n"
             f"📊 Resumen de la proyección a {dias_futuros} días para {t}:\n"
-            f"• Precio actual de cierre: ${y_hist[-1]:.2f}\n"
+            f"• Precio actual de cierre: ${y_historial[-1]:.2f}\n"
             f"• Precio proyectado estimado: ${precio_final_estimado:.2f}\n"
             f"• Variación estimada de tendencia: {variacion_estimada:+.2f}%"
         )

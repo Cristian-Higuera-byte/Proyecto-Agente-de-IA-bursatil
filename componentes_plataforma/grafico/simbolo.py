@@ -21,10 +21,14 @@ from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 from herramientas.puente_mt5 import MT5_LOCK, resolver_simbolo
 
 
+# TITULO LIMPIAR SIMBOLO
+
 def limpiar_simbolo(valor: str) -> str:
     """Quita los puntos suspensivos con que la lista de activos abrevia el símbolo."""
     return valor.replace("...", "").replace("…", "").strip()
 
+
+# TITULO INFO SIMBOLO
 
 def info_simbolo(simbolo: str) -> Tuple[int, float]:
     """

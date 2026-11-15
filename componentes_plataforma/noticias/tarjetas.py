@@ -15,6 +15,8 @@
 import html as _html
 
 
+# TITULO TARJETA HTML
+
 def tarjeta_html(n: dict) -> str:
     """Devuelve el HTML de una tarjeta de noticia: imagen, título (2 líneas), descripción (2 líneas, 110
     caracteres) y la fuente con la fecha.
@@ -37,18 +39,22 @@ def tarjeta_html(n: dict) -> str:
     """
 
 
-def tarjeta_externa_html(n: dict) -> str:
-    """Devuelve el HTML de una tarjeta del panel «Otras fuentes»: imagen, titular (3 líneas) y la fuente con la fecha.
+# TITULO TARJETA EXTERNA HTML
 
-    Recibe el diccionario de la noticia (`img`, `title`, `fuente`, `fecha`). No es clicable: debajo se dibuja un botón
-    con enlace al sitio del medio."""
+def tarjeta_externa_html(n: dict) -> str:
+    """Devuelve el HTML de una tarjeta del panel «Otras fuentes»: imagen, titular (3 líneas), la fuente con la fecha y un enlace al sitio del medio.
+
+    Recibe el diccionario de la noticia (`img`, `title`, `fuente`, `fecha`, `link`). El enlace es parte del mismo HTML (clase `noticias-ext-enlace`, ver `estilos.css`) y
+    abre el sitio en una pestaña nueva: así todo el panel se envía como un solo elemento en vez de dos por noticia, que es lo que más tardaba en dibujarse.
+    Las imágenes se cargan solo al acercarse a ellas (`loading="lazy"`)."""
     return f"""
       <div style="display:flex; flex-direction:column; margin-top:6px;">
-        <img src="{_html.escape(n['img'])}" referrerpolicy="no-referrer"
+        <img src="{_html.escape(n['img'])}" referrerpolicy="no-referrer" loading="lazy"
              style="width:100%; height:110px; object-fit:cover; border-radius:10px; background:#161b22;">
         <p style="color:#e6edf3; font-size:13px; font-weight:600; line-height:1.3; margin:8px 0 3px;
                   display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;">{_html.escape(n['title'])}</p>
         <span style="color:#586174; font-size:11px; margin-bottom:4px;">{_html.escape(n.get('fuente', ''))} · {n['fecha']}</span>
+        <a class="noticias-ext-enlace" href="{_html.escape(n['link'])}" target="_blank" rel="noopener noreferrer">Leer en {_html.escape(n.get('fuente', ''))} ↗</a>
       </div>
     """
 

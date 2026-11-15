@@ -30,34 +30,38 @@ TEXTO = texto(_DIR / "terminos.html")
 CSS = estilos(_DIR / "estilos.css")
 
 
+# TITULO DIALOGO
+
 @st.dialog("One-Click Trading", width="large", on_dismiss=cancelar)
 def _dialogo():
     """Dibuja el diálogo con los términos y los botones Cancelar y "Acepto".
 
     Cancelar (o cerrar el diálogo) llama a `cancelar`; Acepto llama a `aceptar`, que registra la
     aceptación y activa el interruptor; luego se muestra un aviso y se relanza la app."""
-    # Contenedor con key oct_root: lo usa el CSS para estilizar solo este diálogo
-    with st.container(key="oct_root"):
+    # Contenedor con key terminos_un_clic_raiz: lo usa el CSS para estilizar solo este diálogo
+    with st.container(key="terminos_un_clic_raiz"):
         st.html(CSS)
         st.html(TEXTO)
         c1, c2 = st.columns([1, 1.4])
         with c1:
-            if st.button("Cancelar", key="oct_cancel", width="stretch", on_click=cancelar):
+            if st.button("Cancelar", key="terminos_un_clic_cancelar", width="stretch", on_click=cancelar):
                 st.rerun()
         with c2:
-            # Contenedor oct_ok: el CSS le da al botón de aceptar el degradado naranja
-            with st.container(key="oct_ok"):
-                if st.button("Acepto los Términos y Condiciones", key="oct_ok_btn",
+            # Contenedor terminos_un_clic_aceptar: el CSS le da al botón de aceptar el degradado naranja
+            with st.container(key="terminos_un_clic_aceptar"):
+                if st.button("Acepto los Términos y Condiciones", key="terminos_un_clic_aceptar_boton",
                              width="stretch", on_click=aceptar):
                     st.toast("One-Click Trading activado.", icon=":material/bolt:")
                     st.rerun()
 
 
+# TITULO RENDERIZAR MODAL TERMINOS
+
 def renderizar_modal_terminos():
     """Llamar desde aplicacion.py (fuera de los fragmentos en vivo).
 
-    Abre el diálogo de términos solo si `st.session_state.oct_terminos` es verdadero. No devuelve nada."""
-    if st.session_state.get("oct_terminos"):
+    Abre el diálogo de términos solo si `st.session_state.terminos_un_clic_terminos` es verdadero. No devuelve nada."""
+    if st.session_state.get("terminos_un_clic_terminos"):
         _dialogo()
 
 

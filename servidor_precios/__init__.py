@@ -29,8 +29,8 @@ Cómo ejecutarlo (en una terminal APARTE, además del 'streamlit run aplicacion.
     env\\Scripts\\python servidor_datos.py     (lanzador de la raíz; el código vive en este paquete)
 
 Endpoints:
-    GET /velas/<símbolo>?tf=H1&n=150   -> lista de velas OHLC (carga inicial del gráfico)
-    GET /ultima/<símbolo>?tf=H1        -> última vela (resincroniza volumen/vela nueva)
+    GET /velas/<símbolo>?tf=H1&n=150   -> lista de velas OHLC (carga inicial del gráfico; con Capital.com sale de una caché en memoria)
+    GET /ultima/<símbolo>?tf=H1        -> última vela (resincroniza volumen/vela nueva; con Capital.com se lee como mucho cada 4 s)
     GET /stream?s=EURUSD...,BTCUSD     -> SSE: ticks en vivo + cuenta (saldo, P/G y P/G por posición)
     GET /ticks?s=EURUSD...,BTCUSD      -> foto instantánea (JSON) de esos ticks
     GET /simbolos                      -> catálogo de símbolos del terminal [{n, d, c}] (ventana "Comparar" del gráfico)
@@ -48,8 +48,8 @@ Nota: usa solo la librería estándar de Python (http.server), no requiere insta
 El terminal de MetaTrader 5 debe estar abierto y logueado.
 
 Organización:
-  constantes.py   puerto, versión de la API, temporalidades, intervalos y candado de MT5
-  velas.py        velas OHLC del gráfico
+  constantes.py   puerto, versión de la API, temporalidades, intervalos y candado de MT5 (sin bloqueo con Capital.com)
+  velas.py        velas OHLC del gráfico; con Capital.com guarda las series en memoria y precarga las demás temporalidades
   simbolos.py     catálogo de símbolos del terminal
   motor/          motor de precios en vivo (ticks, cuenta, stop dinámico, OCO, equity)
   manejador.py    rutas HTTP (GET / POST / SSE)

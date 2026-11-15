@@ -26,6 +26,8 @@ from componentes_plataforma.inicio.formato import estado_margen, formatear_diner
 from herramientas.puente_mt5 import obtener_info_cuenta
 
 
+# TITULO DIBUJAR CUENTA
+
 def dibujar_cuenta(nombre: str):
     """Dibuja el encabezado, la tarjeta principal de equity y la tarjeta «Salud de la cuenta».
 
@@ -41,7 +43,7 @@ def dibujar_cuenta(nombre: str):
         return
     # Campos de la cuenta con valores por defecto seguros.
     moneda = info.get("currency", "USD")
-    login = info.get("login", "—")
+    inicio_sesion = info.get("login", "—")
     tipo = info.get("tipo", "Demo")
     equity = info.get("equity", 0.0)
     balance = info.get("balance", 0.0)
@@ -53,24 +55,24 @@ def dibujar_cuenta(nombre: str):
     # Porcentaje del equity usado como margen (0 si no hay equity para evitar división por cero).
     uso = (margin / equity * 100) if equity else 0.0
     # Si es True los montos se reemplazan por puntos (botón de ojo).
-    oculto = st.session_state.get("ini_ocultar", False)
+    oculto = st.session_state.get("inicio_ocultar", False)
 
     # Encabezado: saludo + chip de cuenta + Operar
     h1, h2, h3 = st.columns([3, 1.6, 0.8], vertical_alignment="bottom")
     with h1:
-        st.html(f"<p class='ini-hola'>Hola{', ' + nombre.split()[0] if nombre else ''}</p>"
-                "<div class='ini-title'>Resumen de tu cuenta</div>")
+        st.html(f"<p class='inicio-saludo'>Hola{', ' + nombre.split()[0] if nombre else ''}</p>"
+                "<div class='inicio-titulo'>Resumen de tu cuenta</div>")
     with h2:
-        if st.button(f"{tipo} · #{login}", key="ini_sel", icon=":material/account_balance_wallet:",
+        if st.button(f"{tipo} · #{inicio_sesion}", key="inicio_seleccion", icon=":material/account_balance_wallet:",
                      width="stretch"):
-            st.session_state.ini_modal_cuentas = True
+            st.session_state.inicio_modal_cuentas = True
             st.rerun()
     with h3:
-        if st.button("Operar", key="ini_operar", icon=":material/trending_up:", width="stretch"):
-            st.session_state.nav_activo = "trading"
+        if st.button("Operar", key="inicio_operar", icon=":material/trending_up:", width="stretch"):
+            st.session_state.navegacion_activo = "trading"
             st.rerun()
 
-    def vivo(campo, texto, fmt_="usd", extra=""):
+    def vivo(campo, texto, formato_="usd", extra=""):
         """Devuelve un `<span>` con atributos data-pj-acc/data-pj-fmt para que el feed actualice el valor.
 
         Recibe el nombre del `campo` de la cuenta, el `texto` inicial, el formato (`fmt_`: usd, pct o
@@ -78,30 +80,30 @@ def dibujar_cuenta(nombre: str):
         """
         if oculto:
             return "••••"
-        return f"<span data-pj-acc='{campo}' data-pj-fmt='{fmt_}' {extra}>{texto}</span>"
+        return f"<span data-pj-acc='{campo}' data-pj-fmt='{formato_}' {extra}>{texto}</span>"
 
     # Dos columnas: tarjeta principal (más ancha) y salud de la cuenta.
-    c_hero, c_sal = st.columns([1.75, 1], gap="medium")
-    with c_hero:
-        with st.container(key="ini_hero"):
-            if st.button("", key="ini_ojo", help="Mostrar montos" if oculto else "Ocultar montos",
+    c_destacado, c_salud = st.columns([1.75, 1], gap="medium")
+    with c_destacado:
+        with st.container(key="inicio_destacado"):
+            if st.button("", key="inicio_ojo", help="Mostrar montos" if oculto else "Ocultar montos",
                          icon=":material/visibility:" if oculto else ":material/visibility_off:"):
-                st.session_state.ini_ocultar = not oculto
+                st.session_state.inicio_ocultar = not oculto
                 st.rerun(scope="fragment")
             # Signo del P/G flotante: define clase de color e ícono de tendencia.
-            up = profit >= 0
+            sube = profit >= 0
             # La moneda va FUERA del número en vivo (con el sufijo en un atributo
             # el espacio se perdía y se veía "-4,492.00USD").
-            pl_html = ("••••" if oculto else
+            ganancia_perdida_html = ("••••" if oculto else
                        f"<span data-pj-acc='profit' data-pj-fmt='signed'>{profit:+,.2f}</span>"
                        f"<span style='margin-left:4px;'>{moneda}</span>")
             # Tarjeta principal: equity grande, P/G flotante y los tres indicadores (saldo, margen libre y usado).
             st.html(
-                "<div class='hero-top'><span class='hero-lbl'>Equity</span>"
-                f"<span class='hero-badge'>{tipo}</span></div>"
-                f"<div class='hero-eq'>{vivo('equity', formatear_dinero(equity))}<small>{moneda}</small></div>"
-                f"<div class='hero-pl {'up' if up else 'dn'}'>"
-                f"{icono_material('trending_up' if up else 'trending_down', size=18)}{pl_html}"
+                "<div class='destacado-superior'><span class='destacado-etiqueta'>Equity</span>"
+                f"<span class='destacado-insignia'>{tipo}</span></div>"
+                f"<div class='destacado-equity'>{vivo('equity', formatear_dinero(equity))}<small>{moneda}</small></div>"
+                f"<div class='destacado-ganancia-perdida {'up' if sube else 'dn'}'>"
+                f"{icono_material('trending_up' if sube else 'trending_down', tamano=18)}{ganancia_perdida_html}"
                 "<span class='t'>P/G flotante</span></div>"
                 "<div class='kpis'>"
                 f"<div class='kpi'><div class='k'>Saldo</div><div class='v'>{vivo('balance', formatear_dinero(balance))}</div></div>"
@@ -109,25 +111,25 @@ def dibujar_cuenta(nombre: str):
                 f"<div class='kpi'><div class='k'>Margen usado</div><div class='v'>{vivo('margin', formatear_dinero(margin))}</div></div>"
                 "</div>"
             )
-    with c_sal:
-        with st.container(key="ini_salud"):
+    with c_salud:
+        with st.container(key="inicio_salud"):
             # Semáforo de margen: texto y color según el nivel de margen.
-            estado, col = estado_margen(ml)
+            estado, columna = estado_margen(ml)
             st.html(
-                "<div class='sal-title'>Salud de la cuenta</div>"
-                "<div class='sal-nivel'><span class='k'>Nivel de margen</span>"
-                f"<span class='sal-estado' style='color:{col};background:{col}1f;'>{estado}</span></div>"
-                f"<div class='sal-nivel' style='margin-top:0'><span class='v' style='color:{col};'>"
+                "<div class='salud-titulo'>Salud de la cuenta</div>"
+                "<div class='salud-nivel'><span class='k'>Nivel de margen</span>"
+                f"<span class='salud-estado' style='color:{columna};background:{columna}1f;'>{estado}</span></div>"
+                f"<div class='salud-nivel' style='margin-top:0'><span class='v' style='color:{columna};'>"
                 f"<span data-pj-acc='margin_level' data-pj-fmt='pct'>{(f'{ml:,.2f}%' if ml else '—')}</span>"
                 "</span></div>"
-                "<div class='sal-bar-lbl'><span>Margen usado del equity</span>"
+                "<div class='salud-barra-etiqueta'><span>Margen usado del equity</span>"
                 f"<b><span data-pj-acc='uso_margen' data-pj-fmt='pct'>{uso:,.2f}%</span></b></div>"
-                f"<div class='sal-bar'><div data-pj-bar='uso_margen' style='width:{min(uso, 100):.1f}%;'></div></div>"
-                "<div class='sal-rows'>"
-                f"<div class='sal-row'><span class='k'>Apalancamiento</span><span class='v'>{f'{lev}:1' if lev else '—'}</span></div>"
-                f"<div class='sal-row'><span class='k'>Crédito</span><span class='v'>"
+                f"<div class='salud-barra'><div data-pj-bar='uso_margen' style='width:{min(uso, 100):.1f}%;'></div></div>"
+                "<div class='salud-filas'>"
+                f"<div class='salud-fila'><span class='k'>Apalancamiento</span><span class='v'>{f'{lev}:1' if lev else '—'}</span></div>"
+                f"<div class='salud-fila'><span class='k'>Crédito</span><span class='v'>"
                 f"<span data-pj-acc='credit' data-pj-fmt='usd'>{formatear_dinero(info.get('credit', 0.0))}</span></span></div>"
-                f"<div class='sal-row'><span class='k'>Servidor</span><span class='v'>{info.get('servidor', '—')}</span></div>"
+                f"<div class='salud-fila'><span class='k'>Servidor</span><span class='v'>{info.get('servidor', '—')}</span></div>"
                 "</div>"
             )
 

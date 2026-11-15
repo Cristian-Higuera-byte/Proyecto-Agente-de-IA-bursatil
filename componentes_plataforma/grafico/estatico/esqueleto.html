@@ -31,22 +31,22 @@ Transportes y Servicios Ltda.
 </style>
 
 <!-- Contenedor raíz del gráfico. Dentro van la barra superior, el cuerpo (herramientas, lienzo y osciladores), la barra de rangos y las ventanas modales. -->
-<div id="tv-wrap">
+<div id="tradingview-contenedor">
 @@html/10_barra_superior.html
     
-    <div id="tv-body">
-        <div id="tv-main-canvas-area">
+    <div id="tradingview-cuerpo">
+        <div id="tradingview-principal-lienzo-area">
 @@html/20_barra_herramientas.html
 @@html/30_lienzo.html
             </div>
         </div>
         <!-- Contenedor de los paneles de osciladores (css/50_paneles_osciladores.css); el JS de indicadores lo llena. -->
-        <div id="osc-panes"></div>
+        <div id="osc-paneles"></div>
     </div>
 
 @@html/40_barra_rangos.html
     </div>
-    <!-- Las ventanas (indicadores y comparar) van DENTRO de #tv-wrap: en pantalla completa solo se ve lo que
+    <!-- Las ventanas (indicadores y comparar) van DENTRO de #tradingview-contenedor: en pantalla completa solo se ve lo que
          está dentro del elemento en pantalla completa; fuera de él no se abrirían -->
 @@html/50_modal_indicadores.html
 @@html/52_ajustes_indicador.html

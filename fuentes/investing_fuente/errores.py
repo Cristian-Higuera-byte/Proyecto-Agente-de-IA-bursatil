@@ -17,6 +17,8 @@ Define la excepción única que esta capa lanza ante cualquier fallo (categoría
 inválida, red caída, XML mal formado, búsqueda vacía)."""
 
 
+# TITULO ERROR INVESTING
+
 class ErrorInvesting(Exception):
     """Fallo de la fuente Investing.com (mensaje ya legible).
 

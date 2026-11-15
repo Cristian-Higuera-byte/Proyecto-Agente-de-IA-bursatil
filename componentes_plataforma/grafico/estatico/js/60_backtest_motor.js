@@ -27,13 +27,15 @@ Transportes y Servicios Ltda.
     //  - Los indicadores que usan velas futuras (fractales, ZigZag, regresión) no se pueden usar en reglas.
 
     // BT_NO_CAUSAL: indicadores que usan velas futuras y no se permiten en reglas
-    var BT_NO_CAUSAL = { fractales: true, zigzag: true, regresion: true };
+    var BACKTEST_NO_CAUSAL = { fractales: true, zigzag: true, regresion: true };
     // BT_OPS: operadores de comparación disponibles [valor, texto]
-    var BT_OPS = [['gt', 'es mayor que'], ['lt', 'es menor que'], ['ge', 'es mayor o igual que'], ['le', 'es menor o igual que'],
+    var BACKTEST_OPERACIONES = [['gt', 'es mayor que'], ['lt', 'es menor que'], ['ge', 'es mayor o igual que'], ['le', 'es menor o igual que'],
                   ['cruzaArriba', 'cruza hacia arriba'], ['cruzaAbajo', 'cruza hacia abajo']];
     // BT_PRECIOS: operandos de precio disponibles [valor, texto]
-    var BT_PRECIOS = [['close', 'Precio: Cierre'], ['open', 'Precio: Apertura'], ['high', 'Precio: Máximo'], ['low', 'Precio: Mínimo'],
+    var BACKTEST_PRECIOS = [['close', 'Precio: Cierre'], ['open', 'Precio: Apertura'], ['high', 'Precio: Máximo'], ['low', 'Precio: Mínimo'],
                       ['hl2', 'Precio: Mediana (H+L)/2'], ['hlc3', 'Precio: Típico (H+L+C)/3'], ['volume', 'Volumen (ticks)']];
+
+    // TITULO BT OPERANDO
 
     // ---------- Reglas -> señales ----------
     // Devuelve el valor de un operando en cada vela: { arr: [...], num: null } o { arr: null, num: valor }
@@ -41,48 +43,52 @@ Transportes y Servicios Ltda.
      * Evalúa un operando de una condición (número fijo, precio o salida de indicador) sobre las velas. Devuelve {
      * arr, num }; usa una caché de indicadores y lanza Error si es inválido o usa velas futuras.
      */
-    function btOperando(op, datos, cache){
+    function backtestOperando(op, datos, cache){
       if (!op) throw new Error('Falta un operando en una condición.');
       if (op.k === 'num') {
         if (!isFinite(Number(op.v)) || op.v === '' || op.v === null) throw new Error('Un número de una condición no es válido.');
         return { arr: null, num: Number(op.v) };
       }
       if (op.k === 'precio') {
-        return { arr: op.f === 'volume' ? datos.map(volDe) : precioDe(datos, op.f), num: null };
+        return { arr: op.f === 'volume' ? datos.map(volumenDe) : precioDe(datos, op.f), num: null };
       }
-      var df = DEFS[op.id];
-      if (!df || BT_NO_CAUSAL[op.id]) throw new Error('El indicador «' + (df ? df.nombre : op.id) + '» no se puede usar en un backtest (usa velas futuras).');
-      var p = validarParams(df, op.p), clave = op.id + JSON.stringify(p);
+      var tablaDatos = DEFS[op.id];
+      if (!tablaDatos || BACKTEST_NO_CAUSAL[op.id]) throw new Error('El indicador «' + (tablaDatos ? tablaDatos.nombre : op.id) + '» no se puede usar en un backtest (usa velas futuras).');
+      var p = validarParametros(tablaDatos, op.p), clave = op.id + JSON.stringify(p);
       var capas = cache[clave];
-      if (!capas) capas = cache[clave] = df.calc(datos, p);
+      if (!capas) capas = cache[clave] = tablaDatos.calc(datos, p);
       var c = capas[op.capa || 0];
       if (!c) throw new Error('Salida de indicador no válida en una condición.');
       var d = c.desp || 0;
-      if (d < 0) throw new Error('«' + df.nombre + '» con desplazamiento negativo usaría velas futuras; ponlo en 0 o más.');
+      if (d < 0) throw new Error('«' + tablaDatos.nombre + '» con desplazamiento negativo usaría velas futuras; ponlo en 0 o más.');
       var arr = c.vals;
       if (d > 0) arr = arr.map(function(_, i){ return i - d >= 0 ? c.vals[i - d] : null; });   // un desplazamiento positivo solo usa datos pasados
       return { arr: arr, num: null };
     }
+    // TITULO BT PRIMER VALIDO
+
     /**
      * Devuelve el índice desde el que un operando tiene datos (0 si es un número fijo, Infinity si nunca los tiene).
      */
-    function btPrimerValido(o){
+    function backtestPrimerValido(o){
       if (o.arr === null) return 0;
       var i = primerValido(o.arr);
       return i < 0 ? Infinity : i;
     }
+    // TITULO BT EVALUAR CONDICIONES
+
     // Lista de condiciones (unidas con 'y' u 'o') -> array de booleanos por vela, y la primera vela con todos los datos
     /**
      * Evalúa una lista de condiciones unidas con y/o sobre todas las velas. Devuelve { sig (booleanos por vela),
      * inicio (primera vela con datos), vacio }.
      */
-    function btEvaluarCondiciones(conds, logica, datos, cache){
+    function backtestEvaluarCondiciones(conds, logica, datos, cache){
       var n = datos.length, out = new Array(n).fill(false), inicio = 0;
       if (!conds || !conds.length) return { sig: out, inicio: 0, vacio: true };
       var ev = conds.map(function(c){
-        var a = btOperando(c.a, datos, cache), b = btOperando(c.b, datos, cache);
+        var a = backtestOperando(c.a, datos, cache), b = backtestOperando(c.b, datos, cache);
         var cruz = (c.op === 'cruzaArriba' || c.op === 'cruzaAbajo');
-        inicio = Math.max(inicio, btPrimerValido(a) + (cruz ? 1 : 0), btPrimerValido(b) + (cruz ? 1 : 0));
+        inicio = Math.max(inicio, backtestPrimerValido(a) + (cruz ? 1 : 0), backtestPrimerValido(b) + (cruz ? 1 : 0));
         return { a: a, b: b, op: c.op };
       });
       /**
@@ -93,14 +99,14 @@ Transportes y Servicios Ltda.
       for (var i = 0; i < n; i++){
         var resultados = ev.map(function(e){
           var x = val(e.a, i), y = val(e.b, i);
-          if (!esNum(x) || !esNum(y)) return false;
+          if (!esNumero(x) || !esNumero(y)) return false;
           switch (e.op){
             case 'gt': return x > y;
             case 'lt': return x < y;
             case 'ge': return x >= y;
             case 'le': return x <= y;
-            case 'cruzaArriba': { var x0 = val(e.a, i - 1), y0 = val(e.b, i - 1); return i > 0 && esNum(x0) && esNum(y0) && x0 <= y0 && x > y; }
-            case 'cruzaAbajo': { var x1 = val(e.a, i - 1), y1 = val(e.b, i - 1); return i > 0 && esNum(x1) && esNum(y1) && x1 >= y1 && x < y; }
+            case 'cruzaArriba': { var x0 = val(e.a, i - 1), y0 = val(e.b, i - 1); return i > 0 && esNumero(x0) && esNumero(y0) && x0 <= y0 && x > y; }
+            case 'cruzaAbajo': { var x1 = val(e.a, i - 1), y1 = val(e.b, i - 1); return i > 0 && esNumero(x1) && esNumero(y1) && x1 >= y1 && x < y; }
           }
           return false;
         });
@@ -108,11 +114,13 @@ Transportes y Servicios Ltda.
       }
       return { sig: out, inicio: inicio, vacio: false };
     }
+    // TITULO BT SENALES
+
     /**
      * Traduce la estrategia est a señales por vela: entrada y salida de compra (el, xl) y de venta (es, xs), y la
      * primera vela utilizable. Lanza Error si falta una condición de entrada.
      */
-    function btSenales(datos, est){
+    function backtestSenales(datos, est){
       var cache = {}, n = datos.length, vacio = new Array(n).fill(false), inicio = 0;
       var quiereLargo = est.dir !== 'corto', quiereCorto = est.dir !== 'largo';
       /**
@@ -121,7 +129,7 @@ Transportes y Servicios Ltda.
        */
       function bloque(b, activo, nombre, obligatoria){
         if (!activo || !b) return { sig: vacio, inicio: 0 };
-        var r = btEvaluarCondiciones(b.cond, b.logica, datos, cache);
+        var r = backtestEvaluarCondiciones(b.cond, b.logica, datos, cache);
         if (obligatoria && r.vacio) throw new Error('Añade al menos una condición de ' + nombre + '.');
         inicio = Math.max(inicio, r.inicio);
         return r;
@@ -133,6 +141,8 @@ Transportes y Servicios Ltda.
       return { el: el.sig, xl: xl.sig, es: es.sig, xs: xs.sig, inicio: inicio };
     }
 
+    // TITULO BT SIMULAR
+
     // ---------- Simulación ----------
     // est: { dir, sl, tp, trail, maxBarras, invertir, tam: { modo, valor, apalMax } }
     // cost: { spreadModo ('fijo'|'mt5'), spreadPips, slipPips, comision, pip, punto }
@@ -141,7 +151,7 @@ Transportes y Servicios Ltda.
      * comisión, gestiona stop, objetivo, trailing y tiempo máximo, y valora la cuenta vela a vela. Devuelve { trades,
      * curva, ruina }.
      */
-    function btSimular(datos, sig, est, cost, capital){
+    function backtestSimular(datos, sig, est, cost, capital){
       var n = datos.length, inicio = sig.inicio, eq = capital, trades = [], curva = new Array(n).fill(null), pos = null, pend = null, ruina = false;
       var slip = (cost.slipPips || 0) * cost.pip, comis = (cost.comision || 0) / 100;
       /** Auxiliar de btSimular: devuelve el spread en precio de la vela i (histórico de MT5 o fijo en pips). */
@@ -187,16 +197,16 @@ Transportes y Servicios Ltda.
         // 2) gestión dentro de la vela: stop, objetivo, trailing y tiempo
         if (pos){
           pos.barras++;
-          var d = pos.dir, nivelSL = pos.sl;
-          if (pos.trailNivel !== null) nivelSL = (nivelSL === null) ? pos.trailNivel : (d > 0 ? Math.max(nivelSL, pos.trailNivel) : Math.min(nivelSL, pos.trailNivel));
+          var d = pos.dir, nivelStopLoss = pos.sl;
+          if (pos.trailNivel !== null) nivelStopLoss = (nivelStopLoss === null) ? pos.trailNivel : (d > 0 ? Math.max(nivelStopLoss, pos.trailNivel) : Math.min(nivelStopLoss, pos.trailNivel));
           var cerrada = false;
-          if (nivelSL !== null){
+          if (nivelStopLoss !== null){
             if (d > 0){
-              if (b.open <= nivelSL && i > pos.idx) { cerrar(b.open - slip, i, 'Stop (hueco)'); cerrada = true; }
-              else if (b.low <= nivelSL) { cerrar(Math.min(nivelSL, b.open) - slip, i, pos.trailNivel !== null && nivelSL === pos.trailNivel ? 'Trailing' : 'Stop'); cerrada = true; }
+              if (b.open <= nivelStopLoss && i > pos.idx) { cerrar(b.open - slip, i, 'Stop (hueco)'); cerrada = true; }
+              else if (b.low <= nivelStopLoss) { cerrar(Math.min(nivelStopLoss, b.open) - slip, i, pos.trailNivel !== null && nivelStopLoss === pos.trailNivel ? 'Trailing' : 'Stop'); cerrada = true; }
             } else {
-              if (b.open + sp >= nivelSL && i > pos.idx) { cerrar(b.open + sp + slip, i, 'Stop (hueco)'); cerrada = true; }
-              else if (b.high + sp >= nivelSL) { cerrar(Math.max(nivelSL, b.open + sp) + slip, i, pos.trailNivel !== null && nivelSL === pos.trailNivel ? 'Trailing' : 'Stop'); cerrada = true; }
+              if (b.open + sp >= nivelStopLoss && i > pos.idx) { cerrar(b.open + sp + slip, i, 'Stop (hueco)'); cerrada = true; }
+              else if (b.high + sp >= nivelStopLoss) { cerrar(Math.max(nivelStopLoss, b.open + sp) + slip, i, pos.trailNivel !== null && nivelStopLoss === pos.trailNivel ? 'Trailing' : 'Stop'); cerrada = true; }
             }
           }
           if (!cerrada && pos.tp !== null){
@@ -243,24 +253,26 @@ Transportes y Servicios Ltda.
       return { trades: trades, curva: curva, ruina: ruina };
     }
 
+    // TITULO BT METRICAS
+
     // ---------- Métricas ----------
     /**
      * Calcula las métricas de una simulación: rentabilidad, anualizada, win rate, profit factor, drawdown, Sharpe,
      * mejor y peor operación, rachas, exposición y comparación con comprar y mantener.
      */
-    function btMetricas(datos, sim, inicio, capital, bh){
+    function backtestMetricas(datos, sim, inicio, capital, bh){
       var n = datos.length, trades = sim.trades, curva = sim.curva;
       var eqFin = curva[n - 1] === null ? capital : curva[n - 1];
       var anios = (datos[n - 1].time - datos[inicio].time) / (365.25 * 86400);
       var ganadoras = trades.filter(function(t){ return t.pnl > 0; }), perdedoras = trades.filter(function(t){ return t.pnl <= 0; });
       var sumaG = ganadoras.reduce(function(s, t){ return s + t.pnl; }, 0), sumaP = perdedoras.reduce(function(s, t){ return s + t.pnl; }, 0);
       // drawdown sobre la curva de capital (valorada vela a vela)
-      var pico = capital, ddMax = 0, dd = new Array(n).fill(null);
+      var pico = capital, drawdownMaximo = 0, dd = new Array(n).fill(null);
       for (var i = inicio; i < n; i++){
         var v = curva[i]; if (v === null) continue;
         if (v > pico) pico = v;
         dd[i] = pico > 0 ? v / pico - 1 : -1;
-        if (dd[i] < ddMax) ddMax = dd[i];
+        if (dd[i] < drawdownMaximo) drawdownMaximo = dd[i];
       }
       // Sharpe: rentabilidad por vela (sin tasa libre de riesgo), anualizada con las velas reales por año
       var rets = [];
@@ -269,12 +281,12 @@ Transportes y Servicios Ltda.
       var varianza = rets.length > 1 ? rets.reduce(function(s, x){ return s + (x - media) * (x - media); }, 0) / (rets.length - 1) : 0;
       var ppy = anios > 0 ? rets.length / anios : 0;
       var sharpe = (varianza > 0 && ppy > 0) ? media / Math.sqrt(varianza) * Math.sqrt(ppy) : null;
-      var mejor = null, peor = null, rachaP = 0, rachaMax = 0, rachaG = 0, rachaGMax = 0, barrasEnMercado = 0;
+      var mejor = null, peor = null, rachaP = 0, rachaMaximo = 0, rachaG = 0, rachaGMaximo = 0, barrasEnMercado = 0;
       trades.forEach(function(t){
         if (!mejor || t.ret > mejor.ret) mejor = t;
         if (!peor || t.ret < peor.ret) peor = t;
         if (t.pnl > 0) { rachaG++; rachaP = 0; } else { rachaP++; rachaG = 0; }
-        rachaMax = Math.max(rachaMax, rachaP); rachaGMax = Math.max(rachaGMax, rachaG);
+        rachaMaximo = Math.max(rachaMaximo, rachaP); rachaGMaximo = Math.max(rachaGMaximo, rachaG);
         barrasEnMercado += t.barras;
       });
       var rentab = eqFin / capital - 1;
@@ -284,31 +296,33 @@ Transportes y Servicios Ltda.
         operaciones: trades.length, ganadoras: ganadoras.length, perdedoras: perdedoras.length,
         winRate: trades.length ? ganadoras.length / trades.length : null,
         profitFactor: sumaP < 0 ? sumaG / -sumaP : (sumaG > 0 ? Infinity : null),
-        maxDrawdown: ddMax, sharpe: sharpe, mejor: mejor, peor: peor,
+        maxDrawdown: drawdownMaximo, sharpe: sharpe, mejor: mejor, peor: peor,
         mediaOp: trades.length ? trades.reduce(function(s, t){ return s + t.ret; }, 0) / trades.length : null,
         mediaGana: ganadoras.length ? ganadoras.reduce(function(s, t){ return s + t.ret; }, 0) / ganadoras.length : null,
         mediaPierde: perdedoras.length ? perdedoras.reduce(function(s, t){ return s + t.ret; }, 0) / perdedoras.length : null,
-        rachaPerdedoraMax: rachaMax, rachaGanadoraMax: rachaGMax,
+        rachaPerdedoraMax: rachaMaximo, rachaGanadoraMax: rachaGMaximo,
         exposicion: (n - inicio) > 0 ? barrasEnMercado / (n - inicio) : 0,
         barrasMedias: trades.length ? barrasEnMercado / trades.length : null,
         buyHold: bh, anios: anios, dd: dd, ruina: sim.ruina
       };
     }
 
+    // TITULO BT EJECUTAR
+
     // Ejecuta todo: devuelve { m (con costes), mSinCostes, trades, curva, inicio, ... } o lanza un Error con un mensaje claro
     /**
      * Orquesta el backtest: valida los datos, genera señales, simula con y sin costes y calcula métricas. Devuelve {
      * m, mSinCostes, trades, curva, inicio, capital } o lanza un Error con un mensaje claro.
      */
-    function btEjecutar(datos, est, cost, capital){
+    function backtestEjecutar(datos, est, cost, capital){
       if (!datos || datos.length < 50) throw new Error('Hay muy pocas velas para probar la estrategia.');
       if (est.tam.modo === 'riesgo' && !(est.sl > 0)) throw new Error('El tamaño por riesgo necesita un Stop Loss (%).');
-      var sig = btSenales(datos, est), inicio = sig.inicio;
+      var sig = backtestSenales(datos, est), inicio = sig.inicio;
       if (!isFinite(inicio) || inicio >= datos.length - 2) throw new Error('Los indicadores elegidos no tienen datos suficientes con las velas cargadas.');
       var n = datos.length, bh = datos[n - 1].close / datos[inicio + 1].open - 1;
-      var sim = btSimular(datos, sig, est, cost, capital), m = btMetricas(datos, sim, inicio, capital, bh);
+      var sim = backtestSimular(datos, sig, est, cost, capital), m = backtestMetricas(datos, sim, inicio, capital, bh);
       var sinCostes = Object.assign({}, cost, { spreadPips: 0, slipPips: 0, comision: 0, spreadModo: 'fijo' });
-      var sim0 = btSimular(datos, sig, est, sinCostes, capital), m0 = btMetricas(datos, sim0, inicio, capital, bh);
+      var sim0 = backtestSimular(datos, sig, est, sinCostes, capital), m0 = backtestMetricas(datos, sim0, inicio, capital, bh);
       return { m: m, mSinCostes: m0, trades: sim.trades, curva: sim.curva, inicio: inicio, capital: capital };
     }
 

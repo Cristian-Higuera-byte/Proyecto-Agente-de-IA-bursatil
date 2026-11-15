@@ -44,30 +44,37 @@ import tempfile
 import threading
 import time
 
-# Carpeta `data/` en la raíz del proyecto.
-_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
-# Archivo JSON del Trading Journal (notas y planes por position_id).
-_RUTA = os.path.join(_DIR, "journal.json")
-# Candado que serializa lecturas/escrituras dentro del proceso.
-_LOCK = threading.Lock()
+from herramientas.carpeta_usuario import carpeta_usuario, ruta_archivo
 
+# Archivo JSON del Trading Journal (notas y planes por position_id).
+# Nombre del archivo; la carpeta depende del usuario y la cuenta (ver herramientas/carpeta_usuario.py)
+_NOMBRE_ARCHIVO = "journal.json"
+# Candado que serializa lecturas/escrituras dentro del proceso.
+_CANDADO = threading.Lock()
+
+
+# TITULO LEER
 
 def leer() -> dict:
     """Devuelve todo el journal como {position_id(str): {...}}; vacío si el archivo falta o está corrupto."""
     try:
-        with _LOCK, open(_RUTA, "r", encoding="utf-8") as f:
+        with _CANDADO, open(ruta_archivo(_NOMBRE_ARCHIVO), "r", encoding="utf-8") as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         return {}
 
 
-def obtener(pos_id) -> dict:
+# TITULO OBTENER
+
+def obtener(posicion_id) -> dict:
     """Devuelve la fila del journal (notas, plan, ts) de una posición, o {} si no existe.
 
     `pos_id` es el position_id de MT5; se convierte a texto porque JSON solo admite claves str.
     """
-    return leer().get(str(pos_id), {})
+    return leer().get(str(posicion_id), {})
 
+
+# TITULO ESCRIBIR
 
 def _escribir(datos: dict) -> bool:
     """Escribe el diccionario completo en `journal.json` de forma atómica (temporal + os.replace).
@@ -76,59 +83,67 @@ def _escribir(datos: dict) -> bool:
     lo hace quien la llama (`_merge`).
     """
     try:
-        os.makedirs(_DIR, exist_ok=True)
-        fd, tmp = tempfile.mkstemp(dir=_DIR, suffix=".tmp")
+        os.makedirs(carpeta_usuario(), exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=carpeta_usuario(), suffix=".tmp")
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(datos, f, ensure_ascii=False)
-        os.replace(tmp, _RUTA)
+        os.replace(tmp, ruta_archivo(_NOMBRE_ARCHIVO))
         return True
     except OSError:
         return False
 
 
-def _merge(pos_id, campos: dict) -> bool:
+# TITULO MERGE
+
+def _merge(posicion_id, campos: dict) -> bool:
     """Fusiona `campos` en la fila de una posición y guarda, sin borrar los demás campos.
 
     Relee el archivo dentro del candado, actualiza la fila (notas y plan conviven),
     sella `ts` con la hora actual y escribe. Devuelve True si se guardó.
     """
-    with _LOCK:
+    with _CANDADO:
         # Relectura bajo candado para no pisar cambios recientes.
         datos = {}
         try:
-            with open(_RUTA, "r", encoding="utf-8") as f:
+            with open(ruta_archivo(_NOMBRE_ARCHIVO), "r", encoding="utf-8") as f:
                 datos = json.load(f)
         except (FileNotFoundError, json.JSONDecodeError, OSError):
             datos = {}
         # Actualiza solo los campos recibidos y sella la hora de modificación.
-        fila = datos.get(str(pos_id), {})
+        fila = datos.get(str(posicion_id), {})
         fila.update(campos)
         fila["ts"] = time.time()
-        datos[str(pos_id)] = fila
+        datos[str(posicion_id)] = fila
         return _escribir(datos)
 
 
-def guardar_notas(pos_id, estrategia: str = "", emocion: str = "", razon: str = "") -> bool:
+# TITULO GUARDAR NOTAS
+
+def guardar_notas(posicion_id, estrategia: str = "", emocion: str = "", razon: str = "") -> bool:
     """Notas del usuario para una operación (Tanda B)."""
-    return _merge(pos_id, {"estrategia": (estrategia or "").strip(),
+    return _merge(posicion_id, {"estrategia": (estrategia or "").strip(),
                            "emocion": (emocion or "").strip(),
                            "razon": (razon or "").strip()})
 
 
-def guardar_plan(pos_id, entrada: float, sl: float, tp: float,
+# TITULO GUARDAR PLAN
+
+def guardar_plan(posicion_id, entrada: float, stop_loss: float, take_profit: float,
                  tipo: str = "", symbol: str = "", volumen: float = 0.0) -> bool:
     """Plan de la orden al ABRIR (Tanda C): se usa para el R/R planificado. Lo
     llama el bridge tras ejecutar una orden a mercado con SL/TP. No pisa las notas."""
-    return _merge(pos_id, {"plan": {
-        "entrada": float(entrada or 0.0), "sl": float(sl or 0.0), "tp": float(tp or 0.0),
+    return _merge(posicion_id, {"plan": {
+        "entrada": float(entrada or 0.0), "sl": float(stop_loss or 0.0), "tp": float(take_profit or 0.0),
         "tipo": tipo, "symbol": symbol, "volumen": float(volumen or 0.0),
     }})
 
 
+# TITULO MTIME
+
 def mtime() -> float:
     """Devuelve la fecha de modificación (epoch) de `journal.json`, o -1.0 si no existe."""
     try:
-        return os.path.getmtime(_RUTA)
+        return os.path.getmtime(ruta_archivo(_NOMBRE_ARCHIVO))
     except OSError:
         return -1.0
 

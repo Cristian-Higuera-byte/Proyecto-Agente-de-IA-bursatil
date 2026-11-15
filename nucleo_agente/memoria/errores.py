@@ -14,6 +14,8 @@
 """Errores de la capa de memoria."""
 
 
+# TITULO ERROR MEMORIA
+
 # Se lanza en lugar de dejar pasar excepciones de Supabase; el agente decide si sigue sin memoria.
 class ErrorMemoria(Exception):
     """Fallo de la capa de memoria (mensaje ya legible)."""

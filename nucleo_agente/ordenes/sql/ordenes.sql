@@ -31,7 +31,9 @@ CREATE TABLE IF NOT EXISTS ordenes (
     detalle TEXT,                -- motivo del rechazo / resultado de la ejecución
     ticket_resultado INTEGER,
     origen TEXT DEFAULT 'agente',  -- agente (propone y el usuario confirma) | automatica (vigilancia autorizada)
-    vigilancia_id TEXT             -- si origen = 'automatica': la vigilancia que la generó
+    vigilancia_id TEXT,            -- si origen = 'automatica': la vigilancia que la generó
+    usuario_id TEXT,               -- dueño de la propuesta (id del usuario; 'legado' en el modo de un solo usuario). Lo fija el servidor y no cambia
+    cuenta TEXT                    -- cuenta a la que pertenece: demo | real | legado. Una propuesta solo se ve y se confirma en la cuenta donde se creó
 )
 
 

@@ -17,6 +17,8 @@ Contiene el traductor de símbolos MT5 a tickers de Yahoo Finance usado por el d
 """
 from __future__ import annotations
 
+# TITULO MAPEAR SIMBOLO YFINANCE
+
 def _mapear_simbolo_yfinance(simbolo: str) -> str:
     """Convierte un símbolo estilo MT5 al ticker de Yahoo Finance (EURUSD a EURUSD=X, oro a GC=F, etc.).
 

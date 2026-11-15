@@ -21,12 +21,16 @@ from __future__ import annotations
 import math
 
 
+# TITULO SMA
+
 def _sma(valores: list[float], periodo: int) -> float | None:
     """Media móvil simple de las últimas `periodo` cotizaciones; None si no hay suficientes datos."""
     if len(valores) < periodo:
         return None
     return sum(valores[-periodo:]) / periodo
 
+
+# TITULO EMA SERIE
 
 def _ema_serie(valores: list[float], periodo: int) -> list[float]:
     """Calcula la serie completa de la media móvil exponencial (EMA) de `valores`.
@@ -45,6 +49,8 @@ def _ema_serie(valores: list[float], periodo: int) -> list[float]:
     return ema_list
 
 
+# TITULO RSI
+
 def _rsi(cierres: list[float], periodo: int = 14) -> float | None:
     """Índice de Fuerza Relativa (RSI) de Wilder sobre los cierres, redondeado a 2 decimales.
 
@@ -55,24 +61,26 @@ def _rsi(cierres: list[float], periodo: int = 14) -> float | None:
         return None
     gains, losses = [], []
     for i in range(1, len(cierres)):
-        diff = cierres[i] - cierres[i - 1]
-        gains.append(max(0.0, diff))
-        losses.append(max(0.0, -diff))
+        diferencia = cierres[i] - cierres[i - 1]
+        gains.append(max(0.0, diferencia))
+        losses.append(max(0.0, -diferencia))
 
     # 2. Promedios iniciales (simples) y luego suavizado de Wilder sobre el resto de la serie.
-    avg_gain = sum(gains[:periodo]) / periodo
-    avg_loss = sum(losses[:periodo]) / periodo
+    promedio_gain = sum(gains[:periodo]) / periodo
+    promedio_loss = sum(losses[:periodo]) / periodo
 
     for i in range(periodo, len(gains)):
-        avg_gain = (avg_gain * (periodo - 1) + gains[i]) / periodo
-        avg_loss = (avg_loss * (periodo - 1) + losses[i]) / periodo
+        promedio_gain = (promedio_gain * (periodo - 1) + gains[i]) / periodo
+        promedio_loss = (promedio_loss * (periodo - 1) + losses[i]) / periodo
 
     # 3. Fuerza relativa y transformación al rango 0-100.
-    if avg_loss == 0:
+    if promedio_loss == 0:
         return 100.0
-    rs = avg_gain / avg_loss
+    rs = promedio_gain / promedio_loss
     return round(100.0 - (100.0 / (1.0 + rs)), 2)
 
+
+# TITULO ATR
 
 def _atr(maximos: list[float], minimos: list[float], cierres: list[float], periodo: int = 14) -> float | None:
     """Rango Verdadero Promedio (ATR) de Wilder: medida de volatilidad en unidades de precio.
@@ -98,6 +106,8 @@ def _atr(maximos: list[float], minimos: list[float], cierres: list[float], perio
     return atr
 
 
+# TITULO MACD
+
 def _macd(cierres: list[float], rapida: int = 12, lenta: int = 26, senal: int = 9) -> tuple[float | None, float | None, float | None]:
     """Calcula el MACD (EMA rápida - EMA lenta), su línea de señal y el histograma.
 
@@ -110,19 +120,21 @@ def _macd(cierres: list[float], rapida: int = 12, lenta: int = 26, senal: int = 
     ema_lenta = _ema_serie(cierres, lenta)
 
     # Se alinean ambas EMA por el final (la rápida es más larga) y se restan para obtener la línea MACD.
-    diff_len = len(ema_rapida) - len(ema_lenta)
-    macd_line = [r - l for r, l in zip(ema_rapida[diff_len:], ema_lenta)]
+    diferencia_len = len(ema_rapida) - len(ema_lenta)
+    macd_linea = [r - l for r, l in zip(ema_rapida[diferencia_len:], ema_lenta)]
 
     # La línea de señal es una EMA de la propia línea MACD.
-    signal_line_list = _ema_serie(macd_line, senal)
-    if not signal_line_list:
+    signal_linea_list = _ema_serie(macd_linea, senal)
+    if not signal_linea_list:
         return None, None, None
 
-    macd_val = macd_line[-1]
-    signal_val = signal_line_list[-1]
-    hist_val = macd_val - signal_val
-    return macd_val, signal_val, hist_val
+    macd_valor = macd_linea[-1]
+    signal_valor = signal_linea_list[-1]
+    historial_valor = macd_valor - signal_valor
+    return macd_valor, signal_valor, historial_valor
 
+
+# TITULO BOLLINGER
 
 def _bollinger(cierres: list[float], periodo: int = 20, desv: float = 2.0) -> tuple[float | None, float | None, float | None]:
     """Bandas de Bollinger: devuelve (superior, media, inferior) sobre los últimos `periodo` cierres.
@@ -132,9 +144,9 @@ def _bollinger(cierres: list[float], periodo: int = 20, desv: float = 2.0) -> tu
     """
     if len(cierres) < periodo:
         return None, None, None
-    sub = cierres[-periodo:]
-    sma = sum(sub) / periodo
-    varianza = sum((x - sma) ** 2 for x in sub) / periodo
+    subtitulo = cierres[-periodo:]
+    sma = sum(subtitulo) / periodo
+    varianza = sum((x - sma) ** 2 for x in subtitulo) / periodo
     std = math.sqrt(varianza)
     return sma + (desv * std), sma, sma - (desv * std)
 

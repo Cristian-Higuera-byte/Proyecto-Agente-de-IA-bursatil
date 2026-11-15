@@ -13,6 +13,8 @@ Transportes y Servicios Ltda.
    --------------------------------- INICIO Piña y Jara 10_sparklines .JS --------------------------------
    ------------------------------------------------------------------------------------------------------- */
 
+  // TITULO SEMBRAR SPARKS
+
   // --- Mini-gráficos (sparklines) -----------------------------------------
   /**
    * Carga la semilla histórica de cada mini-gráfico presente en el DOM.
@@ -37,6 +39,8 @@ Transportes y Servicios Ltda.
       sparkT[s] = Date.now();
     });
   }
+  // TITULO EMPUJAR SPARK
+
   /**
    * Añade el precio de un tick a la serie del símbolo `s`.
    * Si pasó al menos SPARK_PASO ms desde el último punto agrega uno nuevo (recortando a SPARK_MAX);
@@ -53,6 +57,8 @@ Transportes y Servicios Ltda.
       buf[buf.length - 1] = precio;          // dentro del paso: mueve el último punto
     }
   }
+  // TITULO SVG SPARK
+
   /**
    * Construye el SVG (cadena) de un mini-gráfico: área con degradé y línea del color `col`.
    * Recibe el símbolo `s` (para el id único del degradé), la serie `vals` y el color. Devuelve el SVG.
@@ -80,6 +86,8 @@ Transportes y Servicios Ltda.
       "<polyline points='" + linea + "' fill='none' stroke='" + col + "' stroke-width='1.6' " +
       "stroke-linejoin='round' stroke-linecap='round'/></svg>";
   }
+  // TITULO PINTAR SPARK
+
   /**
    * Redibuja el mini-gráfico contenido en `el` para el símbolo `s`.
    * Elige verde o rojo según el cambio del día y evita repintar si la serie no cambió

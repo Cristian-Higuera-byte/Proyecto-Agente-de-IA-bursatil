@@ -6,5 +6,13 @@
   [
     "vigilancia_id",
     "TEXT"
+  ],
+  [
+    "usuario_id",
+    "TEXT"
+  ],
+  [
+    "cuenta",
+    "TEXT"
   ]
 ]

@@ -26,6 +26,8 @@ from componentes_plataforma.iconografia.info_mt5 import info_mt5
 from componentes_plataforma.iconografia.piezas import caja, iniciales, imagen, indice, logo, par, svg_iniciales
 
 
+# TITULO NUCLEO
+
 def nucleo(simbolo: str) -> str:
     """Nombre comparable: sin '...', '#', sufijos de bróker/bolsa ni 'Cash'/'micro'.
 
@@ -36,17 +38,19 @@ def nucleo(simbolo: str) -> str:
     s = (simbolo or "").strip().replace("...", "").strip("#")
     # Base sin sufijo de bolsa y en mayúsculas para comparar.
     base = s.split(".")[0]
-    up = base.upper()
-    up = re.sub(r"-[A-Z]{3}\d{2}$", "", up)        # futuros: WHEAT-DEC26 -> WHEAT
-    up = re.sub(r"24-7$", "", up)                   # GOLD24-7 -> GOLD
+    sube = base.upper()
+    sube = re.sub(r"-[A-Z]{3}\d{2}$", "", sube)        # futuros: WHEAT-DEC26 -> WHEAT
+    sube = re.sub(r"24-7$", "", sube)                   # GOLD24-7 -> GOLD
     # Quita "Cash"/"Micro" finales siempre que quede algo de nombre.
-    for suf in ("CASH", "MICRO"):
-        if up.endswith(suf) and len(up) > len(suf):
-            up = up[: -len(suf)]
-    return up
+    for sufijo in ("CASH", "MICRO"):
+        if sube.endswith(sufijo) and len(sube) > len(sufijo):
+            sube = sube[: -len(sufijo)]
+    return sube
 
 
-def icono_activo(simbolo: str, size: int = 32) -> str:
+# TITULO ICONO ACTIVO
+
+def icono_activo(simbolo: str, tamano: int = 32) -> str:
     """HTML del ícono de un activo (ver reglas en el docstring del paquete).
 
     Recibe el `simbolo` y el tamaño `size` en píxeles. Evalúa las reglas en orden de prioridad y
@@ -54,7 +58,7 @@ def icono_activo(simbolo: str, size: int = 32) -> str:
     círculo de color. Puede consultar MT5 y la red para activos que no se reconocen por nombre.
     """
     # Tamaño entero y nombre normalizado para las comparaciones.
-    s = int(size)
+    s = int(tamano)
     n = nucleo(simbolo)
 
     # Materias primas (GOLD, XAUUSD, OILCash, NATGAS…)

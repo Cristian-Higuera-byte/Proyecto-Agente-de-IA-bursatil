@@ -25,11 +25,15 @@ from herramientas_agente.mt5_herramientas.auxiliares import _SIMBOLO
 _ESQ = cargar_json(Path(__file__).parent / "esquemas.json")
 
 
+# TITULO MT5 BUSCAR SIMBOLOS
+
 @herramienta(**_ESQ["mt5_buscar_simbolos"])
 def mt5_buscar_simbolos(texto: str, max_resultados: int = 15) -> dict:
     """Busca símbolos del broker cuyo nombre o descripción contenga ``texto`` (hasta ``max_resultados``)."""
     return fuente.buscar_simbolos(texto, max_resultados)
 
+
+# TITULO MT5 PRECIO
 
 @herramienta(**_ESQ["mt5_precio"])
 def mt5_precio(simbolo: str) -> dict:
@@ -37,9 +41,11 @@ def mt5_precio(simbolo: str) -> dict:
     return fuente.precio(simbolo)
 
 
+# TITULO MT5 VELAS
+
 @herramienta(
     descripcion=(
-        "Velas (OHLC + volumen) de MT5. Devuelve resumen estadístico de las velas solicitadas "
+        "Velas (OHLC + volumen) del broker (Capital.com o MT5). Devuelve resumen estadístico de las velas solicitadas "
         "y el detalle de las últimas N. Timeframes válidos: M1, M5, M15, M30, H1, H4, D1, W1, MN1."
     ),
     parametros={
@@ -76,11 +82,15 @@ def mt5_velas(
     return fuente.velas(simbolo, timeframe, cantidad, ultimas_velas, desde, hasta)
 
 
+# TITULO MT5 CUENTA
+
 @herramienta(**_ESQ["mt5_cuenta"])
 def mt5_cuenta() -> dict:
     """Devuelve el estado de la cuenta de MT5 (balance, equidad, margen, etc.)."""
     return fuente.cuenta()
 
+
+# TITULO MT5 POSICIONES
 
 @herramienta(**_ESQ["mt5_posiciones"])
 def mt5_posiciones(simbolo: str | None = None) -> dict:
@@ -88,11 +98,15 @@ def mt5_posiciones(simbolo: str | None = None) -> dict:
     return fuente.posiciones(simbolo)
 
 
+# TITULO MT5 ORDENES PENDIENTES
+
 @herramienta(**_ESQ["mt5_ordenes_pendientes"])
 def mt5_ordenes_pendientes(simbolo: str | None = None) -> dict:
     """Lista las órdenes pendientes (límite/stop) de MT5, opcionalmente filtradas por símbolo."""
     return fuente.ordenes_pendientes(simbolo)
 
+
+# TITULO MT5 HISTORIAL OPERACIONES
 
 @herramienta(**_ESQ["mt5_historial_operaciones"])
 def mt5_historial_operaciones(dias: int = 30, simbolo: str | None = None, ultimas: int = 15) -> dict:

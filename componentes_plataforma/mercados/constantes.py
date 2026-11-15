@@ -30,7 +30,7 @@ RESUMEN = [tuple(x) for x in _D["resumen"]]
 ORDENES = list(_D["ordenes"])
 
 # Columnas de la tabla — cabecera y filas comparten el reparto
-GRID = _D["grid"]
+CUADRICULA = _D["grid"]
 
 # Colores de la interfaz: verde (sube), rojo (baja) y gris (neutro/texto secundario)
 VERDE, ROJO, GRIS = "#3fb950", "#f85149", "#8b949e"

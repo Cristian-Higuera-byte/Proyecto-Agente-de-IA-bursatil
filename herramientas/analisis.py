@@ -29,6 +29,8 @@ import yfinance as yf  # type: ignore[import-untyped]
 
 from herramientas.obtencion_datos import obtener_datos_historicos, obtener_precio_en_fecha
 
+# TITULO CALCULAR MEDIA MOVIL
+
 def calcular_media_movil(datos: pd.DataFrame, ventana: int = 20) -> pd.Series:
     """
     Calcula la media móvil simple (SMA) sobre el precio de cierre.
@@ -43,6 +45,8 @@ def calcular_media_movil(datos: pd.DataFrame, ventana: int = 20) -> pd.Series:
     # Media móvil simple: promedio de los últimos `ventana` cierres.
     return datos["Close"].rolling(window=ventana).mean()
 
+# TITULO CALCULAR RENDIMIENTO
+
 def calcular_rendimiento(datos: pd.DataFrame) -> pd.Series:
     """
     Calcula el rendimiento porcentual diario del activo.
@@ -55,6 +59,8 @@ def calcular_rendimiento(datos: pd.DataFrame) -> pd.Series:
     """
     # Cambio porcentual de cada cierre respecto al anterior, expresado en %.
     return datos["Close"].pct_change() * 100
+
+# TITULO CALCULAR VOLATILIDAD
 
 def calcular_volatilidad(datos: pd.DataFrame, ventana: int = 20) -> float:
     """
@@ -74,6 +80,8 @@ def calcular_volatilidad(datos: pd.DataFrame, ventana: int = 20) -> float:
     volatilidad_anualizada = volatilidad_diaria * (252 ** 0.5)  # 252 días hábiles/año
     return round(volatilidad_anualizada, 2)
 
+# TITULO RESUMEN BASICO
+
 def resumen_basico(datos: pd.DataFrame) -> dict:
     """
     Genera un resumen rápido con los principales indicadores.
@@ -91,6 +99,8 @@ def resumen_basico(datos: pd.DataFrame) -> dict:
         "sma_50": round(calcular_media_movil(datos, 50).iloc[-1], 2) if len(datos) >= 50 else None,
         "volatilidad_anualizada_%": calcular_volatilidad(datos),
     }
+
+# TITULO COMPARAR PRECIO HISTORICO
 
 def comparar_precio_historico(ticker: str, fecha: str) -> dict:
     """
@@ -111,7 +121,7 @@ def comparar_precio_historico(ticker: str, fecha: str) -> dict:
 
     # Diferencia en dinero y en porcentaje respecto al precio de la fecha pasada.
     diferencia_absoluta = round(precio_actual - precio_historico, 2)
-    diferencia_pct = round((diferencia_absoluta / precio_historico) * 100, 2)
+    diferencia_porcentaje = round((diferencia_absoluta / precio_historico) * 100, 2)
 
     return {
         "ticker": ticker,
@@ -119,8 +129,10 @@ def comparar_precio_historico(ticker: str, fecha: str) -> dict:
         "precio_en_fecha": precio_historico,
         "fecha_referencia": fecha,
         "diferencia_absoluta": diferencia_absoluta,
-        "diferencia_%": diferencia_pct,
+        "diferencia_%": diferencia_porcentaje,
     }
+
+# TITULO CALCULAR RENDIMIENTO PERIODO
 
 def calcular_rendimiento_periodo(ticker: str, fecha_inicio: str, fecha_fin: str) -> dict:
     """
@@ -139,7 +151,7 @@ def calcular_rendimiento_periodo(ticker: str, fecha_inicio: str, fecha_fin: str)
     precio_fin = obtener_precio_en_fecha(ticker, fecha_fin)
 
     # Rendimiento % entre ambas fechas y días calendario transcurridos.
-    rendimiento_pct = round(((precio_fin - precio_inicio) / precio_inicio) * 100, 2)
+    rendimiento_porcentaje = round(((precio_fin - precio_inicio) / precio_inicio) * 100, 2)
     dias = (pd.to_datetime(fecha_fin) - pd.to_datetime(fecha_inicio)).days
 
     return {
@@ -149,8 +161,10 @@ def calcular_rendimiento_periodo(ticker: str, fecha_inicio: str, fecha_fin: str)
         "fecha_inicio": fecha_inicio,
         "fecha_fin": fecha_fin,
         "dias_transcurridos": dias,
-        "rendimiento_%": rendimiento_pct,
+        "rendimiento_%": rendimiento_porcentaje,
     }
+
+# TITULO OBTENER VOLATILIDAD
 
 def obtener_volatilidad(ticker: str, periodo: str = "6mo", ventana: int = 20) -> dict:
     """
@@ -187,6 +201,8 @@ def obtener_volatilidad(ticker: str, periodo: str = "6mo", ventana: int = 20) ->
         "periodo_consultado": periodo,
     }
 
+# TITULO CALCULAR RSI
+
 def calcular_rsi(datos: pd.DataFrame, ventana: int = 14) -> float:
     """
     Calcula el Índice de Fuerza Relativa (RSI) actual del activo.
@@ -212,6 +228,8 @@ def calcular_rsi(datos: pd.DataFrame, ventana: int = 14) -> float:
     if pd.isna(valor_actual):
         raise ValueError("No hay suficientes datos para calcular el RSI.")
     return round(float(valor_actual), 2)
+
+# TITULO CALCULAR MACD
 
 def calcular_macd(datos: pd.DataFrame, span_rapido: int = 12, span_lento: int = 26, señal: int = 9) -> dict:
     """
@@ -241,6 +259,8 @@ def calcular_macd(datos: pd.DataFrame, span_rapido: int = 12, span_lento: int = 
         "histograma": round(float(histograma.iloc[-1]), 2),
     }
 
+# TITULO CALCULAR SOPORTES RESISTENCIAS
+
 def calcular_soportes_resistencias(datos: pd.DataFrame, ventana: int = 20) -> dict:
     """
     Calcula niveles aproximados de soporte y resistencia basados en los
@@ -266,6 +286,8 @@ def calcular_soportes_resistencias(datos: pd.DataFrame, ventana: int = 20) -> di
         "ventana_evaluada_dias": ventana,
     }
 
+# TITULO COMPARAR MULTI ACTIVOS
+
 def comparar_multi_activos(tickers: list, periodo: str = "1mo") -> dict:
     """
     Compara el precio actual y el rendimiento porcentual de una lista de tickers en un período dado.
@@ -284,17 +306,17 @@ def comparar_multi_activos(tickers: list, periodo: str = "1mo") -> dict:
     for ticker in tickers:
         t = ticker.upper().strip()
         try:
-            tk = yf.Ticker(t)
-            hist = tk.history(period=periodo)
-            if not hist.empty:
+            ticket = yf.Ticker(t)
+            historial = ticket.history(period=periodo)
+            if not historial.empty:
                 # Rendimiento entre el primer y el último cierre del periodo.
-                precio_inicio = float(hist["Close"].iloc[0])
-                precio_fin = float(hist["Close"].iloc[-1])
-                rendimiento_pct = ((precio_fin - precio_inicio) / precio_inicio) * 100
+                precio_inicio = float(historial["Close"].iloc[0])
+                precio_fin = float(historial["Close"].iloc[-1])
+                rendimiento_porcentaje = ((precio_fin - precio_inicio) / precio_inicio) * 100
 
                 resultados[t] = {
                     "precio_actual": round(precio_fin, 2),
-                    "rendimiento_pct": round(rendimiento_pct, 2),
+                    "rendimiento_pct": round(rendimiento_porcentaje, 2),
                     "estado": "Éxito"
                 }
             else:
@@ -303,6 +325,8 @@ def comparar_multi_activos(tickers: list, periodo: str = "1mo") -> dict:
             resultados[t] = {"error": str(e)}
 
     return resultados
+
+# TITULO SCREENING RAPIDO MERCADO
 
 def screening_rapido_mercado(tickers: list) -> str:
     """
@@ -320,11 +344,11 @@ def screening_rapido_mercado(tickers: list) -> str:
     for ticker in tickers:
         t = ticker.upper().strip()
         try:
-            tk = yf.Ticker(t)
-            hist = tk.history(period="1mo")
-            if len(hist) >= 2:
-                actual = float(hist["Close"].iloc[-1])
-                previo_mes = float(hist["Close"].iloc[0])
+            ticket = yf.Ticker(t)
+            historial = ticket.history(period="1mo")
+            if len(historial) >= 2:
+                actual = float(historial["Close"].iloc[-1])
+                previo_mes = float(historial["Close"].iloc[0])
                 # Cambio mensual en % y etiqueta de tendencia.
                 cambio = ((actual - previo_mes) / previo_mes) * 100
 

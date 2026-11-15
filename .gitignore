@@ -21,6 +21,7 @@ __pycache__/
 outputs/
 downloads/
 data/*.json
+data/*.jsonl
 
 # === Respaldos locales ===
 _backup_pre_mt5_*/
@@ -38,3 +39,20 @@ data/*.db-shm
 
 # Copias de respaldo manuales
 *.bak
+
+# === Multiusuario: datos de cada usuario y sesiones de Capital.com (nunca se suben) ===
+data/usuarios/
+data/sesiones_capital/
+
+# === Scripts de prueba manual y bitácora de trabajo: solo en el equipo de desarrollo, no van al servidor ===
+_prueba_*.py
+_registro_avances_bursatil.md
+
+# Salidas generadas por el agente, capturas de referencia de diseño y archivos de exploración: solo en el equipo de desarrollo
+outputs/
+referencias/
+data/alertas_activas.json
+_descubrir_capital.py
+
+# Secretos de Streamlit (cliente OAuth de Google, cookie_secret): nunca van a git
+.streamlit/secrets.toml

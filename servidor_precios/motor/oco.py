@@ -19,10 +19,13 @@ pata sobrante cuando la otra se ejecuta.
 """
 from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 from herramientas import almacen_oco
+from herramientas.tickets import ticket as _tk
 from herramientas.puente_mt5 import eliminar_orden
 
 from ..constantes import CANDADO_MT5
 
+
+# TITULO MIXIN OCO
 
 class MixinOco:
     """Mixin de MotorPrecios con la lógica OCO.
@@ -30,6 +33,8 @@ class MixinOco:
     Usa los atributos de estado que define MotorPrecios.__init__: _oco (pares vigentes),
     _oco_mtime (fecha del archivo ya cargado) y _oco_armados (pares con ambas patas vistas).
     """
+
+    # TITULO RECARGAR OCO
 
     # --- OCO (One-Cancels-the-Other) --------------------------------------
     # Dos órdenes pendientes vinculadas: cuando UNA se ejecuta (pasa a posición),
@@ -50,6 +55,8 @@ class MixinOco:
             # olvida pares "armados" que ya no existen
             self._oco_armados &= set(self._oco.keys())
 
+    # TITULO PASO OCO
+
     def _paso_oco(self):
         """Ejecuta un ciclo de vigilancia OCO (lo llama el bucle principal del motor).
 
@@ -68,17 +75,17 @@ class MixinOco:
             ordenes = mt5.orders_get() or []
             posiciones = mt5.positions_get() or []
         # tickets de órdenes pendientes vivas ahora mismo
-        vivos = {int(o.ticket) for o in ordenes if int(o.type) in (2, 3, 4, 5)}
+        vivos = {_tk(o.ticket) for o in ordenes if int(o.type) in (2, 3, 4, 5)}
         # tickets que ya son posición (una pendiente al ejecutarse conserva su ticket
         # como identifier de la posición): sirve para distinguir "ejecutada" de "cancelada"
         en_posicion = set()
         for p in posiciones:
-            en_posicion.add(int(p.ticket))
-            en_posicion.add(int(getattr(p, "identifier", p.ticket)))
+            en_posicion.add(_tk(p.ticket))
+            en_posicion.add(_tk(getattr(p, "identifier", p.ticket)))
         # Evalúa cada par (copia de las claves: _cerrar_oco modifica el dict)
         for par_id in list(self._oco.keys()):
-            cfg = self._oco[par_id]
-            a, b = int(cfg["a"]), int(cfg["b"])
+            configuracion = self._oco[par_id]
+            a, b = _tk(configuracion["a"]), _tk(configuracion["b"])
             a_vivo, b_vivo = a in vivos, b in vivos
             if a_vivo and b_vivo:
                 self._oco_armados.add(par_id)        # ambas patas confirmadas
@@ -98,6 +105,8 @@ class MixinOco:
                     eliminar_orden(vivo)
             # si no está en posición, fue cancelada a mano: solo se rompe el vínculo
             self._cerrar_oco(par_id)
+
+    # TITULO CERRAR OCO
 
     def _cerrar_oco(self, par_id):
         """Da por terminado un par OCO: lo quita del almacén en disco y del estado en memoria.

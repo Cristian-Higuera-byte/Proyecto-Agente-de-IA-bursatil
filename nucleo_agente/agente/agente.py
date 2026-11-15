@@ -23,6 +23,7 @@ from typing import Any, Iterator
 
 import configuracion
 import herramientas_agente  # noqa: F401  (importarlo registra todas las herramientas)
+from herramientas import consumo_ia, cuota_ia, permisos_plan
 from nucleo_agente.agente.ciclo import _CicloMixin
 from nucleo_agente.agente.eventos import EventoAgente
 from nucleo_agente.agente.instrucciones import _prompt_sistema
@@ -31,12 +32,16 @@ from nucleo_agente.memoria import ErrorMemoria, Memoria
 from herramientas_agente.base import REGISTRO, RegistroHerramientas
 
 
+# TITULO AGENTE
+
 class Agente(_CicloMixin):
     """Agente conversacional con herramientas y memoria opcional por usuario.
 
     Atributos principales: `llm` (cliente del modelo), `registro` (herramientas disponibles), `memoria`
     (None si no hay usuario o falló Supabase) e `historial` (lista de mensajes; el primero es el prompt de sistema).
     """
+
+    # TITULO INIT
 
     def __init__(
         self,
@@ -77,6 +82,8 @@ class Agente(_CicloMixin):
 
     # ── API pública ───────────────────────────────────────────
 
+    # TITULO REINICIAR
+
     def reiniciar(self) -> None:
         """Empieza una conversación nueva. La anterior queda guardada en la memoria."""
         # Con memoria: se crea un chat nuevo y se refresca el contexto; si falla solo se avisa.
@@ -89,9 +96,13 @@ class Agente(_CicloMixin):
         # El historial vuelve a contener solo el prompt de sistema.
         self.historial = [{"role": "system", "content": self._prompt()}]
 
+    # TITULO PROMPT
+
     def _prompt(self) -> str:
         """Devuelve el prompt de sistema vigente (fecha de hoy + contexto de memoria del usuario)."""
         return _prompt_sistema(self._contexto)
+
+    # TITULO GUARDAR TURNO
 
     def _guardar_turno(self, desde: int) -> None:
         """Guarda el turno recién terminado. Si falla, el agente sigue sin memoria."""
@@ -102,16 +113,20 @@ class Agente(_CicloMixin):
         except ErrorMemoria as e:
             print(f"[Memoria] No se pudo guardar el turno: {e}")
 
+    # TITULO RESPONDER
+
     def responder(self, texto: str) -> str:
         """Versión simple: devuelve solo la respuesta final.
 
         Consume responder_stream() completo y retorna el texto del evento "fin" (cadena vacía si no llegó).
         """
         final = ""
-        for ev in self.responder_stream(texto):
-            if ev.tipo == "fin":
-                final = ev.texto
+        for evento in self.responder_stream(texto):
+            if evento.tipo == "fin":
+                final = evento.texto
         return final
+
+    # TITULO RESPONDER STREAM
 
     def responder_stream(self, texto: str) -> Iterator[EventoAgente]:
         """Procesa un mensaje del usuario y emite EventoAgente a medida que el modelo responde.
@@ -120,19 +135,32 @@ class Agente(_CicloMixin):
         en el ciclo de herramientas y, al llegar el evento "fin", guarda el turno en la memoria. Si el turno
         se interrumpe (error o cierre del generador) elimina del historial lo añadido y relanza la excepción.
         """
+        # Sin preguntas disponibles esta semana no se empieza: se avisa antes de tocar el historial (lanza ErrorCuota con el mensaje para el usuario).
+        # Los análisis de las vigilancias automáticas no cuentan como preguntas del usuario.
+        es_pregunta = consumo_ia.origen_actual() != "vigilancia"
+        if es_pregunta:
+            cuota_ia.exigir()
+        # El perfil elegido tiene que estar incluido en el plan (el «profundo» usa el modelo avanzado, más caro): si no, se explica en vez de usarlo.
+        permitidos = permisos_plan.valor("perfiles_ia")
+        if permitidos and self.perfil not in permitidos:
+            raise permisos_plan.ErrorPlan(f"El perfil «{self.perfil}» no está incluido en tu plan {permisos_plan.nombre_plan(cuota_ia.plan_actual())}; "
+                                          f"usa «{permitidos[-1]}» o cambia a un plan superior.")
         # Se refresca el prompt (la fecha puede haber cambiado) y se marca dónde empieza este turno.
         self.historial[0]["content"] = self._prompt()
+        consumo_ia.nuevo_turno()    # las llamadas al modelo de este turno se anotan juntas (costo de IA por turno)
         punto_inicio = len(self.historial)
         self.historial.append({"role": "user", "content": texto})
 
         # completo = True cuando el ciclo terminó con un evento "fin"; si no, el turno se descarta.
         completo = False
         try:
-            for ev in self._ciclo():
-                if ev.tipo == "fin":
+            for evento in self._ciclo():
+                if evento.tipo == "fin":
                     completo = True
                     self._guardar_turno(punto_inicio)
-                yield ev
+                    if es_pregunta:
+                        cuota_ia.registrar_pregunta()      # la pregunta cuenta cuando el agente termina de responderla
+                yield evento
         except BaseException:
             # Un turno a medias (error o cancelación) dejaría llamadas a herramientas
             # sin resultado en el historial y la API rechazaría el siguiente mensaje.

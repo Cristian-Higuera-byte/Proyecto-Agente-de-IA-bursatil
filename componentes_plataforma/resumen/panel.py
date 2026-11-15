@@ -14,7 +14,7 @@
 """Vista "Resumen": cabecera y cuerpo en un fragmento que se refresca solo.
 
 Orquesta los bloques de `secciones.py` con los datos de `herramientas.estadisticas_portafolio` (MT5) y los estilos
-de `estilos.py`. Es el punto de entrada que reexporta la fachada `resumen_panel.py`.
+de `estilos.py`. Es el punto de entrada que reexporta la fachada `resumen/`.
 """
 import streamlit as st
 
@@ -26,6 +26,8 @@ from herramientas import estadisticas_portafolio
 from herramientas.puente_mt5 import inicializar_mt5
 
 
+# TITULO RENDERIZAR PANEL RESUMEN
+
 def renderizar_panel_resumen(main=None):
     """Dibuja la vista Resumen completa.
 
@@ -36,13 +38,13 @@ def renderizar_panel_resumen(main=None):
     inicializar_mt5()
     st.html(CSS)
 
-    # Contenedor con clave rs_wrap: el CSS lo centra y limita su ancho.
-    with st.container(key="rs_wrap"):
+    # Contenedor con clave resumen_contenedor: el CSS lo centra y limita su ancho.
+    with st.container(key="resumen_contenedor"):
         # Cabecera fija: ícono, título y subtítulo.
         st.markdown(
-            "<div class='rs-head'><div class='ic'><span class='rmi'>dashboard</span></div>"
-            "<div><div class='rs-title'>Resumen</div>"
-            "<div class='rs-sub'>Rendimiento y riesgo del portafolio en tiempo real</div></div></div>",
+            "<div class='resumen-cabecera'><div class='ic'><span class='rmi'>dashboard</span></div>"
+            "<div><div class='resumen-titulo'>Resumen</div>"
+            "<div class='resumen-subtitulo'>Rendimiento y riesgo del portafolio en tiempo real</div></div></div>",
             unsafe_allow_html=True,
         )
 

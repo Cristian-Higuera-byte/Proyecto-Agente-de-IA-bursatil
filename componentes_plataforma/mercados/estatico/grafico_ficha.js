@@ -40,14 +40,22 @@ Transportes y Servicios Ltda.
   // Referencias al DOM y texto de leyenda "actual" (rendimiento del periodo) para restaurarlo al salir del cursor
   var tabs = document.getElementById('tabs'), ley = document.getElementById('leyenda'), actual = null;
   var modo = 'd', horas = true;   // 'd' = 1 día (M5), 'w' = 1 semana (H1), número = días (D1)
+  // TITULO FUENTE
+
   /** Devuelve la serie de datos original (m5, h1 o d1) que corresponde al modo activo. */
   function fuente(){ return modo === 'd' ? D.m5 : (modo === 'w' ? D.h1 : D.d1); }
+  // TITULO PASO
+
   /** Devuelve la duracion en segundos de una vela del modo activo (5 min, 1 h o 1 dia). */
   function paso(){ return modo === 'd' ? 300 : (modo === 'w' ? 3600 : 86400); }
   // datos: puntos mostrados ahora; sobre: true si el cursor esta sobre el grafico; raf: hay un repintado pendiente
   var datos = [], sobre = false, raf = false;
+  // TITULO FMT
+
   /** Formatea un numero con los decimales del instrumento (formato en-US). */
   function fmt(v){ return v.toLocaleString('en-US', {minimumFractionDigits: DIG, maximumFractionDigits: DIG}); }
+  // TITULO PONER
+
   /** Cambia de periodo: elige los datos del modo k, los carga en la serie, recolorea y ajusta la vista. */
   function poner(k){
     modo = k; horas = (k === 'd' || k === 'w');
@@ -58,6 +66,8 @@ Transportes y Servicios Ltda.
     colorear();
     ch.timeScale().fitContent();
   }
+  // TITULO COLOREAR
+
   /** Colorea la serie de verde o rojo segun el periodo suba o baje, y actualiza la leyenda con el porcentaje. */
   function colorear(){
     var a = datos[0].value, b = datos[datos.length - 1].value, sube = b >= a;
@@ -70,6 +80,8 @@ Transportes y Servicios Ltda.
     // Solo se actualiza la leyenda si el cursor no esta mostrando un valor puntual
     if (!sobre) ley.innerHTML = actual;
   }
+  // TITULO APLICAR TICK
+
   // EN VIVO: el feed reenvía cada tick por BroadcastChannel('pj-ticks'); se mueve el
   // último punto (o se agrega uno al empezar otra hora / otro día). Bid, como MT5.
   /** Aplica un tick en vivo: t.t es el tiempo unix y t.b el bid. Actualiza el ultimo punto o agrega uno nuevo y agenda un repintado. */

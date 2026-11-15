@@ -30,6 +30,8 @@ de conexión) no carga el agente ni las herramientas.
 __all__ = ["Agente", "ClienteLLM"]
 
 
+# TITULO GETATTR
+
 def __getattr__(nombre: str):
     """Resuelve de forma perezosa (PEP 562) los nombres públicos del paquete.
 

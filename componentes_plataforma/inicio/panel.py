@@ -15,7 +15,7 @@
 promociones y modal de cuentas). Los fragmentos `run_every` se declaran aquí porque su intervalo depende de
 si el feed en vivo está activo en ese momento.
 
-Es el punto de entrada de la vista Inicio: lo importan `__init__.py` y `inicio_panel.py`.
+Es el punto de entrada de la vista Inicio: lo importan `__init__.py` y `inicio/`.
 """
 import streamlit as st
 
@@ -33,33 +33,37 @@ from componentes_plataforma.flujo_precios import intervalo as _intervalo
 from herramientas.puente_mt5 import inicializar_mt5
 
 
+# TITULO IR O AVISAR
+
 def _ir_o_avisar(destino, titulo: str) -> None:
     """Acción de un acceso rápido (`on_click`): cambia a la vista `destino` o avisa si todavía no existe.
 
     Se ejecuta antes de que Streamlit vuelva a correr el script, así la vista nueva se dibuja en una sola pasada (sin
-    `st.rerun()`). Recibe el destino (clave de `nav_activo` o vacío) y el título del acceso; no devuelve nada."""
+    `st.rerun()`). Recibe el destino (clave de `navegacion_activo` o vacío) y el título del acceso; no devuelve nada."""
     if destino:
-        st.session_state.nav_activo = destino
+        st.session_state.navegacion_activo = destino
     else:
         st.toast(f"{titulo}: disponible próximamente.")
 
+
+# TITULO RENDERIZAR PANEL INICIO
 
 def renderizar_panel_inicio(main=None):
     """Dibuja la vista Inicio completa: cuenta, accesos rápidos, posiciones, historial y promociones.
 
     El parámetro `main` no se usa; se conserva por compatibilidad con la firma de los demás paneles.
     Inicializa MT5, inyecta los estilos, declara los fragmentos en vivo y, al final, abre el modal de
-    cuentas si `ini_modal_cuentas` está activo. Modifica `st.session_state` (ini_ocultar, nav_activo).
+    cuentas si `inicio_modal_cuentas` está activo. Modifica `st.session_state` (inicio_ocultar, navegacion_activo).
     """
     # Asegura la conexión con MT5 y carga los estilos de la vista.
     inicializar_mt5()
     st.html(CSS)
 
     # Estado inicial del botón de ocultar montos.
-    if "ini_ocultar" not in st.session_state:
-        st.session_state.ini_ocultar = False
+    if "inicio_ocultar" not in st.session_state:
+        st.session_state.inicio_ocultar = False
     # Nombre del usuario para el saludo (vacío si no hay sesión).
-    usuario = st.session_state.get("usuario_info") or {}
+    usuario = st.session_state.get("usuario_informacion") or {}
     nombre = (usuario.get("nombre") if isinstance(usuario, dict) else "") or ""
 
     # Cuenta (en vivo vía feed; sin recarga periódica si hay feed)
@@ -82,19 +86,19 @@ def renderizar_panel_inicio(main=None):
         dibujar_historial()
 
     # Contenido centrado con ancho máximo
-    with st.container(key="ini_wrap"):
+    with st.container(key="inicio_contenedor"):
         _cuenta_vivo()
 
-        st.html("<div class='ini-sec'><h3>Accesos rápidos</h3></div>")
+        st.html("<div class='inicio-seccion'><h3>Accesos rápidos</h3></div>")
         # Una tarjeta por acceso rápido; cada una lleva un botón invisible que navega al destino.
-        acc_cols = st.columns(len(ACCIONES), gap="medium")
-        for i, (ic, color, titulo, sub, dest) in enumerate(ACCIONES):
-            with acc_cols[i]:
+        cuenta_columnas = st.columns(len(ACCIONES), gap="medium")
+        for i, (icono, color, titulo, subtitulo, dest) in enumerate(ACCIONES):
+            with cuenta_columnas[i]:
                 with st.container(key=f"accrow_{i}"):
                     st.html(
-                        f"<div class='acc-card'><div class='acc-ic' style='background:{color}1f;'>"
-                        f"{icono_material(ic, color)}</div><div class='acc-tx'><div class='acc-t'>{titulo}</div>"
-                        f"<div class='acc-s'>{sub}</div></div>{icono_material('chevron_right')}</div>"
+                        f"<div class='cuenta-tarjeta'><div class='cuenta-icono' style='background:{color}1f;'>"
+                        f"{icono_material(icono, color)}</div><div class='cuenta-texto'><div class='cuenta-t'>{titulo}</div>"
+                        f"<div class='cuenta-s'>{subtitulo}</div></div>{icono_material('chevron_right')}</div>"
                     )
                     st.button(titulo, key=f"accsel_{i}", on_click=_ir_o_avisar, args=(dest, titulo))
 
@@ -102,14 +106,14 @@ def renderizar_panel_inicio(main=None):
 
         _historial()
 
-        st.html("<div class='ini-sec'><h3>Promociones</h3></div>")
+        st.html("<div class='inicio-seccion'><h3>Promociones</h3></div>")
         # Cuadrícula de promociones a partir de datos.json.
-        st.html("<div class='promo-grid'>" + "".join(
-            f"<div class='promo-card {c}'>{icono_material(ic, color)}<h4>{t}</h4><p>{d}</p></div>"
-            for c, ic, color, t, d in PROMOS) + "</div>")
+        st.html("<div class='promocion-cuadricula'>" + "".join(
+            f"<div class='promocion-tarjeta {c}'>{icono_material(icono, color)}<h4>{t}</h4><p>{d}</p></div>"
+            for c, icono, color, t, d in PROMOS) + "</div>")
 
     # Modal selección de cuenta (fuera de los fragmentos en vivo)
-    if st.session_state.get("ini_modal_cuentas"):
+    if st.session_state.get("inicio_modal_cuentas"):
         modal_cuentas()
 
 

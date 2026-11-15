@@ -29,6 +29,8 @@ from herramientas.puente_mt5 import resolver_simbolo
 _JS_DIR = Path(__file__).parent / "js"
 
 
+# TITULO JS POSICIONES
+
 def js_posiciones(simbolo: str) -> str:
     """Devuelve el JS de trading desde el gráfico para el símbolo cargado.
 

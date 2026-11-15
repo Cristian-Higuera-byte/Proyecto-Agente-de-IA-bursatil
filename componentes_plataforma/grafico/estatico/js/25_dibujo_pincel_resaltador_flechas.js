@@ -21,11 +21,15 @@ Transportes y Servicios Ltda.
     // Caché (WeakMap por dibujo) de los puntos del pincel ya convertidos a píxeles, para no recalcular en cada fotograma.
     var cachePincel = new WeakMap();
 
+    // TITULO FIRMA PINCEL
+
     /** Genera una firma del estado de la vista (cantidad de velas, primer y último tiempo y escala) que sirve para invalidar la caché de puntos del pincel. Devuelve cadena vacía sin datos. */
     function firmaPincel(){
       var n = datosActuales.length;
       return n ? (n + ':' + datosActuales[0].time + ':' + datosActuales[n - 1].time + ':' + firmaVista()) : '';
     }
+
+    // TITULO PUNTOS PANTALLA
 
     /** Convierte los puntos (tiempo, precio) de un trazo a coordenadas de pantalla {x, y}, descartando los inválidos y usando la caché mientras la vista no cambie. Recibe el dibujo y devuelve el arreglo de puntos. */
     function puntosPantalla(el){
@@ -40,6 +44,8 @@ Transportes y Servicios Ltda.
       cachePincel.set(el, { ref: el.puntos, firma: firma, pts: out });
       return out;
     }
+
+    // TITULO TRAZAR SUAVE
 
     /** Pinta una curva suave (curvas cuadráticas con los puntos medios) por los puntos dados; si es un solo punto dibuja un círculo. Recibe contexto, puntos, color y grosor. */
     function trazarSuave(c, pts, col, ancho){
@@ -63,6 +69,8 @@ Transportes y Servicios Ltda.
       c.restore();
     }
 
+    // TITULO DIBUJAR PINCEL
+
     /** Pinta un trazo de pincel: si está seleccionado añade un halo azul detrás y si el cursor está encima lo engrosa 1 px. Recibe contexto, dibujo, selección y hover. */
     function dibujarPincel(c, el, sel, hov){
       var v = puntosPantalla(el);
@@ -72,14 +80,16 @@ Transportes y Servicios Ltda.
       trazarSuave(c, v, col, w + ((hov && !sel) ? 1 : 0));
     }
 
+    // TITULO HIT PINCEL
+
     /** Prueba si el punto (x, y) toca un trazo de pincel o resaltador comparando con la distancia a cada segmento (tolerancia según el grosor, mínimo 6 px). Devuelve true o false. */
-    function hitPincel(el, x, y){
+    function impactoPincel(el, x, y){
       var v = puntosPantalla(el);
       if (!v.length) return false;
       var tol = Math.max(6, (el.ancho || ANCHO_DEF.brush) / 2 + 4);
       if (v.length === 1) return Math.hypot(x - v[0].x, y - v[0].y) <= tol;
       for (var i = 1; i < v.length; i++) {
-        if (distSeg(x, y, v[i - 1].x, v[i - 1].y, v[i].x, v[i].y) <= tol) return true;
+        if (distanciaSegundos(x, y, v[i - 1].x, v[i - 1].y, v[i].x, v[i].y) <= tol) return true;
       }
       return false;
     }
@@ -92,11 +102,11 @@ Transportes y Servicios Ltda.
       dibujarElementoBase(c, el, sel, hov);
     };
 
-    var hitTestBase = hitTest;
+    var impactoPruebaBase = impactoPrueba;
     /** Versión de hitTest que detecta el tipo 'brush' con hitPincel y delega el resto en la versión anterior. */
-    hitTest = function(el, x, y, sel){
-      if (el.tipo === 'brush') return hitPincel(el, x, y) ? 'body' : null;
-      return hitTestBase(el, x, y, sel);
+    impactoPrueba = function(el, x, y, sel){
+      if (el.tipo === 'brush') return impactoPincel(el, x, y) ? 'body' : null;
+      return impactoPruebaBase(el, x, y, sel);
     };
 
     var anclasOriginalesBase = anclasOriginales;
@@ -131,8 +141,8 @@ Transportes y Servicios Ltda.
       if (portapapeles && !bloqueado && serie) {
         var el0 = JSON.parse(portapapeles);
         if (el0.tipo === 'brush' && el0.puntos && el0.puntos.length) {
-          var yRef = yDePrecio(el0.puntos[0][1]);
-          var pDesp = ok(yRef) ? serie.coordinateToPrice(yRef + 24) : null;
+          var yReferencia = yDePrecio(el0.puntos[0][1]);
+          var pDesp = ok(yReferencia) ? serie.coordinateToPrice(yReferencia + 24) : null;
           var dp0 = (pDesp !== null) ? (pDesp - el0.puntos[0][1]) : 0;
           el0.puntos = el0.puntos.map(function(q){
             var l = tiempoALogico(q[0]);
@@ -172,6 +182,8 @@ Transportes y Servicios Ltda.
       ctx.restore();
     };
 
+    // TITULO FINALIZAR TRAZO
+
     /** Termina el trazo de pincel en curso: convierte sus puntos a (tiempo, precio) redondeados, agrega el dibujo 'brush', lo selecciona, confirma el cambio y vuelve a la cruz (o conserva el pincel si "mantener" está activo). Descarta el trazo si queda vacío. */
     function finalizarTrazo(){
       if (!trazoPincel) return;
@@ -191,6 +203,8 @@ Transportes y Servicios Ltda.
       activarHerramienta(mantenerHerramienta ? 'brush' : 'cross');
     }
 
+    // TITULO SUMAR PUNTO TRAZO
+
     /** Agrega al trazo en curso el punto bajo el cursor (en coordenadas lógica/precio), ignorando movimientos menores de 2 px, y pide repintar. Recibe la posición del ratón. */
     function sumarPuntoTrazo(pos){
       var l = chart.timeScale().coordinateToLogical(pos.x), p = serie.coordinateToPrice(pos.y);
@@ -204,14 +218,14 @@ Transportes y Servicios Ltda.
 
     // Mouse abajo con el pincel activo (fase de captura): empieza un trazo nuevo dentro del área de trazado, bloquea el gráfico y agrega el primer punto.
     window.addEventListener('mousedown', function(e){
-      if (activeTool !== 'brush' || e.button !== 0 || bloqueado || !serie || !datosActuales.length) return;
-      if (!wrapEl.contains(e.target)) return;
-      if (e.target.closest && e.target.closest('.tv-ui')) return;
-      var pos = posMouse(e), ap = areaTrazado();
+      if (activoHerramienta !== 'brush' || e.button !== 0 || bloqueado || !serie || !datosActuales.length) return;
+      if (!contenedorEl.contains(e.target)) return;
+      if (e.target.closest && e.target.closest('.tradingview-ui')) return;
+      var pos = posicionRaton(e), ap = areaTrazado();
       if (pos.x < 0 || pos.y < 0 || pos.x > ap.w || pos.y > ap.h) return;
       e.preventDefault(); e.stopPropagation();
       bloquearGrafico(true);
-      seleccionadoId = null; hoverId = null;
+      seleccionadoId = null; encimaId = null;
       trazoPincel = { pts: [], color: estiloPincel.color, ancho: estiloPincel.ancho, ultimoPx: null };
       sumarPuntoTrazo(pos);
     }, true);
@@ -219,9 +233,9 @@ Transportes y Servicios Ltda.
     // Mouse move: agrega puntos al trazo mientras el botón izquierdo siga pulsado; cancela el trazo si cambia la herramienta y lo termina si se soltó el botón.
     window.addEventListener('mousemove', function(e){
       if (!trazoPincel) return;
-      if (activeTool !== 'brush') { trazoPincel = null; bloquearGrafico(false); redibujarTodo(); return; }
+      if (activoHerramienta !== 'brush') { trazoPincel = null; bloquearGrafico(false); redibujarTodo(); return; }
       if (!(e.buttons & 1)) { finalizarTrazo(); return; }
-      var pos = posMouse(e), ap = areaTrazado();
+      var pos = posicionRaton(e), ap = areaTrazado();
       if (pos.x < 0 || pos.y < 0 || pos.x > ap.w || pos.y > ap.h) return;
       sumarPuntoTrazo(pos);
     });
@@ -233,6 +247,8 @@ Transportes y Servicios Ltda.
     var estiloResaltador = { color: COLOR_DEF.highlighter, ancho: ANCHO_DEF.highlighter };
     // Trazo de resaltador en curso; null si no se está resaltando.
     var trazoResaltador = null;
+
+    // TITULO DIBUJAR RESALTADOR
 
     /** Pinta un trazo de resaltador: línea gruesa translúcida con modo de mezcla 'multiply' (más opaca si está seleccionado) y, al seleccionarlo, un contorno punteado azul. Recibe contexto, dibujo, selección y hover. */
     function dibujarResaltador(c, el, sel, hov){
@@ -268,11 +284,11 @@ Transportes y Servicios Ltda.
       dibujarElementoBase2(c, el, sel, hov);
     };
 
-    var hitTestBase2 = hitTest;
+    var impactoPruebaBase2 = impactoPrueba;
     /** Versión de hitTest que detecta el resaltador con hitPincel y delega el resto. */
-    hitTest = function(el, x, y, sel){
-      if (el.tipo === 'highlighter') return hitPincel(el, x, y) ? 'body' : null;
-      return hitTestBase2(el, x, y, sel);
+    impactoPrueba = function(el, x, y, sel){
+      if (el.tipo === 'highlighter') return impactoPincel(el, x, y) ? 'body' : null;
+      return impactoPruebaBase2(el, x, y, sel);
     };
 
     var anclasOriginalesBase2 = anclasOriginales;
@@ -298,14 +314,14 @@ Transportes y Servicios Ltda.
 
     // Mouse abajo con el resaltador activo (fase de captura): empieza un trazo nuevo dentro del área de trazado y bloquea el gráfico.
     window.addEventListener('mousedown', function(e){
-      if (activeTool !== 'highlighter' || e.button !== 0 || bloqueado || !serie || !datosActuales.length) return;
-      if (!wrapEl.contains(e.target)) return;
-      if (e.target.closest && e.target.closest('.tv-ui')) return;
-      var pos = posMouse(e), ap = areaTrazado();
+      if (activoHerramienta !== 'highlighter' || e.button !== 0 || bloqueado || !serie || !datosActuales.length) return;
+      if (!contenedorEl.contains(e.target)) return;
+      if (e.target.closest && e.target.closest('.tradingview-ui')) return;
+      var pos = posicionRaton(e), ap = areaTrazado();
       if (pos.x < 0 || pos.y < 0 || pos.x > ap.w || pos.y > ap.h) return;
       e.preventDefault(); e.stopPropagation();
       bloquearGrafico(true);
-      seleccionadoId = null; hoverId = null;
+      seleccionadoId = null; encimaId = null;
       trazoResaltador = { pts: [], color: estiloResaltador.color, ancho: estiloResaltador.ancho, ultimoPx: null };
       var l = chart.timeScale().coordinateToLogical(pos.x), p = serie.coordinateToPrice(pos.y);
       if (l !== null && p !== null) trazoResaltador.pts.push({ l: l, p: p });
@@ -314,9 +330,9 @@ Transportes y Servicios Ltda.
     // Mouse move: suma puntos al trazo del resaltador (separados al menos 3 px) mientras el botón izquierdo siga pulsado.
     window.addEventListener('mousemove', function(e){
       if (!trazoResaltador) return;
-      if (activeTool !== 'highlighter') { trazoResaltador = null; bloquearGrafico(false); redibujarTodo(); return; }
+      if (activoHerramienta !== 'highlighter') { trazoResaltador = null; bloquearGrafico(false); redibujarTodo(); return; }
       if (!(e.buttons & 1)) { finalizarResaltador(); return; }
-      var pos = posMouse(e), ap = areaTrazado();
+      var pos = posicionRaton(e), ap = areaTrazado();
       if (pos.x < 0 || pos.y < 0 || pos.x > ap.w || pos.y > ap.h) return;
       var u = trazoResaltador.ultimoPx;
       if (u && Math.hypot(pos.x - u.x, pos.y - u.y) < 3) return;
@@ -324,6 +340,8 @@ Transportes y Servicios Ltda.
       var l = chart.timeScale().coordinateToLogical(pos.x), p = serie.coordinateToPrice(pos.y);
       if (l !== null && p !== null) { trazoResaltador.pts.push({ l: l, p: p }); redibujarTodo(); }
     });
+
+    // TITULO FINALIZAR RESALTADOR
 
     /** Termina el trazo del resaltador: convierte sus puntos a (tiempo, precio), agrega el dibujo 'highlighter', lo selecciona, confirma el cambio y vuelve a la cruz (o conserva el resaltador si "mantener" está activo). */
     function finalizarResaltador(){
@@ -343,15 +361,15 @@ Transportes y Servicios Ltda.
     window.addEventListener('mouseup', function(){ finalizarResaltador(); });
 
     // Configuración de las flechas de marca (arriba, abajo, izquierda, derecha): color y símbolo de cada una.
-    var ARROW_CFG = {
+    var ARROW_CONFIGURACION = {
       arrow_up:    { color: '#3fb950', label: '▲' },
       arrow_down:  { color: '#f85149', label: '▼' },
       arrow_left:  { color: '#58a6ff', label: '◄' },
       arrow_right: { color: '#ff9800', label: '►' }
     };
     // Registra el color por defecto, el tamaño por defecto (14) y la edición de color de cada tipo de flecha en las tablas de la barra de estilos.
-    Object.keys(ARROW_CFG).forEach(function(t){
-      COLOR_DEF[t] = ARROW_CFG[t].color;
+    Object.keys(ARROW_CONFIGURACION).forEach(function(t){
+      COLOR_DEF[t] = ARROW_CONFIGURACION[t].color;
       ANCHO_DEF[t] = 14;
       TIPOS_COLOR[t] = 1;
     });
@@ -368,16 +386,20 @@ Transportes y Servicios Ltda.
       arrow_right: function(c, x, y, r){ c.moveTo(x + r, y); c.lineTo(x - r * 0.6, y - r * 0.75); c.lineTo(x - r * 0.6, y + r * 0.75); c.closePath(); }
     };
 
+    // TITULO COORD FLECHA
+
     /** Devuelve la posición en pantalla { x, y } de una flecha de marca, o null si no es visible o válida. Recibe el dibujo. */
-    function coordFlecha(el){
+    function coordenadaFlecha(el){
       var x = xDeTiempo(el.time1), y = yDePrecio(el.price1);
       return ok(x, y) ? { x: x, y: y } : null;
     }
 
+    // TITULO DIBUJAR FLECHA
+
     /** Pinta una flecha de marca como triángulo relleno en su punto (más opaco y con borde blanco y tirador si está seleccionada) y su etiqueta de precio en el eje. Recibe contexto, dibujo, selección y hover. */
     function dibujarFlecha(c, el, sel, hov){
-      var g = coordFlecha(el); if (!g) return;
-      var cfg = ARROW_CFG[el.tipo], col = el.color || cfg.color;
+      var g = coordenadaFlecha(el); if (!g) return;
+      var configuracion = ARROW_CONFIGURACION[el.tipo], col = el.color || configuracion.color;
       var r = (el.ancho || 14) + (hov && !sel ? 2 : 0);
       c.save();
       c.beginPath();
@@ -390,12 +412,14 @@ Transportes y Servicios Ltda.
         dibujarHandle(c, g.x, g.y, col);
       }
       c.restore();
-      badgePrecio(c, g.y, el.price1, col, '#fff', areaTrazado());
+      insigniaPrecio(c, g.y, el.price1, col, '#fff', areaTrazado());
     }
 
+    // TITULO HIT FLECHA
+
     /** Prueba si el punto (x, y) toca una flecha de marca (círculo de radio igual a su tamaño más 6 px). Devuelve true o false. */
-    function hitFlecha(el, x, y){
-      var g = coordFlecha(el); if (!g) return false;
+    function impactoFlecha(el, x, y){
+      var g = coordenadaFlecha(el); if (!g) return false;
       var r = (el.ancho || 14) + 6;
       return Math.hypot(x - g.x, y - g.y) <= r;
     }
@@ -404,15 +428,15 @@ Transportes y Servicios Ltda.
     var dibujarElementoBase3 = dibujarElemento;
     /** Versión de dibujarElemento que pinta las flechas de marca con dibujarFlecha y delega el resto. */
     dibujarElemento = function(c, el, sel, hov){
-      if (ARROW_CFG[el.tipo]) { dibujarFlecha(c, el, sel, hov); return; }
+      if (ARROW_CONFIGURACION[el.tipo]) { dibujarFlecha(c, el, sel, hov); return; }
       dibujarElementoBase3(c, el, sel, hov);
     };
 
-    var hitTestBase3 = hitTest;
+    var impactoPruebaBase3 = impactoPrueba;
     /** Versión de hitTest que detecta las flechas de marca con hitFlecha y delega el resto. */
-    hitTest = function(el, x, y, sel){
-      if (ARROW_CFG[el.tipo]) return hitFlecha(el, x, y) ? 'body' : null;
-      return hitTestBase3(el, x, y, sel);
+    impactoPrueba = function(el, x, y, sel){
+      if (ARROW_CONFIGURACION[el.tipo]) return impactoFlecha(el, x, y) ? 'body' : null;
+      return impactoPruebaBase3(el, x, y, sel);
     };
 
 

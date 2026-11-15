@@ -13,13 +13,15 @@ Transportes y Servicios Ltda.
    ------------------------------ INICIO Piña y Jara 30_pintar_elemento .JS ------------------------------
    ------------------------------------------------------------------------------------------------------- */
 
+  // TITULO PINTAR ELEM
+
   /**
    * Pinta un elemento marcado con data-pj-s a partir de un tick `t`.
    * Campos del tick: l = último precio, b = bid, a = ask, ch = cambio del día, pct = cambio en %.
    * Según data-pj-f escribe variación (var), cambio o porcentaje (ch/pct), spread (spr) o precio
    * (px/bid/ask/side), y opcionalmente colorea el destello verde/rojo. Modifica texto y estilo del DOM.
    */
-  function pintarElem(el, t){
+  function pintarElemento(el, t){
     // Campo a mostrar (por defecto el último precio), prefijo opcional y valor numérico a pintar.
     var f = el.getAttribute('data-pj-f') || 'px';
     var pre = el.getAttribute('data-pj-pre') || '';

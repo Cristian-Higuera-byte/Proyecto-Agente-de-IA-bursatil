@@ -31,8 +31,10 @@ _ESTATICO = Path(__file__).resolve().parent / "estatico"
 
 # Selector que acota el CSS del modal al diálogo que contiene el botón de cierre.
 # Sustituye al marcador de selector de modal.css (ver css_modal) para no afectar a otros diálogos.
-_SEL_MODAL = "[data-testid='stDialog']:has([class*='st-key-ca_btncerrar_'])"
+_SEL_MODAL = "[data-testid='stDialog']:has([class*='st-key-cartera_boton_cerrar_'])"
 
+
+# TITULO LEER
 
 @lru_cache(maxsize=None)
 def _leer(nombre: str) -> str:
@@ -49,15 +51,21 @@ def _leer(nombre: str) -> str:
         return ""
 
 
+# TITULO CSS LISTA
+
 def css_lista() -> None:
     """Inyecta en la página el CSS de la lista de Cartera (estatico/lista.css) mediante una etiqueta style."""
     st.markdown(f"<style>{_leer('lista.css')}</style>", unsafe_allow_html=True)
 
 
+# TITULO CSS DETALLE
+
 def css_detalle() -> None:
     """Inyecta en la página el CSS del detalle desplegable de una posición (estatico/detalle.css)."""
     st.markdown(f"<style>{_leer('detalle.css')}</style>", unsafe_allow_html=True)
 
+
+# TITULO CSS MODAL
 
 def css_modal() -> None:
     """Inyecta el CSS del modal de cierre (estatico/modal.css).
@@ -70,6 +78,8 @@ def css_modal() -> None:
     st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
 
+# TITULO NETO
+
 def neto(p: dict) -> float:
     """P/G neto de una posición (profit + swap), como lo suma MT5 en la cuenta.
 
@@ -78,6 +88,8 @@ def neto(p: dict) -> float:
     """
     return float(p.get("profit", 0.0) or 0.0) + float(p.get("swap", 0.0) or 0.0)
 
+
+# TITULO FORMATEAR PRECIO
 
 def formatear_precio(x) -> str:
     """Precio sin ceros finales (no tenemos los dígitos del símbolo aquí).
@@ -94,11 +106,13 @@ def formatear_precio(x) -> str:
     return (f"{x:,.5f}".rstrip("0").rstrip(".")) if x else "—"
 
 
+# TITULO TEXTO CERRAR
+
 def texto_cerrar(prof: float) -> str:
     """Texto del botón de cierre estilo XM, a partir del P/G de la posición.
 
     Recibe el P/G neto (float) y devuelve, por ejemplo, 'Cerrar con pérdida de -$220.00' /
-    'Cerrar con ganancia de $280.00'. (flujo_vivo.py usa el mismo formato.)"""
+    'Cerrar con ganancia de $280.00'. (flujo_precios/ usa el mismo formato.)"""
     # Verbo según el signo del P/G (cero cuenta como ganancia).
     verbo = "ganancia" if prof >= 0 else "pérdida"
     # El signo menos va antes del símbolo de dólar; el monto se muestra en valor absoluto.

@@ -29,6 +29,8 @@ from nucleo_agente.llm import ErrorLLM  # type: ignore[import-untyped]
 AYUDA = "Comandos: /reset (nueva conversación), /perfil <nombre>, /pensar (ver/ocultar razonamiento), /salir"
 
 
+# TITULO PRINCIPAL
+
 def principal() -> None:
     """
     Ejecuta el chat por terminal hasta que el usuario escribe /salir (o cierra la entrada con Ctrl+C / Ctrl+D).
@@ -86,15 +88,15 @@ def principal() -> None:
         # --- Mensaje normal: se envía al agente y se imprime su respuesta a medida que llega ---
         print("\nAgente: ", end="", flush=True)
         try:
-            for ev in agente.responder_stream(entrada):
-                if ev.tipo == "texto":
-                    print(ev.texto, end="", flush=True)
-                elif ev.tipo == "razonamiento" and mostrar_razonamiento:
-                    print(ev.texto, end="", flush=True)
-                elif ev.tipo == "herramienta":
-                    print(f"\n  [herramienta] {ev.texto}({ev.datos})", flush=True)
-                elif ev.tipo == "fin":
-                    d = ev.datos
+            for evento in agente.responder_stream(entrada):
+                if evento.tipo == "texto":
+                    print(evento.texto, end="", flush=True)
+                elif evento.tipo == "razonamiento" and mostrar_razonamiento:
+                    print(evento.texto, end="", flush=True)
+                elif evento.tipo == "herramienta":
+                    print(f"\n  [herramienta] {evento.texto}({evento.datos})", flush=True)
+                elif evento.tipo == "fin":
+                    d = evento.datos
                     print(f"\n  [{d['tokens_entrada']} entrada / {d['tokens_salida']} salida | perfil: {d['perfil']}]")
         except ErrorLLM as e:
             print(f"\n[Error] {e}")

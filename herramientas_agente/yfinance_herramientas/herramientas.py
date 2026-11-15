@@ -25,17 +25,23 @@ from herramientas_agente.yfinance_herramientas.auxiliares import _SIMBOLO
 _ESQ = cargar_json(Path(__file__).parent / "esquemas.json")
 
 
+# TITULO YF BUSCAR SIMBOLO
+
 @herramienta(**_ESQ["yf_buscar_simbolo"])
 def yf_buscar_simbolo(consulta: str, max_resultados: int = 8) -> list:
     """Busca símbolos de Yahoo Finance que coincidan con ``consulta`` (hasta ``max_resultados``)."""
     return fuente.buscar(consulta, max_resultados)
 
 
+# TITULO YF COTIZACION
+
 @herramienta(**_ESQ["yf_cotizacion"])
 def yf_cotizacion(simbolo: str) -> dict:
     """Devuelve la cotización actual del símbolo en Yahoo Finance."""
     return fuente.cotizacion(simbolo)
 
+
+# TITULO YF HISTORICO
 
 @herramienta(
     descripcion=(
@@ -82,11 +88,15 @@ def yf_historico(
     return fuente.historico(simbolo, periodo, intervalo, inicio, fin, ultimas_velas)
 
 
+# TITULO YF FUNDAMENTALES
+
 @herramienta(**_ESQ["yf_fundamentales"])
 def yf_fundamentales(simbolo: str) -> dict:
     """Devuelve datos fundamentales de la empresa (valoración, márgenes, etc.) desde Yahoo Finance."""
     return fuente.fundamentales(simbolo)
 
+
+# TITULO YF ESTADOS FINANCIEROS
 
 @herramienta(**_ESQ["yf_estados_financieros"])
 def yf_estados_financieros(
@@ -96,11 +106,15 @@ def yf_estados_financieros(
     return fuente.estados_financieros(simbolo, tipo, frecuencia, periodos)
 
 
+# TITULO YF NOTICIAS
+
 @herramienta(**_ESQ["yf_noticias"])
 def yf_noticias(simbolo: str, cantidad: int = 8) -> list:
     """Devuelve las últimas ``cantidad`` noticias de Yahoo Finance sobre el símbolo."""
     return fuente.noticias(simbolo, cantidad)
 
+
+# TITULO YF CONSENSO ANALISTAS
 
 @herramienta(**_ESQ["yf_consenso_analistas"])
 def yf_consenso_analistas(simbolo: str) -> dict:

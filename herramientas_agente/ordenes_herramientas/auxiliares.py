@@ -17,6 +17,8 @@ from __future__ import annotations
 from typing import Any
 
 
+# TITULO A NUMERO
+
 def _a_numero(valor: Any) -> Any:
     """Los LLM a veces envían números como texto; se convierten si es posible.
 

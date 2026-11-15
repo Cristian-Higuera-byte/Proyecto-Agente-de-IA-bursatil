@@ -26,6 +26,8 @@ _AQUI = Path(__file__).parent
 _JS = "\n<script>\n" + texto(_AQUI / "transicion.js") + "</script>\n"
 
 
+# TITULO INYECTAR TRANSICION
+
 def inyectar_transicion() -> None:
     """Escribe el CSS de la cortina y monta el script que la activa al pulsar un botón de navegación.
 

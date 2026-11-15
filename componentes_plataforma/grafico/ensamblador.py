@@ -36,10 +36,14 @@ _INCLUIR = re.compile(r"^@@(\S+)\n", re.MULTILINE)
 _cache: dict = {"firma": None, "plantilla": ""}
 
 
+# TITULO FIRMA
+
 def _firma() -> tuple:
     """Devuelve una tupla (ruta, mtime) de todos los archivos de estatico/, usada para detectar cambios en disco."""
     return tuple((str(p), p.stat().st_mtime_ns) for p in sorted(_DIR.rglob("*")) if p.is_file())
 
+
+# TITULO PLANTILLA
 
 def plantilla() -> str:
     """HTML completo del gráfico, con los marcadores __X__ todavía sin sustituir.
@@ -57,11 +61,13 @@ def plantilla() -> str:
     return _cache["plantilla"]
 
 
-def html_grafico(simbolo: str, api_url: str, digits: int, pip: float, posiciones_js: str, activos_json: str = "[]") -> str:
+# TITULO HTML GRAFICO
+
+def html_grafico(simbolo: str, api_url: str, digits: int, pip: float, posiciones_js: str, activos_json: str = "[]", plan_json: str = "{}") -> str:
     """HTML listo para `components.html` con los datos del símbolo.
 
     Recibe el símbolo, la URL de la API de velas, los decimales, el tamaño del pip, el JS de posiciones y el JSON
-    de activos del selector. Devuelve la plantilla con cada marcador `__X__` sustituido (texto escapado para HTML
+    de activos del selector y, opcional, el JSON con los límites del plan del usuario (`permisos_plan.para_grafico`; vacío = sin límites). Devuelve la plantilla con cada marcador `__X__` sustituido (texto escapado para HTML
     o serializado como JSON para JS según corresponda).
     """
     return (
@@ -73,6 +79,7 @@ def html_grafico(simbolo: str, api_url: str, digits: int, pip: float, posiciones
         .replace("__PIP__", json.dumps(pip))
         .replace("__ACTIVOS_JSON__", activos_json)   # lista de activos del selector de pantalla completa
         .replace("__POSICIONES_JS__", posiciones_js)   # líneas de posición, SL/TP y órdenes
+        .replace("__PLAN_JSON__", plan_json)           # límites del plan del usuario (indicadores, comparar, backtest, replay)
     )
 
 

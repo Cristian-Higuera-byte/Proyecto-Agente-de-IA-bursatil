@@ -28,7 +28,7 @@ FEEDS: dict[str, str] = dict(_D["feeds"])
 AVISO_FUENTE = _D["aviso_fuente"]
 
 # Cabeceras HTTP enviadas en cada petición (p. ej. User-Agent) para que el sitio acepte la consulta.
-HEADERS = dict(_D["headers"])
+CABECERAS = dict(_D["headers"])
 
 
 # -------------------------------------------------------------------------------------------------------

@@ -27,10 +27,12 @@ from typing import Optional
 import streamlit as st
 import streamlit.components.v1 as components
 
+from componentes_plataforma.conectar_cuenta import url_servidor
 from componentes_plataforma.grafico.cabecera_precio import renderizar_cabecera_precio
 from componentes_plataforma.grafico.ensamblador import html_grafico
 from componentes_plataforma.grafico.simbolo import info_simbolo, limpiar_simbolo
-from componentes_plataforma.posiciones_grafico import gatillos_cierre, js_posiciones
+from componentes_plataforma.posiciones import gatillos_cierre, js_posiciones
+from herramientas import permisos_plan
 from herramientas.puente_mt5 import inicializar_mt5
 from herramientas.gestor_lista_activos import nombre_visible
 
@@ -38,6 +40,8 @@ from herramientas.gestor_lista_activos import nombre_visible
 # Se puede sobrescribir con la variable de entorno MT5_API_URL; por defecto, el servidor local en el puerto 8000.
 API_URL = os.environ.get("MT5_API_URL", "http://localhost:8000")
 
+
+# TITULO LISTA ACTIVOS
 
 def _lista_activos(activo_visible: str) -> str:
     """Activos que ofrece el selector del gráfico en pantalla completa (la watchlist del usuario), como JSON para el JS.
@@ -71,6 +75,8 @@ def _lista_activos(activo_visible: str) -> str:
     return json.dumps(lista).replace("</", "<\\/")
 
 
+# TITULO RENDERIZAR PANEL CENTRAL
+
 def renderizar_panel_central(main: Optional[ModuleType] = None) -> None:
     """Dibuja el panel central completo: cabecera de precio, gráfico interactivo y botones ocultos de cierre.
 
@@ -91,7 +97,9 @@ def renderizar_panel_central(main: Optional[ModuleType] = None) -> None:
 
     # HTML final del gráfico con símbolo, API, decimales, pip, posiciones y lista de activos ya sustituidos.
     activos_json = _lista_activos(activo_visible)
-    html_chart = html_grafico(activo_visible, API_URL, digits, pip, js_posiciones(activo_visible), activos_json)
+    # Límites del plan del usuario para el gráfico (indicadores, símbolos comparados, velas del backtest y Replay)
+    html_chart = html_grafico(activo_visible, url_servidor(API_URL), digits, pip, js_posiciones(activo_visible), activos_json,
+                              json.dumps(permisos_plan.para_grafico()))
     # Iframe de 750 px de alto con el gráfico.
     components.html(html_chart, height=750)
     gatillos_cierre()   # ✕ de las líneas → modal de cierre

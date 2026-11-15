@@ -26,6 +26,8 @@ from typing import Any, Callable
 MAX_CHARS_RESULTADO = 20_000
 
 
+# TITULO HERRAMIENTA
+
 @dataclass(frozen=True)
 class Herramienta:
     """Una herramienta del agente: su nombre, descripción, esquema de argumentos y función a ejecutar.
@@ -37,6 +39,8 @@ class Herramienta:
     descripcion: str
     parametros: dict[str, Any]        # JSON Schema del objeto de argumentos
     funcion: Callable[..., Any]
+
+    # TITULO ESQUEMA
 
     def esquema(self) -> dict[str, Any]:
         """Devuelve la herramienta en el formato "function calling" que consume la API del modelo."""
@@ -50,18 +54,26 @@ class Herramienta:
         }
 
 
+# TITULO A JSON
+
 def _a_json(valor: Any) -> str:
     """Serializa cualquier valor a JSON sin escapar tildes; lo no serializable (fechas, etc.) se pasa a str."""
     return json.dumps(valor, ensure_ascii=False, default=str)
 
 
+# TITULO REGISTRO HERRAMIENTAS
+
 class RegistroHerramientas:
     """Colección de herramientas por nombre, con ejecución segura que nunca propaga excepciones."""
+
+    # TITULO INIT
 
     def __init__(self) -> None:
         """Crea un registro vacío."""
         # Mapa nombre -> Herramienta, en orden de registro.
         self._herramientas: dict[str, Herramienta] = {}
+
+    # TITULO REGISTRAR
 
     def registrar(self, herramienta: Herramienta) -> None:
         """Añade una herramienta; lanza ValueError si el nombre ya estaba registrado."""
@@ -69,13 +81,19 @@ class RegistroHerramientas:
             raise ValueError(f"Herramienta duplicada: {herramienta.nombre}")
         self._herramientas[herramienta.nombre] = herramienta
 
+    # TITULO NOMBRES
+
     def nombres(self) -> list[str]:
         """Devuelve la lista de nombres de herramientas registradas."""
         return list(self._herramientas)
 
+    # TITULO ESQUEMAS
+
     def esquemas(self) -> list[dict[str, Any]]:
         """Devuelve los esquemas de todas las herramientas, listos para enviarse al modelo."""
         return [h.esquema() for h in self._herramientas.values()]
+
+    # TITULO EJECUTAR
 
     def ejecutar(self, nombre: str, argumentos: dict[str, Any]) -> str:
         """Ejecuta una herramienta y SIEMPRE devuelve un string JSON (nunca lanza)."""

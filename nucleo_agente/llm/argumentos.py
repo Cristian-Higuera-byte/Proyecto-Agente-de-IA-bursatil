@@ -18,6 +18,8 @@ import json
 from typing import Any
 
 
+# TITULO PARSEAR ARGUMENTOS
+
 def _parsear_argumentos(raw: str) -> tuple[dict[str, Any], str | None]:
     """Convierte el texto JSON de argumentos de una herramienta en un diccionario.
 

@@ -23,6 +23,8 @@ from herramientas import gestor_lista_activos as wl
 from herramientas.puente_mt5 import MT5_LOCK, obtener_precio_actual, resolver_simbolo
 
 
+# TITULO CONSTRUIR ENTRADA
+
 def construir_entrada(simbolo: str) -> dict:
     """Arma la entrada de un símbolo para la watchlist (nombre, categoría, precio)
     usando el nombre EXACTO de MT5 (sin limpiar los '...').
@@ -35,10 +37,10 @@ def construir_entrada(simbolo: str) -> dict:
     """
     # Resolver el nombre real y pedirle a MT5 la información del símbolo (protegido con el candado de MT5)
     try:
-        sim_real = resolver_simbolo(simbolo)  # nombre real en ESTE terminal (con/sin '...')
+        simulado_real = resolver_simbolo(simbolo)  # nombre real en ESTE terminal (con/sin '...')
         with MT5_LOCK:
-            mt5.symbol_select(sim_real, True)
-            info = mt5.symbol_info(sim_real)
+            mt5.symbol_select(simulado_real, True)
+            info = mt5.symbol_info(simulado_real)
     except Exception:
         info = None
     # Nombre amigable: descripción del bróker si existe; si no, el nombre visible del gestor de listas

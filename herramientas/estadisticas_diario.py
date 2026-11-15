@@ -51,6 +51,8 @@ except Exception:                      # pragma: no cover
     mt5 = None
 
 
+# TITULO LEER DEALS
+
 def _leer_deals(dias: int):
     """Lee de MT5 los deals (ejecuciones) de los últimos `dias` días.
 
@@ -71,35 +73,61 @@ def _leer_deals(dias: int):
         return []
 
 
+# TITULO OPERACIONES CAPITAL
+
 def _operaciones_capital(dias: int, limite: int) -> list:
-    """Diario BÁSICO con Capital.com. Capital no entrega deals de entrada/salida
-    emparejables como MT5 (su `/history/transactions` solo da "Trade closed" con
-    símbolo, monto y fecha), así que se arma cada operación con lo disponible:
-    símbolo, P/L (neto) y fecha de cierre. Los campos ricos de MT5 (entrada/salida
-    exactas, duración, R/R) no están disponibles y quedan neutros.
-    """
+    """Diario con Capital.com. `/history/transactions` da símbolo, P/L y fecha; el detalle (dirección, lotes,
+    precio de entrada y de salida, hora de apertura) se completa con `detalle_cierre` (`/history/activity`),
+    que se guarda en disco por operación. El pos_id es el dealId de la posición, el mismo con el que
+    `almacen_diario` guarda el plan (SL/TP) y las notas, así que el R/R planificado y realizado también se calcula."""
+    from concurrent.futures import ThreadPoolExecutor
+    from herramientas.hilos import con_usuario
+    from herramientas.puente_mt5 import detalle_cierre
+
+    historial = obtener_historial(dias=dias, limite=limite)
+    with ThreadPoolExecutor(max_workers=6) as ex:
+        detalles = list(ex.map(con_usuario(lambda h: detalle_cierre(h.get("deal_id", ""), h.get("fecha", 0))), historial))
+    notas = almacen_diario.leer()
     salida = []
-    for h in obtener_historial(dias=dias, limite=limite):
-        sym = h.get("symbol", "") or ""
+    for h, d in zip(historial, detalles):
+        simbolo = h.get("symbol", "") or ""
         neto = float(h.get("pg", 0.0) or 0.0)      # en Capital el monto del cierre es el P/L
         cierre = int(h.get("fecha", 0) or 0)
+        pid = h.get("deal_id") or h.get("ticket", "")
+        entrada, salida_p = float(d.get("entrada", 0.0)), float(d.get("salida", 0.0))
+        tipo = d.get("tipo") or "—"
+        compra = tipo == "Compra"
+        hora_in = int(d.get("hora_in", 0) or 0) or cierre   # sin hora de apertura: la del cierre (rango válido)
+        info = notas.get(str(pid), {})
+        plan = info.get("plan") or {}
+        stop_loss = float(plan.get("sl", 0.0) or 0.0)
+        take_profit = float(plan.get("tp", 0.0) or 0.0)
+        entrada_plan = float(plan.get("entrada", 0.0) or 0.0) or entrada
+        riesgo_beneficio_plan = riesgo_beneficio_real = None
+        if stop_loss > 0 and entrada_plan > 0 and tipo != "—":
+            riesgo = (entrada_plan - stop_loss) if compra else (stop_loss - entrada_plan)
+            if riesgo > 0:
+                if take_profit > 0:
+                    riesgo_beneficio_plan = ((take_profit - entrada_plan) if compra else (entrada_plan - take_profit)) / riesgo
+                if entrada and salida_p:
+                    riesgo_beneficio_real = ((salida_p - entrada) if compra else (entrada - salida_p)) / riesgo
         salida.append({
-            "pos_id": h.get("ticket", ""), "symbol": sym,
-            "nombre": wl.nombre_visible(sym) if sym else sym,
-            "tipo": "—",                           # Capital no expone la dirección en el historial
-            "volumen": float(h.get("volumen", 0.0) or 0.0),
-            "entrada": 0.0, "salida": float(h.get("precio_cierre", 0.0) or 0.0),
-            # Capital no da la hora de apertura; se usa la del cierre (duración 0) para
-            # que el mini-gráfico tenga un rango válido (evita timestamps negativos).
-            "hora_in": cierre, "hora_out": cierre,
+            "pos_id": pid, "symbol": simbolo,
+            "nombre": wl.nombre_visible(simbolo) if simbolo else simbolo,
+            "tipo": tipo, "volumen": float(d.get("volumen", 0.0) or 0.0),
+            "entrada": entrada, "salida": salida_p,
+            "hora_in": hora_in, "hora_out": cierre,
             "neto": neto, "profit": neto, "comision": 0.0, "swap": 0.0,
-            "duracion_s": 0,
-            "estrategia": "", "emocion": "", "razon": "", "plan": {},
-            "sl": 0.0, "tp": 0.0, "rr_plan": None, "rr_real": None,
+            "duracion_s": max(0, cierre - hora_in),
+            "estrategia": info.get("estrategia", ""), "emocion": info.get("emocion", ""),
+            "razon": info.get("razon", ""), "plan": plan,
+            "sl": stop_loss, "tp": take_profit, "rr_plan": riesgo_beneficio_plan, "rr_real": riesgo_beneficio_real,
         })
     salida.sort(key=lambda x: x["hora_out"], reverse=True)
     return salida[:limite]
 
+
+# TITULO OPERACIONES
 
 def operaciones(dias: int = 365, limite: int = 500) -> list:
     """Reconstruye las operaciones cerradas emparejando los deals IN y OUT por position_id.
@@ -137,28 +165,28 @@ def operaciones(dias: int = 365, limite: int = 500) -> list:
                                     "neto": 0.0, "profit": 0.0, "com": 0.0, "swap": 0.0,
                                     "symbol": getattr(d, "symbol", ""), "tipo": None})
         # Extracción defensiva de los campos numéricos del deal.
-        vol = float(getattr(d, "volume", 0.0) or 0.0)
+        volumen = float(getattr(d, "volume", 0.0) or 0.0)
         precio = float(getattr(d, "price", 0.0) or 0.0)
         t = int(getattr(d, "time", 0) or 0)
         prof = float(getattr(d, "profit", 0.0) or 0.0)
-        com = float(getattr(d, "commission", 0.0) or 0.0) + float(getattr(d, "fee", 0.0) or 0.0)
+        comision = float(getattr(d, "commission", 0.0) or 0.0) + float(getattr(d, "fee", 0.0) or 0.0)
         sw = float(getattr(d, "swap", 0.0) or 0.0)
         # Neto = ganancia + comisión/fee + swap (los costos vienen en negativo).
-        r["neto"] += prof + com + sw
+        r["neto"] += prof + comision + sw
         r["profit"] += prof
-        r["com"] += com
+        r["com"] += comision
         r["swap"] += sw
         # Entrada: acumula volumen y precio ponderado; fija la hora más temprana y el tipo.
         if entry == ENTRY_IN:
-            r["in_vol"] += vol
-            r["in_pv"] += vol * precio
+            r["in_vol"] += volumen
+            r["in_pv"] += volumen * precio
             r["t_in"] = t if r["t_in"] is None else min(r["t_in"], t)
             if r["tipo"] is None:
                 r["tipo"] = "Compra" if getattr(d, "type", TYPE_BUY) == TYPE_BUY else "Venta"
         # Salida: acumula volumen y precio ponderado; fija la hora más tardía.
         else:
-            r["out_vol"] += vol
-            r["out_pv"] += vol * precio
+            r["out_vol"] += volumen
+            r["out_pv"] += volumen * precio
             r["t_out"] = t if r["t_out"] is None else max(r["t_out"], t)
 
     notas = almacen_diario.leer()           # notas del usuario + plan por position_id (B/C)
@@ -171,28 +199,28 @@ def operaciones(dias: int = 365, limite: int = 500) -> list:
         # Precios medios ponderados por volumen.
         entrada = r["in_pv"] / r["in_vol"] if r["in_vol"] else 0.0
         salida_p = r["out_pv"] / r["out_vol"] if r["out_vol"] else 0.0
-        sym = r["symbol"]
+        simbolo = r["symbol"]
         compra = (r["tipo"] == "Compra")
 
         # Plan guardado al abrir (SL/TP/entrada); si falta entrada, usa la real.
         info = notas.get(str(pid), {})
         plan = info.get("plan") or {}
-        sl = float(plan.get("sl", 0.0) or 0.0)
-        tp = float(plan.get("tp", 0.0) or 0.0)
-        ent_plan = float(plan.get("entrada", 0.0) or 0.0) or entrada
+        stop_loss = float(plan.get("sl", 0.0) or 0.0)
+        take_profit = float(plan.get("tp", 0.0) or 0.0)
+        entrada_plan = float(plan.get("entrada", 0.0) or 0.0) or entrada
         # R/R solo se calcula si hubo un stop con riesgo positivo.
-        rr_plan = rr_real = None
-        if sl > 0:
-            riesgo = (ent_plan - sl) if compra else (sl - ent_plan)   # distancia al stop
+        riesgo_beneficio_plan = riesgo_beneficio_real = None
+        if stop_loss > 0:
+            riesgo = (entrada_plan - stop_loss) if compra else (stop_loss - entrada_plan)   # distancia al stop
             if riesgo > 0:
-                if tp > 0:
-                    recompensa = (tp - ent_plan) if compra else (ent_plan - tp)
-                    rr_plan = recompensa / riesgo                     # reward:risk planificado
-                mov = (salida_p - entrada) if compra else (entrada - salida_p)
-                rr_real = mov / riesgo                                # R realizado (múltiplo de R)
+                if take_profit > 0:
+                    recompensa = (take_profit - entrada_plan) if compra else (entrada_plan - take_profit)
+                    riesgo_beneficio_plan = recompensa / riesgo                     # reward:risk planificado
+                movimiento = (salida_p - entrada) if compra else (entrada - salida_p)
+                riesgo_beneficio_real = movimiento / riesgo                                # R realizado (múltiplo de R)
 
         salida.append({
-            "pos_id": pid, "symbol": sym, "nombre": wl.nombre_visible(sym),
+            "pos_id": pid, "symbol": simbolo, "nombre": wl.nombre_visible(simbolo),
             "tipo": r["tipo"] or "—", "volumen": r["in_vol"],
             "entrada": entrada, "salida": salida_p,
             "hora_in": r["t_in"] or 0, "hora_out": r["t_out"] or 0,
@@ -200,12 +228,14 @@ def operaciones(dias: int = 365, limite: int = 500) -> list:
             "duracion_s": max(0, (r["t_out"] or 0) - (r["t_in"] or 0)),
             "estrategia": info.get("estrategia", ""), "emocion": info.get("emocion", ""),
             "razon": info.get("razon", ""), "plan": plan,
-            "sl": sl, "tp": tp, "rr_plan": rr_plan, "rr_real": rr_real,
+            "sl": stop_loss, "tp": take_profit, "rr_plan": riesgo_beneficio_plan, "rr_real": riesgo_beneficio_real,
         })
     # Más recientes primero y recorte al límite pedido.
     salida.sort(key=lambda x: x["hora_out"], reverse=True)
     return salida[:limite]
 
+
+# TITULO ESTADISTICAS
 
 def estadisticas(ops: list) -> dict:
     """Calcula las métricas del diario a partir de la lista de operaciones cerradas.
@@ -226,32 +256,34 @@ def estadisticas(ops: list) -> dict:
     perdedoras = [o for o in ops if o["neto"] < 0]
     g_brutas = sum(o["neto"] for o in ganadoras)
     p_brutas = -sum(o["neto"] for o in perdedoras)          # positivo
-    pnl = sum(o["neto"] for o in ops)
+    ganancia_perdida = sum(o["neto"] for o in ops)
     nw, nl = len(ganadoras), len(perdedoras)
     # Tasa de acierto y promedios; los cocientes protegen la división entre cero.
     win_rate = nw / n * 100.0
-    avg_win = (g_brutas / nw) if nw else 0.0
-    avg_loss = (p_brutas / nl) if nl else 0.0
+    promedio_win = (g_brutas / nw) if nw else 0.0
+    promedio_loss = (p_brutas / nl) if nl else 0.0
     profit_factor = (g_brutas / p_brutas) if p_brutas > 0 else (float("inf") if g_brutas > 0 else 0.0)
-    rr_prom = (avg_win / avg_loss) if avg_loss > 0 else (float("inf") if avg_win > 0 else 0.0)
+    riesgo_beneficio_promedio = (promedio_win / promedio_loss) if promedio_loss > 0 else (float("inf") if promedio_win > 0 else 0.0)
     # Expectancy en $ por operación (incluye ganadoras y perdedoras).
-    expectancy = pnl / n
+    expectancy = ganancia_perdida / n
     # Max drawdown sobre la curva de equity de operaciones cerradas (orden cronológico).
     acum = 0.0
     pico = 0.0
-    max_dd = 0.0
+    max_drawdown = 0.0
     for o in sorted(ops, key=lambda x: x["hora_out"]):
         acum += o["neto"]
         pico = max(pico, acum)
-        max_dd = max(max_dd, pico - acum)
+        max_drawdown = max(max_drawdown, pico - acum)
     # R medio realizado (múltiplo de R) sobre las operaciones que tienen stop planificado.
     reales = [o["rr_real"] for o in ops if o.get("rr_real") is not None]
     r_medio = (sum(reales) / len(reales)) if reales else None
-    return {"n": n, "win_rate": win_rate, "pnl": pnl, "profit_factor": profit_factor,
-            "expectancy": expectancy, "rr_prom": rr_prom, "avg_win": avg_win,
-            "avg_loss": avg_loss, "max_dd": max_dd, "ganadoras": nw, "perdedoras": nl,
+    return {"n": n, "win_rate": win_rate, "pnl": ganancia_perdida, "profit_factor": profit_factor,
+            "expectancy": expectancy, "rr_prom": riesgo_beneficio_promedio, "avg_win": promedio_win,
+            "avg_loss": promedio_loss, "max_dd": max_drawdown, "ganadoras": nw, "perdedoras": nl,
             "r_medio": r_medio, "con_plan": len(reales)}
 
+
+# TITULO CALCULAR
 
 def calcular(dias: int = 365, limite: int = 500) -> dict:
     """Atajo que devuelve {"operaciones": [...], "stats": {...}} para el rango pedido.

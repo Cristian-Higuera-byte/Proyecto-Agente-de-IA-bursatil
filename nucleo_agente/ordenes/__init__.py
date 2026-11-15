@@ -20,8 +20,8 @@ Garantías de diseño:
     proponer_apertura / proponer_cierre (ver herramientas_agente/ordenes_herramientas), que
     validan contra LIMITES y guardan una propuesta PENDIENTE.
   * La única función que envía algo a MetaTrader 5 es confirmar_orden(), y solo la
-    llama el botón "Confirmar" del dashboard (componentes_plataforma/panel_ordenes.py).
-  * Los límites de riesgo están en código (LIMITES), no en el prompt: el modelo no
+    llama el botón "Confirmar" del dashboard (componentes_plataforma/agente_paneles/).
+  * Los límites de riesgo los define el usuario (limites.py: `limites_actuales`, sin límites por defecto) y se aplican en código, no en el prompt: el modelo no
     puede saltárselos ni cambiarlos.
   * Cada propuesta queda registrada en SQLite (data/ordenes.db) con su justificación:
     es el registro de auditoría de todo lo que el agente decidió.
@@ -37,18 +37,27 @@ privados que usan el paquete vigilancia y las herramientas del agente) para que
 en un único módulo. Cada bloque de importación de abajo agrupa lo que sale de un submódulo."""
 # Límites de riesgo y constantes de MT5 (limites.py).
 from nucleo_agente.ordenes.limites import (
+    CAMPOS_EDITABLES,
     LIMITES,
     LimitesRiesgo,
     MAGIC,
     TOLERANCIA_RIESGO,
     TOLERANCIA_VS_PROPUESTA,
+    guardar_limites,
+    limites_actuales,
 )  # noqa: F401
 # Acceso a SQLite, esquema y interruptor de emergencia (base_datos.py).
 from nucleo_agente.ordenes.base_datos import (
     DIR_DATOS,
     RUTA_DB,
-    kill_switch_activo,
-    fijar_kill_switch,
+    SinSesionError,
+    condicion_dueno,
+    dueno_actual,
+    aperturas_bloqueadas,
+    fijar_parada_global,
+    interruptor_emergencia_activo,
+    parada_global_activa,
+    fijar_interruptor_emergencia,
     _COLUMNAS_NUEVAS_ORDENES,
     _DB_LOCK,
     _SQL_ORDENES,
@@ -62,11 +71,12 @@ from nucleo_agente.ordenes.base_datos import (
 # Utilidades de MetaTrader 5: símbolos, reloj, pérdida del día, riesgo y chequeos globales (mt5_utiles.py).
 from nucleo_agente.ordenes.mt5_utiles import (
     MT5_LOCK,
+    NOMBRE_BROKER,
     inicializar_mt5,
     mt5,
     resolver_simbolo,
     _chequeos_globales,
-    _con_lock,
+    _con_candado,
     _desviacion,
     _inicio_dia_servidor,
     _modo_llenado,

@@ -13,13 +13,14 @@
 
 """Motor de precios en vivo: un hilo lee ticks y cuenta de MT5 y los reparte a los clientes SSE.
 
-Fachada del paquete: reexporta `MOTOR` (instancia única compartida por el servidor) y la
-clase `MotorPrecios`, de modo que el resto del código importe `from .motor import MOTOR`
-sin conocer los submódulos base.py, oco.py y stop_dinamico.py.
+Fachada del paquete: reexporta `MOTORES` (registro con un motor por cuenta) y la clase `MotorPrecios`,
+de modo que el resto del código importe `from .motor import MOTORES` sin conocer los submódulos
+base.py, registro.py, oco.py y stop_dinamico.py.
 """
-from .base import MOTOR, MotorPrecios
+from .base import MotorPrecios
+from .registro import MOTORES
 
-__all__ = ["MOTOR", "MotorPrecios"]
+__all__ = ["MOTORES", "MotorPrecios"]
 
 
 # -------------------------------------------------------------------------------------------------------

@@ -14,7 +14,7 @@ Transportes y Servicios Ltda.
    ------------------------------------------------------------------------------------------------------- */
 
       // Capa HTML superpuesta al gráfico: contiene todas las líneas, etiquetas, menús y avisos de este módulo.
-      var capa = document.createElement('div'); capa.id = 'pj-pos';
+      var capa = document.createElement('div'); capa.id = 'pj-posicion';
       containerEl.parentNode.appendChild(capa);
       // ITEMS: elementos dibujados por id; nodos: nodos DOM por id; drag: arrastre en curso; tAviso: temporizador del aviso;
       // menu y conf: menú contextual y tarjeta de confirmación abiertos (o null).

@@ -6,6 +6,8 @@
     "agente": "🤖",
     "orden": "📋",
     "error": "⚠️",
-    "auto": "⚡"
+    "auto": "⚡",
+    "posicion": "📊",
+    "alerta": "🔔"
   }
 }

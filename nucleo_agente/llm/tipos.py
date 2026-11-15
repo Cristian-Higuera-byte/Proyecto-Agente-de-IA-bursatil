@@ -18,9 +18,13 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
+# TITULO ERROR LLM
+
 class ErrorLLM(Exception):
     """Error de la capa LLM con mensaje ya legible para el usuario."""
 
+
+# TITULO LLAMADA HERRAMIENTA
 
 @dataclass
 class LlamadaHerramienta:
@@ -33,6 +37,8 @@ class LlamadaHerramienta:
     error: str | None = None   # se rellena si el modelo envió un JSON inválido
 
 
+# TITULO RESPUESTA LLM
+
 @dataclass
 class RespuestaLLM:
     """Respuesta completa del modelo: texto, razonamiento, llamadas a herramientas y tokens consumidos."""
@@ -44,6 +50,8 @@ class RespuestaLLM:
     tokens_salida: int = 0
     perfil: str = ""
 
+    # TITULO MENSAJE
+
     @property
     def mensaje(self) -> dict[str, Any]:
         """Mensaje del asistente listo para añadir al historial.
@@ -52,11 +60,11 @@ class RespuestaLLM:
         tool_calls cuando el modelo pidió herramientas.
         """
         # Mensaje base del asistente; los campos opcionales se agregan solo si existen.
-        msg: dict[str, Any] = {"role": "assistant", "content": self.contenido}
+        mensaje: dict[str, Any] = {"role": "assistant", "content": self.contenido}
         if self.razonamiento is not None:
-            msg["reasoning_content"] = self.razonamiento
+            mensaje["reasoning_content"] = self.razonamiento
         if self.llamadas:
-            msg["tool_calls"] = [
+            mensaje["tool_calls"] = [
                 {
                     "id": c.id,
                     "type": "function",
@@ -64,8 +72,10 @@ class RespuestaLLM:
                 }
                 for c in self.llamadas
             ]
-        return msg
+        return mensaje
 
+
+# TITULO EVENTO STREAM
 
 @dataclass
 class EventoStream:

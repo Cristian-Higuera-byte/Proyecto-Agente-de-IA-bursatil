@@ -28,13 +28,16 @@ import os
 import tempfile
 import threading
 
-# Carpeta `data/` en la raíz del proyecto.
-_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
-# Archivo JSON de respaldo de las tarjetas cerradas.
-_RUTA = os.path.join(_DIR, "cerradas.json")
-# Candado que serializa las escrituras dentro del proceso.
-_LOCK = threading.Lock()
+from herramientas.carpeta_usuario import carpeta_usuario, ruta_archivo
 
+# Archivo JSON de respaldo de las tarjetas cerradas.
+# Nombre del archivo; la carpeta depende del usuario y la cuenta (ver herramientas/carpeta_usuario.py)
+_NOMBRE_ARCHIVO = "cerradas.json"
+# Candado que serializa las escrituras dentro del proceso.
+_CANDADO = threading.Lock()
+
+
+# TITULO LEER
 
 def leer() -> list:
     """Lee `data/cerradas.json` y devuelve la lista de tarjetas cerradas (más recientes primero).
@@ -43,12 +46,14 @@ def leer() -> list:
     """
     # Cualquier fallo de lectura se trata como "sin tarjetas guardadas".
     try:
-        with open(_RUTA, "r", encoding="utf-8") as f:
+        with open(ruta_archivo(_NOMBRE_ARCHIVO), "r", encoding="utf-8") as f:
             datos = json.load(f)
         return datos if isinstance(datos, list) else []
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         return []
 
+
+# TITULO GUARDAR
 
 def guardar(lista: list) -> None:
     """Persiste la lista de tarjetas cerradas en `data/cerradas.json`, reemplazando el contenido previo.
@@ -56,17 +61,17 @@ def guardar(lista: list) -> None:
     Escribe en un archivo temporal, fuerza el volcado a disco (fsync) y lo mueve con
     os.replace, de modo que el archivo nunca queda a medias. Crea la carpeta si falta.
     """
-    with _LOCK:
-        os.makedirs(_DIR, exist_ok=True)
+    with _CANDADO:
+        os.makedirs(carpeta_usuario(), exist_ok=True)
         # Archivo temporal en la misma carpeta para que el reemplazo sea atómico.
-        tmp = tempfile.NamedTemporaryFile("w", delete=False, dir=_DIR, encoding="utf-8")
+        tmp = tempfile.NamedTemporaryFile("w", delete=False, dir=carpeta_usuario(), encoding="utf-8")
         try:
             json.dump(list(lista), tmp)
             tmp.flush()
             os.fsync(tmp.fileno())
         finally:
             tmp.close()
-        os.replace(tmp.name, _RUTA)   # atómico
+        os.replace(tmp.name, ruta_archivo(_NOMBRE_ARCHIVO))   # atómico
 
 
 # -------------------------------------------------------------------------------------------------------

@@ -17,19 +17,28 @@ almacen_sesiones.py
 Almacén de sesiones EN MEMORIA del servidor. Vive mientras el proceso de
 Streamlit (la consola) esté encendido; al apagarlo, se borra todo.
 
-Se combina con un token en la URL (?s=<token>) que sí sobrevive al F5:
-  - F5 del navegador  -> la URL conserva el token -> el servidor lo encuentra
-                         aquí y restaura la sesión (sigues dentro).
-  - Apagar la consola -> este diccionario se vacía -> el token queda inválido
-                         -> pide login de nuevo.
-  - Cerrar sesión     -> se elimina el token de aquí.
+Cada sesión se identifica con el identificador de su dispositivo (resumen de la cookie de sesión; ver acceso/sesion.py), que NO viaja en la dirección:
+  - F5 o enlace del menú -> la cookie restaura la sesión y el identificador es el mismo -> los datos guardados aquí (la cuenta elegida) siguen ahí.
+  - Apagar la consola    -> este diccionario se vacía; la cookie vuelve a registrar la sesión y los datos de la sesión (como la cuenta elegida) se pierden.
+  - Cerrar sesión        -> se elimina el identificador de aquí.
 """
 import secrets
+import time
 
 # Diccionario en memoria (se pierde al apagar el proceso) con la forma
 # {token: {"id":..., "nombre":..., "email":...}}
 _sesiones: dict[str, dict] = {}
 
+# Momento (segundos desde 1970) en que cada usuario cerró sus sesiones en todos los dispositivos: {id del usuario: instante}. Una pestaña que inició sesión antes de ese instante
+# deja de ser válida en su próxima ejecución completa (ver acceso/sesion.py). Se pierde al reiniciar el servidor, igual que las propias sesiones.
+_revocaciones: dict[str, float] = {}
+
+# Datos que acompañan a cada sesión y deben sobrevivir a un F5 o a un enlace del menú (que recargan la página y vacían
+# `st.session_state`): por ejemplo la cuenta elegida, demo o real. Forma: {token: {clave: valor}}
+_datos: dict[str, dict] = {}
+
+
+# TITULO CREAR
 
 def crear(usuario: dict) -> str:
     """Crea un token aleatorio seguro (secrets) para el usuario, lo guarda en memoria y lo devuelve.
@@ -41,6 +50,16 @@ def crear(usuario: dict) -> str:
     return token
 
 
+# TITULO REGISTRAR
+
+def registrar(identificador: str, usuario: dict) -> None:
+    """Registra la sesión de un dispositivo con su identificador (ver acceso/sesion.py). Si ya estaba registrada se conservan sus datos guardados (la cuenta elegida)."""
+    if identificador:
+        _sesiones[identificador] = usuario
+
+
+# TITULO OBTENER
+
 def obtener(token: str) -> dict | None:
     """Retorna el usuario asociado al token, o None si no existe."""
     if not token:
@@ -48,10 +67,48 @@ def obtener(token: str) -> dict | None:
     return _sesiones.get(token)
 
 
+# TITULO GUARDAR DATO
+
+def guardar_dato(token: str, clave: str, valor) -> None:
+    """Guarda un dato junto a la sesión del token (no hace nada si el token no existe)."""
+    if token and token in _sesiones:
+        _datos.setdefault(token, {})[clave] = valor
+
+
+# TITULO LEER DATO
+
+def leer_dato(token: str, clave: str, defecto=None):
+    """Devuelve el dato guardado junto a la sesión del token, o `defecto` si no hay."""
+    if not token or token not in _sesiones:
+        return defecto
+    return _datos.get(token, {}).get(clave, defecto)
+
+
+# TITULO REVOCAR USUARIO
+
+def revocar_usuario(usuario_id) -> None:
+    """Cierra todas las sesiones del usuario: borra sus tokens de la URL y anota el instante, para que las pestañas que ya estaban abiertas dejen de valer."""
+    if usuario_id is None:
+        return
+    for token in [t for t, u in _sesiones.items() if str(u.get("id")) == str(usuario_id)]:
+        eliminar(token)
+    _revocaciones[str(usuario_id)] = time.time()
+
+
+# TITULO REVOCADA DESDE
+
+def revocada_desde(usuario_id) -> float:
+    """Instante en que el usuario cerró sus sesiones en todos los dispositivos, o 0 si no lo ha hecho desde que arrancó el servidor."""
+    return _revocaciones.get(str(usuario_id), 0.0)
+
+
+# TITULO ELIMINAR
+
 def eliminar(token: str) -> None:
-    """Elimina el token (cerrar sesión)."""
+    """Elimina el token (cerrar sesión) y los datos que guardaba."""
     if token:
         _sesiones.pop(token, None)
+        _datos.pop(token, None)
 
 
 # -------------------------------------------------------------------------------------------------------

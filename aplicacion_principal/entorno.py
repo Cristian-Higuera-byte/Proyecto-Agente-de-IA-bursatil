@@ -23,6 +23,8 @@ from types import ModuleType
 from typing import Optional
 
 
+# TITULO CORREGIR CERTIFICADO SSL
+
 def corregir_certificado_ssl() -> None:
     """
     Copia el certificado raíz de `certifi` a una ruta sin tildes y apunta las variables de entorno a ella.
@@ -48,6 +50,8 @@ def corregir_certificado_ssl() -> None:
     except Exception:
         pass
 
+
+# TITULO IMPORTAR CONSOLA
 
 def importar_consola() -> Optional[ModuleType]:
     """

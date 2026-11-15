@@ -22,15 +22,28 @@ from typing import Any
 
 from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
-from nucleo_agente.ordenes.base_datos import _ahora, _consultar, kill_switch_activo
-from nucleo_agente.ordenes.limites import LIMITES
-from herramientas.puente_mt5 import MT5_LOCK, inicializar_mt5, resolver_simbolo
+from herramientas import politica_apertura
+from nucleo_agente.ordenes.base_datos import _ahora, _consultar, condicion_dueno, interruptor_emergencia_activo
+from nucleo_agente.ordenes.limites import LIMITES, limites_actuales
+from herramientas.puente_mt5 import MT5_LOCK, NOMBRE_BROKER, PROVEEDOR, inicializar_mt5, resolver_simbolo
 
+# Candado que serializa las decisiones de riesgo y los envíos de órdenes. Con MetaTrader 5 es MT5_LOCK; con Capital.com ese candado no
+# bloquea (su API REST admite varias consultas a la vez), así que se usa el de órdenes del backend, que sí es real: dos
+# confirmaciones simultáneas (el usuario y una vigilancia) no pueden pasar a la vez los límites de riesgo.
+if PROVEEDOR == "capital":
+    from herramientas.backends.capital import _ORDEN_CANDADO as _CANDADO_DECISIONES
+else:
+    _CANDADO_DECISIONES = MT5_LOCK
+
+
+# TITULO NORMALIZAR
 
 def _normalizar(simbolo: str) -> str:
     """Limpia un símbolo escrito por el usuario o el modelo: quita puntos suspensivos, espacios y pasa a mayúsculas."""
     return (simbolo or "").replace("...", "").replace("…", "").strip().upper()
 
+
+# TITULO RESOLVER SIMBOLO
 
 def _resolver_simbolo(simbolo: str) -> str:
     """Nombre del símbolo tal como lo llama el bróker (exacto -> núcleo -> alias). Si no se puede
@@ -43,6 +56,8 @@ def _resolver_simbolo(simbolo: str) -> str:
     return real or limpio
 
 
+# TITULO SIMBOLOS PARA RELOJ
+
 def _simbolos_para_reloj() -> list[str]:
     """Símbolos de los que leer un tick para conocer la hora del servidor: los de la Observación de
     mercado (visibles), o unos comunes si no hay ninguno."""
@@ -53,34 +68,42 @@ def _simbolos_para_reloj() -> list[str]:
     return visibles[:30] or ["EURUSD", "GOLD", "XAUUSD", "BTCUSD"]
 
 
+# TITULO DESVIACION
+
 def _desviacion(info: Any) -> int:
     """Deslizamiento máximo en PUNTOS: el mínimo configurado, o el doble del spread si es mayor.
     Un valor fijo no sirve para todos los activos (en cripto, índices o acciones 20 puntos son centavos)."""
     return max(LIMITES.desviacion_puntos, int(getattr(info, "spread", 0) or 0) * 2)
 
 
-def _con_lock(funcion):
-    """Decorador que serializa el acceso a MT5 con el MISMO candado del resto de la app (MT5_LOCK).
+# TITULO CON CANDADO
+
+def _con_candado(funcion):
+    """Decorador que serializa las decisiones de riesgo y los envíos de órdenes (MT5_LOCK con MetaTrader 5; el candado de órdenes de Capital.com).
 
     La API de MetaTrader 5 no es segura entre hilos y servidor_datos.py / los fragmentos en
     vivo leen MT5 en paralelo. Como es un RLock, anidar llamadas con este decorador es seguro.
     """
     @functools.wraps(funcion)
     def envuelta(*args: Any, **kwargs: Any) -> Any:
-        """Ejecuta la función original dentro de MT5_LOCK y devuelve su resultado sin modificarlo."""
-        with MT5_LOCK:
+        """Ejecuta la función original dentro del candado de decisiones y devuelve su resultado sin modificarlo."""
+        with _CANDADO_DECISIONES:
             return funcion(*args, **kwargs)
     return envuelta
 
+
+# TITULO PREPARAR MT5
 
 def _preparar_mt5() -> str | None:
     """None si MT5 está listo; si no, el mensaje de error."""
     with MT5_LOCK:
         # inicializar_mt5 usa la ruta del terminal configurada (MT5_PATH) y no reintenta en bucle.
         if mt5.terminal_info() is None and not inicializar_mt5():
-            return f"No se pudo conectar con MetaTrader 5: {mt5.last_error()}"
+            return f"No se pudo conectar con {NOMBRE_BROKER}: {mt5.last_error()}"
     return None
 
+
+# TITULO INICIO DIA SERVIDOR
 
 def _inicio_dia_servidor() -> int | None:
     """Epoch (en hora del SERVIDOR del broker) de las 00:00 de hoy, o None si no se puede saber.
@@ -95,6 +118,8 @@ def _inicio_dia_servidor() -> int | None:
             return int(tick.time - tick.time % 86400)
     return None
 
+
+# TITULO PERDIDA DEL DIA
 
 def _perdida_del_dia(cuenta: Any) -> float:
     """Pérdida del día (número positivo): operaciones cerradas hoy + resultado flotante."""
@@ -118,6 +143,8 @@ def _perdida_del_dia(cuenta: Any) -> float:
     return max(0.0, -(realizado + cuenta.profit))
 
 
+# TITULO RIESGO EXPUESTO
+
 def _riesgo_expuesto(cuenta: Any, incluir_pendientes: bool) -> float:
     """Dinero que se perdería si saltaran TODOS los stop loss: posiciones abiertas (+ propuestas pendientes)."""
     total = 0.0
@@ -126,18 +153,35 @@ def _riesgo_expuesto(cuenta: Any, incluir_pendientes: bool) -> float:
         if p.sl:
             resultado = mt5.order_calc_profit(p.type, p.symbol, p.volume, p.price_open, p.sl)
             total += max(0.0, -resultado) if resultado is not None else 0.0
-        else:  # sin stop loss el riesgo es desconocido: se asume el máximo por operación
-            total += cuenta.equity * LIMITES.riesgo_max_por_operacion_pct / 100
-    # Opcionalmente suma el riesgo de propuestas de apertura aún vigentes que el usuario no ha resuelto.
+        elif limites_actuales().riesgo_max_por_operacion_pct is not None:  # sin stop loss el riesgo es desconocido: se asume el máximo por operación que definió el usuario
+            total += cuenta.equity * limites_actuales().riesgo_max_por_operacion_pct / 100
+    # Opcionalmente suma el riesgo de propuestas de apertura aún vigentes que el usuario no ha resuelto (solo las suyas, en esta cuenta).
     if incluir_pendientes:
+        dueno, valores = condicion_dueno()
         filas = _consultar(
             "SELECT COALESCE(SUM(riesgo_dinero), 0) AS total FROM ordenes "
-            "WHERE estado = 'PENDIENTE' AND accion = 'abrir' AND expira > ?",
-            (_ahora(),),
+            "WHERE estado = 'PENDIENTE' AND accion = 'abrir' AND expira > ?" + dueno,
+            (_ahora(), *valores),
         )
         total += float(filas[0]["total"] or 0)
     return total
 
+
+# TITULO EXPOSICION NOCIONAL
+
+def _exposicion_nocional() -> float:
+    """Valor total (en la moneda de la cuenta, aproximado) de las posiciones abiertas: volumen × precio actual × tamaño del contrato. Sirve para medir el apalancamiento.
+
+    Una posición cuyos datos no se pueden leer no suma (se ignora, no se rechaza)."""
+    total = 0.0
+    for p in mt5.positions_get() or []:
+        info = mt5.symbol_info(p.symbol)
+        contrato = float(getattr(info, "trade_contract_size", 1.0) or 1.0) if info is not None else 1.0
+        total += abs(float(p.volume) * float(getattr(p, "price_current", 0.0) or p.price_open) * contrato)
+    return total
+
+
+# TITULO MODO LLENADO
 
 def _modo_llenado(info: Any) -> int:
     """Elige el modo de llenado de órdenes que admite el símbolo.
@@ -153,6 +197,8 @@ def _modo_llenado(info: Any) -> int:
     return mt5.ORDER_FILLING_RETURN
 
 
+# TITULO CHEQUEOS GLOBALES
+
 def _chequeos_globales(para_abrir: bool) -> tuple[Any, str | None]:
     """(cuenta, motivo_de_rechazo). Cerrar posiciones solo exige MT5 listo y cuenta demo."""
     # Paso 1: MT5 debe estar conectado.
@@ -161,26 +207,29 @@ def _chequeos_globales(para_abrir: bool) -> tuple[Any, str | None]:
         return None, error
     cuenta = mt5.account_info()
     if cuenta is None:
-        return None, "No se pudo leer la cuenta de MetaTrader 5."
+        return None, f"No se pudo leer la cuenta de {NOMBRE_BROKER}."
     # Paso 2: bloqueo si la cuenta no es demo.
     if LIMITES.solo_demo and cuenta.trade_mode != mt5.ACCOUNT_TRADE_MODE_DEMO:
         return cuenta, "BLOQUEADO: la cuenta conectada NO es demo y la Fase 1 solo opera en cuenta demo."
     # Paso 3: restricciones que solo aplican a abrir posiciones.
     if para_abrir:
-        if kill_switch_activo():
-            return cuenta, "Las nuevas aperturas están bloqueadas (interruptor de emergencia activado por el usuario)."
-        # Pérdida diaria acumulada frente al tope (% del balance).
-        perdida = _perdida_del_dia(cuenta)
-        tope = cuenta.balance * LIMITES.perdida_max_diaria_pct / 100
-        if perdida >= tope:
-            return cuenta, (
-                f"Se alcanzó la pérdida máxima diaria ({perdida:.2f} de {tope:.2f} "
-                f"{cuenta.currency}). No se abren más operaciones hoy."
-            )
-        # Tope de posiciones simultáneas.
+        motivo_bloqueo = politica_apertura.motivo_de_bloqueo()
+        if motivo_bloqueo:
+            return cuenta, motivo_bloqueo
+        # Pérdida diaria acumulada frente al tope que definió el usuario (si lo hay; % del balance).
+        limites = limites_actuales()
+        if limites.perdida_max_diaria_pct is not None:
+            perdida = _perdida_del_dia(cuenta)
+            tope = cuenta.balance * limites.perdida_max_diaria_pct / 100
+            if perdida >= tope:
+                return cuenta, (
+                    f"Se alcanzó la pérdida máxima diaria que definiste ({perdida:.2f} de {tope:.2f} "
+                    f"{cuenta.currency}). No se abren más operaciones hoy."
+                )
+        # Tope de posiciones simultáneas (solo si el usuario lo definió; por defecto no hay tope).
         abiertas = len(mt5.positions_get() or [])
-        if abiertas >= LIMITES.max_posiciones_abiertas:
-            return cuenta, f"Ya hay {abiertas} posiciones abiertas (máximo {LIMITES.max_posiciones_abiertas})."
+        if limites.max_posiciones_abiertas is not None and abiertas >= limites.max_posiciones_abiertas:
+            return cuenta, f"Ya hay {abiertas} posiciones abiertas (máximo que definiste: {limites.max_posiciones_abiertas})."
     return cuenta, None
 
 

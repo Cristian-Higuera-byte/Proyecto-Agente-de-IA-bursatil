@@ -17,11 +17,14 @@ from __future__ import annotations
 import time
 from typing import Any
 
+from herramientas import cuota_ia, permisos_plan
 from nucleo_agente import contexto
 from nucleo_agente.turnos.avisos import _avisar
 from nucleo_agente.turnos.imagenes import imagenes_de_resultado
 from nucleo_agente.turnos.turno import Turno
 
+
+# TITULO CORRER
 
 def _correr(turno: Turno, agente: Any) -> None:
     """Cuerpo del hilo de un turno: ejecuta al agente y vuelca sus eventos en el objeto `turno`.
@@ -36,50 +39,57 @@ def _correr(turno: Turno, agente: Any) -> None:
     contexto.fijar_usuario(turno.usuario_id)   # las herramientas que lo necesiten saben quién pregunta
     gen = agente.responder_stream(turno.prompt)
     try:
-        for ev in gen:
+        for evento in gen:
             # Cancelación cooperativa: se atiende al llegar el siguiente evento.
             if turno.cancelar_solicitado:
                 turno.cancelado = True
                 break
             # Cada tipo de evento actualiza la fase visible y el estado del turno.
-            if ev.tipo == "razonamiento":
+            if evento.tipo == "razonamiento":
                 turno.fase = "Analizando…"
-            elif ev.tipo == "texto":
+            elif evento.tipo == "texto":
                 turno.fase = "Redactando la respuesta…"
-                turno.texto += ev.texto
-            elif ev.tipo == "herramienta":
+                turno.texto += evento.texto
+            elif evento.tipo == "herramienta":
                 # El usuario no ve qué herramienta se usa: solo una fase genérica (el nombre queda en
                 # turno.herramientas por si hace falta depurar, pero la interfaz no lo muestra).
-                turno.fase = ("Preparando la propuesta…" if str(ev.texto).startswith("proponer_")
+                turno.fase = ("Preparando la propuesta…" if str(evento.texto).startswith("proponer_")
                               else "Consultando los datos…")
-                turno.herramientas.append(str(ev.texto))
-            elif ev.tipo == "resultado":
+                turno.herramientas.append(str(evento.texto))
+            elif evento.tipo == "resultado":
                 turno.fase = "Procesando los datos…"
                 # Se detecta si el agente propuso una orden o una vigilancia para avisar al usuario.
-                if ev.texto in ("proponer_orden", "proponer_cierre_posicion"):
+                if evento.texto in ("proponer_orden", "proponer_cierre_posicion"):
                     turno.hubo_orden = True
-                elif ev.texto == "proponer_vigilancia" and "VIGILANCIA_PENDIENTE" in str((ev.datos or {}).get("resultado", "")):
+                elif evento.texto == "proponer_vigilancia" and "VIGILANCIA_PENDIENTE" in str((evento.datos or {}).get("resultado", "")):
                     turno.hubo_vigilancia = True
                 # Las imágenes guardadas en disco por la herramienta se acumulan sin repetir.
-                for ruta in imagenes_de_resultado((ev.datos or {}).get("resultado")):
+                for ruta in imagenes_de_resultado((evento.datos or {}).get("resultado")):
                     if ruta not in turno.imagenes:
                         turno.imagenes.append(ruta)
-            elif ev.tipo == "fin":
+            elif evento.tipo == "fin":
                 # Al terminar se guardan los tokens consumidos y el perfil usado (para el pie del turno).
-                d = ev.datos or {}
+                d = evento.datos or {}
                 turno.tokens_entrada = d.get("tokens_entrada", "?")
                 turno.tokens_salida = d.get("tokens_salida", "?")
                 turno.perfil = d.get("perfil", "?")
     except Exception as e:  # noqa: BLE001 - el error se muestra en el chat, no se pierde en el hilo
         if not turno.cancelar_solicitado:   # si el usuario ya lo había detenido, el fallo no importa
-            motivo = "Error del modelo" if type(e).__name__ == "ErrorLLM" else "Error al ejecutar el agente"
-            turno.error = f"{motivo}: {e}"
+            if isinstance(e, (cuota_ia.ErrorCuota, permisos_plan.ErrorPlan)):   # cuota agotada o función fuera del plan: el mensaje ya explica qué pasó
+                turno.error = str(e)
+            else:
+                motivo = "Error del modelo" if type(e).__name__ == "ErrorLLM" else "Error al ejecutar el agente"
+                turno.error = f"{motivo}: {e}"
     finally:
         try:
             gen.close()   # si se detuvo a medias, el agente descarta ese turno incompleto de su historial
         except Exception:  # noqa: BLE001
             pass
         turno.t_fin = time.time()
+        try:
+            turno.cuota = cuota_ia.texto_uso()     # cuánto lleva gastado el usuario este mes, para el pie del mensaje
+        except Exception:  # noqa: BLE001
+            pass
         try:
             if not turno.cancelado:   # lo detuvo el propio usuario: no hace falta avisarle
                 _avisar(turno)

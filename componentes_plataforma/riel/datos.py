@@ -14,7 +14,7 @@
 """Medidas del rail derecho y lista de sus botones.
 
 Las medidas son constantes en píxeles que `estilos.py` sustituye en la plantilla `estilos.css`; los botones se leen
-de `botones.json` (con el caché de `_estaticos`). Lo importan `estilos.py`, `panel.py` y la fachada `panel_riel.py`.
+de `botones.json` (con el caché de `_estaticos`). Lo importan `estilos.py`, `panel.py` y la fachada `riel/`.
 """
 from pathlib import Path
 
@@ -22,6 +22,7 @@ from componentes_plataforma._estaticos import datos_json
 
 RAIL = 50        # ancho del rail (px) — angosto, como una barra de iconos
 PANEL = 312      # ancho del panel desplegado (px)
+PANEL_AGENTE = 380   # ancho del panel del chat del agente (px): más ancho, porque el chat necesita espacio para los mensajes
 TOP = 62         # alto de la barra superior (ajústalo si el panel queda alto/bajo)
 
 # (icono material, id del panel, nombre del tooltip)

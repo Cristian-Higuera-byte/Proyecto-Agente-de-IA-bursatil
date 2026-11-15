@@ -18,6 +18,7 @@ import json
 import re
 from typing import Any
 
+from herramientas.tickets import ticket as _tk
 from nucleo_agente.vigilancia.utilidades import _a_numero
 
 
@@ -30,6 +31,8 @@ _SINONIMOS = {
     "cerrar": "cerrar", "close": "cerrar",
 }
 
+
+# TITULO PARSEAR DECISION
 
 def parsear_decision(texto: str) -> dict[str, Any]:
     """Lee el bloque ```decision {...}``` del final de la respuesta del modelo.
@@ -61,13 +64,13 @@ def parsear_decision(texto: str) -> dict[str, Any]:
         elif str(d.get("accion", "")).strip().lower() == "vender":
             lado = "venta"
         # Los números pueden venir como texto; _a_numero los tolera.
-        ticket = _a_numero(d.get("ticket"))
+        ticket = _tk(d.get("ticket") or None)
         return {
             "accion": accion,
             "lado": lado if lado in ("compra", "venta") else None,
             "stop_loss": _a_numero(d.get("stop_loss")),
             "take_profit": _a_numero(d.get("take_profit")),
-            "ticket": int(ticket) if ticket is not None else None,
+            "ticket": ticket,
             "resumen": str(d.get("resumen") or "").strip()[:300],
         }
     # Paso 3: sin decisión legible se espera (seguro por defecto) y se marca como inválida.

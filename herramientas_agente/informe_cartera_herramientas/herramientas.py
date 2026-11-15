@@ -38,6 +38,8 @@ from herramientas_agente.informe_cartera_herramientas.auxiliares import (
 _ESQ = cargar_json(Path(__file__).parent / "esquemas.json")
 
 
+# TITULO INFORME CARTERA
+
 @herramienta(**_ESQ["informe_cartera"])
 def informe_cartera() -> dict[str, Any]:
     """Genera el informe integral de la cartera abierta.
@@ -55,7 +57,7 @@ def informe_cartera() -> dict[str, Any]:
     equidad = cuenta.get("equidad") or 0.0
     if not posiciones:
         return {
-            "fuente": "MetaTrader 5",
+            "fuente": mt5_fuente.NOMBRE_FUENTE,
             "total_posiciones": 0,
             "cuenta": cuenta,
             "mensaje": "No hay posiciones abiertas: no hay exposición ni riesgo en la cartera.",
@@ -74,26 +76,26 @@ def informe_cartera() -> dict[str, Any]:
 
     # Calcula cada sección de forma independiente (el orden importa: escenarios y alertas usan las anteriores).
     riesgo = seccion("riesgo", analisis_herramientas.analizar_riesgo_posicion, {})
-    expo = seccion("exposicion", lambda: _exposicion(posiciones, equidad), {})
-    vol = seccion("volatilidad", lambda: _volatilidad(sorted({p["simbolo"] for p in posiciones})), {})
+    exposicion = seccion("exposicion", lambda: _exposicion(posiciones, equidad), {})
+    volumen = seccion("volatilidad", lambda: _volatilidad(sorted({p["simbolo"] for p in posiciones})), {})
     corr = seccion("correlaciones", lambda: _correlaciones(posiciones), {})
     noticias = seccion("noticias", lambda: _noticias(posiciones), {})
-    esc = seccion("escenarios", lambda: _escenarios(posiciones, vol, riesgo, equidad), {})
-    alertas = seccion("alertas", lambda: _alertas(cuenta, riesgo, expo, corr, noticias), [])
+    esc = seccion("escenarios", lambda: _escenarios(posiciones, volumen, riesgo, equidad), {})
+    alertas = seccion("alertas", lambda: _alertas(cuenta, riesgo, exposicion, corr, noticias), [])
     # Quita el dato interno de la exposición antes de devolverlo al modelo.
-    expo.pop("_mayor_divisa", None)
+    exposicion.pop("_mayor_divisa", None)
 
     # Ensambla la respuesta final con solo los campos útiles de cuenta y riesgo.
     return {
-        "fuente": "MetaTrader 5 + Investing.com (titulares)",
+        "fuente": f"{mt5_fuente.NOMBRE_FUENTE} + Investing.com (titulares)",
         "total_posiciones": len(posiciones),
         "cuenta": {k: cuenta.get(k) for k in ("tipo", "moneda", "balance", "equidad", "beneficio_flotante",
                                               "margen_usado", "margen_libre", "nivel_margen_pct")},
         "alertas": alertas,
-        "exposicion": expo,
+        "exposicion": exposicion,
         "riesgo": {k: riesgo.get(k) for k in ("riesgo_total_acumulado_usd", "riesgo_total_equidad_pct",
                                               "posiciones_sin_stop_loss", "aviso", "posiciones")},
-        "volatilidad": vol,
+        "volatilidad": volumen,
         "correlaciones": corr,
         "noticias": noticias,
         "escenarios": esc,

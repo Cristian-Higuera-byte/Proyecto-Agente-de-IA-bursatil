@@ -37,6 +37,8 @@ _USUARIO: contextvars.ContextVar[str] = getattr(builtins, "_pj_contexto_usuario"
 builtins._pj_contexto_usuario = _USUARIO  # type: ignore[attr-defined]
 
 
+# TITULO FIJAR USUARIO
+
 def fijar_usuario(usuario_id: str) -> None:
     """Fija el usuario de la consulta en curso en el contexto actual.
 
@@ -45,6 +47,8 @@ def fijar_usuario(usuario_id: str) -> None:
     """
     _USUARIO.set(str(usuario_id or "local"))
 
+
+# TITULO USUARIO ACTUAL
 
 def usuario_actual() -> str:
     """Devuelve el id del usuario fijado para la consulta en curso ("local" si no se fijó ninguno)."""
