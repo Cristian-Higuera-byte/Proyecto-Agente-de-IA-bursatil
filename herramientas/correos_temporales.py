@@ -31,8 +31,15 @@ persona. La plataforma compara el dominio del correo contra una lista de dominio
 import os
 import re
 
-# Formato mínimo de un correo: algo@dominio.tld, sin espacios
-_FORMATO = re.compile(r"^[^@\s]+@([^@\s]+\.[^@\s.]{2,})$")
+# Una sola dirección, estricta (V09): parte local con los caracteres que permite el estándar para direcciones sin comillas (letras, números y !#$%&'*+/=?^_`{|}~- separados por
+# puntos sueltos), un @ y un dominio de etiquetas con letras, números y guiones, cuyo último tramo tiene al menos 2 letras (o es «xn--» de un dominio internacional).
+# Esto deja fuera comas, punto y coma, espacios, comillas, paréntesis, < >, corchetes, saltos de línea y cualquier segundo @: nada que pueda convertirse en más de un destinatario.
+_ATOMO = r"[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+"
+_ETIQUETA = r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
+_FORMATO = re.compile(rf"^({_ATOMO}(?:\.{_ATOMO})*)@((?:{_ETIQUETA}\.)+(?:[A-Za-z]{{2,63}}|xn--[A-Za-z0-9-]{{1,59}}))$")
+# Largos máximos del estándar: la dirección entera 254 caracteres y la parte local 64
+MAX_DIRECCION = 254
+MAX_PARTE_LOCAL = 64
 
 # Dominios desechables conocidos (en minúsculas, sin "@")
 _DOMINIOS_TEMPORALES = frozenset("""
@@ -156,12 +163,30 @@ def _desde_entorno(nombre: str) -> set[str]:
     return {d.strip().lower().lstrip("@") for d in re.split(r"[,;\s]+", texto) if d.strip()}
 
 
+# TITULO DIRECCION UNICA
+
+def direccion_unica(texto: str) -> str | None:
+    """Devuelve la dirección en minúsculas si `texto` es EXACTAMENTE una dirección de correo válida, o None si no lo es.
+
+    Rechaza varias direcciones juntas (con coma, punto y coma, espacio o un segundo @), nombres con «<…>», comillas, saltos de línea, direcciones demasiado largas y dominios sin
+    punto o con etiquetas mal formadas. Es la única puerta por la que una dirección llega a un correo: el registro, el envío y las respuestas de soporte la usan."""
+    if not isinstance(texto, str):
+        return None
+    direccion = texto.strip().lower()
+    if not direccion or len(direccion) > MAX_DIRECCION:
+        return None
+    coincide = _FORMATO.match(direccion)
+    if not coincide or len(coincide.group(1)) > MAX_PARTE_LOCAL:
+        return None
+    return direccion
+
+
 # TITULO DOMINIO DE UN CORREO
 
 def dominio_de(correo: str) -> str:
-    """Devuelve el dominio del correo en minúsculas ('' si el correo no tiene un formato válido)."""
-    coincide = _FORMATO.match((correo or "").strip().lower())
-    return coincide.group(1) if coincide else ""
+    """Devuelve el dominio del correo en minúsculas ('' si no es exactamente una dirección válida)."""
+    direccion = direccion_unica(correo)
+    return direccion.rsplit("@", 1)[1] if direccion else ""
 
 
 # TITULO FORMATO VALIDO

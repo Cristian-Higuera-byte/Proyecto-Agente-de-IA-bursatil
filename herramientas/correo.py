@@ -24,7 +24,7 @@ cambiar las variables del .env, sin tocar el código:
   CORREO_USUARIO      dirección del buzón que envía
   CORREO_CLAVE        contraseña del buzón (o contraseña de aplicación en Gmail)
   CORREO_REMITENTE    nombre que ve quien recibe, por ejemplo «Piña & Jara Terminal»
-  CORREO_VERIFICAR_CERTIFICADO   true (por defecto); false solo si el certificado del servidor no coincide con su nombre y se confía en él
+  CORREO_NOMBRE_CERTIFICADO       (opcional) nombre para el que está emitido el certificado del servidor, si no coincide con CORREO_SERVIDOR; el certificado SIEMPRE se verifica
 Los errores se informan con ErrorCorreo y un texto que dice qué revisar. Nunca se escribe la contraseña en un mensaje de error.
 """
 import html
@@ -34,6 +34,8 @@ import ssl
 from email.message import EmailMessage
 from email.utils import formataddr, formatdate, make_msgid
 from typing import Optional
+
+from herramientas import correos_temporales
 
 # Variables que deben existir para poder enviar correo.
 VARIABLES_OBLIGATORIAS = ("CORREO_SERVIDOR", "CORREO_PUERTO", "CORREO_USUARIO", "CORREO_CLAVE")
@@ -68,7 +70,10 @@ def leer_configuracion() -> dict:
         raise ErrorCorreo("CORREO_PUERTO debe ser un número, por ejemplo 465.") from None
     seguridad = os.environ.get("CORREO_SEGURIDAD", "ssl").strip().lower() or "ssl"
     if seguridad not in ("ssl", "starttls"):
-        raise ErrorCorreo("CORREO_SEGURIDAD debe ser ssl o starttls.")
+        raise ErrorCorreo("CORREO_SEGURIDAD debe ser ssl o starttls (el correo siempre va cifrado: no existe una opción sin TLS).")
+    if os.environ.get("CORREO_VERIFICAR_CERTIFICADO", "true").strip().lower() in ("0", "false", "no"):
+        raise ErrorCorreo("Ya no se puede desactivar la verificación del certificado (CORREO_VERIFICAR_CERTIFICADO=false). Si el certificado del servidor de correo está emitido para otro "
+                          "nombre, define ese nombre en CORREO_NOMBRE_CERTIFICADO.")
     return {
         "servidor": os.environ["CORREO_SERVIDOR"].strip(),
         "puerto": puerto,
@@ -76,7 +81,7 @@ def leer_configuracion() -> dict:
         "usuario": os.environ["CORREO_USUARIO"].strip(),
         "clave": os.environ["CORREO_CLAVE"],
         "remitente": os.environ.get("CORREO_REMITENTE", "").strip() or "Piña & Jara Terminal",
-        "verificar_certificado": os.environ.get("CORREO_VERIFICAR_CERTIFICADO", "true").strip().lower() not in ("0", "false", "no"),
+        "nombre_certificado": os.environ.get("CORREO_NOMBRE_CERTIFICADO", "").strip(),
     }
 
 
@@ -103,33 +108,41 @@ def armar_mensaje(destinatario: str, asunto: str, texto: str, cuerpo_html: Optio
 # TITULO ENVIAR
 
 def enviar(destinatario: str, asunto: str, texto: str, cuerpo_html: Optional[str] = None, responder_a: Optional[str] = None) -> None:
-    """Envía un correo; lanza ErrorCorreo si no se pudo (servidor inalcanzable, certificado, usuario o contraseña rechazados, destinatario rechazado).
+    """Envía un correo a UNA sola dirección; lanza ErrorCorreo si no se pudo (servidor inalcanzable, certificado, usuario o contraseña rechazados, destinatario rechazado).
 
-    `responder_a` (opcional) es la dirección a la que irán las respuestas, por ejemplo la de la persona que escribió un reporte de soporte."""
-    destinatario = (destinatario or "").strip()
-    if "@" not in destinatario or any(letra in destinatario for letra in "\r\n"):
+    `responder_a` (opcional) es la dirección a la que irán las respuestas, por ejemplo la de la persona que escribió un reporte de soporte; si no es una dirección válida se ignora.
+    La conexión es SIEMPRE cifrada (TLS 1.2 o superior) y el certificado del servidor SIEMPRE se verifica: no hay opción para saltarse ninguna de las dos cosas."""
+    direccion = correos_temporales.direccion_unica(destinatario)
+    if direccion is None:
         raise ErrorCorreo("La dirección de destino no es válida.")
     configuracion = leer_configuracion()
-    if responder_a and ("@" not in responder_a or any(letra in responder_a for letra in chr(13) + chr(10))):
-        responder_a = None
-    mensaje = armar_mensaje(destinatario, asunto, texto, cuerpo_html, configuracion, responder_a)
-    contexto = ssl.create_default_context()
-    if not configuracion["verificar_certificado"]:
-        contexto.check_hostname = False
-        contexto.verify_mode = ssl.CERT_NONE
+    responder_a = correos_temporales.direccion_unica(responder_a) if responder_a else None
+    mensaje = armar_mensaje(direccion, asunto, texto, cuerpo_html, configuracion, responder_a)
+    contexto = ssl.create_default_context()                 # verifica el certificado y el nombre del servidor
+    contexto.minimum_version = ssl.TLSVersion.TLSv1_2
     servidor, puerto = configuracion["servidor"], configuracion["puerto"]
+    nombre_certificado = configuracion["nombre_certificado"] or servidor
     try:
         if configuracion["seguridad"] == "ssl":
-            conexion = smtplib.SMTP_SSL(servidor, puerto, timeout=SEGUNDOS_ESPERA, context=contexto)
+            conexion = smtplib.SMTP_SSL(timeout=SEGUNDOS_ESPERA, context=contexto)
+            conexion._host = nombre_certificado               # el nombre contra el que se comprueba el certificado
+            conexion.connect(servidor, puerto)
         else:
-            conexion = smtplib.SMTP(servidor, puerto, timeout=SEGUNDOS_ESPERA)
-            conexion.starttls(context=contexto)
+            conexion = smtplib.SMTP(timeout=SEGUNDOS_ESPERA)
+            conexion._host = nombre_certificado
+            conexion.connect(servidor, puerto)
+            try:
+                conexion.starttls(context=contexto)           # si el servidor no ofrece STARTTLS falla: nunca se sigue sin cifrar
+            except smtplib.SMTPNotSupportedError:
+                raise ErrorCorreo("El servidor de correo no ofrece conexión cifrada (STARTTLS); no se envía el correo sin cifrar.") from None
         with conexion:
             conexion.login(configuracion["usuario"], configuracion["clave"])
             conexion.send_message(mensaje)
     except ssl.SSLCertVerificationError:
-        raise ErrorCorreo(f"El certificado del servidor de correo no coincide con «{servidor}». Revisa CORREO_SERVIDOR o, solo si confías en ese "
-                          "servidor, define CORREO_VERIFICAR_CERTIFICADO=false.") from None
+        raise ErrorCorreo(f"El certificado del servidor de correo no es válido para «{nombre_certificado}». Revisa CORREO_SERVIDOR o, si el certificado está emitido para otro "
+                          "nombre, define ese nombre en CORREO_NOMBRE_CERTIFICADO.") from None
+    except ssl.SSLError as error:
+        raise ErrorCorreo(f"No se pudo establecer la conexión cifrada con el servidor de correo: {error.__class__.__name__}.") from None
     except smtplib.SMTPAuthenticationError:
         raise ErrorCorreo("El servidor de correo rechazó el usuario o la contraseña. Revisa CORREO_USUARIO y CORREO_CLAVE.") from None
     except smtplib.SMTPRecipientsRefused:

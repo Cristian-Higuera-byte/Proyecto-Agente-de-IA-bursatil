@@ -30,12 +30,14 @@ Cómo funciona:
 Las funciones reciben el cliente de la base de datos como parámetro (el mismo que usa gestor_autenticacion), así se pueden probar sin una base real.
 """
 import hashlib
+import re
 import os
 import secrets
 import sys
 import threading
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
+from urllib.parse import urlsplit
 
 from herramientas import correo
 
@@ -255,10 +257,40 @@ def restablecer_atomico(cliente: Any, token: str, contrasena_cifrada: str, verif
 
 def armar_enlace(token: str, tipo: str) -> str:
     """Arma la dirección que va en el correo con la dirección pública de la plataforma (PLATAFORMA_URL del .env); lanza ErrorEnlace si falta."""
-    base = os.environ.get("PLATAFORMA_URL", "").strip().rstrip("/")
+    base = os.environ.get("PLATAFORMA_URL", "").strip()
     if not base:
         raise ErrorEnlace("Falta configurar PLATAFORMA_URL en el .env (la dirección pública de la plataforma).")
-    return f"{base}/?{PARAMETRO[tipo]}={token}"
+    return f"{base_valida(base)}/?{PARAMETRO[tipo]}={token}"
+
+
+# TITULO BASE VALIDA
+
+def base_valida(base: str) -> str:
+    """Comprueba que `PLATAFORMA_URL` sirva para armar enlaces con un token y la devuelve sin la barra final; lanza ErrorEnlace si no.
+
+    Debe ser https con un dominio (http solo para localhost, en desarrollo), sin usuario ni contraseña, sin parámetros, consulta ni fragmento, y sin espacios ni caracteres de control:
+    el enlace lleva un token que da acceso a la cuenta, así que no puede salir por http ni apuntar a otro sitio por un error de configuración."""
+    texto = (base or "").strip()
+    if not texto or len(texto) > 200 or any(ord(c) < 33 or ord(c) == 127 for c in texto):
+        raise ErrorEnlace("PLATAFORMA_URL no es válida: debe ser una dirección sin espacios, por ejemplo https://pyj.rmcabogados.cl.")
+    try:
+        partes = urlsplit(texto)
+        puerto = partes.port
+    except ValueError:
+        raise ErrorEnlace("PLATAFORMA_URL no es válida: la dirección está mal formada.") from None
+    host = (partes.hostname or "").lower()
+    local = host in ("localhost", "127.0.0.1", "::1")
+    if partes.scheme != "https" and not (partes.scheme == "http" and local):
+        raise ErrorEnlace("PLATAFORMA_URL debe empezar con https:// (http solo se admite en localhost): el enlace lleva un token de acceso.")
+    if not host or partes.username is not None or partes.password is not None:
+        raise ErrorEnlace("PLATAFORMA_URL no es válida: debe llevar un dominio y no puede llevar usuario ni contraseña.")
+    if partes.query or partes.fragment or ";" in partes.path or "?" in texto or "#" in texto:
+        raise ErrorEnlace("PLATAFORMA_URL no es válida: no puede llevar parámetros, consulta ni fragmento.")
+    if not local and not re.fullmatch(r"(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}", host):
+        raise ErrorEnlace("PLATAFORMA_URL no es válida: el dominio no tiene un formato correcto.")
+    if puerto is not None and not 1 <= puerto <= 65535:
+        raise ErrorEnlace("PLATAFORMA_URL no es válida: el puerto no es correcto.")
+    return texto.rstrip("/")
 
 
 # TITULO ENVIAR ENLACE
