@@ -32,7 +32,7 @@ import streamlit as st
 
 import configuracion
 from componentes_plataforma._estaticos import texto
-from herramientas import recaptcha as verificador
+from herramientas import limite_intentos_acceso, recaptcha as verificador
 
 # Carpeta con el script y los estilos del componente.
 _ESTATICO = Path(__file__).parent / "estatico"
@@ -70,12 +70,11 @@ def _vigente(formulario: str, validez: int) -> bool:
 # TITULO IP
 
 def _ip() -> Optional[str]:
-    """Dirección de la persona que envía el formulario, tomada del encabezado X-Forwarded-For del servidor intermedio; None si no se puede saber."""
+    """Dirección de la persona que envía el formulario (la que vio el proxy de confianza; ver `limite_intentos_acceso.ip_cliente`); None si no se puede saber."""
     try:
-        primera = (st.context.headers.get("X-Forwarded-For") or "").split(",")[0].strip()
+        return limite_intentos_acceso.ip_cliente(st.context.headers)
     except Exception:  # noqa: BLE001 - sin contexto de petición (pruebas)
         return None
-    return primera or None
 
 
 # TITULO DIBUJAR

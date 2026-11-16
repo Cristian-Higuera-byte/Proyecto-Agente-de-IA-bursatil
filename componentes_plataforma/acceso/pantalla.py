@@ -171,7 +171,7 @@ def requerir_login() -> dict:
                         if enviar:
                             recaptcha.exigir("login")      # antes de mirar las credenciales: sin verificación no se prueba ninguna contraseña
                             # Valida credenciales; si son correctas inicia sesión (rerun), si el correo no está confirmado ofrece reenviar el enlace, si no muestra el error
-                            resultado = autenticar_usuario(correo, contrasena)
+                            resultado = autenticar_usuario(correo, contrasena, limite_intentos_acceso.ip_cliente(st.context.headers))
                             if resultado["ok"]:
                                 iniciar_sesion(resultado["usuario"])
                             elif resultado.get("codigo") == "sin_verificar":

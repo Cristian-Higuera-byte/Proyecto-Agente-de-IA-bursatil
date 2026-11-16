@@ -43,7 +43,7 @@ from typing import Any, Optional, cast
 
 from dotenv import load_dotenv
 
-from herramientas import base_datos, contrasenas, correos_temporales, limites_formularios, verificacion_correo
+from herramientas import base_datos, contrasenas, correos_temporales, limite_intentos_acceso, limites_formularios, verificacion_correo
 from herramientas import correo as servicio_correo
 
 load_dotenv()
@@ -82,6 +82,10 @@ def _cifrar_contrasena(contrasena: str) -> str:
     salt = os.urandom(16)
     dk = hashlib.pbkdf2_hmac("sha256", contrasena.encode("utf-8"), salt, _ITERACIONES)
     return binascii.hexlify(salt).decode() + "$" + binascii.hexlify(dk).decode()
+
+
+# Hash de una contraseña que nadie conoce, para gastar el mismo tiempo de cálculo cuando el correo no existe (V08: así la demora no delata qué correos tienen cuenta)
+_HASH_FICTICIO = _cifrar_contrasena(secrets.token_urlsafe(16))
 
 
 # TITULO VERIFICAR CONTRASENA
@@ -257,13 +261,16 @@ def registrar_con_google(nombre: str, correo: str) -> dict:
 
 # TITULO AUTENTICAR USUARIO
 
-def autenticar_usuario(correo: str, contrasena: str) -> dict:
+def autenticar_usuario(correo: str, contrasena: str, ip: str | None = None) -> dict:
     """
     Valida credenciales. Retorna {"ok": bool, "mensaje": str, "usuario": dict|None}.
 
     Busca el usuario por email (normalizado a minúsculas) en Supabase y verifica
     la contraseña contra el hash guardado. Usa el mismo mensaje genérico para
-    email inexistente y contraseña errónea, para no revelar qué cuentas existen.
+    email inexistente y contraseña errónea, para no revelar qué cuentas existen, y el mismo
+    tiempo de cálculo (con un correo inexistente se verifica igual una contraseña ficticia).
+    Antes de mirar la contraseña pide cupo al límite de intentos por cuenta e IP (herramientas/limite_intentos_acceso.py):
+    pasado el tope responde `codigo` «bloqueado» sin probar nada, sea o no real la cuenta.
     Efecto secundario: consulta de red a la tabla `usuarios`.
     """
     if _supabase is None:
@@ -276,12 +283,21 @@ def autenticar_usuario(correo: str, contrasena: str) -> dict:
         return {"ok": False, "mensaje": "Email o contraseña incorrectos.", "usuario": None}      # mismo texto genérico: no se revela nada y no se gasta tiempo cifrando un texto enorme
 
     try:
+        cupo = limite_intentos_acceso.comenzar(correo, ip)
+    except Exception as e:  # noqa: BLE001 - si el límite no se puede consultar, se NIEGA el intento (mejor cerrado que sin freno)
+        return {**_error_neutro("el inicio de sesión", e), "usuario": None}
+    if cupo["bloqueado"]:
+        return {"ok": False, "codigo": "bloqueado", "mensaje": limite_intentos_acceso.mensaje(cupo["bloqueado"]), "usuario": None}
+
+    try:
         resultado = _supabase.table("usuarios").select("*").eq("email", correo).limit(1).execute()
         if not resultado.data:
+            _verificar_contrasena(contrasena, _HASH_FICTICIO)        # mismo gasto de tiempo que con una cuenta real
             return {"ok": False, "mensaje": "Email o contraseña incorrectos.", "usuario": None}
 
         usuario = cast(dict, resultado.data[0])
         if _verificar_contrasena(contrasena, usuario.get("password_hash", "")):
+            limite_intentos_acceso.exito(correo, cupo["ids"])
             if verificacion_activa() and usuario.get("correo_verificado") is False:
                 return {"ok": False, "codigo": "sin_verificar", "mensaje": "Tu correo aún no está verificado.", "usuario": None,
                         "pendiente": {"id": usuario.get("id"), "nombre": usuario.get("nombre"), "email": usuario.get("email")}}
@@ -289,7 +305,7 @@ def autenticar_usuario(correo: str, contrasena: str) -> dict:
                     "usuario": {"id": usuario.get("id"), "nombre": usuario.get("nombre"), "email": usuario.get("email")}}
         return {"ok": False, "mensaje": "Email o contraseña incorrectos.", "usuario": None}
     except Exception as e:
-        return {"ok": False, "mensaje": f"Error al iniciar sesión: {e}", "usuario": None}
+        return {**_error_neutro("el inicio de sesión", e), "usuario": None}
 
 
 # TITULO CAMBIAR CONTRASENA
@@ -309,15 +325,19 @@ def cambiar_contrasena(usuario_id, actual: str, nueva: str) -> dict:
     if aviso:
         return {"ok": False, "mensaje": aviso}
     try:
+        cupo = limite_intentos_acceso.comenzar(f"cambio:{usuario_id}", None)      # misma regla que el login: quien tiene una sesión abierta tampoco puede adivinar la clave sin límite
+        if cupo["bloqueado"]:
+            return {"ok": False, "codigo": "bloqueado", "mensaje": limite_intentos_acceso.mensaje(cupo["bloqueado"])}
         fila = _supabase.table("usuarios").select("password_hash").eq("id", usuario_id).limit(1).execute()
         if not fila.data:
             return {"ok": False, "mensaje": "No se encontró tu usuario."}
         if not _verificar_contrasena(actual, cast(dict, fila.data[0]).get("password_hash", "")):
             return {"ok": False, "mensaje": "La contraseña actual no es correcta."}
+        limite_intentos_acceso.exito(f"cambio:{usuario_id}", cupo["ids"])
         _supabase.table("usuarios").update({"password_hash": _cifrar_contrasena(nueva)}).eq("id", usuario_id).execute()
         return {"ok": True, "mensaje": "Contraseña actualizada."}
     except Exception as e:
-        return {"ok": False, "mensaje": f"Error al cambiar la contraseña: {e}"}
+        return _error_neutro("el cambio de contraseña", e)
 
 
 # TITULO VERIFICAR CORREO
