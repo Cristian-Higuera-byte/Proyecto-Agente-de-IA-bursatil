@@ -36,7 +36,7 @@ from datetime import date
 from componentes_plataforma.perfil import almacen as almacen_perfil
 from componentes_plataforma.perfil.datos import nombre_de, opciones
 from componentes_plataforma.perfil.validacion import validar_nacimiento
-from herramientas import aceptaciones_legales
+from herramientas import aceptaciones_legales, limite_intentos_acceso
 from herramientas import limites_formularios as limites
 from herramientas.gestor_autenticacion import autenticar_usuario, registrar_usuario
 
