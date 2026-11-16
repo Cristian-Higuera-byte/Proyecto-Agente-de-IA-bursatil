@@ -25,7 +25,7 @@ import streamlit as st
 
 from herramientas.puente_mt5 import (colocar_orden_pendiente, ejecutar_orden_mercado,
                               eliminar_orden)
-from herramientas import almacen_oco, registro_operaciones
+from herramientas import almacen_oco, idempotencia_ordenes, registro_operaciones
 from herramientas.tickets import ticket as _tk
 
 
@@ -42,12 +42,22 @@ def registrar_resultado(estado, mensaje):
 
 # TITULO EJECUTAR
 
-def ejecutar(real, visible, tipo, volumen, stop_loss, take_profit, pendiente=None, gtc=True):
+def ejecutar(real, visible, tipo, volumen, stop_loss, take_profit, pendiente=None, gtc=True, clave=None):
     """Envía la orden a MT5: a mercado, o pendiente si `pendiente` trae un precio.
 
     Recibe el símbolo real y el visible, el lado ("BUY"/"SELL"), el volumen en lotes, Stop Loss y Take
     Profit (o vacío), el precio de la pendiente y si es GTC (hasta cancelar) o DAY. Registra el resultado
-    (éxito o error devuelto por MT5) con `registrar_resultado` y limpia `orden_confirmacion`. No devuelve nada."""
+    (éxito o error devuelto por MT5) con `registrar_resultado` y limpia `orden_confirmacion`. No devuelve nada.
+
+    `clave` es la clave de idempotencia de esta orden (se genera al preparar la confirmación): si el mismo clic llega dos veces, la orden se envía una sola vez."""
+    with idempotencia_ordenes.con_clave(clave or idempotencia_ordenes.nueva_clave()):
+        _enviar(real, visible, tipo, volumen, stop_loss, take_profit, pendiente, gtc)
+
+
+# TITULO ENVIAR
+
+def _enviar(real, visible, tipo, volumen, stop_loss, take_profit, pendiente, gtc):
+    """Envía la orden (a mercado o pendiente) dentro de la clave de idempotencia ya fijada y registra el resultado en la sesión."""
     if pendiente:
         # Orden pendiente: se coloca al precio indicado y se arma el mensaje de éxito
         resultado = colocar_orden_pendiente(real, tipo, volumen, pendiente, stop_loss, take_profit, hasta_cancelar=gtc)
@@ -62,6 +72,8 @@ def ejecutar(real, visible, tipo, volumen, stop_loss, take_profit, pendiente=Non
     # Si el puente de MT5 devolvió un error, se muestra ese texto en lugar del mensaje de éxito
     if "error" in resultado:
         registrar_resultado("error", resultado["error"])
+    elif resultado.get("duplicada"):
+        registrar_resultado("ok", "Esa orden ya se había enviado: no se repitió.")
     else:
         registrar_resultado("ok", correcto)
         registro_operaciones.sincronizar_en_segundo_plano(forzar=True)    # registra la operación enseguida (copy trading)
@@ -70,7 +82,7 @@ def ejecutar(real, visible, tipo, volumen, stop_loss, take_profit, pendiente=Non
 
 # TITULO EJECUTAR OCO
 
-def ejecutar_oco(real, visible, lado_a, lado_b, precio_a, precio_b, volumen, gtc=True):
+def ejecutar_oco(real, visible, lado_a, lado_b, precio_a, precio_b, volumen, gtc=True, clave=None):
     """Coloca las DOS patas de un OCO y las vincula en almacen_oco. Si falla la 2.ª,
     cancela la 1.ª para no dejar un par a medias. Las patas van sin SL/TP (suelen
     ir en lados opuestos: el SL/TP se define sobre la posición al ejecutarse).
@@ -78,13 +90,16 @@ def ejecutar_oco(real, visible, lado_a, lado_b, precio_a, precio_b, volumen, gtc
     Recibe el símbolo real y el visible, el lado y el precio de cada pata, el volumen y si son GTC. Registra
     el resultado y limpia `orden_oco_confirmacion`. No devuelve nada."""
     # Primera pata: si falla, no hay nada que deshacer
-    ra = colocar_orden_pendiente(real, lado_a, volumen, precio_a, 0.0, 0.0, hasta_cancelar=gtc)
+    clave = clave or idempotencia_ordenes.nueva_clave()
+    with idempotencia_ordenes.con_clave(f"{clave}:a"):
+        ra = colocar_orden_pendiente(real, lado_a, volumen, precio_a, 0.0, 0.0, hasta_cancelar=gtc)
     if "error" in ra:
         registrar_resultado("error", f"OCO: no se pudo colocar la 1.ª orden · {ra['error']}")
         st.session_state.orden_oco_confirmacion = None
         return
     # Segunda pata: si falla se elimina la primera para no dejar el par a medias
-    rb = colocar_orden_pendiente(real, lado_b, volumen, precio_b, 0.0, 0.0, hasta_cancelar=gtc)
+    with idempotencia_ordenes.con_clave(f"{clave}:b"):
+        rb = colocar_orden_pendiente(real, lado_b, volumen, precio_b, 0.0, 0.0, hasta_cancelar=gtc)
     if "error" in rb:
         und = eliminar_orden(_tk(ra["order"]))
         extra = "" if "error" not in und else " (no se pudo deshacer la 1.ª: revísala en el gráfico)"

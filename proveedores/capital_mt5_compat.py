@@ -867,7 +867,8 @@ def order_send(solicitud: dict):
                                          take_profit=float(solicitud.get("tp", 0.0) or 0.0))
     if "error" in res:
         _estado_error.valor = (1, res["error"])
-        return SimpleNamespace(retcode=10013, comment=res["error"], order=0, price=0.0)
+        # `incierto`: el bróker no confirmó si la orden se abrió; quien interpreta el resultado no debe tratarla como un rechazo (V05)
+        return SimpleNamespace(retcode=10013, comment=res["error"], order=0, price=0.0, incierto=bool(res.get("incierto")))
     return SimpleNamespace(retcode=TRADE_RETCODE_DONE, comment="Done",
                            order=res.get("order", solicitud.get("position", "")),
                            price=float(res.get("price", solicitud.get("price", 0.0)) or 0.0))

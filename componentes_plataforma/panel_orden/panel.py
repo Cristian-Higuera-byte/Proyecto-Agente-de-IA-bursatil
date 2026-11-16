@@ -41,6 +41,8 @@ from componentes_plataforma.flujo_precios import atributos as _en_vivo, interval
 from componentes_plataforma.operacion_un_clic import al_cambiar as _oc_cambiar, pedir_terminos_si_corresponde
 from herramientas.puente_mt5 import NOMBRE_PROVEEDOR, inicializar_mt5, obtener_precio_actual, resolver_simbolo
 
+from herramientas.idempotencia_ordenes import nueva_clave
+
 from .cuenta import info_simbolo, margen, margen_libre
 from .ejecucion import ejecutar, ejecutar_oco
 from .confirmacion import renderizar_confirmacion
@@ -315,7 +317,7 @@ def renderizar_panel_orden(main=None):
                             st.session_state.orden_oco_confirmacion = {
                                 "real": real, "visible": visible, "dig": digitos, "ladoA": lado,
                                 "ladoB": oco_lado_b, "pa": pendiente, "pb": oco_precio_b,
-                                "vol": volumen, "gtc": gtc, "ta": tipo_pendiente, "tb": oco_tipo_b}
+                                "vol": volumen, "gtc": gtc, "ta": tipo_pendiente, "tb": oco_tipo_b, "clave": nueva_clave()}
                             st.rerun(scope="fragment")   # instantáneo (sin recargar el gráfico)
                     elif un_clic:
                         ejecutar(real, visible, side, volumen, stop_loss, take_profit, pendiente, gtc)
@@ -324,7 +326,7 @@ def renderizar_panel_orden(main=None):
                         st.session_state.orden_confirmacion = {
                             "real": real, "visible": visible, "dig": digitos, "side": side,
                             "vol": volumen, "sl": stop_loss, "tp": take_profit, "price": precio,
-                            "pend": pendiente, "gtc": gtc}
+                            "pend": pendiente, "gtc": gtc, "clave": nueva_clave()}
                         st.rerun(scope="fragment")   # instantáneo (sin recargar el gráfico)
 
             # --- Confirmación (tarjeta flotante abajo-derecha, formato naranja como el

@@ -47,10 +47,11 @@ Transportes y Servicios Ltda.
       function ordenMercado(lado){
         if (!BID || !ASK){ avisar('Sin precio en vivo: no se puede operar ahora', true); return; }
         var vol = volumenTicket(), compra = lado === 'BUY', precio = compra ? ASK : BID;
+        var clave = claveOrden();   // una por orden preparada (ver 50_envio_ordenes.js): evita abrirla dos veces si el envío se repite
         accion(compra ? 'Comprar a mercado' : 'Vender a mercado',
                '<b>' + (compra ? 'Compra' : 'Venta') + ' ' + fmt(vol, 2) + '</b> ' + REAL +
                ' al precio de mercado (~<b>' + fmt(precio, DIGITS) + '</b>)', function(){
-          post('/mercado', {symbol: REAL, lado: lado, volumen: vol}).then(function(res){
+          post('/mercado', {symbol: REAL, lado: lado, volumen: vol, clave: clave}).then(function(res){
             if (res.error){ avisar(res.error, true); return; }
             avisar((compra ? 'Comprados ' : 'Vendidos ') + fmt(res.volume || vol, 2) + ' lote(s) de ' + REAL +
                    ' a ' + fmt(res.price || precio, DIGITS), false);

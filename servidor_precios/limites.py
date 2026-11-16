@@ -55,6 +55,8 @@ MAX_VOLUMEN = 1000
 TEMPORALIDADES = {"M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1", "MN1"}
 _SIMBOLO = re.compile(r"^[A-Za-z0-9._#&/ -]{1,40}$")
 _TIPO_ORDEN = re.compile(r"^[A-Za-z_ ]{1,20}$")
+# Clave de idempotencia que manda el navegador con una orden nueva (opcional): 8 a 64 letras, números, guion o guion bajo
+_CLAVE_ORDEN = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
 
 # Archivo con las acciones de trading (una línea JSON por acción).
 RUTA_AUDITORIA = Path(__file__).resolve().parent.parent / "data" / "auditoria_trading.jsonl"
@@ -167,6 +169,15 @@ def _numero_opcional(valor, nombre: str, minimo: float = 0.0):
     return None if valor is None else _numero(valor, nombre, minimo=minimo)
 
 
+def _clave(valor):
+    """Clave de idempotencia opcional del cuerpo de una orden nueva: None si no viene; lanza ErrorSolicitud si no cumple el formato."""
+    if valor is None:
+        return None
+    if not isinstance(valor, str) or not _CLAVE_ORDEN.match(valor):
+        raise ErrorSolicitud("clave: no válida")
+    return valor
+
+
 def _ticket(valor):
     """Valida que el ticket sea un entero o un texto corto sin caracteres raros (dealId de Capital.com)."""
     if isinstance(valor, bool) or not isinstance(valor, (int, str)):
@@ -211,7 +222,7 @@ def validar_orden(ruta: str, datos) -> dict:
             raise ErrorSolicitud("lado: no válido")
         return {"symbol": simbolo_valido(datos.get("symbol")), "lado": tipo,
                 "volumen": _numero(datos.get("volumen"), "volumen", minimo_exclusivo=0, maximo=MAX_VOLUMEN),
-                "precio": _numero(datos.get("precio"), "precio", minimo_exclusivo=0)}
+                "precio": _numero(datos.get("precio"), "precio", minimo_exclusivo=0), "clave": _clave(datos.get("clave"))}
     if ruta == "orden/modificar":
         return {"ticket": _ticket(datos.get("ticket")), "precio": _numero_opcional(datos.get("precio"), "precio"),
                 "sl": _numero_opcional(datos.get("sl"), "sl"), "tp": _numero_opcional(datos.get("tp"), "tp"),
@@ -223,7 +234,7 @@ def validar_orden(ruta: str, datos) -> dict:
         if not isinstance(lado, str) or lado.upper() not in ("BUY", "SELL"):
             raise ErrorSolicitud("lado: no válido")
         return {"symbol": simbolo_valido(datos.get("symbol")), "lado": lado.upper(),
-                "volumen": _numero(datos.get("volumen"), "volumen", minimo_exclusivo=0, maximo=MAX_VOLUMEN)}
+                "volumen": _numero(datos.get("volumen"), "volumen", minimo_exclusivo=0, maximo=MAX_VOLUMEN), "clave": _clave(datos.get("clave"))}
     raise ErrorSolicitud("ruta desconocida")
 
 

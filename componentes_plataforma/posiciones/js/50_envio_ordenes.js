@@ -13,6 +13,17 @@ Transportes y Servicios Ltda.
    ------------------------------- INICIO Piña y Jara 50_envio_ordenes .JS -------------------------------
    ------------------------------------------------------------------------------------------------------- */
 
+      // TITULO CLAVE ORDEN
+
+      /**
+       * Clave de idempotencia para una orden nueva (POST /orden y /mercado): identifica ESTA orden preparada, no el envío. Si por un corte el envío se repite, el servidor ve
+       * la misma clave y no abre una segunda orden. Usa crypto.randomUUID si existe; si no, una cadena aleatoria.
+       */
+      function claveOrden(){
+        if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+        return 'k' + Date.now().toString(36) + Math.random().toString(36).slice(2, 12);
+      }
+
       // TITULO POST
 
       /**
@@ -105,9 +116,10 @@ Transportes y Servicios Ltda.
        */
       function nuevaOrden(nombre, px){
         var vol = volumenTicket(), lado = nombre.indexOf('Buy') === 0 ? 'BUY' : 'SELL';
+        var clave = claveOrden();   // una por orden preparada: si el confirmar llega dos veces, el servidor la abre una sola vez
         accion('Nueva orden pendiente', '<b>' + nombre + ' ' + fmt(vol, 2) + '</b> ' + REAL +
                ' @ <b>' + fmt(px, DIGITS) + '</b><br>Good till cancelled (GTC)', function(){
-          post('/orden', {symbol: REAL, lado: lado, volumen: vol, precio: px}).then(function(res){
+          post('/orden', {symbol: REAL, lado: lado, volumen: vol, precio: px, clave: clave}).then(function(res){
             if (res.error){ avisar(res.error, true); return; }
             if (res.order){
               var t = {'Buy Limit': 2, 'Sell Limit': 3, 'Buy Stop': 4, 'Sell Stop': 5}[res.tipo] || (lado === 'BUY' ? 2 : 3);

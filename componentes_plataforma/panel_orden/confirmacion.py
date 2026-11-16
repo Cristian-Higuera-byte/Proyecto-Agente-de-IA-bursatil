@@ -66,7 +66,7 @@ def renderizar_confirmacion():
                     registrar_resultado("error", "No tiene margen suficiente para colocar esta orden.")
                 else:
                     ejecutar(d["real"], d["visible"], d["side"], d["vol"], d["sl"],
-                             d["tp"], d["pend"], d["gtc"])
+                             d["tp"], d["pend"], d["gtc"], d.get("clave"))
                 st.session_state.orden_confirmacion = None
                 st.rerun(scope="fragment")
             if st.button("Cancelar", key="orden_confirmacion_cancelar", width="stretch"):
@@ -84,7 +84,7 @@ def renderizar_confirmacion():
                 f"<span style='color:#8b949e'>Cuando una se ejecute, la otra se cancela sola.</span></div>")
             if st.button("Colocar OCO", key="orden_confirmacion_aceptar", width="stretch"):
                 ejecutar_oco(d["real"], d["visible"], d["ladoA"], d["ladoB"],
-                             d["pa"], d["pb"], d["vol"], d["gtc"])
+                             d["pa"], d["pb"], d["vol"], d["gtc"], d.get("clave"))
                 st.session_state.orden_oco_confirmacion = None
                 st.rerun(scope="fragment")
             if st.button("Cancelar", key="orden_confirmacion_cancelar", width="stretch"):

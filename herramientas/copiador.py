@@ -38,7 +38,7 @@ import traceback
 from datetime import datetime, timedelta, timezone
 
 import configuracion
-from herramientas import comisiones, gestor_autenticacion
+from herramientas import comisiones, gestor_autenticacion, idempotencia_ordenes
 from herramientas.backends import sesiones_capital
 from herramientas.puente_mt5 import PROVEEDOR, cerrar_posicion, ejecutar_orden_mercado, obtener_info_cuenta, obtener_posiciones
 
@@ -306,7 +306,9 @@ def _abrir_nuevas(cliente, copia: dict, estrategia: dict, equity_seguidor: float
     if copia["estado"] != "activa":
         return 0
     abiertas = cliente.table(_OPERACIONES).select("*").eq("usuario_id", estrategia["gestor_id"]).eq("cuenta_tipo", estrategia.get("cuenta_tipo", "demo")).eq("estado", "abierta").execute().data or []
-    hechas = {o["operacion_origen_id"] for o in cliente.table(_OPS).select("operacion_origen_id").eq("copia_id", copia["id"]).execute().data or []}
+    # Las filas «pendiente» (el proceso se interrumpió, o el bróker no confirmó) NO cuentan como hechas: se reintentan con la MISMA clave de idempotencia, que no abre otra orden
+    # si la primera sí llegó al bróker, sino que devuelve su resultado.
+    hechas = {o["operacion_origen_id"] for o in cliente.table(_OPS).select("operacion_origen_id, estado").eq("copia_id", copia["id"]).execute().data or [] if o.get("estado") != "pendiente"}
     desde = str(copia.get("creada_en") or "")
     abiertas_ok = 0
     for o in sorted(abiertas, key=lambda x: str(x.get("abierta_en"))):
@@ -316,15 +318,18 @@ def _abrir_nuevas(cliente, copia: dict, estrategia: dict, equity_seguidor: float
             continue                                   # abierta antes de empezar a copiar
         fila = {"copia_id": copia["id"], "operacion_origen_id": o["id"], "volumen_origen": _n(o["volumen"]), "precio_origen": _n(o["precio_apertura"]), "estado": "pendiente"}
         try:
-            cliente.table(_OPS).insert(fila).execute()           # se reclama antes de enviar la orden: si se interrumpe, no se repite
-        except Exception:  # noqa: BLE001 - otro proceso la reclamó primero
-            continue
+            cliente.table(_OPS).insert(fila).execute()           # se reclama antes de enviar la orden
+        except Exception:  # noqa: BLE001 - ya estaba reclamada (otro proceso, o un intento anterior sin resolver): el envío es idempotente por su clave, así que se sigue
+            pass
         minimo, paso, maximo = _reglas_volumen(o["simbolo"])
         volumen, motivo = escalar_volumen(_n(o["volumen"]), _equity_gestor(cliente, estrategia, o), copia, minimo, paso, maximo)
         if volumen is None:
             cliente.table(_OPS).update({"estado": "fallida", "error": motivo, "actualizado_en": _ahora()}).eq("copia_id", copia["id"]).eq("operacion_origen_id", o["id"]).execute()
             continue
-        resultado = ejecutar_orden_mercado(o["simbolo"], "BUY" if o["lado"] == "compra" else "SELL", volumen, _n(o.get("stop_loss")), _n(o.get("take_profit")))
+        with idempotencia_ordenes.con_clave(f"copia:{copia['id']}:{o['id']}"):   # la misma copia de la misma operación nunca se abre dos veces
+            resultado = ejecutar_orden_mercado(o["simbolo"], "BUY" if o["lado"] == "compra" else "SELL", volumen, _n(o.get("stop_loss")), _n(o.get("take_profit")))
+        if resultado.get("incierto"):
+            continue                                       # el bróker no confirmó: la fila sigue «pendiente» y el próximo ciclo repite con la misma clave (no duplica)
         if "error" in resultado:
             cliente.table(_OPS).update({"estado": "fallida", "error": str(resultado["error"])[:300], "actualizado_en": _ahora()}).eq("copia_id", copia["id"]).eq("operacion_origen_id", o["id"]).execute()
             continue

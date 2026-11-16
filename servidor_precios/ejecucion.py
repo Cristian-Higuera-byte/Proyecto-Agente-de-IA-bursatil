@@ -20,7 +20,7 @@ import time
 
 from http.server import ThreadingHTTPServer
 
-from herramientas import token_datos
+from herramientas import idempotencia_ordenes, token_datos
 from herramientas.backends import sesiones_capital
 from herramientas.puente_mt5 import PROVEEDOR, inicializar_mt5
 
@@ -47,6 +47,30 @@ def _vigilar_cuentas() -> None:
         time.sleep(INTERVALO_DESCUBRIMIENTO)
 
 
+# TITULO RECONCILIAR ORDENES
+
+# Cada cuántos segundos se revisan las órdenes cuyo resultado quedó incierto
+INTERVALO_RECONCILIACION = 5
+
+
+def _reconciliar_ordenes() -> None:
+    """Hilo del servidor: resuelve contra el bróker las órdenes que se enviaron y cuyo resultado quedó incierto (V05).
+
+    Mira el registro de intentos (herramientas/idempotencia_ordenes.py) y, por cada usuario y cuenta con intentos sin resolver, le pregunta al bróker qué pasó con
+    cada uno, actuando como ese usuario. Un error se imprime y se reintenta en el próximo ciclo."""
+    while True:
+        try:
+            for usuario, cuenta in idempotencia_ordenes.duenos_con_inciertos():
+                clave = ("legado",) if usuario == "legado" else (int(usuario), cuenta == "demo")
+                with sesiones_capital.con_clave(clave):
+                    revisadas = sesiones_capital.modulo_actual().reconciliar_inciertos()
+                    if revisadas:
+                        print(f"[servidor] órdenes inciertas revisadas con el bróker: {revisadas} (usuario {usuario}, cuenta {cuenta})")
+        except Exception as error:
+            print(f"[servidor] no se pudieron reconciliar las órdenes inciertas: {error}")
+        time.sleep(INTERVALO_RECONCILIACION)
+
+
 # TITULO EJECUTAR
 
 def ejecutar() -> None:
@@ -71,6 +95,8 @@ def ejecutar() -> None:
         # Conecta con el broker y deja encendido el motor de la cuenta del .env antes de aceptar peticiones
         inicializar_mt5()
         MOTORES.de(("legado",))
+    if PROVEEDOR == "capital":
+        threading.Thread(target=_reconciliar_ordenes, name="reconciliar-ordenes", daemon=True).start()
     # Servidor HTTP solo en loopback; un hilo por petición (SSE mantiene conexiones largas)
     servidor = ThreadingHTTPServer(("127.0.0.1", PUERTO), Manejador)
     servidor.daemon_threads = True

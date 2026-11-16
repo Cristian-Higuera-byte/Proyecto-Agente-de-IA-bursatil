@@ -18,6 +18,7 @@ transiciones de estado se hacen con UPDATE condicionales para que cada propuesta
 from datetime import datetime, timedelta
 from typing import Any
 
+from herramientas import idempotencia_ordenes
 from nucleo_agente.ordenes.base_datos import _ahora, _consultar, _ejecutar, condicion_dueno
 from nucleo_agente.ordenes.envio import _enviar_apertura, _enviar_cierre
 from nucleo_agente.ordenes.mt5_utiles import NOMBRE_BROKER
@@ -52,7 +53,7 @@ def listar_pendientes() -> list[dict[str, Any]]:
     expirar_vencidas()
     dueno, valores = condicion_dueno()
     return _consultar(
-        "SELECT * FROM ordenes WHERE estado = 'PENDIENTE' AND COALESCE(origen, 'agente') != 'automatica'" + dueno + " ORDER BY creada, rowid", valores
+        "SELECT * FROM ordenes WHERE estado IN ('PENDIENTE', 'VERIFICANDO') AND COALESCE(origen, 'agente') != 'automatica'" + dueno + " ORDER BY creada, rowid", valores
     )
 
 
@@ -76,6 +77,32 @@ def rechazar_orden(id_orden: str) -> bool:
     ) == 1
 
 
+# TITULO RESULTADO PREVIO
+
+def _resultado_previo(o: dict[str, Any]) -> dict[str, Any] | None:
+    """Si esta propuesta de apertura ya tuvo un intento de envío (su clave existe), devuelve su desenlace SIN volver a validar ni enviar; si nunca se intentó, devuelve None.
+
+    Sirve cuando la confirmación anterior quedó incierta (el bróker no confirmó): al confirmar de nuevo no se revalida el riesgo (la posición ya pudo abrirse y alterar los
+    cálculos) ni se abre otra orden; se consulta al bróker qué pasó con la primera. Devuelve el diccionario de `_interpretar` ({ok, mensaje, ticket | estado})."""
+    from herramientas import paradas_emergencia
+    dueno = paradas_emergencia.dueno_actual()
+    if o["accion"] != "abrir" or dueno is None:
+        return None
+    fila = idempotencia_ordenes.leer(f"{dueno[0]}:{dueno[1]}:propuesta:{o['id']}")
+    if fila is None:
+        return None
+    resultado = idempotencia_ordenes.resultado_guardado(fila)
+    if resultado is None:
+        from herramientas.backends import sesiones_capital
+        modulo = sesiones_capital.modulo_actual()
+        resultado = modulo._reconciliar(fila) if hasattr(modulo, "_reconciliar") else {"error": "Verificando con el bróker.", "incierto": True}
+    if resultado.get("incierto"):
+        return {"ok": False, "estado": "VERIFICANDO", "mensaje": resultado["error"]}
+    if "error" in resultado:
+        return {"ok": False, "estado": "ERROR", "mensaje": str(resultado["error"])}
+    return {"ok": True, "ticket": resultado.get("order"), "mensaje": f"Ejecutado: {o['lado']} {o['volumen']} {o['simbolo']} a {resultado.get('price')}."}
+
+
 # TITULO CONFIRMAR ORDEN
 
 def confirmar_orden(id_orden: str) -> dict[str, Any]:
@@ -91,7 +118,7 @@ def confirmar_orden(id_orden: str) -> dict[str, Any]:
     dueno, valores = condicion_dueno()
     # Paso 1: se "reclama" la propuesta de forma atómica: si ya se ejecutó, venció o fue rechazada, no se repite.
     reclamada = _ejecutar(
-        "UPDATE ordenes SET estado = 'EJECUTANDO' WHERE id = ? AND estado = 'PENDIENTE' AND expira > ?" + dueno,
+        "UPDATE ordenes SET estado = 'EJECUTANDO' WHERE id = ? AND ((estado = 'PENDIENTE' AND expira > ?) OR estado = 'VERIFICANDO')" + dueno,
         (id_orden, _ahora(), *valores),
     )
     if reclamada == 0:
@@ -108,7 +135,11 @@ def confirmar_orden(id_orden: str) -> dict[str, Any]:
     # Paso 2: se envía a MT5 según la acción guardada (abrir o cerrar).
     o = _consultar("SELECT * FROM ordenes WHERE id = ?" + dueno, (id_orden, *valores))[0]
     try:
-        resultado = _enviar_apertura(o) if o["accion"] == "abrir" else _enviar_cierre(o)
+        # Clave de idempotencia = la propuesta: si el resultado quedó incierto y se confirma de nuevo, no se abre otra orden sino que se verifica la primera.
+        resultado = _resultado_previo(o)
+        if resultado is None:
+            with idempotencia_ordenes.con_clave(f"propuesta:{id_orden}"):
+                resultado = _enviar_apertura(o) if o["accion"] == "abrir" else _enviar_cierre(o)
     except Exception as e:  # noqa: BLE001
         resultado = {"ok": False, "estado": "ERROR", "mensaje": f"Error inesperado (revisa {NOMBRE_BROKER} por si la orden se envió): {e}"}
 

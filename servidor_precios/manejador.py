@@ -34,7 +34,7 @@ import traceback
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, unquote, urlparse
 
-from herramientas import token_datos
+from herramientas import idempotencia_ordenes, token_datos
 from herramientas.backends import sesiones_capital
 from herramientas.puente_mt5 import (colocar_orden_pendiente, ejecutar_orden_mercado, eliminar_orden,
                                      modificar_orden, modificar_sltp)
@@ -406,13 +406,15 @@ class Manejador(BaseHTTPRequestHandler):
                 if ruta == "sltp":
                     resultado = modificar_sltp(_tk(datos["ticket"]), datos["sl"], datos["tp"])
                 elif ruta == "orden":
-                    resultado = colocar_orden_pendiente(datos["symbol"], datos["lado"], datos["volumen"], datos["precio"])
+                    with idempotencia_ordenes.con_clave(datos.get("clave") and f"web:{datos['clave']}"):
+                        resultado = colocar_orden_pendiente(datos["symbol"], datos["lado"], datos["volumen"], datos["precio"])
                 elif ruta == "orden/modificar":
                     resultado = modificar_orden(_tk(datos["ticket"]), datos["precio"], datos["sl"], datos["tp"], datos["caducidad"], datos["expiracion"])
                 elif ruta == "orden/eliminar":
                     resultado = eliminar_orden(_tk(datos["ticket"]))
                 else:
-                    resultado = ejecutar_orden_mercado(datos["symbol"], datos["lado"], datos["volumen"])
+                    with idempotencia_ordenes.con_clave(datos.get("clave") and f"web:{datos['clave']}"):
+                        resultado = ejecutar_orden_mercado(datos["symbol"], datos["lado"], datos["volumen"])
             limites.auditar(id_correlacion, actor, ruta, "error" if isinstance(resultado, dict) and resultado.get("error") else "ok",
                             datos.get("symbol"), datos.get("lado"), datos.get("volumen"))
             self._responder(resultado)

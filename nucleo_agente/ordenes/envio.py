@@ -117,6 +117,9 @@ def _interpretar(resultado: Any, descripcion: str) -> dict[str, Any]:
     los códigos DONE y DONE_PARTIAL (este último se señala como ejecución parcial)."""
     if resultado is None:
         return {"ok": False, "estado": "ERROR", "mensaje": f"{NOMBRE_BROKER} no respondió: {mt5.last_error()}"}
+    if getattr(resultado, "incierto", False):
+        # El bróker no confirmó si la orden se abrió: NO es un rechazo. La propuesta queda «VERIFICANDO» y confirmarla otra vez usa la misma clave (no abre otra orden).
+        return {"ok": False, "estado": "VERIFICANDO", "mensaje": resultado.comment}
     if resultado.retcode not in (mt5.TRADE_RETCODE_DONE, mt5.TRADE_RETCODE_DONE_PARTIAL):
         return {
             "ok": False, "estado": "ERROR",

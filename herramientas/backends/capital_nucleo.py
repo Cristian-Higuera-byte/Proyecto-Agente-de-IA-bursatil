@@ -1482,15 +1482,8 @@ def obtener_velas_rango(symbol: str, marca_tiempo_desde: float, marca_tiempo_has
 # ---------------------------------------------------------------------------
 # Órdenes
 # ---------------------------------------------------------------------------
-def _confirmar(dealReference: str) -> dict:
-    """GET /confirms/{ref}: comprueba si la orden fue ACEPTADA y devuelve el dealId."""
-    if not dealReference:
-        return {"error": "Sin dealReference que confirmar"}
-    time.sleep(0.3)  # dar un instante a que la orden se procese
-    r = _pedir("GET", f"/confirms/{dealReference}")
-    if r is None or r.status_code != 200:
-        return {"error": f"No se pudo confirmar la orden ({dealReference})"}
-    d = r.json()
+def _interpretar_confirmacion(d: dict) -> dict:
+    """Convierte la respuesta de /confirms en {"ok", "dealId", "level", "size"} si la orden fue ACEPTADA, o en {"error": motivo} si no."""
     estado = str(d.get("dealStatus", "")).upper()
     if estado != "ACCEPTED":
         motivo = d.get("reason") or d.get("status") or estado or "rechazada"
@@ -1502,6 +1495,174 @@ def _confirmar(dealReference: str) -> dict:
     return {"ok": True, "dealId": dealId, "level": d.get("level"), "size": d.get("size")}
 
 
+def _confirmar(dealReference: str) -> dict:
+    """GET /confirms/{ref}: comprueba si la orden fue ACEPTADA y devuelve el dealId.
+
+    Si no se pudo consultar (sin respuesta o error del bróker) el resultado es INCIERTO, no un rechazo: el diccionario trae `incierto` en True y la orden debe reconciliarse."""
+    if not dealReference:
+        return {"error": "Sin dealReference que confirmar", "incierto": True}
+    time.sleep(0.3)  # dar un instante a que la orden se procese
+    r = _pedir("GET", f"/confirms/{dealReference}")
+    if r is None or r.status_code != 200:
+        return {"error": f"No se pudo confirmar la orden ({dealReference})", "incierto": True}
+    try:
+        return _interpretar_confirmacion(r.json())
+    except ValueError:
+        return {"error": f"No se pudo confirmar la orden ({dealReference})", "incierto": True}
+
+
+# TITULO IDEMPOTENCIA DE ORDENES
+
+# Texto para la persona mientras el bróker no confirma si la orden se abrió (no debe repetirla)
+_MENSAJE_VERIFICANDO = ("No recibimos la confirmación del bróker y la orden puede haberse abierto. Estamos verificándolo: NO la repitas. "
+                        "Revisa tu Cartera en unos segundos; si no aparece, se descarta sola.")
+
+
+def _dueno_orden():
+    """(usuario, cuenta) de quien opera ahora (ver herramientas/paradas_emergencia.py), o None si no hay un usuario identificado."""
+    from herramientas import paradas_emergencia
+    return paradas_emergencia.dueno_actual()
+
+
+def _cerrar_exito(k: str, tipo: str, epic: str, extra: dict, deal_id: str, nivel) -> dict:
+    """Marca el intento como confirmado, guarda el plan en el Trading Journal (órdenes a mercado con SL/TP) y arma el resultado de éxito que se devuelve."""
+    from herramientas import idempotencia_ordenes as idem
+    lotes = float(extra.get("lotes", 0.0))
+    if tipo == "mercado":
+        resultado = {"status": "success", "order": deal_id, "price": nivel or 0.0, "volume": lotes, "symbol": epic}
+        stop_loss, take_profit = extra.get("sl") or 0.0, extra.get("tp") or 0.0
+        if stop_loss > 0 or take_profit > 0:
+            try:
+                from herramientas import almacen_diario
+                almacen_diario.guardar_plan(deal_id, nivel or 0.0, stop_loss, take_profit, extra.get("lado", ""), epic, lotes)
+            except Exception:  # noqa: BLE001 - el diario es accesorio: no debe romper una orden ya abierta
+                pass
+    else:
+        resultado = {"status": "success", "order": deal_id, "price": float(extra.get("precio", 0.0)), "volume": lotes, "symbol": epic, "tipo": extra.get("nombre", "")}
+    idem.resolver(k, idem.CONFIRMADA, resultado)
+    _invalidar()
+    return resultado
+
+
+def _reconciliar(fila: dict) -> dict:
+    """Averigua con el bróker qué pasó con un intento de orden que quedó incierto y lo resuelve si puede.
+
+    1) Si hay referencia (dealReference), pregunta por su confirmación. 2) Si no, busca entre las posiciones (o las órdenes pendientes) una que coincida en instrumento, lado y tamaño
+    y que se haya creado después del intento (y que no sea de otro intento ya confirmado). 3) Si el bróker responde y no hay nada, y ya pasó el plazo de gracia, la orden no llegó.
+    Devuelve el resultado final ({"status": "success", ...} o {"error": ...}) o {"error": ..., "incierto": True} si aún no se sabe."""
+    from herramientas import idempotencia_ordenes as idem
+    k, extra = fila["k"], json.loads(fila.get("extra") or "{}")
+    incierto = {"error": _MENSAJE_VERIFICANDO, "incierto": True}
+    if fila.get("referencia"):
+        r = _pedir("GET", f"/confirms/{fila['referencia']}")
+        if r is not None and r.status_code == 200:
+            try:
+                confirmacion = _interpretar_confirmacion(r.json())
+            except ValueError:
+                confirmacion = {}
+            if confirmacion.get("ok"):
+                return _cerrar_exito(k, fila["tipo"], fila["epic"], extra, confirmacion["dealId"], confirmacion.get("level"))
+            if confirmacion.get("error"):
+                idem.resolver(k, idem.RECHAZADA, confirmacion)
+                return confirmacion
+    mercado = fila["tipo"] == "mercado"
+    r = _pedir("GET", "/positions" if mercado else "/workingorders")
+    if r is None or r.status_code != 200:
+        idem.resolver(k, idem.INCIERTA, {})
+        return incierto
+    try:
+        elementos = r.json().get("positions" if mercado else "workingOrders", [])
+    except ValueError:
+        idem.resolver(k, idem.INCIERTA, {})
+        return incierto
+    usados = idem.ids_usados((fila["usuario"], fila["cuenta"]))
+    candidatos = []
+    for elemento in elementos:
+        datos = elemento.get("position" if mercado else "workingOrderData", {}) or {}
+        mercado_datos = elemento.get("market" if mercado else "marketData", {}) or {}
+        epic = datos.get("epic") or mercado_datos.get("epic")
+        tamano = float(datos.get("size" if mercado else "orderSize", 0.0) or 0.0)
+        creada = _epoch_utc(datos.get("createdDateUTC", "") or datos.get("createdDate", ""))
+        if (epic == fila["epic"] and str(datos.get("direction", "")).upper() == fila["direccion"] and abs(tamano - fila["tamano"]) <= 1e-6 * max(1.0, fila["tamano"])
+                and str(datos.get("dealId", "")) not in usados and (not creada or creada >= fila["creado"] - 10)):
+            candidatos.append((creada, str(datos.get("dealId", "")), datos.get("level") if mercado else datos.get("orderLevel")))
+    if candidatos:
+        _, deal_id, nivel = sorted(candidatos)[0]
+        return _cerrar_exito(k, fila["tipo"], fila["epic"], extra, deal_id, float(nivel) if nivel else None)
+    enviado = fila.get("enviado")
+    if enviado is None or time.time() - enviado > idem.GRACIA_NO_RECIBIDA:
+        resultado = {"error": "La orden no llegó al bróker: no se abrió nada. Puedes enviarla de nuevo."}
+        idem.resolver(k, idem.RECHAZADA, resultado)
+        return resultado
+    idem.resolver(k, idem.INCIERTA, {})
+    return incierto
+
+
+def reconciliar_inciertos() -> int:
+    """Resuelve contra el bróker los intentos de orden inciertos del usuario y la cuenta actuales (lo llama el servidor de datos cada pocos segundos). Devuelve cuántos revisó."""
+    from herramientas import idempotencia_ordenes as idem
+    dueno = _dueno_orden()
+    if dueno is None:
+        return 0
+    revisados = 0
+    for fila in idem.inciertos_del_dueno(dueno):
+        _reconciliar(fila)
+        revisados += 1
+    return revisados
+
+
+def _enviar_orden(tipo: str, ruta: str, cuerpo: dict, epic: str, extra: dict) -> dict:
+    """Envía una orden al bróker una sola vez por clave de idempotencia y reconcilia si el resultado es incierto (V05).
+
+    `tipo` es «mercado» o «pendiente»; `extra` lleva lo necesario para armar el resultado (lotes, SL, TP, lado, precio, nombre). Si la misma clave ya se usó NO se reenvía: se devuelve
+    el resultado guardado (con `duplicada`) o se verifica con el bróker. Si el bróker no responde o no se puede confirmar, la orden queda «incierta», se reconcilia al momento
+    y, si aún no se sabe, se devuelve un aviso con `incierto` en True (nunca un fallo que invite a repetirla)."""
+    from herramientas import idempotencia_ordenes as idem
+    dueno = _dueno_orden()
+    if dueno is None:
+        return {"error": "No hay una sesión de usuario identificada: no se pueden abrir operaciones."}
+    direccion, tamano = cuerpo["direction"], cuerpo["size"]
+    inicio = idem.comenzar(dueno, idem.clave_actual() or idem.nueva_clave(), tipo, epic, direccion, tamano, extra)
+    if not inicio["nuevo"]:
+        fila = inicio["fila"]
+        guardado = idem.resultado_guardado(fila)
+        if guardado is not None:
+            return {**guardado, "duplicada": True}
+        if idem.es_incierta(fila):
+            return {**_reconciliar(fila), "duplicada": True}
+        return {"error": _MENSAJE_VERIFICANDO, "incierto": True, "duplicada": True}   # otra llamada con la misma clave sigue en vuelo
+    k = inicio["k"]
+    for previa in idem.inciertos_del_dueno(dueno, tipo, epic, direccion):
+        if previa["k"] != k and "incierto" in _reconciliar(previa):
+            resultado = {"error": "Hay una orden idéntica cuyo resultado aún se está verificando con el bróker. Espera unos segundos para no duplicarla."}
+            idem.resolver(k, idem.RECHAZADA, resultado)
+            return resultado
+    with _ORDEN_CANDADO:
+        idem.marcar_envio(k)
+        r = _pedir("POST", ruta, json=cuerpo)
+    if r is None or r.status_code >= 500:
+        idem.resolver(k, idem.INCIERTA, {})
+        return _reconciliar(idem.leer(k))
+    if r.status_code >= 400:
+        resultado = {"error": f"Fallo al enviar la orden (HTTP {r.status_code}): {r.text}"}
+        idem.resolver(k, idem.RECHAZADA, resultado)
+        return resultado
+    try:
+        referencia = r.json().get("dealReference", "")
+    except ValueError:
+        referencia = ""
+    if referencia:
+        idem.guardar_referencia(k, referencia)
+    confirmacion = _confirmar(referencia)
+    if confirmacion.get("incierto"):
+        idem.resolver(k, idem.INCIERTA, {})
+        return _reconciliar(idem.leer(k))
+    if "error" in confirmacion:
+        idem.resolver(k, idem.RECHAZADA, confirmacion)
+        return confirmacion
+    return _cerrar_exito(k, tipo, epic, extra, confirmacion["dealId"], confirmacion.get("level"))
+
+
 # TITULO EJECUTAR ORDEN MERCADO
 
 def _bloqueo_apertura():
@@ -1511,7 +1672,9 @@ def _bloqueo_apertura():
 
 
 def ejecutar_orden_mercado(symbol: str, tipo: str, volumen: float, stop_loss: float = 0.0, take_profit: float = 0.0) -> dict:
-    """Orden a mercado (BUY/SELL). Abre una posición en Capital.com. Antes de salir pasa por la política de apertura (paradas de emergencia y cuenta real)."""
+    """Orden a mercado (BUY/SELL). Abre una posición en Capital.com. Antes de salir pasa por la política de apertura (paradas de emergencia y cuenta real).
+
+    Se envía UNA sola vez por clave de idempotencia (ver herramientas/idempotencia_ordenes.py): quien origina la orden la fija con `con_clave`; si no hay una, se genera."""
     bloqueo = _bloqueo_apertura()
     if bloqueo:
         return {"error": bloqueo}
@@ -1521,26 +1684,7 @@ def ejecutar_orden_mercado(symbol: str, tipo: str, volumen: float, stop_loss: fl
         cuerpo["stopLevel"] = float(stop_loss)
     if take_profit and take_profit > 0:
         cuerpo["profitLevel"] = float(take_profit)
-    with _ORDEN_CANDADO:
-        r = _pedir("POST", "/positions", json=cuerpo)
-    if r is None:
-        return {"error": "Sin conexión con Capital.com"}
-    if r.status_code >= 400:
-        return {"error": f"Fallo al enviar orden (HTTP {r.status_code}): {r.text}"}
-    configuracion = _confirmar(r.json().get("dealReference", ""))
-    if "error" in configuracion:
-        return configuracion
-    # Trading Journal: guarda el plan (entrada + SL + TP) ligado a la posición.
-    if (stop_loss and stop_loss > 0) or (take_profit and take_profit > 0):
-        try:
-            from herramientas import almacen_diario
-            almacen_diario.guardar_plan(configuracion["dealId"], configuracion.get("level") or 0.0, stop_loss, take_profit,
-                                        tipo.upper(), epic, float(volumen))
-        except Exception:
-            pass
-    _invalidar()
-    return {"status": "success", "order": configuracion["dealId"], "price": configuracion.get("level") or 0.0,
-            "volume": float(volumen), "symbol": epic}
+    return _enviar_orden("mercado", "/positions", cuerpo, epic, {"lotes": float(volumen), "sl": float(stop_loss or 0.0), "tp": float(take_profit or 0.0), "lado": tipo.upper()})
 
 
 # TITULO COLOCAR ORDEN PENDIENTE
@@ -1552,7 +1696,7 @@ def colocar_orden_pendiente(symbol: str, tipo: str, volumen: float, precio: floa
     El tipo (LIMIT/STOP) se deduce igual que en MT5, según el precio vs mercado:
       COMPRA bajo el ask -> Buy Limit · sobre el ask -> Buy Stop
       VENTA sobre el bid -> Sell Limit · bajo el bid -> Sell Stop
-    Abrir una pendiente pasa por la política de apertura (paradas de emergencia y cuenta real)."""
+    Abrir una pendiente pasa por la política de apertura (paradas de emergencia y cuenta real) y se envía UNA sola vez por clave de idempotencia."""
     bloqueo = _bloqueo_apertura()
     if bloqueo:
         return {"error": bloqueo}
@@ -1575,18 +1719,7 @@ def colocar_orden_pendiente(symbol: str, tipo: str, volumen: float, precio: floa
     if not hasta_cancelar:   # solo hoy (DAY): caduca al final del día UTC
         fin = datetime.now(timezone.utc).replace(hour=23, minute=59, second=0, microsecond=0)
         cuerpo["goodTillDate"] = fin.strftime("%Y-%m-%dT%H:%M:%S")
-    with _ORDEN_CANDADO:
-        r = _pedir("POST", "/workingorders", json=cuerpo)
-    if r is None:
-        return {"error": "Sin conexión con Capital.com"}
-    if r.status_code >= 400:
-        return {"error": f"Fallo al colocar la orden pendiente (HTTP {r.status_code}): {r.text}"}
-    configuracion = _confirmar(r.json().get("dealReference", ""))
-    if "error" in configuracion:
-        return configuracion
-    _invalidar()
-    return {"status": "success", "order": configuracion["dealId"], "price": float(precio),
-            "volume": float(volumen), "symbol": epic, "tipo": nombre}
+    return _enviar_orden("pendiente", "/workingorders", cuerpo, epic, {"lotes": float(volumen), "precio": float(precio), "nombre": nombre, "lado": tipo.upper()})
 
 
 # TITULO CERRAR POSICION
