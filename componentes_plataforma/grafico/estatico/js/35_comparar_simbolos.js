@@ -184,7 +184,7 @@ Transportes y Servicios Ltda.
     function cargarComparado(c){
       if (repeticionActivo){ repeticionCargarComparado(c); return; }   // en replay el comparado carga su historial largo y avanza con el principal
       var iconoMaterialId = ++c.req, tf = temporalidadActual, n = nBarrasActual;
-      fetch(API + '/velas/' + encodeURIComponent(c.sym) + '?tf=' + tf + '&n=' + n)
+      fetch(API + '/velas/' + encodeURIComponent(c.sym) + '?tf=' + tf + '&n=' + n, {credentials: 'include'})
         .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
         .then(function(v){
           if (iconoMaterialId !== c.req || comparados.indexOf(c) < 0) return;
@@ -321,7 +321,7 @@ Transportes y Servicios Ltda.
     function cargarCatalogo(){
       if (catalogoSimbolos !== null || catalogoEstado === 'cargando') return;
       catalogoEstado = 'cargando'; renderizarListaComparar(compararInput.value);
-      fetch(API + '/simbolos')
+      fetch(API + '/simbolos', {credentials: 'include'})
         .then(function(r){ return r.json(); })
         .then(function(v){
           if (Array.isArray(v) && v.length) { catalogoSimbolos = ordenarCatalogo(v); catalogoEstado = ''; } else { catalogoEstado = 'sin_servidor'; }
@@ -379,7 +379,7 @@ Transportes y Servicios Ltda.
       comparados.forEach(function(c){
         if (!c.datos.length || c.error) return;
         var tf = temporalidadActual, id = c.req;
-        fetch(API + '/ultima/' + encodeURIComponent(c.sym) + '?tf=' + tf)
+        fetch(API + '/ultima/' + encodeURIComponent(c.sym) + '?tf=' + tf, {credentials: 'include'})
           .then(function(r){ return r.json(); })
           .then(function(v){
             if (tf !== temporalidadActual || id !== c.req || !v || !v.time || comparados.indexOf(c) < 0) return;

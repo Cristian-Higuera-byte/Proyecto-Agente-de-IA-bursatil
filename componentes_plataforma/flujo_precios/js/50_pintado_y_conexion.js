@@ -54,7 +54,7 @@ Transportes y Servicios Ltda.
     if (es) es.close();
     actuales = lista;
     // Una sola conexión SSE con todos los símbolos visibles.
-    es = new EventSource(API + '/stream?s=' + encodeURIComponent(lista));
+    es = new EventSource(API + '/stream?s=' + encodeURIComponent(lista), {withCredentials: true});
     es.onmessage = function(ev){
       var m;
       try { m = JSON.parse(ev.data); } catch(e) { return; }

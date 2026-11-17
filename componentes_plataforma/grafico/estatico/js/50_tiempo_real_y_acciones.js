@@ -72,7 +72,7 @@ Transportes y Servicios Ltda.
       var temporalidadLlamada = temporalidadActual;
       var idLlamada = cargaId;
       sondeoEnCurso = true;
-      fetch(API + "/ultima/" + encodeURIComponent(SIMBOLO) + "?tf=" + temporalidadLlamada)
+      fetch(API + "/ultima/" + encodeURIComponent(SIMBOLO) + "?tf=" + temporalidadLlamada, {credentials: 'include'})
         .then(function(r){ return r.json(); })
         .then(function(v){
           if (temporalidadLlamada !== temporalidadActual || idLlamada !== cargaId) return;

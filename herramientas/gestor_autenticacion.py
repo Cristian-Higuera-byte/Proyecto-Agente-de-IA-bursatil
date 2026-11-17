@@ -450,9 +450,8 @@ def restablecer_contrasena(token: str, nueva: str) -> dict:
         usuario_id = verificacion_correo.restablecer_atomico(_supabase, token, _cifrar_contrasena(nueva), verificacion_activa())
         if usuario_id is None:
             return {"ok": False, "mensaje": "El enlace no es válido o ya venció. Pide uno nuevo."}
-        from herramientas import sesion_persistente, token_datos
-        sesion_persistente.revocar_todas(usuario_id)
-        token_datos.revocar_usuario(usuario_id)      # el token del servidor de datos y sus conexiones en vivo también dejan de servir
+        from herramientas import sesion_persistente
+        sesion_persistente.revocar_todas(usuario_id)      # la cookie de sesión deja de servir también en el servidor de datos: sus conexiones en vivo se cortan en segundos
         return {"ok": True, "mensaje": "Contraseña actualizada. Ya puedes iniciar sesión."}
     except Exception as e:
         return _error_neutro("el restablecimiento de la contraseña", e)

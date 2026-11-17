@@ -347,7 +347,7 @@ Transportes y Servicios Ltda.
       var boton = document.getElementById('backtest-ejecutar'), configuracion = backtestConfiguracion;
       backtestResultado.innerHTML = '';
       boton.disabled = true; boton.textContent = 'Descargando ' + configuracion.n + ' velas…';
-      fetch(API + '/velas/' + encodeURIComponent(SIMBOLO) + '?tf=' + temporalidadActual + '&n=' + configuracion.n)
+      fetch(API + '/velas/' + encodeURIComponent(SIMBOLO) + '?tf=' + temporalidadActual + '&n=' + configuracion.n, {credentials: 'include'})
         .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
         .then(function(datos){
           if (!Array.isArray(datos) || datos.length < 50) throw new Error('MT5 devolvió muy pocas velas (' + (datos ? datos.length : 0) + ').');

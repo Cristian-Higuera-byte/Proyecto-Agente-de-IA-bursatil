@@ -107,7 +107,7 @@ Transportes y Servicios Ltda.
     function repeticionHistorial(sym, tf){
       var k = sym + '|' + tf, h = repeticionPrecarga[k];
       if (h && Date.now() - h.t < REPETICION_CACHE_MS) return h.p;
-      var p = fetch(API + '/velas/' + encodeURIComponent(sym) + '?tf=' + tf + '&n=' + REPETICION_MAXIMO_VELAS)
+      var p = fetch(API + '/velas/' + encodeURIComponent(sym) + '?tf=' + tf + '&n=' + REPETICION_MAXIMO_VELAS, {credentials: 'include'})
         .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
         .then(function(v){ if (!Array.isArray(v) || !v.length) throw new Error('sin datos'); return v; });
       repeticionPrecarga[k] = { t: Date.now(), p: p };

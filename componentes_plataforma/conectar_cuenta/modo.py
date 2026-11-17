@@ -29,7 +29,7 @@ from typing import Optional
 
 import streamlit as st
 
-from herramientas import almacen_sesiones, credenciales_bolsa, token_datos
+from herramientas import almacen_sesiones, credenciales_bolsa
 from herramientas.backends import sesiones_capital
 
 # Claves de st.session_state
@@ -147,14 +147,13 @@ def resolver_usuario_y_modo() -> Optional[tuple]:
 def url_servidor(url_base: str) -> str:
     """Devuelve la dirección del servidor de datos que debe usar el navegador de ESTE usuario.
 
-    Con el modo multiusuario apagado es la misma dirección de siempre. Encendido, le agrega el token firmado del
-    usuario y su cuenta actual (`<url>/t/<token>`), con lo que el servidor sabe quién es y con qué cuenta operar."""
+    Con el modo multiusuario apagado es la misma dirección de siempre. Encendido, le agrega la cuenta que usa ahora el usuario (`<url>/t/demo` o `<url>/t/real`). Quién es el usuario
+    lo dice la cookie de sesión, que el navegador manda sola y el servidor valida: la dirección ya no lleva ningún token."""
     if not sesiones_capital.MULTIUSUARIO:
         return url_base
-    usuario_id = usuario_id_actual()
-    if usuario_id is None:
+    if usuario_id_actual() is None:
         return url_base
-    return token_datos.url_con_token(url_base, usuario_id, modo_activo_demo(), _identificador_sesion())
+    return f"{url_base.rstrip('/')}/t/{'demo' if modo_activo_demo() else 'real'}"
 
 
 # TITULO REGISTRAR RESOLVEDOR

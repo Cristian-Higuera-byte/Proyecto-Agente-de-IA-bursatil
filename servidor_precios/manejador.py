@@ -21,12 +21,14 @@ LÍMITES Y ERRORES (V04): tamaño del cuerpo, tiempo por conexión, conexiones y
 limites.py; los datos de cada orden se validan antes de llamar al bróker (400). Ante una excepción el cliente recibe un mensaje
 neutro con un ID de correlación (el detalle queda solo en el registro del servidor) y cada acción de trading queda en la auditoría.
 
-MULTIUSUARIO: con `CAPITAL_MULTIUSUARIO` encendido cada petición debe traer el token firmado del usuario dentro de la
-dirección (`/t/<token>/stream?...`, ver herramientas/token_datos.py); sin token válido responde 401 (salvo /salud).
-El token dice quién es el usuario y con qué cuenta (demo o real) opera: la petición entera se ejecuta con la sesión de
-Capital.com, el motor y las carpetas de datos de ESA cuenta, nunca con las de otra.
+MULTIUSUARIO: con `CAPITAL_MULTIUSUARIO` encendido cada petición debe traer la cookie de sesión `pj_sesion` (HttpOnly, la emite este mismo servidor; ver herramientas/boleto_sesion.py) y
+la cuenta que se usa dentro de la dirección (`/t/demo/stream?...` o `/t/real/...`); sin sesión válida responde 401 (salvo /salud). La cookie se valida contra la sesión guardada en la base
+(herramientas/sesion_persistente.py), de modo que cerrar la sesión la invalida al instante. La sesión dice quién es el usuario y la dirección con qué cuenta (demo o real) opera: la petición
+entera se ejecuta con la sesión de Capital.com, el motor y las carpetas de datos de ESA cuenta, nunca con las de otra.
+`POST /t/sesion` canjea un boleto de un solo uso por la cookie (Set-Cookie) y `POST /t/sesion/cerrar` la borra.
 """
 import json
+import os
 import sys
 import threading
 import time
@@ -34,7 +36,7 @@ import traceback
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, unquote, urlparse
 
-from herramientas import idempotencia_ordenes, token_datos
+from herramientas import boleto_sesion, idempotencia_ordenes, sesion_persistente
 from herramientas.backends import sesiones_capital
 from herramientas.puente_mt5 import (colocar_orden_pendiente, ejecutar_orden_mercado, eliminar_orden,
                                      modificar_orden, modificar_sltp)
@@ -47,8 +49,11 @@ from .simbolos import listar_simbolos
 from .velas import obtener_ultima, obtener_velas, precalentar
 
 
-# Cada cuántos segundos una conexión de precios en vivo vuelve a comprobar que el token sigue vigente
+# Cada cuántos segundos una conexión de precios en vivo vuelve a comprobar que la sesión sigue vigente
 REVISION_STREAM_S = 5
+
+# Segundos que se recuerda el resultado de comprobar una sesión antes de volver a preguntar a la base: cerrar sesión corta el acceso en ese tiempo
+MEMORIA_SESION_S = 5
 
 # Contadores compartidos por todas las peticiones: frecuencia por cuenta, streams abiertos por cuenta y conexiones abiertas en total
 _FRECUENCIA = limites.Frecuencia()
@@ -116,18 +121,21 @@ class Manejador(BaseHTTPRequestHandler):
         origen = self._origen_permitido()
         if origen:
             self.send_header("Access-Control-Allow-Origin", origen)
+            self.send_header("Access-Control-Allow-Credentials", "true")     # el navegador manda la cookie de sesión (en producción la página y el servidor comparten dominio)
             self.send_header("Vary", "Origin")
 
     # TITULO RESPONDER
 
-    def _responder(self, obj):
-        """Envía `obj` serializado como JSON con estado 200 y cabecera CORS (si el origen es local)."""
+    def _responder(self, obj, cookie=None):
+        """Envía `obj` serializado como JSON con estado 200 y cabecera CORS (si el origen es local); con `cookie` agrega esa cabecera `Set-Cookie`."""
         # Serializa a bytes UTF-8 para calcular Content-Length exacto
         cuerpo = json.dumps(obj).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(cuerpo)))
         self.send_header("Cache-Control", "no-store")     # datos de la cuenta: ni el navegador ni un proxy los guardan
+        if cookie:
+            self.send_header("Set-Cookie", cookie)
         self._cabecera_cors()   # permite el fetch desde el iframe del gráfico (solo localhost)
         self.end_headers()
         self.wfile.write(cuerpo)
@@ -161,39 +169,77 @@ class Manejador(BaseHTTPRequestHandler):
     # TITULO IDENTIFICAR
 
     def _identificar(self, mutacion=False):
-        """Averigua de qué cuenta es la petición y deja `self.path` sin el prefijo del token.
+        """Averigua de qué cuenta es la petición y deja `self.path` sin el prefijo `/t/<cuenta>`.
 
-        La dirección puede venir como `/t/<token>/ruta`. Encendido el multiusuario, devuelve (usuario_id, es_demo) si el token es auténtico y vigente; si no, responde 401
-        y devuelve None (quien llama debe terminar). En modo legado (multiusuario apagado) se devuelve ("legado",) pero se exige token válido para cualquier mutación (POST).
-        `/salud` es pública.
+        La dirección puede venir como `/t/demo/ruta` o `/t/real/ruta`. Encendido el multiusuario, devuelve (usuario_id, es_demo) si la cookie de sesión es válida; si no, responde 401
+        (sin sesión, sesión cerrada, vencida o por inactividad, o dirección sin cuenta) y devuelve None (quien llama debe terminar). En modo legado (multiusuario apagado) se devuelve
+        ("legado",) pero se exige una sesión válida para cualquier mutación (POST). `/salud` es pública.
 
-        El token firmado no basta: se consulta si la persona cerró sesión (en este dispositivo, en todos o al cambiar la contraseña) después de emitirlo, y si es así responde
-        401. Si no se puede comprobar (la base no responde) las lecturas siguen con el último resultado conocido, pero una petición que modifica (`mutacion=True`) se rechaza con 503."""
+        La sesión se comprueba contra la base, con una memoria de MEMORIA_SESION_S segundos: cerrar sesión (en este dispositivo, en todos o al cambiar la contraseña) la invalida
+        de inmediato. Si no se puede comprobar (la base no responde) las lecturas siguen con el último resultado conocido, pero una petición que modifica (`mutacion=True`) y
+        una sesión nunca vista responden 503."""
         analizada = urlparse(self.path)
         partes = analizada.path.split("/")
-        token = ""
+        cuenta = ""
         if len(partes) >= 3 and partes[1] == "t":
-            token = unquote(partes[2])
+            cuenta = unquote(partes[2])
             self.path = "/" + "/".join(partes[3:]) + (("?" + analizada.query) if analizada.query else "")
         if urlparse(self.path).path.strip("/") == "salud":
             return ("anonimo",)
-        # En modo legado, solo se exige token para mutaciones (POST); los GET sin token se permiten
+        # En modo legado, solo se exige sesión para mutaciones (POST); los GET sin sesión se permiten
         if not sesiones_capital.MULTIUSUARIO and not mutacion:
             return ("legado",)
-        # Validar token: requerido en multiusuario o en mutaciones de legado
-        datos = token_datos.leer(token) if token else None
-        if datos is None:
+        token = boleto_sesion.leer_cookie(self.headers.get("Cookie", ""))
+        if not token or (sesiones_capital.MULTIUSUARIO and cuenta not in ("demo", "real")):
             self._rechazar(401, "no autorizado")
             return None
-        revocado = token_datos.esta_revocado(datos)
-        if revocado:
-            self._rechazar(401, "sesión cerrada")
+        resultado = sesion_persistente.consultar(token, memoria_s=MEMORIA_SESION_S)
+        usuario = resultado["usuario"]
+        if usuario is None:
+            if resultado["incierto"]:
+                self._rechazar(503, "no se pudo comprobar la sesión")
+            else:
+                self._rechazar(401, "sesión cerrada")
             return None
-        if revocado is None and mutacion:
+        if resultado["incierto"] and mutacion:
             self._rechazar(503, "no se pudo comprobar la sesión")
             return None
-        self._datos_token = datos
-        return (datos["u"], datos["d"]) if sesiones_capital.MULTIUSUARIO else ("legado",)
+        self._sesion_token = token
+        return (int(usuario["id"]), cuenta == "demo") if sesiones_capital.MULTIUSUARIO else ("legado",)
+
+    # TITULO COOKIE SEGURA
+
+    def _cookie_segura(self) -> bool:
+        """True si la plataforma se sirve por HTTPS (PLATAFORMA_URL con https o el proxy lo indica en X-Forwarded-Proto): entonces la cookie lleva `Secure`."""
+        return os.environ.get("PLATAFORMA_URL", "").strip().lower().startswith("https://") or (self.headers.get("X-Forwarded-Proto", "") or "").lower() == "https"
+
+    # TITULO ATENDER SESION
+
+    def _atender_sesion(self, cerrar):
+        """`POST /t/sesion` (canjea un boleto por la cookie de sesión) y `POST /t/sesion/cerrar` (la borra).
+
+        Solo desde páginas de la propia plataforma (Origin permitido). El boleto lo emite Streamlit para el usuario ya autenticado: lleva el token de la sesión, vence a los 60 segundos y
+        se canjea una sola vez; además la sesión debe seguir vigente en la base. La cookie se emite con HttpOnly, SameSite=Lax y, con HTTPS, Secure, y dura lo que la sesión persistente."""
+        if not self._origen_local():
+            self._rechazar(403, "origen no permitido")
+            return
+        try:
+            n = int(self.headers.get("Content-Length", 0) or 0)
+        except ValueError:
+            n = -1
+        if n < 0 or n > boleto_sesion.MAX_BOLETO:
+            self.close_connection = True
+            self._rechazar(413 if n > 0 else 400, limites.MENSAJE_CUERPO_GRANDE if n > 0 else limites.MENSAJE_SOLICITUD_INVALIDA)
+            return
+        cuerpo = self.rfile.read(n) if n else b""
+        if cerrar:
+            self._responder({"ok": True}, boleto_sesion.cabecera_set_cookie("", 0, self._cookie_segura()))
+            return
+        token = boleto_sesion.canjear(cuerpo.decode("utf-8", "replace").strip())
+        if not token or sesion_persistente.consultar(token, memoria_s=0)["usuario"] is None:
+            self._rechazar(401, "boleto no válido")
+            return
+        self._responder({"ok": True}, boleto_sesion.cabecera_set_cookie(token, sesion_persistente.DIAS_DURACION * 24 * 3600, self._cookie_segura()))
 
     # TITULO STREAM
 
@@ -218,16 +264,17 @@ class Manejador(BaseHTTPRequestHandler):
         # seq = último cambio ya enviado a este cliente
         seq = 0
         ultimo_envio = time.time()
-        datos_token = getattr(self, "_datos_token", None)     # None con el modo multiusuario apagado
+        token_sesion = getattr(self, "_sesion_token", None)     # None con el modo multiusuario apagado y una lectura sin sesión
         ultima_revision = time.time()
         try:
             # Indica al navegador reconectar a los 2 s si se corta
             self.wfile.write(b"retry: 2000\n\n")
             while not motor._detenido:     # si el motor se apagó, se corta: el navegador reconecta y recibe uno nuevo
-                # Cada pocos segundos se vuelve a comprobar el token: si la persona cerró sesión o el token venció, se corta la conexión (la reconexión recibe 401)
-                if datos_token is not None and time.time() - ultima_revision >= REVISION_STREAM_S:
+                # Cada pocos segundos se vuelve a comprobar la sesión: si la persona cerró sesión (o venció por inactividad), se corta la conexión (la reconexión recibe 401)
+                if token_sesion is not None and time.time() - ultima_revision >= REVISION_STREAM_S:
                     ultima_revision = time.time()
-                    if datos_token["e"] < ultima_revision or token_datos.esta_revocado(datos_token):
+                    comprobada = sesion_persistente.consultar(token_sesion, memoria_s=MEMORIA_SESION_S)
+                    if comprobada["usuario"] is None and not comprobada["incierto"]:
                         self.close_connection = True
                         break
                 # Solo lo que cambió desde la última secuencia enviada
@@ -253,7 +300,7 @@ class Manejador(BaseHTTPRequestHandler):
     # TITULO DO GET
 
     def do_GET(self):
-        """Identifica la cuenta de la petición (token) y atiende el GET con la sesión y el motor de esa cuenta."""
+        """Identifica la cuenta de la petición (cookie de sesión y cuenta en la dirección) y atiende el GET con la sesión y el motor de esa cuenta."""
         clave = self._identificar()
         if clave is None:
             return
@@ -346,7 +393,11 @@ class Manejador(BaseHTTPRequestHandler):
     # TITULO DO POST
 
     def do_POST(self):
-        """Identifica la cuenta de la petición (token) y atiende el POST con la sesión de esa cuenta."""
+        """Atiende `POST /t/sesion` y `/t/sesion/cerrar` (la cookie de sesión); el resto identifica la cuenta de la petición (cookie) y atiende el POST con la sesión de esa cuenta."""
+        ruta_sesion = urlparse(self.path).path.rstrip("/")
+        if ruta_sesion in ("/t/sesion", "/t/sesion/cerrar"):
+            self._atender_sesion(ruta_sesion.endswith("/cerrar"))
+            return
         clave = self._identificar(mutacion=True)
         if clave is None:
             return

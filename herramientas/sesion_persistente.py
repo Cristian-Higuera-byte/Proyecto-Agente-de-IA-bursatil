@@ -25,6 +25,7 @@ Desde el 12-11-2026 esta cookie es lo ÚNICO que mantiene la sesión (la direcci
 aquí. Por eso `validar` recuerda 30 segundos las sesiones ya comprobadas, para que las recargas seguidas no repitan las consultas a la base.
 """
 import hashlib
+import os
 import secrets
 import time
 from datetime import datetime, timedelta, timezone
@@ -33,13 +34,17 @@ from typing import Optional
 from herramientas import gestor_autenticacion
 
 # Nombre de la cookie del navegador y días que dura una sesión persistente desde que se crea.
-NOMBRE_COOKIE = "pj_sesion"
+from herramientas.boleto_sesion import NOMBRE_COOKIE  # noqa: F401 - se reexporta: la usan acceso/cookie.py y las pruebas
 DIAS_DURACION = 30
 # Máximo de dispositivos con sesión abierta por usuario; al iniciar sesión en uno más se cierra la sesión que hace más tiempo no se usa.
 MAX_DISPOSITIVOS = 5
 # Segundos que `validar` recuerda una sesión ya comprobada, y las sesiones recordadas {hash del token: (usuario, instante)}. Cerrar sesión (`revocar`, `revocar_todas`) las olvida al instante.
 MEMORIA_S = 30
 _validadas: dict = {}
+# Horas sin usarse tras las cuales una sesión vence aunque no haya cumplido sus DIAS_DURACION (variable SESION_INACTIVIDAD_HORAS del .env; por defecto 24)
+INACTIVIDAD_HORAS = float(os.environ.get("SESION_INACTIVIDAD_HORAS", "24") or 24)
+# Cada cuántos segundos como máximo se anota el último uso de una sesión (para no escribir en la base en cada consulta)
+ACTUALIZAR_USO_S = 60
 
 
 # TITULO HASH
@@ -84,38 +89,70 @@ def crear(usuario_id, dispositivo: str = "", reemplaza_token: str = "") -> Optio
     return token
 
 
-# TITULO VALIDAR
+# TITULO FECHA
 
-def validar(token: str) -> Optional[dict]:
-    """Devuelve el usuario ({id, nombre, email}) dueño del token, o None si no existe, venció o falla la consulta.
-
-    Busca la fila por el hash del token y comprueba el vencimiento; si es válida anota la fecha de último uso y lee los datos del usuario.
-    """
-    cliente = gestor_autenticacion._supabase
-    if cliente is None or not token:
+def _fecha(texto):
+    """Convierte un texto de fecha ISO de la base de datos a datetime con zona horaria, o None si falta o no se entiende."""
+    if not texto:
         return None
-    recordada = _validadas.get(_hash(token))
-    if recordada is not None and time.time() - recordada[1] < MEMORIA_S:
-        return dict(recordada[0])
     try:
-        fila = cliente.table("sesiones_persistentes").select("id, usuario_id, expira_en").eq("token_hash", _hash(token)).limit(1).execute()
+        fecha = datetime.fromisoformat(str(texto).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return fecha if fecha.tzinfo else fecha.replace(tzinfo=timezone.utc)
+
+
+# TITULO CONSULTAR
+
+def consultar(token: str, memoria_s: float = MEMORIA_S) -> dict:
+    """Comprueba la sesión de ese token y devuelve {"usuario": {id, nombre, email} | None, "incierto": bool}.
+
+    `usuario` es None si el token no existe, venció, lleva más de INACTIVIDAD_HORAS sin usarse (la fila se borra) o se revocó. `incierto` es True cuando NO se pudo comprobar
+    (la base no responde): en ese caso `usuario` trae el último resultado conocido de ese token, si lo hay. Un resultado ya comprobado se recuerda `memoria_s` segundos (el servidor
+    de datos usa 5 para que cerrar sesión corte los canales en vivo en segundos). El último uso se anota como mucho cada ACTUALIZAR_USO_S segundos."""
+    cliente = gestor_autenticacion._supabase
+    if not token:
+        return {"usuario": None, "incierto": False}
+    if cliente is None:
+        return {"usuario": None, "incierto": True}
+    huella = _hash(token)
+    recordada = _validadas.get(huella)
+    ahora = time.time()
+    if recordada is not None and ahora - recordada[1] < memoria_s:
+        return {"usuario": dict(recordada[0]), "incierto": False}
+    try:
+        fila = cliente.table("sesiones_persistentes").select("id, usuario_id, expira_en, ultimo_uso").eq("token_hash", huella).limit(1).execute()
         if not fila.data:
-            return None
+            _validadas.pop(huella, None)
+            return {"usuario": None, "incierto": False}
         sesion = fila.data[0]
-        if datetime.fromisoformat(str(sesion["expira_en"]).replace("Z", "+00:00")) <= datetime.now(timezone.utc):
-            return None
-        cliente.table("sesiones_persistentes").update({"ultimo_uso": datetime.now(timezone.utc).isoformat()}).eq("id", sesion["id"]).execute()
+        instante = datetime.now(timezone.utc)
+        ultimo = _fecha(sesion.get("ultimo_uso"))
+        if _fecha(sesion.get("expira_en")) is None or _fecha(sesion["expira_en"]) <= instante or (ultimo is not None and (instante - ultimo).total_seconds() > INACTIVIDAD_HORAS * 3600):
+            _validadas.pop(huella, None)
+            cliente.table("sesiones_persistentes").delete().eq("id", sesion["id"]).execute()      # vencida o inactiva: se borra, ya no sirve
+            return {"usuario": None, "incierto": False}
+        if ultimo is None or (instante - ultimo).total_seconds() > ACTUALIZAR_USO_S:
+            cliente.table("sesiones_persistentes").update({"ultimo_uso": instante.isoformat()}).eq("id", sesion["id"]).execute()
         usuario = cliente.table("usuarios").select("id, nombre, email").eq("id", sesion["usuario_id"]).limit(1).execute()
         if not usuario.data:
-            return None
+            _validadas.pop(huella, None)
+            return {"usuario": None, "incierto": False}
         datos = usuario.data[0]
         validado = {"id": datos.get("id"), "nombre": datos.get("nombre"), "email": datos.get("email")}
         if len(_validadas) > 2000:
             _validadas.clear()
-        _validadas[_hash(token)] = (validado, time.time())
-        return dict(validado)
-    except Exception:
-        return None
+        _validadas[huella] = (validado, ahora)
+        return {"usuario": dict(validado), "incierto": False}
+    except Exception:  # noqa: BLE001 - la base no responde: se devuelve lo último que se sabía
+        return {"usuario": dict(recordada[0]) if recordada is not None else None, "incierto": True}
+
+
+# TITULO VALIDAR
+
+def validar(token: str) -> Optional[dict]:
+    """Devuelve el usuario ({id, nombre, email}) dueño del token, o None si no existe, venció, está inactiva o falla la consulta (ver `consultar`)."""
+    return consultar(token)["usuario"]
 
 
 # TITULO REVOCAR

@@ -123,7 +123,7 @@ Transportes y Servicios Ltda.
       nBarrasActual = n;
       var iconoMaterialId = ++cargaId;
       cargando = true;
-      fetch(API + "/velas/" + encodeURIComponent(SIMBOLO) + "?tf=" + tf + "&n=" + n)
+      fetch(API + "/velas/" + encodeURIComponent(SIMBOLO) + "?tf=" + tf + "&n=" + n, {credentials: 'include'})
         .then(function(r){
           if (!r.ok) throw new Error('HTTP ' + r.status);
           return r.json();

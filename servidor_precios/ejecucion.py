@@ -20,7 +20,7 @@ import time
 
 from http.server import ThreadingHTTPServer
 
-from herramientas import idempotencia_ordenes, token_datos
+from herramientas import boleto_sesion, idempotencia_ordenes
 from herramientas.backends import sesiones_capital
 from herramientas.puente_mt5 import PROVEEDOR, inicializar_mt5
 
@@ -87,9 +87,9 @@ def ejecutar() -> None:
     if PROVEEDOR == "capital":
         sesiones_capital.fijar_limite_peticiones(4)
     if sesiones_capital.MULTIUSUARIO:
-        if not token_datos.emitir(0, True):
+        if not boleto_sesion.configurado():
             raise SystemExit("Modo multiusuario sin SERVIDOR_SECRETO (mínimo 32 caracteres) en el .env: "
-                             "genera uno con herramientas.token_datos.generar_secreto().")
+                             "genera uno con herramientas.boleto_sesion.generar_secreto().")
         threading.Thread(target=_vigilar_cuentas, name="vigilar-cuentas", daemon=True).start()
     else:
         # Conecta con el broker y deja encendido el motor de la cuenta del .env antes de aceptar peticiones

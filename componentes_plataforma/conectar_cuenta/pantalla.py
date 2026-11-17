@@ -31,7 +31,7 @@ import streamlit as st
 
 from componentes_plataforma import _estaticos, recaptcha
 from componentes_plataforma.legal import enlaces_html
-from herramientas import credenciales_bolsa, limites_formularios as limites, token_datos
+from herramientas import boleto_sesion, credenciales_bolsa, limites_formularios as limites
 from herramientas.backends import sesiones_capital
 
 from .modo import cuentas_conectadas, fijar_modo, invalidar_cuentas, restaurar_modo, usuario_id_actual
@@ -223,7 +223,7 @@ def requerir_cuenta(usuario: dict) -> None:
     no hace nada."""
     if not sesiones_capital.MULTIUSUARIO:
         return
-    if not token_datos.emitir(0, True):
+    if not boleto_sesion.configurado():
         st.error("Falta configurar el servidor: SERVIDOR_SECRETO (mínimo 32 caracteres) en el .env.")
         st.stop()
     usuario_id = usuario_id_actual()

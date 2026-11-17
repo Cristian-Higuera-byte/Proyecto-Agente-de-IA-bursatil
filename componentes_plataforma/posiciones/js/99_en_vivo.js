@@ -63,7 +63,7 @@ Transportes y Servicios Ltda.
       // ¿El servidor de datos en ejecución es la versión que espera este código?
       // Versión mínima de la API del servidor que espera este código.
       var V_API = 6;
-      fetch(API + '/salud').then(function(r){ return r.json(); }).then(function(r){
+      fetch(API + '/salud', {credentials: 'include'}).then(function(r){ return r.json(); }).then(function(r){
         if (!r.v || r.v < V_API){
           avisar('El servidor de datos está desactualizado: reinicia servidor_datos.py', true);
           var el = document.getElementById('pj-posicion-aviso'); clearTimeout(tAviso);

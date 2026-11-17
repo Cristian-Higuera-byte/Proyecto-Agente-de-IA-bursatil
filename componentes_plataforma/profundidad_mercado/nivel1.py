@@ -85,7 +85,7 @@ _PLANTILLA = r"""
     el.innerHTML = h + '</table>';
   }
   function ciclo(){
-    fetch(API + '/dom/' + encodeURIComponent(SYM)).then(function(r){ return r.json(); })
+    fetch(API + '/dom/' + encodeURIComponent(SYM), {credentials: 'include'}).then(function(r){ return r.json(); })
       .then(pintar).catch(function(){ pintar(null); });
   }
   ciclo(); setInterval(ciclo, 1000);

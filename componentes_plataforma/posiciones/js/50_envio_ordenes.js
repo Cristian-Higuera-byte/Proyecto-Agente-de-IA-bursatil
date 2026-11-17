@@ -34,7 +34,7 @@ Transportes y Servicios Ltda.
         // En modo Replay (práctica sobre el pasado) NUNCA se envía nada al servidor: se rechaza antes de salir.
         if (repeticionActivo) return Promise.resolve({error: 'Modo Replay: las órdenes reales están desactivadas'});
         // text/plain = petición "simple" (sin preflight CORS)
-        return fetch(API + ruta, {method: 'POST', headers: {'Content-Type': 'text/plain'}, body: JSON.stringify(cuerpo)})
+        return fetch(API + ruta, {method: 'POST', credentials: 'include', headers: {'Content-Type': 'text/plain'}, body: JSON.stringify(cuerpo)})
           .then(function(r){ return r.json(); })
           .catch(function(){ return {error: 'Sin conexión con el servidor de datos'}; });
       }

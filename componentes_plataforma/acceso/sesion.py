@@ -32,7 +32,7 @@ import time
 
 import streamlit as st
 
-from herramientas import almacen_sesiones, sesion_persistente, token_datos
+from herramientas import almacen_sesiones, boleto_sesion, sesion_persistente
 
 from . import cookie
 
@@ -49,8 +49,8 @@ def identificador() -> str:
     """Identificador de la sesión de ESTE dispositivo (16 caracteres hexadecimales), o '' si no hay sesión.
 
     Sale del resumen de la cookie de sesión, así que es el mismo tras un F5, en otra pestaña del mismo navegador y tras reiniciar la página; nunca contiene la cookie
-    ni viaja en la dirección. Se usa para guardar datos de la sesión (la cuenta elegida) y para invalidar el token del servidor de datos al cerrar sesión."""
-    return st.session_state.get(_SID) or token_datos.huella_sesion(cookie.leer())
+    ni viaja en la dirección. Se usa para guardar datos de la sesión (la cuenta elegida)."""
+    return st.session_state.get(_SID) or boleto_sesion.huella_sesion(cookie.leer())
 
 
 # TITULO QUITAR PARAMETRO ANTIGUO
@@ -66,11 +66,10 @@ def _quitar_parametro_antiguo() -> None:
 def cerrar_sesion_en_todos(usuario_id) -> None:
     """Cierra la sesión del usuario en este dispositivo y en todos los demás.
 
-    Borra todas sus sesiones persistentes (las cookies de larga duración dejan de servir) y sus tokens de la URL, y anota el instante: las pestañas de otros dispositivos que
-    ya estaban abiertas se cierran en su próxima ejecución completa (el celular, al recargar o pulsar algo). Luego cierra la de este dispositivo."""
+    Borra todas sus sesiones persistentes (la cookie de sesión deja de servir, también en el servidor de datos: sus conexiones en vivo se cortan en segundos) y anota el instante:
+    las pestañas de otros dispositivos que ya estaban abiertas se cierran en su próxima ejecución completa (el celular, al recargar o pulsar algo). Luego cierra la de este dispositivo."""
     sesion_persistente.revocar_todas(usuario_id)
     almacen_sesiones.revocar_usuario(usuario_id)
-    token_datos.revocar_usuario(usuario_id)       # el token del servidor de datos (otro proceso) y sus conexiones en vivo también dejan de servir
     cerrar_sesion()
 
 
@@ -83,15 +82,11 @@ def cerrar_sesion() -> None:
     el parámetro `s` de la URL y borra de `st.session_state` las claves `usuario_autenticado`
     y `usuario_informacion`, revoca la sesión persistente de la cookie y programa borrar esa cookie. No devuelve nada; el llamador decide si limpia la URL y reejecuta.
     """
-    # El token del servidor de datos de esta sesión (y sus conexiones en vivo) deja de servir; debe hacerse antes de olvidar quién es el usuario
-    usuario_id = (st.session_state.get("usuario_informacion") or {}).get("id")
     sid = identificador()
-    if usuario_id is not None and sid:
-        token_datos.revocar_sesion(usuario_id, sid)
     # Olvida los datos de la sesión guardados en el servidor
     almacen_sesiones.eliminar(sid)
     _quitar_parametro_antiguo()
-    # Invalida también la sesión de larga duración (cookie) y deja pendiente borrarla del navegador
+    # Invalida la sesión de larga duración: es la credencial que acepta también el servidor de datos, así que sus conexiones en vivo se cortan en segundos. Deja pendiente borrar la cookie del navegador
     sesion_persistente.revocar(cookie.leer())
     cookie.programar_borrado()
     # Olvida el estado local de la pestaña
@@ -120,7 +115,7 @@ def iniciar_sesion(usuario: dict) -> None:
     # Sesión de larga duración: token guardado (solo su hash) en la base y en una cookie del navegador (se escribe en la próxima pasada). Ella es lo que mantiene la
     # sesión tras un F5 o un enlace del menú. Si no se pudo guardar, la sesión vive solo en esta pestaña, con un identificador aleatorio.
     token_larga = sesion_persistente.crear(usuario.get("id"), st.context.headers.get("User-Agent", ""), reemplaza_token=cookie.leer())
-    sid = token_datos.huella_sesion(token_larga or secrets.token_urlsafe(24))
+    sid = boleto_sesion.huella_sesion(token_larga or secrets.token_urlsafe(24))
     almacen_sesiones.registrar(sid, usuario)
     st.session_state[_SID] = sid
     if token_larga:
@@ -152,7 +147,7 @@ def usuario_en_sesion() -> dict | None:
     token = cookie.leer()
     usuario = sesion_persistente.validar(token)
     if usuario:
-        sid = token_datos.huella_sesion(token)
+        sid = boleto_sesion.huella_sesion(token)
         almacen_sesiones.registrar(sid, usuario)
         st.session_state.usuario_autenticado = True
         st.session_state.usuario_informacion = usuario
