@@ -37,6 +37,7 @@ import math
 import streamlit as st
 import streamlit.components.v1 as components
 
+from componentes_plataforma.conectar_cuenta import modo_activo_demo
 from componentes_plataforma.flujo_precios import atributos as _en_vivo, intervalo as _intervalo
 from componentes_plataforma.operacion_un_clic import al_cambiar as _oc_cambiar, pedir_terminos_si_corresponde
 from herramientas.puente_mt5 import NOMBRE_PROVEEDOR, inicializar_mt5, obtener_precio_actual, resolver_simbolo
@@ -82,7 +83,7 @@ def renderizar_panel_orden(main=None):
     cargar_css()
     with st.container(key="orden_panel"):
         st.html(f"<div class='orden-h'>Operar · {visible}</div>"
-                f"<div class='orden-subtitulo'>Cuenta conectada en {NOMBRE_PROVEEDOR} (demo)</div>")
+                f"<div class='orden-subtitulo'>Cuenta conectada en {NOMBRE_PROVEEDOR} ({'demo' if modo_activo_demo() else 'real'})</div>")
 
         # TODO el ticket va dentro de UN fragmento cuyas acciones usan
         # scope="fragment" (nunca rerun de app desde aquí → sin parpadeo).
