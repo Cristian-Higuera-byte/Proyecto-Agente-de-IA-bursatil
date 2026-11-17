@@ -89,7 +89,7 @@ def _conectar() -> sqlite3.Connection:
             try:     # el interruptor antiguo era UNA clave para todos: si estaba activado, pasa a ser la parada global del operador (no se pierde un bloqueo)
                 antiguo = con.execute("SELECT valor FROM estado WHERE clave = 'kill_switch'").fetchone()
                 if antiguo and antiguo[0] == "1":
-                    paradas_emergencia.fijar_global(True)
+                    paradas_emergencia.fijar_global_del_sistema(True)
                     con.execute("UPDATE estado SET valor = '0' WHERE clave = 'kill_switch'")
             except Exception:  # noqa: BLE001 - la migración es de una sola vez: si falla se reintenta en el próximo arranque
                 pass

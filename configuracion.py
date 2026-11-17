@@ -108,9 +108,6 @@ PLAN_MODO_LOCAL = "avanzado"
 # «Contratar» solo deja registrado el interés del usuario. True (PLANES_LIBRES=true en el .env): cualquiera puede pasar a cualquier plan sin pagar, para probar cuotas
 # y funciones en desarrollo (con el saldo virtual de la Billetera y el selector de plan del Laboratorio).
 PLANES_LIBRES: bool = os.getenv("PLANES_LIBRES", "").strip().lower() in ("1", "true", "si", "sí", "yes")
-# Correos de los administradores (root), separados por comas, en la variable ROOT_CORREOS del .env. Los root ven las secciones internas (hoy, el Laboratorio). El rol también
-# puede darse en la base de datos (columna `rol` de `usuarios`, herramientas/sql/roles.sql); ver herramientas/roles.py.
-ROOT_CORREOS: frozenset = frozenset(c.strip().lower() for c in os.getenv("ROOT_CORREOS", "").split(",") if c.strip())
 # reCAPTCHA de Google en los formularios públicos y sensibles (herramientas/recaptcha.py). v3 puntúa en silencio cada envío y v2 (el casillero «No soy un robot») se pide solo si el
 # puntaje es bajo. Las claves se crean en google.com/recaptcha/admin (una para v3 y otra para v2 casillero, con los dominios de la plataforma) y se ponen en el .env: la clave del
 # sitio es pública y la secreta no debe salir del servidor. Con las cuatro puestas la protección se exige; sin ellas queda apagada (desarrollo).

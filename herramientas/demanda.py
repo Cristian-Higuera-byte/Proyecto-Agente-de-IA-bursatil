@@ -76,7 +76,11 @@ def registrar(evento: str, usuario, plan: str = "", precio: float = 0.0, variant
 # TITULO LEER
 
 def leer(desde: float = 0.0) -> list:
-    """Devuelve los eventos con hora igual o posterior a `desde` (marca de tiempo en segundos). Ignora las líneas dañadas."""
+    """Devuelve los eventos con hora igual o posterior a `desde` (marca de tiempo en segundos). Ignora las líneas dañadas.
+
+    Son los eventos de TODOS los usuarios (visitas a los planes, clics y la lista de espera con sus correos): lanza PermissionError si quien actúa no es administrador."""
+    from herramientas import roles    # se importa al usarla para evitar un ciclo de importación
+    roles.exigir_root()
     salida = []
     try:
         with open(_ARCHIVO, "r", encoding="utf-8") as f:

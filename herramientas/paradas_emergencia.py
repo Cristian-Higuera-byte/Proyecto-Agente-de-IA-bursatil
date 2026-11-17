@@ -101,7 +101,17 @@ def activa_global() -> bool:
 
 
 def fijar_global(activa: bool) -> None:
-    """Activa o desactiva la parada global del operador. Quien la llama debe haber comprobado que la persona es administradora."""
+    """Activa o desactiva la parada global del operador. Solo un administrador: la comprobación se hace AQUÍ (herramientas/roles.py), sin depender de que la pantalla haya ocultado el botón;
+    si quien actúa no es administrador lanza PermissionError."""
+    from herramientas import roles    # se importa al usarla para evitar un ciclo de importación
+    roles.exigir_root()
+    _escribir(_CLAVE_GLOBAL, activa)
+
+
+# TITULO PARADA GLOBAL DEL SISTEMA
+
+def fijar_global_del_sistema(activa: bool) -> None:
+    """Activa o desactiva la parada global SIN pedir un administrador: solo para el propio programa (la migración del interruptor antiguo al arrancar), nunca para una acción de una persona."""
     _escribir(_CLAVE_GLOBAL, activa)
 
 

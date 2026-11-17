@@ -19,14 +19,15 @@ Uso (en la carpeta del proyecto, con el entorno virtual activado y el .env del s
     python crear_usuario_root.py
 
 Pide, uno por uno, el correo (debe terminar en @pyjfinance.cl), el nombre y la contraseña (escrita dos veces, sin que se vea en pantalla). La contraseña NO se guarda en
-ningún archivo ni se muestra: se cifra (PBKDF2) y solo queda el hash en la tabla `usuarios`. El usuario se crea con el correo ya verificado y el rol «root»; si el correo ya
-existe, se le da el rol root (y se deja verificado) sin cambiar su contraseña. Se detiene al dejar el correo vacío.
+ningún archivo ni se muestra: se cifra (PBKDF2) y solo queda el hash en la tabla `usuarios`. El usuario se crea con el correo ya verificado y el rol «root». Solo CREA cuentas nuevas:
+si el correo ya existe NO se toca (V10 de la auditoría: ascender una cuenta existente le daría privilegios a quien se registró primero con ese correo, con su propia contraseña, y la
+dejaría marcada como verificada sin prueba). Para dar el rol a una cuenta que ya existe, verificar a mano que es de esa persona y usar el SQL de herramientas/sql/roles.sql. Se detiene
+al dejar el correo vacío.
 
 Requiere haber ejecutado antes herramientas/sql/roles.sql (la columna `rol`). Las contraseñas deben cumplir la regla de la plataforma: 8 o más caracteres con mayúscula,
 minúscula, número y símbolo, y no ser una clave común. Guárdalas en un gestor de contraseñas, no en el proyecto, el .env ni el repositorio.
 """
 import getpass
-from datetime import datetime, timezone
 from typing import Any
 
 from herramientas import gestor_autenticacion, roles
@@ -35,27 +36,10 @@ from herramientas import gestor_autenticacion, roles
 DOMINIO = "@pyjfinance.cl"
 
 
-# TITULO ASCENDER
+# TITULO CREAR
 
-def _ascender(cliente: Any, usuario_id: Any) -> str | None:
-    """Da el rol root al usuario y deja su correo verificado. Devuelve None si salió bien o el motivo del error."""
-    ahora = datetime.now(timezone.utc).isoformat()
-    try:
-        cliente.table("usuarios").update({"rol": "root", "correo_verificado": True, "correo_verificado_en": ahora}).eq("id", usuario_id).execute()
-        return None
-    except Exception:  # noqa: BLE001 - puede que la verificación de correo no esté instalada: se prueba solo con el rol
-        pass
-    try:
-        cliente.table("usuarios").update({"rol": "root"}).eq("id", usuario_id).execute()
-        return None
-    except Exception as e:  # noqa: BLE001
-        return f"No se pudo dar el rol root (¿ejecutaste herramientas/sql/roles.sql?): {e}"
-
-
-# TITULO CREAR O ASCENDER
-
-def crear_o_ascender(cliente: Any, nombre: str, correo: str, contrasena: str) -> tuple[bool, str]:
-    """Crea el usuario root (o, si el correo ya existe, le da el rol root) y devuelve (éxito, mensaje).
+def crear_root(cliente: Any, nombre: str, correo: str, contrasena: str) -> tuple[bool, str]:
+    """Crea un usuario root NUEVO y devuelve (éxito, mensaje). Si el correo ya tiene una cuenta no hace nada y lo dice.
 
     Valida el dominio del correo y la regla de contraseña antes de tocar la base de datos. `cliente` es el cliente de la base de datos de la plataforma."""
     correo = (correo or "").strip().lower()
@@ -64,8 +48,7 @@ def crear_o_ascender(cliente: Any, nombre: str, correo: str, contrasena: str) ->
         return False, f"El correo debe terminar en {DOMINIO}."
     existente = cliente.table("usuarios").select("id").eq("email", correo).limit(1).execute().data
     if existente:
-        error = _ascender(cliente, existente[0]["id"])
-        return (error is None), (error or f"{correo} ya existía: ahora es root (su contraseña no cambió).")
+        return False, (f"{correo} ya tiene una cuenta y NO se asciende desde aquí. Si de verdad es de esa persona, verifícalo y usa el SQL de herramientas/sql/roles.sql.")
     if not nombre:
         return False, "Escribe un nombre."
     aviso = gestor_autenticacion.validar_contrasena(contrasena)
@@ -100,13 +83,13 @@ def principal() -> None:
             break
         existente = cliente.table("usuarios").select("id").eq("email", correo).limit(1).execute().data if correo.endswith(DOMINIO) else None
         nombre, contrasena = "", ""
-        if not existente:
+        if not existente and correo.endswith(DOMINIO):
             nombre = input("Nombre completo: ").strip()
             contrasena = getpass.getpass("Contraseña (no se verá): ")
             if contrasena != getpass.getpass("Repite la contraseña: "):
                 print("  Las contraseñas no coinciden; no se creó nada.\n")
                 continue
-        ok, mensaje = crear_o_ascender(cliente, nombre, correo, contrasena)
+        ok, mensaje = crear_root(cliente, nombre, correo, contrasena)
         print(("  OK: " if ok else "  ERROR: ") + mensaje + "\n")
 
 

@@ -108,7 +108,9 @@ def leer_todos(desde: float = 0.0) -> list:
     """Registros de consumo de TODA la plataforma (todas las cuentas de todos los usuarios) con hora igual o posterior a `desde`.
 
     Cada registro trae además `usuario` (el id del dueño, o «local» si viene del archivo del modo de un solo usuario). Solo para administradores (Laboratorio):
-    el consumo de cada usuario no debe mostrarse a otros usuarios. Ignora los archivos ausentes y las líneas dañadas."""
+    el consumo de cada usuario no debe mostrarse a otros usuarios. Ignora los archivos ausentes y las líneas dañadas. Lanza PermissionError si quien actúa no es administrador."""
+    from herramientas import roles    # se importa al usarla para evitar un ciclo de importación
+    roles.exigir_root()
     rutas = [("local", os.path.join(_carpetas._DATOS, _ARCHIVO))]
     if os.path.isdir(_carpetas._USUARIOS):
         for usuario in sorted(os.listdir(_carpetas._USUARIOS)):

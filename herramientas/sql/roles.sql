@@ -14,7 +14,7 @@
 -- Descripción: agrega a la tabla `usuarios` la columna `rol` para distinguir a los usuarios normales de los administradores («root»). Solo los root ven las secciones
 -- internas de la plataforma (hoy, el Laboratorio). Lo lee herramientas/roles.py. Todos los usuarios existentes quedan como «usuario».
 -- Motor: PostgreSQL 10 o superior, tanto el de un hosting (phpPgAdmin > pestaña SQL) como Supabase (SQL Editor > New query > Run).
--- Es idempotente: se puede volver a ejecutar sin perder datos. Si la columna no existe, nadie es root por esta vía (sigue valiendo la variable ROOT_CORREOS del .env).
+-- Es idempotente: se puede volver a ejecutar sin perder datos. Si la columna no existe, nadie es root (el correo ya no concede el rol: solo vale el rol guardado aquí, con el correo verificado).
 
 -- -------------------------------------------
 -- Estructura de la columna `rol` en la tabla `usuarios` --
@@ -35,12 +35,12 @@ END $$;
 -- -------------------------------------------
 
 -- El usuario primero se registra y confirma su correo de forma normal. Después, desde phpPgAdmin o el SQL Editor (nunca desde la plataforma), cambiar su rol
--- cambiando el correo del ejemplo. El cambio rige en menos de un minuto (si no, reiniciar Streamlit):
---   UPDATE usuarios SET rol = 'root' WHERE email = 'persona@ejemplo.cl';
+-- cambiando el correo del ejemplo. El cambio rige en pocos segundos (el rol se recuerda 5 segundos al dibujar la pantalla y no se recuerda al ejecutar una acción de administrador):
+--   UPDATE usuarios SET rol = 'root' WHERE email = 'persona@ejemplo.cl' AND correo_verificado IS TRUE;
 -- Para quitar el permiso:
 --   UPDATE usuarios SET rol = 'usuario' WHERE email = 'persona@ejemplo.cl';
 -- Para ver quiénes son root:
---   SELECT id, nombre, email FROM usuarios WHERE rol = 'root';
+--   SELECT id, nombre, email, correo_verificado FROM usuarios WHERE rol = 'root';
 
 -- Nota para un hosting (cPanel): si el usuario de la base de datos de la plataforma no es el dueño de la tabla, ejecutar este archivo con el usuario dueño y repetir
 -- los permisos (GRANT ALL ON ALL TABLES IN SCHEMA public TO "<usuario>").
