@@ -96,7 +96,7 @@ def cerrar_sesion() -> None:
 
 # TITULO INICIAR SESION
 
-def iniciar_sesion(usuario: dict) -> None:
+def iniciar_sesion(usuario: dict, persistente: bool = True) -> None:
     """Inicia la sesión de un usuario ya validado.
 
     Recibe `usuario`, el dict ({id, nombre, email}) devuelto por la autenticación o el
@@ -114,12 +114,12 @@ def iniciar_sesion(usuario: dict) -> None:
     _quitar_parametro_antiguo()
     # Sesión de larga duración: token guardado (solo su hash) en la base y en una cookie del navegador (se escribe en la próxima pasada). Ella es lo que mantiene la
     # sesión tras un F5 o un enlace del menú. Si no se pudo guardar, la sesión vive solo en esta pestaña, con un identificador aleatorio.
-    token_larga = sesion_persistente.crear(usuario.get("id"), st.context.headers.get("User-Agent", ""), reemplaza_token=cookie.leer())
+    token_larga = sesion_persistente.crear(usuario.get("id"), st.context.headers.get("User-Agent", ""), reemplaza_token=cookie.leer(), persistente=persistente)
     sid = boleto_sesion.huella_sesion(token_larga or secrets.token_urlsafe(24))
     almacen_sesiones.registrar(sid, usuario)
     st.session_state[_SID] = sid
     if token_larga:
-        cookie.programar_guardado(token_larga)
+        cookie.programar_guardado(token_larga, persistente)
     st.rerun()
 
 
@@ -147,6 +147,10 @@ def usuario_en_sesion() -> dict | None:
     token = cookie.leer()
     usuario = sesion_persistente.validar(token)
     if usuario:
+        nuevo = sesion_persistente.rotar_si_toca(token, st.context.headers.get("User-Agent", ""))
+        if nuevo:                       # la sesión lleva días: se rota (el navegador recibe una cookie nueva y la vieja se anula en breve)
+            cookie.programar_guardado(nuevo, persistente=True)
+            token = nuevo
         sid = boleto_sesion.huella_sesion(token)
         almacen_sesiones.registrar(sid, usuario)
         st.session_state.usuario_autenticado = True

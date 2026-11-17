@@ -96,20 +96,20 @@ def _firmar(carga: str, secreto: bytes) -> str:
 
 # TITULO EMITIR
 
-def emitir(token_sesion: str) -> str:
-    """Emite un boleto de un solo uso que lleva el token de la sesión; devuelve '' si no hay secreto o no hay token."""
+def emitir(token_sesion: str, persistente: bool = True) -> str:
+    """Emite un boleto de un solo uso que lleva el token de la sesión y si la cookie debe durar (persistente) o morir al cerrar el navegador; devuelve '' si no hay secreto o no hay token."""
     secreto = _secreto()
     if secreto is None or not token_sesion:
         return ""
-    datos = {"t": token_sesion, "e": int(time.time()) + VIDA_BOLETO_S, "n": secrets.token_hex(8)}
+    datos = {"t": token_sesion, "e": int(time.time()) + VIDA_BOLETO_S, "n": secrets.token_hex(8), "p": 1 if persistente else 0}
     carga = _b64(json.dumps(datos, separators=(",", ":")).encode("utf-8"))
     return f"{carga}.{_firmar(carga, secreto)}"
 
 
 # TITULO CANJEAR
 
-def canjear(boleto: str) -> Optional[str]:
-    """Devuelve el token de sesión que lleva el boleto si es auténtico, no venció y no se había canjeado; si no, None. Un boleto solo se canjea una vez.
+def canjear(boleto: str) -> Optional[tuple]:
+    """Devuelve (token de sesión, persistente) del boleto si es auténtico, no venció y no se había canjeado; si no, None. Un boleto solo se canjea una vez.
 
     Compara la firma en tiempo constante. Cualquier formato inválido da None, nunca una excepción."""
     secreto = _secreto()
@@ -120,7 +120,7 @@ def canjear(boleto: str) -> Optional[str]:
         return None
     try:
         datos = json.loads(_deb64(carga))
-        vence, nonce, token = float(datos["e"]), str(datos["n"]), str(datos["t"])
+        vence, nonce, token, persistente = float(datos["e"]), str(datos["n"]), str(datos["t"]), bool(datos.get("p", 1))
     except (ValueError, KeyError, TypeError):
         return None
     ahora = time.time()
@@ -132,7 +132,7 @@ def canjear(boleto: str) -> Optional[str]:
         if nonce in _usados:
             return None
         _usados[nonce] = vence
-    return token
+    return token, persistente
 
 
 # TITULO HUELLA DE LA SESION
@@ -156,9 +156,12 @@ def leer_cookie(cabecera: str) -> str:
 
 # TITULO CABECERA SET COOKIE
 
-def cabecera_set_cookie(token: str, duracion_s: int, seguro: bool) -> str:
-    """Texto de la cabecera `Set-Cookie` de la cookie de sesión: HttpOnly, SameSite=Lax, Path=/ y Secure cuando la plataforma va por HTTPS. Con `duracion_s` 0 la borra."""
-    return f"{NOMBRE_COOKIE}={token}; Max-Age={int(duracion_s)}; Path=/; HttpOnly; SameSite=Lax" + ("; Secure" if seguro else "")
+def cabecera_set_cookie(token: str, duracion_s: Optional[int], seguro: bool) -> str:
+    """Texto de la cabecera `Set-Cookie` de la cookie de sesión: HttpOnly, SameSite=Lax, Path=/ (sin `Domain`: solo el host que la emitió) y Secure cuando la plataforma va por HTTPS.
+
+    Con `duracion_s` 0 la borra y con None es una cookie de sesión del navegador (sin `Max-Age`: desaparece al cerrarlo)."""
+    duracion = "" if duracion_s is None else f"; Max-Age={int(duracion_s)}"
+    return f"{NOMBRE_COOKIE}={token}{duracion}; Path=/; HttpOnly; SameSite=Lax" + ("; Secure" if seguro else "")
 
 
 # -------------------------------------------------------------------------------------------------------

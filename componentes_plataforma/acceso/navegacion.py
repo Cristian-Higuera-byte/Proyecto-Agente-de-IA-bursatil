@@ -47,6 +47,14 @@ def _al_navegar() -> None:
     if not destino:
         return
     pedidos = parse_qs(destino[1:] if destino.startswith("?") else "")
+    if pedidos.get("logout") == ["1"]:
+        # Cerrar sesión SOLO por aquí (V11): el clic llega por la conexión de la propia página (el WebSocket rechaza otros orígenes), nunca por un enlace GET que una página ajena podría provocar.
+        # Un `?logout=1` que llega como dirección normal no cierra nada: pantalla.py pide confirmarlo con un botón.
+        if st.session_state.get("usuario_autenticado"):
+            from .sesion import cerrar_sesion
+            cerrar_sesion()
+        st.query_params.clear()
+        return
     st.query_params.clear()
     for clave in ("acceso", "plan", "perfil", "cuenta", "cuentas"):
         if pedidos.get(clave):
@@ -64,7 +72,7 @@ def montar() -> None:
 
 def montar_menu_aplicacion() -> None:
     """Pone en la pantalla el componente que abre Perfil, Configuración y las cuentas del menú del usuario sin recargar la página; va una vez, con la sesión iniciada."""
-    _COMPONENTE(key=_CLAVE_APP, data={"prefijos": ["?perfil=", "?cuenta=", "?cuentas="], "portada": False}, on_destino_change=_al_navegar)
+    _COMPONENTE(key=_CLAVE_APP, data={"prefijos": ["?perfil=", "?cuenta=", "?cuentas=", "?logout="], "portada": False}, on_destino_change=_al_navegar)
 
 
 # -------------------------------------------------------------------------------------------------------

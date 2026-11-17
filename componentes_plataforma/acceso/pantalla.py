@@ -68,12 +68,30 @@ def _centrada(contenido, titulo: str, subtitulo: str) -> None:
             contenido()
 
 
+# TITULO PANTALLA CONFIRMAR CIERRE
+
+def _pantalla_confirmar_cierre() -> None:
+    """Pantalla para quien llegó a `?logout=1` con la sesión abierta: un botón confirma el cierre (la pulsación viaja por la conexión de la propia página) y otro cancela. Detiene la ejecución."""
+    with st.container(key="acceso_centrado"):
+        cabecera("¿Cerrar sesión?", "Saldrás de tu cuenta en este dispositivo")
+        with st.container(border=True):
+            st.markdown("<span class='acc-tarjeta'></span>", unsafe_allow_html=True)
+            if st.button("Cerrar sesión", key="confirmar_cierre_sesion", width="stretch", type="primary"):
+                cerrar_sesion()
+                st.query_params.clear()
+                st.rerun()
+            if st.button("Cancelar", key="cancelar_cierre_sesion", width="stretch"):
+                st.query_params.clear()
+                st.rerun()
+    st.stop()
+
+
 # TITULO REQUERIR LOGIN
 
 def requerir_login() -> dict:
     """Puerta de entrada de la app: exige que el usuario haya iniciado sesión.
 
-    Si el parámetro de URL `logout=1` está presente, cierra la sesión y limpia la URL. Si hay sesión y llega `perfil=...`, abre la
+    Si el parámetro de URL `logout=1` está presente NO cierra la sesión (un enlace nunca debe poder hacerlo: V11): pide confirmarlo con un botón. Si hay sesión y llega `perfil=...`, abre la
     vista de perfil (en la sección indicada) y quita el parámetro conservando el token de sesión. Si hay
     sesión (o se restaura desde el token de la URL) devuelve el dict del usuario
     ({id, nombre, email}). Si no, dibuja la pantalla de login/registro centrada y detiene la
@@ -81,9 +99,12 @@ def requerir_login() -> dict:
     Efectos secundarios: lectura/escritura de `st.query_params`, consultas a Supabase vía
     herramientas.gestor_autenticacion y, al autenticar, un `st.rerun()` desde iniciar_sesion.
     """
-    # Cerrar sesión vía enlace del menú (?logout=1)
+    # `?logout=1` llega como una navegación normal (Ctrl+clic, un enlace guardado o uno puesto por otra página): cerrar sesión no puede depender de un GET, así que se pide confirmarlo con un botón.
+    # El clic normal en «Cerrar sesión» no pasa por aquí: lo atiende acceso/navegacion.py por la conexión de la página.
     if st.query_params.get("logout") == "1":
-        cerrar_sesion()
+        if usuario_en_sesion() is not None:
+            st.html(estilos(_CSS))
+            _pantalla_confirmar_cierre()
         st.query_params.clear()
 
     # Enlaces que llegan por correo: confirmar el correo (?verificar=TOKEN) o elegir una contraseña nueva (?recuperar=TOKEN). Se atienden antes que el resto
@@ -164,6 +185,8 @@ def requerir_login() -> dict:
                         with st.form("form_login", border=False):
                             correo = st.text_input("Correo electrónico", key="inicio_sesion_correo", placeholder="nombre@correo.com", max_chars=limites.CORREO)
                             contrasena = st.text_input("Contraseña", type="password", key="inicio_sesion_contrasena", max_chars=limites.CONTRASENA)
+                            recordar = st.checkbox("Mantener la sesión iniciada en este dispositivo", value=True, key="inicio_sesion_recordar",
+                                                   help="Si lo desmarcas (por ejemplo, en un computador compartido), la sesión se cierra al cerrar el navegador y vence a las 12 horas.")
                             st.markdown("<p style='text-align:right; margin:-6px 0 4px; font-size:13px;'><a href='?acceso=recordar' target='_self'>¿Olvidaste tu contraseña?</a></p>",
                                         unsafe_allow_html=True)
                             recaptcha.dibujar("login")
@@ -173,7 +196,7 @@ def requerir_login() -> dict:
                             # Valida credenciales; si son correctas inicia sesión (rerun), si el correo no está confirmado ofrece reenviar el enlace, si no muestra el error
                             resultado = autenticar_usuario(correo, contrasena, limite_intentos_acceso.ip_cliente(st.context.headers))
                             if resultado["ok"]:
-                                iniciar_sesion(resultado["usuario"])
+                                iniciar_sesion(resultado["usuario"], persistente=bool(recordar))
                             elif resultado.get("codigo") == "sin_verificar":
                                 st.session_state[CLAVE_PENDIENTE] = resultado["pendiente"]
                             else:

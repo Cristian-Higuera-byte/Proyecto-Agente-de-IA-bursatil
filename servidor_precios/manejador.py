@@ -218,8 +218,8 @@ class Manejador(BaseHTTPRequestHandler):
     def _atender_sesion(self, cerrar):
         """`POST /t/sesion` (canjea un boleto por la cookie de sesión) y `POST /t/sesion/cerrar` (la borra).
 
-        Solo desde páginas de la propia plataforma (Origin permitido). El boleto lo emite Streamlit para el usuario ya autenticado: lleva el token de la sesión, vence a los 60 segundos y
-        se canjea una sola vez; además la sesión debe seguir vigente en la base. La cookie se emite con HttpOnly, SameSite=Lax y, con HTTPS, Secure, y dura lo que la sesión persistente."""
+        Solo desde páginas de la propia plataforma (Origin permitido). El boleto lo emite Streamlit para el usuario ya autenticado: lleva el token de la sesión y si debe durar, vence a los 60 segundos y
+        se canjea una sola vez; además la sesión debe seguir vigente en la base. La cookie se emite con HttpOnly, SameSite=Lax y, con HTTPS, Secure; dura lo que la sesión persistente, o solo hasta cerrar el navegador si la persona no pidió mantener la sesión."""
         if not self._origen_local():
             self._rechazar(403, "origen no permitido")
             return
@@ -235,11 +235,13 @@ class Manejador(BaseHTTPRequestHandler):
         if cerrar:
             self._responder({"ok": True}, boleto_sesion.cabecera_set_cookie("", 0, self._cookie_segura()))
             return
-        token = boleto_sesion.canjear(cuerpo.decode("utf-8", "replace").strip())
-        if not token or sesion_persistente.consultar(token, memoria_s=0)["usuario"] is None:
+        canjeado = boleto_sesion.canjear(cuerpo.decode("utf-8", "replace").strip())
+        if canjeado is None or sesion_persistente.consultar(canjeado[0], memoria_s=0)["usuario"] is None:
             self._rechazar(401, "boleto no válido")
             return
-        self._responder({"ok": True}, boleto_sesion.cabecera_set_cookie(token, sesion_persistente.DIAS_DURACION * 24 * 3600, self._cookie_segura()))
+        token, persistente = canjeado
+        duracion = sesion_persistente.DIAS_DURACION * 24 * 3600 if persistente else None      # sin «mantener sesión»: cookie de sesión del navegador
+        self._responder({"ok": True}, boleto_sesion.cabecera_set_cookie(token, duracion, self._cookie_segura()))
 
     # TITULO STREAM
 

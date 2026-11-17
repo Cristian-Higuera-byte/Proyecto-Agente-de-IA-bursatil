@@ -45,6 +45,12 @@ _validadas: dict = {}
 INACTIVIDAD_HORAS = float(os.environ.get("SESION_INACTIVIDAD_HORAS", "24") or 24)
 # Cada cuántos segundos como máximo se anota el último uso de una sesión (para no escribir en la base en cada consulta)
 ACTUALIZAR_USO_S = 60
+# Duración de una sesión SIN «mantener la sesión iniciada»: la cookie muere al cerrar el navegador y, aunque no se cierre, la sesión vence a las 12 horas
+HORAS_SESION_CORTA = 12
+# La sesión persistente se ROTA: al volver a entrar con una cookie de más de estos días se emite una nueva y la vieja se anula (así una cookie robada deja de servir tarde o temprano)
+DIAS_ROTACION = 7
+# Segundos que la cookie vieja sigue valiendo tras rotarla: otra pestaña del mismo navegador pudo haber empezado a cargar con ella
+GRACIA_ROTACION_S = 120
 
 
 # TITULO HASH
@@ -56,19 +62,21 @@ def _hash(token: str) -> str:
 
 # TITULO CREAR
 
-def crear(usuario_id, dispositivo: str = "", reemplaza_token: str = "") -> Optional[str]:
-    """Crea una sesión persistente para el usuario y devuelve el token que debe guardar la cookie.
+def crear(usuario_id, dispositivo: str = "", reemplaza_token: str = "", persistente: bool = True, rotando: bool = False) -> Optional[str]:
+    """Crea una sesión para el usuario y devuelve el token que debe guardar la cookie.
 
     Recibe el `usuario_id`, un resumen del navegador (`dispositivo`) y, si el navegador ya traía una cookie, ese token en `reemplaza_token`: su fila se borra
-    para que iniciar sesión varias veces en el mismo navegador no acumule filas. Guarda en Supabase el hash del token y su vencimiento (DIAS_DURACION días),
-    borra las sesiones ya vencidas y deja como máximo MAX_DISPOSITIVOS por usuario, cerrando las que hace más tiempo no se usan. Devuelve None si no hay
-    conexión con Supabase o si falla el guardado (por ejemplo, si todavía no existe la tabla): el inicio de sesión sigue funcionando, solo que sin «mantener sesión».
+    para que iniciar sesión varias veces en el mismo navegador no acumule filas. Con `persistente` (la persona pidió «mantener la sesión iniciada») la sesión dura DIAS_DURACION
+    días; sin él, HORAS_SESION_CORTA horas y la cookie muere al cerrar el navegador. Guarda en la base el hash del token y su vencimiento, borra las sesiones ya vencidas y deja como
+    máximo MAX_DISPOSITIVOS por usuario, cerrando las que hace más tiempo no se usan (salvo al rotar: `rotando` no cambia la cantidad de dispositivos). Devuelve None si no hay
+    conexión con la base o si falla el guardado: el inicio de sesión sigue funcionando, solo que sin «mantener sesión».
     """
     cliente = gestor_autenticacion._supabase
     if cliente is None or usuario_id is None:
         return None
     token = secrets.token_urlsafe(32)
     ahora = datetime.now(timezone.utc)
+    vence = ahora + (timedelta(days=DIAS_DURACION) if persistente else timedelta(hours=HORAS_SESION_CORTA))
     try:
         cliente.table("sesiones_persistentes").delete().lt("expira_en", ahora.isoformat()).execute()
         if reemplaza_token:
@@ -77,16 +85,44 @@ def crear(usuario_id, dispositivo: str = "", reemplaza_token: str = "") -> Optio
         cliente.table("sesiones_persistentes").insert({
             "usuario_id": usuario_id,
             "token_hash": _hash(token),
-            "expira_en": (ahora + timedelta(days=DIAS_DURACION)).isoformat(),
+            "expira_en": vence.isoformat(),
             "dispositivo": (dispositivo or "")[:160],
         }).execute()
-        # Tope de dispositivos: se conservan los más recientes (por último uso) y se borran los demás.
-        filas = cliente.table("sesiones_persistentes").select("id").eq("usuario_id", usuario_id).order("ultimo_uso", desc=True).execute()
-        for fila in (filas.data or [])[MAX_DISPOSITIVOS:]:
-            cliente.table("sesiones_persistentes").delete().eq("id", fila["id"]).execute()
+        if not rotando:
+            # Tope de dispositivos: se conservan los más recientes (por último uso) y se borran los demás.
+            filas = cliente.table("sesiones_persistentes").select("id").eq("usuario_id", usuario_id).order("ultimo_uso", desc=True).execute()
+            for fila in (filas.data or [])[MAX_DISPOSITIVOS:]:
+                cliente.table("sesiones_persistentes").delete().eq("id", fila["id"]).execute()
     except Exception:
         return None
     return token
+
+
+# TITULO ROTAR SI TOCA
+
+def rotar_si_toca(token: str, dispositivo: str = "") -> Optional[str]:
+    """Si la sesión de ese token tiene más de DIAS_ROTACION días, crea otra para el mismo usuario y devuelve el token nuevo (que debe guardar la cookie); si no toca, o falla, devuelve None.
+
+    La sesión vieja no se borra enseguida: se deja vigente GRACIA_ROTACION_S segundos más, porque otra pestaña del mismo navegador pudo haber empezado a cargar con la cookie anterior, y
+    luego vence sola. La nueva conserva el tipo de la vieja (persistente o corta). Así una cookie robada deja de servir a más tardar a los DIAS_ROTACION días de uso."""
+    cliente = gestor_autenticacion._supabase
+    if cliente is None or not token:
+        return None
+    try:
+        fila = cliente.table("sesiones_persistentes").select("id, usuario_id, creada_en, expira_en").eq("token_hash", _hash(token)).limit(1).execute().data
+        if not fila:
+            return None
+        creada, vence, ahora = _fecha(fila[0].get("creada_en")), _fecha(fila[0].get("expira_en")), datetime.now(timezone.utc)
+        if creada is None or vence is None or (ahora - creada).total_seconds() < DIAS_ROTACION * 86400:
+            return None
+        nuevo = crear(fila[0]["usuario_id"], dispositivo, persistente=(vence - creada) > timedelta(days=1), rotando=True)
+        if not nuevo:
+            return None
+        cliente.table("sesiones_persistentes").update({"expira_en": (ahora + timedelta(seconds=GRACIA_ROTACION_S)).isoformat()}).eq("id", fila[0]["id"]).execute()
+        _validadas.pop(_hash(token), None)
+        return nuevo
+    except Exception:  # noqa: BLE001 - si no se puede rotar, la sesión sigue como estaba
+        return None
 
 
 # TITULO FECHA

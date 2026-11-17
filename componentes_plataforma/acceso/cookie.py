@@ -34,7 +34,7 @@ import streamlit.components.v1 as components
 from herramientas import boleto_sesion
 from herramientas.sesion_persistente import DIAS_DURACION, NOMBRE_COOKIE
 
-# Clave de st.session_state donde queda la acción pendiente: ("guardar", token) o ("borrar", None).
+# Clave de st.session_state donde queda la acción pendiente: ("guardar", token, persistente) o ("borrar", None, True).
 _PENDIENTE = "_cookie_sesion_pendiente"
 # Clave de st.session_state que recuerda que ya se revisó si la cookie de esta pestaña es la antigua
 _REVISADA = "_cookie_sesion_revisada"
@@ -42,16 +42,16 @@ _REVISADA = "_cookie_sesion_revisada"
 
 # TITULO PROGRAMAR GUARDADO
 
-def programar_guardado(token: str) -> None:
-    """Deja pendiente guardar la cookie con ese token en el navegador (se escribe en la próxima pasada de la app)."""
-    st.session_state[_PENDIENTE] = ("guardar", token)
+def programar_guardado(token: str, persistente: bool = True) -> None:
+    """Deja pendiente guardar la cookie con ese token en el navegador (se escribe en la próxima pasada de la app). Sin `persistente` la cookie muere al cerrar el navegador."""
+    st.session_state[_PENDIENTE] = ("guardar", token, persistente)
 
 
 # TITULO PROGRAMAR BORRADO
 
 def programar_borrado() -> None:
     """Deja pendiente borrar la cookie del navegador (cerrar sesión)."""
-    st.session_state[_PENDIENTE] = ("borrar", None)
+    st.session_state[_PENDIENTE] = ("borrar", None, True)
 
 
 # TITULO LEER
@@ -73,17 +73,17 @@ def _servidor() -> str:
 
 # TITULO SCRIPT
 
-def _script(accion: str, token: str) -> str:
+def _script(accion: str, token: str, persistente: bool = True) -> str:
     """Código JavaScript (de altura 0) que guarda, migra o borra la cookie desde el navegador; `accion` es «guardar», «migrar» o «borrar».
 
     Con boleto (servidor de datos): guardar canjea el boleto y recarga la página; migrar lo hace solo si el navegador ve la cookie antigua (la HttpOnly no es visible a los scripts) y
     una sola vez por pestaña; borrar le pide al servidor que la borre. Si el servidor no responde, guardar escribe la cookie antigua para no dejar a la persona sin sesión persistente."""
     nombre, valor, duracion, api = json.dumps(NOMBRE_COOKIE), json.dumps(token), DIAS_DURACION * 24 * 3600, json.dumps(_servidor())
-    boleto = json.dumps(boleto_sesion.emitir(token)) if accion != "borrar" else '""'
+    boleto = json.dumps(boleto_sesion.emitir(token, persistente)) if accion != "borrar" else '""'
     cabecera = ("var P;try{P=window.parent;}catch(e){return;}var D=P.document;"
                 "var seguro=(P.location.protocol==='https:')?'; Secure':'';"
                 f"var N={nombre},T={valor},API={api},B={boleto};"
-                "function antigua(){D.cookie=N+'='+T+'; Max-Age=" + str(duracion) + "; Path=/; SameSite=Lax'+seguro;}"
+                "function antigua(){D.cookie=N+'='+T+'" + (f"; Max-Age={duracion}" if persistente else "") + "; Path=/; SameSite=Lax'+seguro;}"
                 "function pedir(ruta,cuerpo){return fetch(API+ruta,{method:'POST',credentials:'include',headers:{'Content-Type':'text/plain'},body:cuerpo})"
                 ".then(function(r){if(!r.ok)throw new Error('rechazado');});}")
     if accion == "guardar":
@@ -114,9 +114,9 @@ def aplicar_pendiente() -> None:
             st.session_state[_REVISADA] = True
             components.html(_script("migrar", token), height=0)
         return
-    tipo, token = accion
+    tipo, token, persistente = accion
     if tipo == "guardar":
-        components.html(_script("guardar", token), height=0)
+        components.html(_script("guardar", token, persistente), height=0)
         if con_servidor:
             st.stop()
     elif con_servidor:
