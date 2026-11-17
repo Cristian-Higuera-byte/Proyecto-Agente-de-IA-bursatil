@@ -86,7 +86,9 @@ def cambiar_perfil(clave: str = "perfil_agente"):
     """
     agente = st.session_state.get("agente_ia")
     # Un perfil con candado (que el plan no incluye) no se aplica: se vuelve al anterior y se pide abrir el aviso del plan.
-    elegido = st.session_state[clave]
+    elegido = st.session_state.get(clave)
+    if elegido is None:   # el selector ya no existe: se cerró la sesión (y se limpió el estado) justo cuando llegó el evento del widget
+        return
     permitidos = permisos_plan.valor("perfiles_ia")
     if permitidos and elegido not in permitidos:
         st.session_state[clave] = agente.perfil if agente is not None and agente.perfil in permitidos else permitidos[0]
