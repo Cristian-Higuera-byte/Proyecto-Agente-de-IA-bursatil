@@ -22,8 +22,15 @@ Transportes y Servicios Ltda.
   var P = window.parent, D;
   try { D = P.document; } catch(e) { return; }   // sin acceso al DOM padre: no hay feed
 
-  // Canal de difusión para reenviar cada tick al gráfico (si el navegador lo soporta).
+  // Canales de difusión hacia el gráfico (si el navegador lo soporta). Los TICKS (precios públicos) van por un canal compartido. El SALDO y las POSICIONES van por un canal PRIVADO
+  // cuyo nombre lleva un secreto de esta sesión de Streamlit (CANAL, que Python sustituye) y la cuenta que se ve (demo o real): otra pestaña, de otra cuenta o de otra persona en el mismo
+  // navegador, no puede escucharlo ni escribir en él (V12 de la auditoría; ver componentes_plataforma/canal_cuenta.py).
+  var CANAL = __CANAL__;
+  /** Cuenta a la que apunta la dirección del servidor de datos: «demo» o «real» (`<url>/t/demo`, `<url>/t/real`), o «local» con el modo de un solo usuario. */
+  function cuentaDe(url){ var m = /\/t\/(demo|real)\/?$/.exec(url || ''); return m ? m[1] : 'local'; }
+  var CUENTA = cuentaDe(API);
   var bc = ('BroadcastChannel' in window) ? new BroadcastChannel('pj-ticks') : null;
+  var bcCuenta = ('BroadcastChannel' in window) ? new BroadcastChannel('pj-cuenta-' + CANAL + '-' + CUENTA) : null;
   // es: conexión EventSource activa; actuales: lista de símbolos suscritos; ultimo: último tick por símbolo;
   // cuenta: último dato de cuenta recibido; pendiente: hay una revisión de símbolos programada.
   var es = null, actuales = '', ultimo = {}, cuenta = null, pendiente = false;

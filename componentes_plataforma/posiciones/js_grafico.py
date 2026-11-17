@@ -22,6 +22,7 @@ import json
 from pathlib import Path
 
 from componentes_plataforma._estaticos import texto
+from componentes_plataforma.canal_cuenta import canal_de_la_sesion
 from componentes_plataforma.posiciones.datos_iniciales import iniciales
 from herramientas.puente_mt5 import resolver_simbolo
 
@@ -43,7 +44,8 @@ def js_posiciones(simbolo: str) -> str:
     js = "\n" + "".join(texto(f) for f in sorted(_JS_DIR.glob("*.js")))
     # Sustitución de marcadores: json.dumps garantiza comillas y escapes correctos dentro del JS.
     return (js.replace("__POS_REAL__", json.dumps(real))
-              .replace("__POS_INI__", json.dumps(iniciales(real))))
+              .replace("__POS_INI__", json.dumps(iniciales(real)))
+              .replace("__CANAL__", json.dumps(canal_de_la_sesion())))      # secreto del canal privado de la cuenta de esta sesión (V12)
 
 
 # -------------------------------------------------------------------------------------------------------

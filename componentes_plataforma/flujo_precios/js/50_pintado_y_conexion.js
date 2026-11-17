@@ -48,7 +48,7 @@ Transportes y Servicios Ltda.
   /**
    * Abre (o reabre) la conexión SSE a `/stream` para la lista de símbolos `lista`.
    * Cada mensaje trae `t` (ticks por símbolo) y `acc` (cuenta); guarda los datos, repinta y reenvía
-   * el mensaje por BroadcastChannel para que el gráfico mueva la vela actual.
+   * los ticks por el BroadcastChannel público (para que el gráfico mueva la vela actual) y la cuenta por el canal privado de esta sesión.
    */
   function conectar(lista){
     if (es) es.close();
@@ -64,7 +64,8 @@ Transportes y Servicios Ltda.
       // Datos de cuenta, repintado y reenvío al gráfico.
       if (m.acc) cuenta = m.acc;
       pintar(m.t);
-      if (bc) bc.postMessage(m);
+      if (bc) bc.postMessage({t: m.t});                                                  // los precios son públicos
+      if (bcCuenta && m.acc) bcCuenta.postMessage({acc: m.acc, cuenta: CUENTA});         // el saldo y las posiciones, solo por el canal privado de esta sesión y cuenta
     };
   }
 

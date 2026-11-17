@@ -19,6 +19,7 @@ from pathlib import Path
 
 # Lector de archivos estáticos con caché que se invalida al cambiar el archivo en disco.
 from componentes_plataforma._estaticos import texto
+from componentes_plataforma.canal_cuenta import canal_de_la_sesion
 
 # Carpeta con los fragmentos JS del feed.
 _JS_DIR = Path(__file__).parent / "js"
@@ -31,12 +32,13 @@ def script_flujo(api_url: str) -> str:
 
     Lee y concatena todos los `js/*.js` en orden alfabético (00_, 10_, ...), los envuelve en una etiqueta
     script y sustituye el marcador `__API__` por la URL del servidor de datos serializada como cadena JSON
-    (así queda correctamente escapada). No tiene efectos secundarios más allá de leer archivos.
+    (así queda correctamente escapada) y `__CANAL__` por el secreto del canal privado de la cuenta de esta sesión (componentes_plataforma/canal_cuenta.py).
+    No tiene efectos secundarios más allá de leer archivos.
     """
     # Une los fragmentos en orden: todos forman una sola función autoejecutable.
     cuerpo = "".join(texto(f) for f in sorted(_JS_DIR.glob("*.js")))
     # Envuelve en <script> y reemplaza el marcador de la URL del servidor.
-    return ("\n<script>\n" + cuerpo + "</script>\n").replace("__API__", json.dumps(api_url))
+    return ("\n<script>\n" + cuerpo + "</script>\n").replace("__API__", json.dumps(api_url)).replace("__CANAL__", json.dumps(canal_de_la_sesion()))
 
 
 # -------------------------------------------------------------------------------------------------------

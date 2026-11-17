@@ -13,26 +13,30 @@ Transportes y Servicios Ltda.
    ---------------------------------- INICIO Piña y Jara 99_en_vivo .JS ----------------------------------
    ------------------------------------------------------------------------------------------------------- */
 
-      // En vivo: Bid/Ask (ticks) y altas/bajas/SL/TP/P-G (mensaje de cuenta del feed)
-      // Suscripción al canal que reparte los ticks y el mensaje de cuenta del feed (solo si el navegador lo soporta).
+      // En vivo: Bid/Ask (ticks, canal público) y altas/bajas/SL/TP/P-G (mensaje de cuenta del feed, canal PRIVADO de esta sesión y cuenta). V12 de la auditoría: antes todo iba por un canal
+      // de nombre fijo que escuchaban todas las pestañas del navegador, así que otra cuenta recibía estas posiciones y podía publicar mensajes que las cambiaban. Ahora el nombre del canal privado
+      // lleva un secreto de esta sesión (CANAL) y la cuenta, y además se descarta cualquier mensaje de cuenta que no sea de la cuenta de este gráfico.
       if ('BroadcastChannel' in window){
-        /**
-         * Recibe cada mensaje del feed. d.t trae los precios por símbolo y d.acc el estado de la cuenta.
-         * Actualiza BID/ASK y el desfase horario, el editor abierto, y reconstruye POS y ORD cuando cambian
-         * (acc.pi posiciones, acc.ord órdenes, acc.pos P/G, acc.pc precio actual).
-         */
-        new BroadcastChannel('pj-ticks').addEventListener('message', function(ev){
-          var d = ev.data || {};
-          // Tick del símbolo del gráfico (por nombre mostrado o por nombre real).
+        var CANAL = __CANAL__;
+        /** Cuenta a la que apunta la dirección del servidor de datos de este gráfico: «demo», «real» o «local». */
+        function cuentaDe(url){ var m = /\/t\/(demo|real)\/?$/.exec(url || ''); return m ? m[1] : 'local'; }
+        var CUENTA = cuentaDe(API);
+        /** Tick del símbolo del gráfico (por nombre mostrado o por nombre real): actualiza BID/ASK y el desfase horario. */
+        function alTick(d){
           var t = d.t && (d.t[SIMBOLO] || d.t[REAL]);
           if (t && t.b){
             BID = t.b; ASK = t.a;
             if (t.t) OFF = Math.round((t.t - Date.now() / 1000) / 900) * 900;
             if (ed && ed._revisar && document.activeElement && !ed.contains(document.activeElement)) ed._revisar();
           }
-          // Mensaje de cuenta: si no viene, no hay nada más que hacer.
+        }
+        /**
+         * Mensaje de cuenta del feed: d.acc trae el estado de la cuenta y d.cuenta de qué cuenta es. Se ignora si no es de la cuenta de este gráfico.
+         * Reconstruye POS y ORD cuando cambian (acc.pi posiciones, acc.ord órdenes, acc.pos P/G, acc.pc precio actual).
+         */
+        function alCuenta(d){
           var acc = d.acc;
-          if (!acc) return;
+          if (!acc || d.cuenta !== CUENTA) return;
           if (acc.pi){
             // Lista completa de posiciones: se reconstruye solo con las del símbolo y se les adjunta P/G (p) y precio actual (pc).
             var np = {};
@@ -58,7 +62,9 @@ Transportes y Servicios Ltda.
           }
           // Si cambió alguna lista se recrean o borran las líneas.
           if (acc.pi || acc.ord) unir();
-        });
+        }
+        new BroadcastChannel('pj-ticks').addEventListener('message', function(ev){ alTick(ev.data || {}); });
+        new BroadcastChannel('pj-cuenta-' + CANAL + '-' + CUENTA).addEventListener('message', function(ev){ alCuenta(ev.data || {}); });
       }
       // ¿El servidor de datos en ejecución es la versión que espera este código?
       // Versión mínima de la API del servidor que espera este código.
