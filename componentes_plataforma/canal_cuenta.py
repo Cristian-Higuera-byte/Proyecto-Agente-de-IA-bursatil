@@ -14,6 +14,8 @@
 """
 canal_cuenta.py
 ---------------
+Secretos y prefijos que separan lo de cada sesión y cada usuario en el navegador (V12 y V13 de la auditoría).
+
 Secreto del canal PRIVADO por el que el feed en vivo le entrega el saldo y las posiciones de la cuenta al gráfico de la MISMA sesión (V12 de la auditoría).
 
 Antes el feed reenviaba cada mensaje, con el saldo y las posiciones incluidos, por un `BroadcastChannel` de nombre fijo (`pj-ticks`). Un BroadcastChannel lo comparten todas las pestañas del mismo
@@ -39,6 +41,18 @@ def canal_de_la_sesion() -> str:
         return st.session_state[_CLAVE]
     except Exception:  # noqa: BLE001 - fuera de una sesión de Streamlit (pruebas, herramientas): un secreto nuevo, que nadie más conoce
         return secrets.token_urlsafe(18)
+
+
+# TITULO PREFIJO DEL ALMACENAMIENTO
+
+def prefijo_almacen() -> str:
+    """Prefijo (`u<id>:`) que lleva cada clave del almacenamiento local del navegador (dibujos, configuración del gráfico, backtest y replay), para que dos personas que usan el mismo navegador no
+    vean ni pisen lo del otro (V13 de la auditoría). Sin usuario con sesión es `u-:`. El id del usuario no es un secreto: solo separa los datos."""
+    try:
+        id_usuario = (st.session_state.get("usuario_informacion") or {}).get("id")
+    except Exception:  # noqa: BLE001 - fuera de una sesión de Streamlit
+        id_usuario = None
+    return f"u{id_usuario}:" if id_usuario not in (None, "") else "u-:"
 
 
 # -------------------------------------------------------------------------------------------------------

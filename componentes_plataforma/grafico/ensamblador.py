@@ -27,6 +27,7 @@ from html import escape
 from pathlib import Path
 
 from componentes_plataforma._estaticos import sin_creditos
+from componentes_plataforma.canal_cuenta import prefijo_almacen
 
 # Carpeta con esqueleto.html y los fragmentos css/, html/ y js/.
 _DIR = Path(__file__).parent / "estatico"
@@ -80,6 +81,7 @@ def html_grafico(simbolo: str, api_url: str, digits: int, pip: float, posiciones
         .replace("__ACTIVOS_JSON__", activos_json)   # lista de activos del selector de pantalla completa
         .replace("__POSICIONES_JS__", posiciones_js)   # líneas de posición, SL/TP y órdenes
         .replace("__PLAN_JSON__", plan_json)           # límites del plan del usuario (indicadores, comparar, backtest, replay)
+        .replace("__PREFIJO_ALMACEN__", json.dumps(prefijo_almacen()))   # dibujos y preferencias del gráfico se guardan POR USUARIO en el navegador (V13)
     )
 
 

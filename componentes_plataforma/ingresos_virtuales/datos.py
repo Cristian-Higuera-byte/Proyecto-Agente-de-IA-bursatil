@@ -162,22 +162,31 @@ def resumen_propuestas() -> dict:
     return {f["estado"]: int(f["n"]) for f in filas}
 
 
+# TITULO DUENO DE LA CACHE
+
+def _dueno_de_la_cache() -> tuple:
+    """(usuario, cuenta) a los que pertenecen los datos que se guardan en la caché de la sesión: el usuario con la sesión iniciada y si mira la cuenta demo o la real."""
+    from componentes_plataforma.conectar_cuenta.modo import modo_activo_demo, usuario_id_actual
+    return (usuario_id_actual(), modo_activo_demo())
+
+
 # TITULO CARGAR OPERACIONES
 
 def cargar_operaciones(dias: int, forzar: bool = False) -> list:
     """Operaciones cerradas de la cuenta activa en los últimos `dias` días (hasta 500), con caché de 60 s en la sesión.
 
-    La caché vive en `st.session_state` (no en memoria del proceso) para que nunca se mezclen las operaciones de dos usuarios.
-    `forzar` ignora la caché. Devuelve lista vacía si Capital.com no responde."""
+    La caché vive en `st.session_state` (no en memoria del proceso) y se guarda con el usuario y la cuenta (demo o real) a los que pertenece: al pasar de demo a real, o a otro usuario, dentro de
+    los 60 segundos, NO se devuelven las operaciones de la cuenta anterior (V13). `forzar` ignora la caché. Devuelve lista vacía si Capital.com no responde."""
+    dueno = _dueno_de_la_cache()
     guardado = st.session_state.get(_CLAVE_OPERACIONES)
-    if guardado and not forzar and guardado[1] == dias and time.time() - guardado[0] < _VIDA_OPERACIONES_S:
+    if guardado and not forzar and guardado[1] == dias and guardado[3] == dueno and time.time() - guardado[0] < _VIDA_OPERACIONES_S:
         return guardado[2]
     try:
         from herramientas import estadisticas_diario
         ops = estadisticas_diario.operaciones(dias, 500)
     except Exception:  # noqa: BLE001 - sin conexión se muestra el aviso de "sin operaciones"
         ops = []
-    st.session_state[_CLAVE_OPERACIONES] = (time.time(), dias, ops)
+    st.session_state[_CLAVE_OPERACIONES] = (time.time(), dias, ops, dueno)
     return ops
 
 

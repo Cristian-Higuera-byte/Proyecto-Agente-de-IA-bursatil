@@ -43,6 +43,27 @@ _SID = "_sid"
 _CLAVES = ("usuario_autenticado", "usuario_informacion", "_sesion_desde", _SID)
 
 
+# Claves de st.session_state que NO son privadas y deben sobrevivir a un cierre de sesión: las banderas de la cookie (acceso/cookie.py: borrar la cookie en la siguiente pasada) y el estado de los
+# componentes de navegación. Todo lo demás (chat, agente, favoritos, cachés de operaciones y de cuentas, cuenta elegida…) es de la persona que tenía la sesión.
+_CONSERVAR = ("_cookie_", "pj_navegacion", "$$")
+
+
+# TITULO LIMPIAR ESTADO PRIVADO
+
+def limpiar_estado_privado() -> None:
+    """Borra de `st.session_state` TODO lo que pertenecía a la persona que tenía la sesión (V13 de la auditoría).
+
+    Antes solo se borraban unas pocas claves y, al cerrar sesión e iniciarla otra persona en la misma pestaña (o al volver a entrar con otro usuario), quedaban el chat y el agente del anterior,
+    sus favoritos y sus cachés. Aquí se borra todo salvo `_CONSERVAR`. Las claves de widgets ya dibujados en esta ejecución no se pueden borrar (Streamlit lo impide) y se dejan: no son datos."""
+    for clave in list(st.session_state.keys()):
+        if isinstance(clave, str) and clave.startswith(_CONSERVAR):
+            continue
+        try:
+            del st.session_state[clave]
+        except Exception:  # noqa: BLE001 - un widget ya dibujado en esta ejecución
+            pass
+
+
 # TITULO IDENTIFICADOR
 
 def identificador() -> str:
@@ -89,9 +110,10 @@ def cerrar_sesion() -> None:
     # Invalida la sesión de larga duración: es la credencial que acepta también el servidor de datos, así que sus conexiones en vivo se cortan en segundos. Deja pendiente borrar la cookie del navegador
     sesion_persistente.revocar(cookie.leer())
     cookie.programar_borrado()
-    # Olvida el estado local de la pestaña
+    # Olvida TODO el estado local de la pestaña (no solo la identidad): quien inicie sesión a continuación no debe heredar nada de esta persona
     for clave in _CLAVES:
         st.session_state.pop(clave, None)
+    limpiar_estado_privado()
 
 
 # TITULO INICIAR SESION
@@ -105,6 +127,10 @@ def iniciar_sesion(usuario: dict, persistente: bool = True) -> None:
     que no retorna con normalidad). El overlay de carga de aplicacion.py tapa el login
     mientras el dashboard se arma, así se entra directo sin verlo encima.
     """
+    # Si en esta pestaña había OTRA persona con la sesión, no hereda nada de ella (chat, agente, favoritos, cachés)
+    anterior = (st.session_state.get("usuario_informacion") or {}).get("id")
+    if anterior is not None and str(anterior) != str(usuario.get("id")):
+        limpiar_estado_privado()
     # Marca la pestaña como autenticada y guarda los datos del usuario
     st.session_state.usuario_autenticado = True
     st.session_state.usuario_informacion = usuario
@@ -136,8 +162,7 @@ def usuario_en_sesion() -> dict | None:
         usuario = st.session_state.get("usuario_informacion", {})
         # Si el usuario cerró sus sesiones en todos los dispositivos después de abrir esta, ya no vale: se olvida y se pide iniciar sesión de nuevo
         if almacen_sesiones.revocada_desde(usuario.get("id")) > st.session_state.get("_sesion_desde", 0):
-            for clave in _CLAVES:
-                st.session_state.pop(clave, None)
+            limpiar_estado_privado()
             return None
         return usuario
 

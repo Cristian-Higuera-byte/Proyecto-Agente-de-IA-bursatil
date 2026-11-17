@@ -78,7 +78,7 @@ Transportes y Servicios Ltda.
      */
     (function backtestLeer(){
       try {
-        var c = JSON.parse(localStorage.getItem(BACKTEST_KEY) || 'null');
+        var c = JSON.parse(almacenLeer(BACKTEST_KEY) || 'null');
         if (!c || !c.est || !c.est.largo || !c.est.corto || !c.est.tam || !c.cost) return;
         var d = backtestConfiguracionPorDefecto();
         backtestConfiguracion = { est: Object.assign(d.est, c.est), cost: Object.assign(d.cost, c.cost), capital: Number(c.capital) > 0 ? Number(c.capital) : d.capital, n: Number(c.n) > 0 ? Math.min(Number(c.n), 20000, PLAN.backtest_velas || 20000) : d.n };
@@ -93,7 +93,7 @@ Transportes y Servicios Ltda.
     // TITULO BT GUARDAR
 
     /** Guarda la configuración actual del backtest en localStorage. */
-    function backtestGuardar(){ try { localStorage.setItem(BACKTEST_KEY, JSON.stringify(backtestConfiguracion)); } catch (e) {} }
+    function backtestGuardar(){ almacenEscribir(BACKTEST_KEY, JSON.stringify(backtestConfiguracion)); }
 
     // TITULO FMT PCT
 

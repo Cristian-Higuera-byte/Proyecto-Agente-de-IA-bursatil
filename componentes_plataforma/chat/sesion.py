@@ -52,21 +52,24 @@ def obtener_agente():
     en último caso, crea uno nuevo y lo registra. Devuelve una tupla (agente, mensaje_error):
     el mensaje es cadena vacía si todo salió bien, y el agente es None si no se pudo crear.
     """
-    # 1) Agente ya asociado a esta sesión.
-    agente = st.session_state.get("agente_ia")
-    if agente is not None:
-        return agente, ""
-    # 2) Agente del usuario registrado antes (por ejemplo, tras recargar la página).
     uid = usuario_id()
+    # 1) Agente ya asociado a esta sesión, SOLO si es de este mismo usuario (V13: tras cambiar de persona en la pestaña no se hereda el del anterior).
+    agente = st.session_state.get("agente_ia")
+    if agente is not None and st.session_state.get("agente_ia_dueno") == uid:
+        return agente, ""
+    st.session_state.pop("agente_ia", None)
+    # 2) Agente del usuario registrado antes (por ejemplo, tras recargar la página).
     agente = turnos.agente_de(uid)
-    # 3) Ninguno existe: se crea uno nuevo.
+    # 3) Ninguno existe: se crea uno nuevo, con la memoria PERSISTENTE de ESTE usuario. Antes la memoria se abría siempre con el id «local» (el de desarrollo): con varios usuarios
+    #    todos compartían el mismo historial de conversaciones y cada uno retomaba el último chat de cualquiera.
     if agente is None:
         try:
-            agente = Agente(usuario_id="local")  # cambiar si el dashboard tiene login
+            agente = Agente(usuario_id=uid)
         except Exception as e:
             return None, f"No se pudo iniciar el agente: {e}"
         turnos.registrar_agente(uid, agente)
     st.session_state["agente_ia"] = agente
+    st.session_state["agente_ia_dueno"] = uid
     return agente, ""
 
 

@@ -376,14 +376,14 @@ Transportes y Servicios Ltda.
 
     /** Lee una preferencia recordada del replay (o '' si no hay). Nunca falla aunque el almacenamiento no esté disponible. */
     function repeticionLeerPref(clave){
-      try { var o = JSON.parse(localStorage.getItem(REPETICION_PREF_KEY) || '{}'); return o[clave] == null ? '' : String(o[clave]); } catch (e) { return ''; }
+      try { var o = JSON.parse(almacenLeer(REPETICION_PREF_KEY) || '{}'); return o[clave] == null ? '' : String(o[clave]); } catch (e) { return ''; }
     }
 
     // TITULO RP GUARDAR PREF
 
     /** Guarda una preferencia del replay (por ejemplo, si la barra está plegada o el último retroceso usado). */
     function repeticionGuardarPref(clave, valor){
-      try { var o = JSON.parse(localStorage.getItem(REPETICION_PREF_KEY) || '{}'); o[clave] = valor; localStorage.setItem(REPETICION_PREF_KEY, JSON.stringify(o)); } catch (e) {}
+      try { var o = JSON.parse(almacenLeer(REPETICION_PREF_KEY) || '{}'); o[clave] = valor; almacenEscribir(REPETICION_PREF_KEY, JSON.stringify(o)); } catch (e) {}
     }
 
     // TITULO RP RECORDAR RETROCESO

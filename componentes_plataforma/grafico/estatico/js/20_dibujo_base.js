@@ -85,13 +85,13 @@ Transportes y Servicios Ltda.
       if (cls) contenedorEl.classList.add(cls);
     }
 
-    // Clave de localStorage donde se guardan los dibujos de este símbolo.
+    // Clave (sin el prefijo del usuario, ver almacenLeer) donde se guardan los dibujos de este símbolo.
     var storageKey = 'dibujos_' + SIMBOLO;
     // Lista de dibujos actuales (objetos con tipo, id, puntos tiempo/precio y estilo).
     var elementosDibujados = [];
     // Carga los dibujos guardados del símbolo; si el JSON es inválido, parte de una lista vacía.
     try {
-      var guardados = localStorage.getItem(storageKey);
+      var guardados = almacenLeer(storageKey);
       if (guardados) { elementosDibujados = JSON.parse(guardados); }
     } catch(e) { elementosDibujados = []; }
 
@@ -104,7 +104,7 @@ Transportes y Servicios Ltda.
 
     /** Guarda la lista de dibujos actual en localStorage (clave por símbolo); ignora errores de almacenamiento. */
     function guardarDibujosLocal() {
-      try { localStorage.setItem(storageKey, JSON.stringify(elementosDibujados)); } catch(e) {}
+      almacenEscribir(storageKey, JSON.stringify(elementosDibujados));
     }
     // TITULO CONFIRMAR CAMBIO
 

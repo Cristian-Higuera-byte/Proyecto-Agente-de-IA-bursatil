@@ -100,7 +100,24 @@ Transportes y Servicios Ltda.
   var PANELES = {};   // paneles de osciladores abiertos: id -> { el, chart, s }
 
   // Configuración del gráfico que se recuerda entre recargas del iframe (temporalidad, tipo, indicadores)
-  // Clave de localStorage bajo la que se recuerda la configuración del gráfico.
+  // Almacenamiento local del navegador POR USUARIO (V13 de la auditoría): todas las claves llevan el prefijo del usuario (Python sustituye __PREFIJO_ALMACEN__), así dos personas que usan el
+  // mismo navegador no ven ni pisan los dibujos y las preferencias del otro.
+  var PREFIJO_ALMACEN = __PREFIJO_ALMACEN__;
+  /** Lee una clave del almacenamiento local del usuario actual (o null). Si aún no existe y hay una antigua SIN usuario (de antes de V13), la adopta una sola vez y la borra: no se pierden los
+   *  dibujos de la persona que los hizo, pero nadie más del mismo navegador puede verlos después. */
+  function almacenLeer(clave){
+    try {
+      var valor = localStorage.getItem(PREFIJO_ALMACEN + clave);
+      if (valor === null) {
+        valor = localStorage.getItem(clave);
+        if (valor !== null) { localStorage.setItem(PREFIJO_ALMACEN + clave, valor); localStorage.removeItem(clave); }
+      }
+      return valor;
+    } catch (e) { return null; }
+  }
+  /** Guarda una clave en el almacenamiento local del usuario actual; ignora los errores (almacenamiento lleno o no disponible). */
+  function almacenEscribir(clave, valor){ try { localStorage.setItem(PREFIJO_ALMACEN + clave, valor); } catch (e) {} }
+  // Clave (sin el prefijo del usuario) bajo la que se recuerda la configuración del gráfico.
   var CONFIGURACION_KEY = 'pj_grafico_cfg';
   var configuracionRango = -1;   // índice del botón de rango activo (-1 = ninguno)
   var configuracionComparar = [];       // símbolos comparados que se recordaron
@@ -109,7 +126,7 @@ Transportes y Servicios Ltda.
   /** Lee la configuración guardada en localStorage (temporalidad, nº de barras, tipo, rango, comparaciones, indicadores) y la valida antes de aplicarla a las variables de estado; acepta también el formato legado de indicadores. Se ejecuta una sola vez al cargar; ante cualquier error la ignora. */
   (function leerConfiguracion(){
     try {
-      var c = JSON.parse(localStorage.getItem(CONFIGURACION_KEY) || 'null');
+      var c = JSON.parse(almacenLeer(CONFIGURACION_KEY) || 'null');
       if (!c) return;
       if (['M1','M5','M15','M30','H1','H4','D1','W1','MN1'].indexOf(c.tf) >= 0) temporalidadActual = c.tf;
       if (typeof c.n === 'number' && c.n >= 50 && c.n <= 5000) nBarrasActual = c.n;
@@ -130,7 +147,7 @@ Transportes y Servicios Ltda.
     try {
       var rg = -1;
       document.querySelectorAll('.tvrange').forEach(function(b, i){ if (b.classList.contains('active')) rg = i; });
-      localStorage.setItem(CONFIGURACION_KEY, JSON.stringify({ tf: temporalidadActual, n: nBarrasActual, tipo: tipoActual, rango: rg, ind2: indicadorActivos.map(serializarInstancia), cmp: listaCompararGuardada }));
+      almacenEscribir(CONFIGURACION_KEY, JSON.stringify({ tf: temporalidadActual, n: nBarrasActual, tipo: tipoActual, rango: rg, ind2: indicadorActivos.map(serializarInstancia), cmp: listaCompararGuardada }));
     } catch (e) {}
   }
 
