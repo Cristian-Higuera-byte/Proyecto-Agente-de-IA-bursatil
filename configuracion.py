@@ -107,8 +107,6 @@ PLAN_MODO_LOCAL = "avanzado"
 # Cambio de plan SIN pago. False (lanzamiento): solo el plan Gratis se activa solo; los planes de pago esperan la pasarela de pago (Flow) y, mientras tanto, el botón
 # «Contratar» solo deja registrado el interés del usuario. True (PLANES_LIBRES=true en el .env): cualquiera puede pasar a cualquier plan sin pagar, para probar cuotas
 # y funciones en desarrollo (con el saldo virtual de la Billetera y el selector de plan del Laboratorio).
-# Tema azul: cambio de colores de toda la plataforma (azul marino con acentos azul eléctrico) y de la portada, según la propuesta del cliente. Poner False deja la plataforma con los colores de antes.
-TEMA_AZUL: bool = True
 PLANES_LIBRES: bool = os.getenv("PLANES_LIBRES", "").strip().lower() in ("1", "true", "si", "sí", "yes")
 # reCAPTCHA de Google en los formularios públicos y sensibles (herramientas/recaptcha.py). v3 puntúa en silencio cada envío y v2 (el casillero «No soy un robot») se pide solo si el
 # puntaje es bajo. Las claves se crean en google.com/recaptcha/admin (una para v3 y otra para v2 casillero, con los dominios de la plataforma) y se ponen en el .env: la clave del
