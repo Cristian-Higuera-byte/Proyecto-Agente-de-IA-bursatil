@@ -26,6 +26,7 @@ from componentes_plataforma.chat_flotante import renderizar_chat_flotante
 from componentes_plataforma.conectar_cuenta import registrar_resolvedor, requerir_cuenta
 from componentes_plataforma.mercado_datos import cargar_datos_mercado
 from componentes_plataforma.flujo_precios import inyectar_flujo
+from componentes_plataforma.tema import css_extra as css_tema, instalar as instalar_tema
 from componentes_plataforma.transicion import inyectar_transicion
 
 from herramientas import diagnostico_rendimiento as rendimiento
@@ -63,8 +64,12 @@ def ejecutar(consola) -> None:
 
     iniciar_pasada()   # anota qué fragmentos refrescables (chat, paneles del agente, campana) se dibujan en esta pasada
 
+    # Tema azul de la plataforma (cambio de colores): envuelve st.markdown, st.html y components.html para pasar sus textos por la paleta nueva; se apaga con TEMA_AZUL = False en configuracion.py.
+    instalar_tema()
+
     # Estilos CSS globales (tema oscuro tipo terminal de trading).
     st.markdown(css_global(), unsafe_allow_html=True)
+    st.markdown(css_tema(), unsafe_allow_html=True)
 
     # Cortina de transición entre secciones (oculta la vista mientras carga y la muestra ya armada).
     inyectar_transicion()

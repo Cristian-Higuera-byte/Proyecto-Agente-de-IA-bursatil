@@ -77,6 +77,14 @@ Transportes y Servicios Ltda.
         padding: 4px 5px !important; white-space: normal; overflow-wrap: break-word; vertical-align: top; font-size: 11.5px; max-width: 120px; }
     .st-key-agente_chat_panel_flot [data-testid="stMarkdownContainer"] th { font-weight: 700; white-space: nowrap; background: transparent; }
 
+    /* TITULO MARGENES DE LA NOTA Y DE LA CUOTA DEL AGENTE */
+    /* La nota «Las respuestas del agente son informativas…» (legal/paginas.py) y la tarjeta «Uso del agente» llegaban pegadas a los bordes del panel (y en el chat acoplado la primera letra
+       quedaba cortada). Ahora tienen el mismo aire lateral que los controles y la zona de mensajes de cada copia del chat. */
+    [class*="st-key-agente_chat_panel"] [data-testid="stMarkdownContainer"] > div[style*="font-size: 12px"][style*="line-height: 1.4"] { padding: 0 16px !important; margin: 4px 0 10px !important; box-sizing: border-box; }
+    .st-key-agente_chat_panel [data-testid="stMarkdownContainer"] > div[style*="font-size: 12px"][style*="line-height: 1.4"] { padding: 0 18px !important; }
+    .st-key-agente_chat_panel .cuota-ia { margin: 0 18px 12px; }
+    .st-key-agente_chat_panel_flot .cuota-ia { margin: 0 16px 8px; }
+
     /* TITULO BOTONES DE REFRESCO OCULTOS */
     /* Cada fragmento del agente (chat, historial, órdenes propuestas, campana) lleva un botón sin presencia que un script pulsa para refrescarlo sin reiniciar la página
        (componentes_plataforma/refresco_fragmentos.py). Quedan fuera del flujo para no sumar separación entre elementos. */

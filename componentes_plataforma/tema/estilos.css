@@ -1,0 +1,54 @@
+/*
+Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+Dirección: José Joaquín Prieto #5373 -
+San Miguel - Santiago - Chile
+contacto.pinayjara@gmail.com
+https://www.pinayjara.cl
+Creado, Programado y Diseñado por Piña y Jara
+Transportes y Servicios Ltda.
+*/
+
+
+/* -------------------------------------------------------------------------------------------------------
+   ----------------------------------- INICIO Piña y Jara estilos .CSS -----------------------------------
+   ------------------------------------------------------------------------------------------------------- */
+
+    /* TITULO FONDO DE LA PLATAFORMA */
+    /* Fondo azul marino profundo con dos resplandores azules suaves (arriba a la derecha y abajo a la izquierda), como el de la propuesta del cliente. */
+    .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
+        background:
+            radial-gradient(1100px 620px at 88% -8%, rgba(47, 107, 255, .20), transparent 62%),
+            radial-gradient(900px 560px at -6% 108%, rgba(20, 90, 220, .16), transparent 60%),
+            #050d24 !important;
+        background-attachment: fixed !important;
+    }
+
+    /* TITULO WIDGETS DE STREAMLIT */
+    /* Los campos de texto, números, listas desplegables y menús nativos de Streamlit traen su propio gris del tema oscuro: se pasan al azul de la plataforma para que no desentonen. */
+    [data-testid="stTextInputRootElement"], [data-testid="stNumberInputContainer"], [data-testid="stTextAreaRootElement"], [data-testid="stDateInputField"],
+    [data-testid="stSelectbox"] [role="group"], [data-testid="stMultiSelect"] [role="group"], [data-testid="stDateInput"] [role="group"],
+    [data-baseweb="input"], [data-baseweb="base-input"], [data-baseweb="textarea"], [data-baseweb="select"] > div { background-color: #0a1a40 !important; border-color: #1d3d85 !important; }
+    [data-baseweb="popover"] [data-baseweb="menu"], [data-baseweb="popover"] ul[role="listbox"], [data-testid="stSelectboxVirtualDropdown"], [role="listbox"] { background-color: #0a1a40 !important; border-color: #1d3d85 !important; }
+    [role="option"]:hover, [role="option"][aria-selected="true"] { background-color: #12295a !important; }
+    [data-testid="stExpander"] details { background-color: rgba(10, 26, 64, .55); border-color: #1d3d85; }
+
+    /* TITULO SELECCION DE TEXTO Y DESPLAZAMIENTO */
+    ::selection { background: rgba(61, 165, 255, .35); color: #ffffff; }
+    * { scrollbar-color: #1f3f86 transparent; }
+    ::-webkit-scrollbar-thumb { background: #1f3f86; border-radius: 8px; }
+    ::-webkit-scrollbar-thumb:hover { background: #2f6bff; }
+
+
+/* -------------------------------------------------------------------------------------------------------
+   ------------------------------------- FIN Piña y Jara estilos .CSS ------------------------------------
+   ------------------------------------------------------------------------------------------------------- */
+
+/*
+Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+Dirección: José Joaquín Prieto #5373 -
+San Miguel - Santiago - Chile
+contacto.pinayjara@gmail.com
+https://www.pinayjara.cl
+Creado, Programado y Diseñado por Piña y Jara
+Transportes y Servicios Ltda.
+*/
