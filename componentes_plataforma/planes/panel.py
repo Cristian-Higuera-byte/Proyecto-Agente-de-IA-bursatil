@@ -206,6 +206,7 @@ def renderizar_panel_planes(main=None) -> None:
     """Dibuja la vista Planes: aviso de que el pago con Flow llegará pronto, las tarjetas de los planes y, tras un clic, el agradecimiento con la encuesta.
 
     `main` no se usa (se conserva por compatibilidad con las demás vistas). Registra una vista por visita (con su origen) y no devuelve nada."""
+    billetera.reanudar_compras()      # termina las compras con billetera que quedaron a medias (cobradas sin activar); nunca lanza excepciones
     st.html(_estaticos.estilos(_CSS) + vitrina_planes.estilos())
     usuario = st.session_state.get("usuario_informacion") or {}
     uid = usuario.get("id") if isinstance(usuario, dict) else None

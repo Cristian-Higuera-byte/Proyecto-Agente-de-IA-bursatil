@@ -21,6 +21,9 @@ Dónde se guarda:
     movimiento pasa por la función SQL `billetera_mover`, que bloquea la fila del usuario, impide saldos negativos y no repite un movimiento con la
     misma clave; así dos clics seguidos no cobran dos veces ni dejan el saldo mal.
   - Modo local (un solo usuario): en el archivo `billetera.json` de la carpeta del usuario, con escritura atómica y un candado en el proceso.
+Atomicidad (V15 de la auditoría): los topes de recarga (saldo máximo y tope mensual) se comprueban DENTRO de la operación que bloquea la billetera (función SQL `billetera_recargar`, o el
+candado en modo local), de modo que dos recargas simultáneas no los superan. Las compras de plan dejan su estado guardado en `billetera_compras` (iniciada, cobrada, activada, reembolsada o
+cancelada) y `reanudar_compras` retoma las que quedaron a medias si el proceso se interrumpió entre cobrar y activar el plan.
 Los límites (bono inicial, recargas ofrecidas, tope mensual de recargas y saldo máximo) salen de `configuracion.BILLETERA`.
 Todas las funciones públicas lanzan `ErrorBilletera` con un mensaje legible cuando algo no se puede hacer.
 """
@@ -36,11 +39,17 @@ from herramientas.carpeta_usuario import carpeta_de
 
 # Tablas y función de Supabase
 _TABLA_MOVIMIENTOS = "billetera_movimientos"
+_TABLA_COMPRAS = "billetera_compras"
+# Minutos que debe llevar «a medias» una compra para que otro proceso la retome (no se pisa una compra que todavía está en curso)
+_GRACIA_COMPRA_MIN = 2
+# Segundos durante los que repetir la MISMA compra (mismo usuario y plan) se toma por un doble clic y se rechaza
+_VENTANA_COMPRA_S = 60
 _FUNCION_MOVER = "billetera_mover"
+_FUNCION_RECARGAR = "billetera_recargar"
 # Nombre del archivo del modo local
 _ARCHIVO = "billetera.json"
-# Candado de las escrituras locales dentro del proceso
-_CANDADO = threading.Lock()
+# Candado de las escrituras locales dentro del proceso (reentrante: una operación puede comprobar y escribir bajo el mismo candado)
+_CANDADO = threading.RLock()
 # Tipos de movimiento que entiende la billetera
 TIPOS = ("bono", "recarga_virtual", "compra_plan", "ajuste", "deposito_real", "retiro_real", "resultado_operacion", "comision_pagada", "comision_cobrada")
 
@@ -189,12 +198,30 @@ def recargar_virtual(monto: float) -> float:
     if monto <= 0:
         raise ErrorBilletera("El monto debe ser mayor que cero.")
     cfg = configuracion.BILLETERA
-    actual = saldo()
-    if actual + monto > float(cfg["saldo_maximo"]):
-        raise ErrorBilletera(f"El saldo no puede superar {cfg['saldo_maximo']:,.0f} {cfg['moneda']} en la billetera de prueba.".replace(",", "."))
-    if recargado_en_el_mes() + monto > float(cfg["recarga_mensual_max"]):
-        raise ErrorBilletera(f"Superas el tope de recargas de este mes ({cfg['recarga_mensual_max']:,.0f} {cfg['moneda']}).".replace(",", "."))
-    return _mover("recarga_virtual", monto, "Recarga de saldo de prueba")
+    mensaje_saldo = f"El saldo no puede superar {cfg['saldo_maximo']:,.0f} {cfg['moneda']} en la billetera de prueba.".replace(",", ".")
+    mensaje_tope = f"Superas el tope de recargas de este mes ({cfg['recarga_mensual_max']:,.0f} {cfg['moneda']}).".replace(",", ".")
+    _asegurar()
+    donde, ref = _dueno()
+    if donde == "supabase":
+        cliente = gestor_autenticacion._supabase
+        if cliente is None:
+            raise ErrorBilletera("La billetera no está disponible ahora (sin conexión con la base de datos).")
+        try:
+            filas = cliente.rpc(_FUNCION_RECARGAR, {"p_usuario": int(ref), "p_monto": monto, "p_saldo_max": float(cfg["saldo_maximo"]), "p_tope_mensual": float(cfg["recarga_mensual_max"]),
+                                                    "p_concepto": "Recarga de saldo de prueba", "p_clave": None}).execute().data or []
+            return round(float(filas[0]["saldo_nuevo"]), 2)
+        except Exception as e:  # noqa: BLE001
+            if "saldo_maximo" in str(e):
+                raise ErrorBilletera(mensaje_saldo) from None
+            if "tope_mensual" in str(e):
+                raise ErrorBilletera(mensaje_tope) from None
+            raise ErrorBilletera("No se pudo registrar el movimiento. Inténtalo de nuevo.") from None
+    with _CANDADO:      # comprobar y escribir bajo el mismo candado: dos recargas simultáneas se turnan y la segunda ve la primera
+        if _leer_local(ref)["saldo"] + monto > float(cfg["saldo_maximo"]):
+            raise ErrorBilletera(mensaje_saldo)
+        if recargado_en_el_mes() + monto > float(cfg["recarga_mensual_max"]):
+            raise ErrorBilletera(mensaje_tope)
+        return _mover("recarga_virtual", monto, "Recarga de saldo de prueba")
 
 
 # TITULO COMPRAR PLAN
@@ -213,11 +240,112 @@ def comprar_plan(plan: str, precio: float) -> float:
         raise ErrorBilletera("El precio del plan no es válido.")
     nombre = configuracion.PLANES_IA[plan].get("nombre", plan)
     _asegurar()
-    nuevo = _mover("compra_plan", -precio, f"Plan {nombre} · 1 mes (demostración)", referencia=plan)
+    donde, ref = _dueno()
+    if donde != "supabase":     # modo local (desarrollo): sin tabla de compras
+        nuevo = _mover("compra_plan", -precio, f"Plan {nombre} · 1 mes (demostración)", referencia=plan)
+        if not cuota_ia.fijar_plan(plan, "pago"):
+            _mover("ajuste", precio, f"Reembolso: no se pudo activar el plan {nombre}", referencia=plan)
+            raise ErrorBilletera("No se pudo activar el plan; te devolvimos el saldo.")
+        return nuevo
+    reanudar_compras()          # primero se terminan las compras que quedaron a medias, si las hay
+    cliente = gestor_autenticacion._supabase
+    compra = _abrir_compra(cliente, ref, plan, precio)
+    try:
+        nuevo = _mover("compra_plan", -precio, f"Plan {nombre} · 1 mes (demostración)", referencia=plan, clave_unica=f"compra-{compra}")
+    except ErrorBilletera as e:
+        if "insuficiente" in str(e).lower():      # seguro que no se cobró
+            _marcar_compra(cliente, compra, "cancelada", str(e))
+        raise                                     # cualquier otro error: puede que sí se cobrara; la compra queda «iniciada» y `reanudar_compras` lo resuelve con la clave
+    _marcar_compra(cliente, compra, "cobrada")
     if not cuota_ia.fijar_plan(plan, "pago"):
-        _mover("ajuste", precio, f"Reembolso: no se pudo activar el plan {nombre}", referencia=plan)
+        _reembolsar_compra(cliente, compra, ref, plan, precio, nombre)
         raise ErrorBilletera("No se pudo activar el plan; te devolvimos el saldo.")
+    _marcar_compra(cliente, compra, "activada")
     return nuevo
+
+
+# TITULO ABRIR COMPRA
+
+def _abrir_compra(cliente, usuario_id, plan: str, precio: float) -> int:
+    """Reserva la compra (estado «iniciada») y devuelve su id. Solo puede haber una en curso por usuario y plan, y repetir la misma compra dentro de `_VENTANA_COMPRA_S` segundos se toma por un
+    doble clic: un doble clic no cobra dos veces."""
+    ultima = (cliente.table(_TABLA_COMPRAS).select("*").eq("usuario_id", int(usuario_id)).eq("plan", plan).in_("estado", ["iniciada", "cobrada", "activada"]).order("id", desc=True)
+              .limit(1).execute().data or [None])[0]
+    if ultima:
+        try:
+            creada = datetime.fromisoformat(str(ultima.get("creada_en")).replace("Z", "+00:00"))
+            if creada.tzinfo is None:
+                creada = creada.replace(tzinfo=timezone.utc)
+            if (datetime.now(timezone.utc) - creada).total_seconds() < _VENTANA_COMPRA_S:
+                raise ErrorBilletera("Ya compraste ese plan hace un momento. Espera unos segundos antes de repetir la compra.")
+        except (TypeError, ValueError):
+            pass
+    try:
+        fila = (cliente.table(_TABLA_COMPRAS).insert({"usuario_id": int(usuario_id), "plan": plan, "precio": precio, "estado": "iniciada"}).execute().data or [None])[0]
+    except Exception:  # noqa: BLE001 - el índice único «en curso» rechaza la segunda
+        raise ErrorBilletera("Ya hay una compra de ese plan en curso. Espera un momento.") from None
+    if not fila:
+        raise ErrorBilletera("No se pudo iniciar la compra. Inténtalo de nuevo.")
+    return int(fila["id"])
+
+
+# TITULO MARCAR COMPRA
+
+def _marcar_compra(cliente, compra_id, estado: str, error: str | None = None) -> None:
+    """Anota en qué paso va la compra. Si no se pudo anotar no se interrumpe la compra: `reanudar_compras` la reconcilia con el libro de movimientos."""
+    try:
+        cliente.table(_TABLA_COMPRAS).update({"estado": estado, "error": error, "actualizada_en": _ahora()}).eq("id", compra_id).execute()
+    except Exception:  # noqa: BLE001
+        pass
+
+
+# TITULO REEMBOLSAR COMPRA
+
+def _reembolsar_compra(cliente, compra_id, usuario_id, plan: str, precio: float, nombre: str) -> None:
+    """Devuelve el dinero de una compra que no se pudo activar. La clave `reembolso-<compra>` hace que repetirlo (por un reintento) no devuelva dos veces."""
+    _mover("ajuste", precio, f"Reembolso: no se pudo activar el plan {nombre}", referencia=plan, clave_unica=f"reembolso-{compra_id}")
+    _marcar_compra(cliente, compra_id, "reembolsada")
+
+
+# TITULO REANUDAR COMPRAS
+
+def reanudar_compras(gracia_min: float = _GRACIA_COMPRA_MIN) -> int:
+    """Termina las compras de plan del usuario actual que quedaron a medias (el proceso se interrumpió) y devuelve cuántas resolvió. Nunca lanza excepciones.
+
+    «iniciada» más antigua que `gracia_min` minutos: si el libro tiene el cobro (clave `compra-<id>`) se sigue como «cobrada»; si no, nunca se cobró y se cancela. «cobrada»: se intenta
+    activar el plan y, si no se puede, se devuelve el dinero. Todo es idempotente (claves de cobro y de reembolso), así que repetirlo no cobra ni devuelve dos veces."""
+    try:
+        donde, ref = _dueno()
+        cliente = gestor_autenticacion._supabase
+        if donde != "supabase" or cliente is None:
+            return 0
+        limite = datetime.now(timezone.utc).timestamp() - gracia_min * 60
+        resueltas = 0
+        for c in cliente.table(_TABLA_COMPRAS).select("*").eq("usuario_id", int(ref)).in_("estado", ["iniciada", "cobrada"]).execute().data or []:
+            try:
+                desde = datetime.fromisoformat(str(c.get("actualizada_en")).replace("Z", "+00:00"))
+                if desde.tzinfo is None:
+                    desde = desde.replace(tzinfo=timezone.utc)
+                if desde.timestamp() > limite:
+                    continue                                     # todavía puede estar en curso en otro proceso
+            except (TypeError, ValueError):
+                pass
+            plan, precio = c["plan"], float(c["precio"])
+            nombre = configuracion.PLANES_IA.get(plan, {}).get("nombre", plan)
+            if c["estado"] == "iniciada":
+                cobrada = cliente.table(_TABLA_MOVIMIENTOS).select("id").eq("clave_unica", f"compra-{c['id']}").limit(1).execute().data
+                if not cobrada:
+                    _marcar_compra(cliente, c["id"], "cancelada", "Interrumpida antes de cobrar.")
+                    resueltas += 1
+                    continue
+            if cuota_ia.fijar_plan(plan, "pago"):
+                _marcar_compra(cliente, c["id"], "activada")
+            else:
+                _reembolsar_compra(cliente, c["id"], ref, plan, precio, nombre)
+            resueltas += 1
+        return resueltas
+    except Exception:  # noqa: BLE001 - retomar compras no debe tumbar la pantalla
+        return 0
 
 
 # TITULO SALDO DE UN USUARIO
