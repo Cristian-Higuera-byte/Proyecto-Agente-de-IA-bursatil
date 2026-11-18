@@ -28,7 +28,7 @@ from herramientas import copiador
 
 # Aviso de la última acción (se muestra una vez), texto y estilo de cada estado de la copia
 _CLAVE_AVISO = "cartera_copias_aviso"
-_ESTADOS = {"activa": ("Activa", "p"), "pausada": ("Pausada", "m"), "cerrada": ("Detenida", "c")}
+_ESTADOS = {"activa": ("Activa", "p"), "pausada": ("Pausada", "m"), "cierre_pendiente": ("Cerrando posiciones", "m"), "cerrada": ("Detenida", "c")}
 _MOTIVOS = {"stop_loss": "Stop loss alcanzado", "take_profit": "Take profit alcanzado", "usuario": "Detenida por ti", "usuario_cierra_posiciones": "Detenida por ti (con cierre de posiciones)"}
 _ESTADOS_OP = {"pendiente": "Pendiente", "copiada": "Abierta", "cerrada": "Cerrada", "fallida": "No copiada"}
 
@@ -67,7 +67,7 @@ def _cabecera(c: dict) -> str:
     texto, cls = _ESTADOS.get(c["estado"], (c["estado"], "b"))
     asignacion = f"${float(c['importe']):,.0f}" if c.get("modo") == "importe" and c.get("importe") else f"x{float(c.get('multiplicador') or 0):g}"
     protecciones = " · ".join(x for x in (f"Take profit {float(c['take_profit_pct']):g}%" if c.get("take_profit_pct") else "", f"Stop loss {float(c['stop_loss_pct']):g}%" if c.get("stop_loss_pct") else "") if x)
-    motivo = f" · {_MOTIVOS[c['motivo_cierre']]}" if c["estado"] == "cerrada" and c.get("motivo_cierre") in _MOTIVOS else ""
+    motivo = f" · {_MOTIVOS[c['motivo_cierre']]}" if c["estado"] in ("cerrada", "cierre_pendiente") and c.get("motivo_cierre") in _MOTIVOS else ""
     res = c["resultado"]
     return (f"<div class='ges-cab'><span class='ges-nombre'>{escape(c['nombre'])}</span><span class='ges-estado {cls}'>{texto}</span><span class='ges-tipo'>@{escape(c['gestor'])}{motivo}</span></div>"
             f"<div class='ges-cifras'>Asignación: <b>{asignacion}</b> · Posiciones abiertas: <b>{c['abiertas']}</b> · Cerradas: <b>{c['cerradas']}</b> · "
@@ -127,7 +127,12 @@ def renderizar_cartera_copias() -> None:
             st.html(_cabecera(c))
             if c["estado"] == "pausada" and c.get("motivo_cierre") == "comision_pendiente":
                 st.warning(f"Copia pausada: tienes ${c['comision_pendiente']:,.2f} de comisión pendiente. Recarga tu billetera virtual y se reanudará sola.")
-            if c["estado"] != "cerrada":
+            if c["estado"] == "cierre_pendiente":
+                if c.get("cierre_requiere_manual"):
+                    st.error(f"No pudimos cerrar todas las posiciones de esta copia ({c['abiertas']} abiertas). Ciérralas manualmente en tu cuenta de Capital.com: la copia sigue reintentando y se cerrará sola cuando no quede ninguna.")
+                else:
+                    st.info("Cerrando las posiciones de esta copia. No abrirá operaciones nuevas y quedará detenida cuando se confirme que no queda ninguna abierta.")
+            if c["estado"] not in ("cerrada", "cierre_pendiente"):
                 b1, b2, b3, b4 = st.columns([1.2, 3, 1.4, 1.6], vertical_alignment="bottom")
                 if c["estado"] == "activa":
                     b1.button("Pausar", key=f"cop_pausar_{c['id']}", width="stretch", on_click=_accion, args=(copiador.cambiar_estado_copia, uid, c["id"], "pausada"),

@@ -254,8 +254,13 @@
 
         -- TITULO ESTADO
 
-            estado TEXT NOT NULL DEFAULT 'activa' CHECK (estado IN ('activa', 'pausada', 'cerrada')),
+            -- «cierre_pendiente»: hay que cerrar posiciones (take profit, stop loss o «cerrar mis posiciones») y todavía queda alguna abierta; pasa a «cerrada» solo al confirmar cero posiciones.
+            estado TEXT NOT NULL DEFAULT 'activa' CHECK (estado IN ('activa', 'pausada', 'cierre_pendiente', 'cerrada')),
             motivo_cierre TEXT,
+            cierre_solicitado_en TIMESTAMPTZ,
+            cierre_intentos INTEGER NOT NULL DEFAULT 0,
+            -- TRUE cuando pasó el plazo de reintento y el usuario debe cerrar a mano lo que quede (se le avisa).
+            cierre_requiere_manual BOOLEAN NOT NULL DEFAULT FALSE,
             -- Marca de agua: la mayor ganancia sobre la que ya se cobró comisión; solo se cobra lo que la supere.
             marca_agua NUMERIC(14, 2) NOT NULL DEFAULT 0,
             creada_en TIMESTAMPTZ NOT NULL DEFAULT now(),

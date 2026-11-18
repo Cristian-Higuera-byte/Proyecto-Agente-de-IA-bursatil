@@ -136,7 +136,8 @@ OPERAR_EN_CUENTA_REAL: bool = os.getenv("OPERAR_EN_CUENTA_REAL", "false").strip(
 # cuales una copia que quedó a medias (sin confirmar) se da por interrumpida y no se reintenta; liquidacion_dias: cada cuántos días se liquida la comisión de rendimiento.
 COPYTRADING: dict = {"dias_minimos": 30, "operaciones_minimas": 20, "max_estrategias": 3, "comision_max": 30.0, "comision_defecto": 20.0, "inversion_minima": 50.0,
                      "categorias": ["Forex", "Índices", "Criptomonedas", "Materias primas", "Metales", "Acciones", "Mixta"],
-                     "max_copias_por_inversor": 5, "espera_motor_s": 15, "pendiente_vence_s": 120, "liquidacion_dias": 30}
+                     "max_copias_por_inversor": 5, "espera_motor_s": 15, "pendiente_vence_s": 120, "liquidacion_dias": 30,
+                     "cierre_plazo_s": 900}   # tiempo que el motor reintenta cerrar las posiciones de una copia antes de pedir intervención manual
 # Porcentaje de uso desde el cual la barra se pone en ámbar (aviso) y desde el que se pone en rojo.
 UMBRAL_AVISO_PCT = 70
 UMBRAL_CRITICO_PCT = 90

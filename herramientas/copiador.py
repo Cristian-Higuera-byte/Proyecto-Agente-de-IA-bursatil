@@ -26,7 +26,10 @@ Reglas de réplica:
     paso del instrumento; si queda bajo el mínimo del bróker la operación no se copia y se anota el motivo. El stop loss y el take profit del gestor se copian tal cual.
   - Solo se copian operaciones del gestor que él abrió (no las que a su vez eran copias de otro), y nadie puede copiar su propia estrategia.
   - Una copia pausada no abre operaciones nuevas pero sí cierra las que el gestor cierre; una cerrada solo cierra sus posiciones si se pidió así y liquida su comisión final.
-  - Take profit y stop loss de la copia: porcentaje del importe invertido; al alcanzarlo se cierran las posiciones de la copia y la copia queda cerrada.
+  - Take profit y stop loss de la copia: porcentaje del importe invertido; al alcanzarlo la copia pasa a «cierre_pendiente» y el motor cierra sus posiciones.
+  - Cierre con garantías (V14 de la auditoría): una copia que debe cerrar posiciones (take profit, stop loss o «cerrar también mis posiciones») NO se da por cerrada hasta que no quede
+    ninguna posición copiada abierta. Mientras tanto está «cierre_pendiente»: no abre nada nuevo, no liquida la comisión final y el motor reintenta el cierre en cada pasada (cerrar es
+    idempotente: si el bróker responde que la posición ya no existe, está cerrada). Si pasa `cierre_plazo_s` sin lograrlo se marca `cierre_requiere_manual` y se avisa al usuario.
 Límites conocidos: la copia depende de que el gestor tenga la plataforma abierta (sus operaciones se registran desde su sesión: en segundos si las hace desde la
 plataforma); no se propagan los cambios de stop loss o take profit del gestor a posiciones ya copiadas; el resultado de una copia cerrada se actualiza con el registro
 de operaciones del seguidor (hasta un minuto de retraso). La copia se hace en el mismo tipo de cuenta de la estrategia (demo con demo, real con real; la real solo si `configuracion.OPERAR_EN_CUENTA_REAL`).
@@ -45,6 +48,9 @@ from herramientas.puente_mt5 import PROVEEDOR, cerrar_posicion, ejecutar_orden_m
 _COPIAS = "copias"
 _OPS = "copias_operaciones"
 _OPERACIONES = "operaciones"
+_CIERRE_PENDIENTE = "cierre_pendiente"
+# Motivos de cierre que obligan a cerrar las posiciones de la copia (el cierre «usuario» las deja abiertas a propósito)
+_MOTIVOS_CON_CIERRE = ("usuario_cierra_posiciones", "take_profit", "stop_loss")
 # Motor: nombre del hilo, evento para despertarlo y candado de arranque
 _NOMBRE_HILO = "motor-copy-trading"
 _DESPERTAR = threading.Event()
@@ -210,6 +216,8 @@ def cambiar_estado_copia(usuario_id, copia_id, nuevo: str, cerrar_posiciones: bo
     copia = (cliente.table(_COPIAS).select("*").eq("id", int(copia_id)).eq("inversor_id", int(usuario_id)).limit(1).execute().data or [None])[0]
     if not copia:
         raise ErrorCopia("No encontramos esa copia.")
+    if copia["estado"] == _CIERRE_PENDIENTE:
+        raise ErrorCopia("Esta copia se está cerrando: espera a que termine de cerrar sus posiciones.")
     permitidas = {"activa": ("pausada", "cerrada"), "pausada": ("activa", "cerrada")}
     if nuevo not in permitidas.get(copia["estado"], ()):
         raise ErrorCopia(f"Una copia {copia['estado']} no puede pasar a {nuevo}.")
@@ -221,8 +229,10 @@ def cambiar_estado_copia(usuario_id, copia_id, nuevo: str, cerrar_posiciones: bo
         despertar()
         return copia
     cambios = {"estado": nuevo}
-    if nuevo == "cerrada":
-        cambios.update({"cerrada_en": _ahora(), "motivo_cierre": "usuario_cierra_posiciones" if cerrar_posiciones else "usuario"})
+    if nuevo == "cerrada" and cerrar_posiciones:
+        cambios = _datos_cierre("usuario_cierra_posiciones")        # no queda «cerrada» hasta confirmar que no queda ninguna posición abierta
+    elif nuevo == "cerrada":
+        cambios.update({"cerrada_en": _ahora(), "motivo_cierre": "usuario"})
     cliente.table(_COPIAS).update(cambios).eq("id", copia["id"]).execute()
     despertar()
     return {**copia, **cambios}
@@ -387,6 +397,67 @@ def _cerrar_todas(cliente, copia: dict) -> int:
     return sum(1 for c in copiadas if _cerrar_posicion_copia(cliente, copia, c))
 
 
+# TITULO DATOS DEL CIERRE
+
+def _datos_cierre(motivo: str) -> dict:
+    """Campos de la copia al pedir el cierre de sus posiciones: pasa a «cierre_pendiente» y se reinician los intentos y el aviso manual."""
+    return {"estado": _CIERRE_PENDIENTE, "motivo_cierre": motivo, "cierre_solicitado_en": _ahora(), "cierre_intentos": 0, "cierre_requiere_manual": False}
+
+
+# TITULO SIN RESOLVER
+
+def _sin_resolver(cliente, copia: dict) -> int:
+    """Cuántas posiciones de la copia siguen sin confirmar como cerradas (abiertas o con la orden de apertura todavía sin resolver)."""
+    return len(cliente.table(_OPS).select("id").eq("copia_id", copia["id"]).in_("estado", ["copiada", "pendiente"]).execute().data or [])
+
+
+# TITULO PLAZO AGOTADO
+
+def _plazo_agotado(copia: dict) -> bool:
+    """True si desde que se pidió el cierre pasó más de `cierre_plazo_s` segundos."""
+    try:
+        desde = datetime.fromisoformat(str(copia.get("cierre_solicitado_en")).replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if desde.tzinfo is None:
+        desde = desde.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc) - desde > timedelta(seconds=configuracion.COPYTRADING["cierre_plazo_s"])
+
+
+# TITULO AVISAR CIERRE ATASCADO
+
+def _avisar_cierre_atascado(copia: dict, quedan: int) -> None:
+    """Deja constancia (registro y campana del usuario) de que una copia no logró cerrar todas sus posiciones dentro del plazo: hace falta intervención manual."""
+    print(f"[COPIADOR] copia {copia['id']}: {quedan} posición(es) sin cerrar pasado el plazo; requiere intervención manual", flush=True)
+    try:
+        from nucleo_agente import notificaciones
+        notificaciones.agregar(copia["inversor_id"], "No pudimos cerrar todas las posiciones de tu copia",
+                               f"Quedan {quedan} posición(es) abiertas de una copia que debía cerrarse. Ciérralas manualmente en tu cuenta de Capital.com: la copia seguirá reintentando y se cerrará sola cuando no quede ninguna.",
+                               tipo="error")
+    except Exception:  # noqa: BLE001 - el aviso es un extra; el estado de la copia ya quedó marcado
+        pass
+
+
+# TITULO AVANZAR CIERRE
+
+def _avanzar_cierre(cliente, copia: dict) -> int:
+    """Un intento de cerrar las posiciones de una copia «cierre_pendiente». Solo pasa a «cerrada» (con su hora de cierre real) cuando no queda ninguna posición sin confirmar; si quedan, suma el
+    intento y, vencido el plazo, marca `cierre_requiere_manual` y avisa una sola vez. Devuelve cuántas posiciones cerró en este intento. Actualiza `copia` en el sitio."""
+    _limpiar_pendientes(cliente, copia)
+    cerradas = _cerrar_todas(cliente, copia)
+    quedan = _sin_resolver(cliente, copia)
+    if quedan == 0:
+        cambios = {"estado": "cerrada", "cerrada_en": _ahora(), "cierre_requiere_manual": False}
+    else:
+        cambios = {"cierre_intentos": int(copia.get("cierre_intentos") or 0) + 1}
+        if not copia.get("cierre_requiere_manual") and _plazo_agotado(copia):
+            cambios["cierre_requiere_manual"] = True
+            _avisar_cierre_atascado(copia, quedan)
+    cliente.table(_COPIAS).update(cambios).eq("id", copia["id"]).execute()
+    copia.update(cambios)
+    return cerradas
+
+
 # TITULO PROTECCIONES
 
 def _revisar_protecciones(cliente, copia: dict) -> str | None:
@@ -401,8 +472,10 @@ def _revisar_protecciones(cliente, copia: dict) -> str | None:
     pct = (realizado + flotante) / base * 100
     motivo = "take_profit" if copia.get("take_profit_pct") and pct >= _n(copia["take_profit_pct"]) else ("stop_loss" if copia.get("stop_loss_pct") and pct <= -_n(copia["stop_loss_pct"]) else None)
     if motivo:
-        _cerrar_todas(cliente, copia)
-        cliente.table(_COPIAS).update({"estado": "cerrada", "cerrada_en": _ahora(), "motivo_cierre": motivo}).eq("id", copia["id"]).execute()
+        cambios = _datos_cierre(motivo)      # primero se anota que hay que cerrar (queda a salvo de reinicios) y después se intenta; «cerrada» solo cuando no quede nada abierto
+        cliente.table(_COPIAS).update(cambios).eq("id", copia["id"]).execute()
+        copia.update(cambios)
+        _avanzar_cierre(cliente, copia)
     return motivo
 
 
@@ -428,10 +501,15 @@ def procesar_copia(cliente, copia: dict, estrategia: dict) -> dict:
     Devuelve {"abiertas": n, "cerradas": n, "protegida": motivo o None, "comision": resultado de `comisiones.revisar`}. Una copia cerrada solo cierra sus posiciones si
     se pidió así; después liquida su comisión final."""
     resumen = {"abiertas": 0, "cerradas": 0, "protegida": None}
+    if copia["estado"] == _CIERRE_PENDIENTE:       # cerrar nunca se bloquea (ni con la cuenta real deshabilitada): la liquidación final espera a que no quede exposición
+        resumen["cerradas"] = _avanzar_cierre(cliente, copia)
+        if copia["estado"] == "cerrada":
+            resumen["comision"] = comisiones.revisar(cliente, copia, estrategia)
+        return resumen
     if estrategia.get("cuenta_tipo", "demo") != "demo" and not configuracion.OPERAR_EN_CUENTA_REAL:
         return resumen               # con la cuenta real deshabilitada no se replican operaciones de una cuenta real
     if copia["estado"] == "cerrada":
-        if copia.get("motivo_cierre") == "usuario_cierra_posiciones":
+        if copia.get("motivo_cierre") in _MOTIVOS_CON_CIERRE:      # copias cerradas antes de V14 que quedaron con posiciones abiertas
             resumen["cerradas"] = _cerrar_todas(cliente, copia)
         resumen["comision"] = comisiones.revisar(cliente, copia, estrategia)
         return resumen
@@ -441,9 +519,7 @@ def procesar_copia(cliente, copia: dict, estrategia: dict) -> dict:
     resumen["abiertas"] = _abrir_nuevas(cliente, copia, estrategia, None if "error" in info else _n(info.get("equity")) or None)
     resumen["protegida"] = _revisar_protecciones(cliente, copia)
     resumen["comision"] = comisiones.revisar(cliente, copia, estrategia) if resumen["protegida"] is None else {}
-    if resumen["protegida"] is not None:            # la copia acaba de cerrarse por su take profit o stop loss: pasa a la liquidación final en la próxima pasada
-        copia["estado"] = "cerrada"
-    return resumen
+    return resumen        # si saltó el take profit o el stop loss, la copia quedó «cierre_pendiente» (o «cerrada» si ya no quedaba nada abierto): la liquidación final llega en una pasada posterior
 
 
 # TITULO PROCESAR TODAS
@@ -454,10 +530,12 @@ def procesar_todas() -> int:
     cliente = gestor_autenticacion._supabase
     if cliente is None or not sesiones_capital.MULTIUSUARIO:
         return 0                     # sin modo multiusuario no hay cuenta propia de cada seguidor: copiar operaría siempre en la cuenta del .env
-    copias = cliente.table(_COPIAS).select("*").in_("estado", ["activa", "pausada"]).execute().data or []
+    copias = cliente.table(_COPIAS).select("*").in_("estado", ["activa", "pausada", _CIERRE_PENDIENTE]).execute().data or []
     cerradas = cliente.table(_COPIAS).select("*").eq("estado", "cerrada").execute().data or []
+    con_exposicion = {f["copia_id"] for f in cliente.table(_OPS).select("copia_id").eq("estado", "copiada").execute().data or []}
     con_pendiente = {f["copia_id"] for f in cliente.table("comisiones_rendimiento").select("copia_id,comision").is_("movimiento_billetera_id", "null").execute().data or [] if _n(f["comision"]) > 0}
-    copias += [c for c in cerradas if not c.get("comision_final_en") or c["id"] in con_pendiente]     # las detenidas con liquidación o cobro por hacer
+    copias += [c for c in cerradas if not c.get("comision_final_en") or c["id"] in con_pendiente
+               or (c["id"] in con_exposicion and c.get("motivo_cierre") in _MOTIVOS_CON_CIERRE)]     # las detenidas con liquidación o cobro por hacer, o con posiciones que debían cerrarse y siguen abiertas
     procesadas = 0
     for copia in copias:
         try:
