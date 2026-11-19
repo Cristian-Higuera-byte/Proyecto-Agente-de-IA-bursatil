@@ -24,6 +24,10 @@ no define funciones: cada paso se ejecuta en el orden en que está escrito.
 """
 import os
 import sys
+import time
+
+# Instante en que empieza este script (lo usa la medición de rendimiento para contar también las importaciones previas).
+_INICIO_SCRIPT = time.perf_counter()
 
 # Asegurar que la carpeta raíz del proyecto esté en la ruta de importación, para poder importar
 # los paquetes del proyecto (aplicacion_principal, componentes_plataforma, nucleo_agente...).
@@ -39,6 +43,9 @@ corregir_certificado_ssl()
 consola = importar_consola()
 
 from aplicacion_principal.pagina import ejecutar
+from herramientas import diagnostico_rendimiento
+
+diagnostico_rendimiento.anotar_inicio_script(_INICIO_SCRIPT)
 
 # Dibuja la página completa del dashboard.
 ejecutar(consola)

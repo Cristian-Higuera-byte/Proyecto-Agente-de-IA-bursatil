@@ -51,6 +51,14 @@ def activo() -> bool:
         return False
 
 
+# TITULO ANOTAR INICIO SCRIPT
+
+def anotar_inicio_script(instante: float) -> None:
+    """Guarda el instante (perf_counter) en que empezó `aplicacion.py`, para que la insignia muestre cuánto pasó desde la primera línea del script (importaciones incluidas) hasta que termina. No hace nada con la medición apagada."""
+    if activo():
+        st.session_state["_diag_t_script"] = instante
+
+
 # TITULO INICIAR
 
 def iniciar() -> None:
@@ -102,13 +110,15 @@ def etiqueta() -> None:
         lentas = [x for x in _LLAMADAS if x[0] >= desde][-5:]
     filas = "".join(f"<div>{escape(n)} · <b>{s * 1000:.0f} ms</b></div>" for n, s in fases)
     peticiones = "".join(f"<div class='pj-diag-lenta'>{escape(m)} {escape(r)[:40]} · <b>{s * 1000:.0f} ms</b></div>" for _, m, r, s in lentas)
+    desde_script = time.perf_counter() - st.session_state["_diag_t_script"] if "_diag_t_script" in st.session_state else None
+    previo = f"<div>script completo (con importaciones) · <b>{desde_script * 1000:.0f} ms</b></div>" if desde_script is not None else ""
     print(f"[RENDIMIENTO] ejecución completa: {total * 1000:.0f} ms (vista: {st.session_state.get('navegacion_activo')})")
     st.html(
         "<style>.pj-diag{position:fixed;left:76px;bottom:8px;z-index:100002;background:#0d1117ee;border:1px solid #30363d;border-radius:8px;"
         "padding:6px 10px;color:#c9d1d9;font:11px/1.45 monospace;pointer-events:none;max-width:340px}"
         ".pj-diag b{color:#3fb950}.pj-diag-lenta,.pj-diag-lenta b{color:#f85149}</style>"
         f"<div class='pj-diag'><div>⏱ ejecución <b>{total * 1000:.0f} ms</b> · vista {escape(str(st.session_state.get('navegacion_activo')))}</div>"
-        f"{filas}{peticiones}</div>"
+        f"{previo}{filas}{peticiones}</div>"
     )
 
 
