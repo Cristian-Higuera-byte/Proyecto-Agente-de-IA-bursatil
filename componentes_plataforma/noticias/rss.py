@@ -17,15 +17,13 @@ Cada fuente tiene su propio estado en memoria, compartido por todas las sesiones
 `Last-Modified`. Al revisarla se envían esas marcas y, si nada cambió, el servidor responde 304 sin cuerpo, así que
 revisar cada `INTERVALO_CONDICIONAL` segundos casi no cuesta. Las fuentes que no soportan peticiones condicionales se
 revisan cada `INTERVALO_NORMAL` segundos. Las fuentes se consultan en paralelo y una que falla no afecta a las demás
-(se conservan sus últimas noticias). Hace peticiones HTTP directas con `urllib` y analiza el XML con `ElementTree`.
+(se conservan sus últimas noticias). Hace las peticiones HTTP con `herramientas/descarga_segura` (que no llega a redes internas ni siguiendo redirecciones) y analiza el XML con `ElementTree`.
 """
 import hashlib
 import html
 import re
 import threading
 import time
-import urllib.error
-import urllib.request
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, wait
 from datetime import datetime, timezone
@@ -34,6 +32,7 @@ from email.utils import parsedate_to_datetime
 from componentes_plataforma.noticias.articulo import limpiar_lineas, texto_articulo
 from componentes_plataforma.noticias.datos import (FUENTES, FUENTES_MAS, INTERVALO_CONDICIONAL, INTERVALO_NORMAL,
                                                    MAX_POR_FUENTE, MAX_VERIFICAR, PLACEHOLDER)
+from herramientas import descarga_segura
 
 _AGENTE = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36"
 # Segundos máximos de espera por una fuente (la petición HTTP) y, antes de dibujar, por las fuentes que se refrescan a la vez:
@@ -207,18 +206,18 @@ def _refrescar(fuente: dict) -> None:
     if modificado:
         cabeceras["If-Modified-Since"] = modificado
     try:
-        with urllib.request.urlopen(urllib.request.Request(url, headers=cabeceras), timeout=_ESPERA_FUENTE) as r:
-            cuerpo = r.read(3_000_000)
-            nuevas = _parsear(cuerpo, fuente)
+        r = descarga_segura.abrir(url, cabeceras=cabeceras, espera=_ESPERA_FUENTE, max_bytes=3_000_000)
+        if r.estado != 200:
             with _CANDADO:
-                if nuevas:
-                    est["items"] = nuevas
-                est["etag"] = r.headers.get("ETag", "")
-                est["modificado"] = r.headers.get("Last-Modified", "")
-                est["fallos"] = 0
-    except urllib.error.HTTPError as e:
+                est["fallos"] = 0 if r.estado == 304 else est["fallos"] + 1
+            return
+        nuevas = _parsear(r.cuerpo, fuente)
         with _CANDADO:
-            est["fallos"] = 0 if e.code == 304 else est["fallos"] + 1
+            if nuevas:
+                est["items"] = nuevas
+            est["etag"] = r.cabeceras.get("ETag", "")
+            est["modificado"] = r.cabeceras.get("Last-Modified", "")
+            est["fallos"] = 0
     except Exception:
         with _CANDADO:
             est["fallos"] += 1

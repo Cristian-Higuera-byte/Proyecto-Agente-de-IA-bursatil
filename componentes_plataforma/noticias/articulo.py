@@ -17,17 +17,16 @@
 instalada (es la que mejor separa el artículo del resto de la página); si no, un extractor sencillo que une los párrafos
 largos. Es una función de mejor esfuerzo: muchas páginas bloquean las descargas automáticas o cargan el texto con
 JavaScript, y en ese caso devuelve cadena vacía y la ventana de la noticia muestra el resumen con un botón para abrirla en
-el sitio. Solo se aceptan direcciones http(s) que apunten a servidores públicos de internet. No depende de Streamlit: el verificador de
-`rss.py` la usa desde hilos de fondo para saber qué noticias entregan texto.
+el sitio. La descarga pasa por `herramientas/descarga_segura.py` (V16 de la auditoría): solo http(s) a los puertos 80 y 443, solo servidores con TODAS sus direcciones IP públicas
+(IPv4 e IPv6), las redirecciones se revalidan una por una y la conexión va contra la IP ya validada, de modo que un enlace manipulado no puede hacer que el servidor pida direcciones internas.
+No depende de Streamlit: el verificador de `rss.py` la usa desde hilos de fondo para saber qué noticias entregan texto.
 """
-import ipaddress
 import re
-import socket
 import threading
 import time
-import urllib.request
 from html.parser import HTMLParser
-from urllib.parse import urlparse
+
+from herramientas import descarga_segura
 
 _AGENTE = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36"
 # Segundos máximos de espera y bytes máximos que se leen de una página.
@@ -37,23 +36,6 @@ _MAX_BYTES = 2_500_000
 MINIMO_UTIL = 600
 # Texto máximo que se conserva de un artículo.
 _MAX_TEXTO = 15000
-
-
-# TITULO ES PUBLICA
-
-def _es_publica(url: str) -> bool:
-    """Indica si la dirección es http(s) y su servidor es público (no localhost ni una red privada).
-
-    Evita que un enlace manipulado en un feed haga que el servidor pida direcciones internas. Devuelve False si el nombre
-    no se puede resolver."""
-    p = urlparse(url)
-    if p.scheme not in ("http", "https") or not p.hostname:
-        return False
-    try:
-        ip = ipaddress.ip_address(socket.gethostbyname(p.hostname))
-    except Exception:
-        return False
-    return not (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast)
 
 
 # Etiquetas cuyo contenido nunca es texto del artículo: se ignoran por completo, con todo lo que llevan dentro.
@@ -199,7 +181,7 @@ def texto_articulo(url: str) -> str:
     """Texto del artículo de `url`, o cadena vacía si no se pudo leer o es demasiado corto (menos de MINIMO_UTIL).
 
     Resultado cacheado 30 minutos por dirección (también los fallos, para no repetir descargas inútiles). Descarga la
-    página con `urllib` (con el mismo agente de un navegador), rechaza direcciones no públicas y recorta el resultado a un
+    página con `descarga_segura` (con el mismo agente de un navegador), que rechaza direcciones no públicas también en cada redirección, y recorta el resultado a un
     máximo razonable. Se puede llamar desde cualquier hilo y nunca lanza excepciones."""
     with _CANDADO:
         guardado = _CACHE.get(url)
@@ -218,11 +200,10 @@ def texto_articulo(url: str) -> str:
 def _descargar_texto(url: str) -> str:
     """Descarga la página de `url` y devuelve su texto de artículo (vacío si falla o es muy corto). Sin caché."""
     try:
-        if not _es_publica(url):
+        r = descarga_segura.abrir(url, cabeceras={"User-Agent": _AGENTE, "Accept": "text/html,*/*", "Accept-Language": "es,en;q=0.8"}, espera=_ESPERA, max_bytes=_MAX_BYTES)
+        if r.estado != 200:
             return ""
-        req = urllib.request.Request(url, headers={"User-Agent": _AGENTE, "Accept": "text/html,*/*", "Accept-Language": "es,en;q=0.8"})
-        with urllib.request.urlopen(req, timeout=_ESPERA) as r:
-            pagina = r.read(_MAX_BYTES).decode(r.headers.get_content_charset() or "utf-8", "ignore")
+        pagina = r.cuerpo.decode(r.codificacion or "utf-8", "ignore")
         texto = _extraer(pagina)
         return texto[:_MAX_TEXTO] if len(texto) >= MINIMO_UTIL else ""
     except Exception:

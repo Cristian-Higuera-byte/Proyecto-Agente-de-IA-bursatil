@@ -22,8 +22,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from typing import Any
 
-import requests
-
+from herramientas import descarga_segura
 from fuentes.investing_fuente.cache import _cacheado
 from fuentes.investing_fuente.constantes import AVISO_FUENTE, FEEDS, CABECERAS
 from fuentes.investing_fuente.errores import ErrorInvesting
@@ -66,16 +65,19 @@ def noticias(categoria: str = "general", cantidad: int = 10) -> dict[str, Any]:
         Lanza ErrorInvesting ante errores de red o de formato."""
         # Paso 1: petición HTTP al feed; cualquier error de red se traduce a ErrorInvesting.
         try:
-            resp = requests.get(url, headers=CABECERAS, timeout=10)
-            resp.raise_for_status()
-        except requests.RequestException as e:
+            resp = descarga_segura.abrir(url, cabeceras=CABECERAS, espera=10, max_bytes=3_000_000)
+            if resp.estado >= 400:
+                raise ErrorInvesting(f"No se pudo conectar con Investing.com ({cat}): HTTP {resp.estado}")
+        except ErrorInvesting:
+            raise
+        except Exception as e:  # noqa: BLE001 - red, TLS o una dirección que la política de descarga rechaza
             raise ErrorInvesting(
                 f"No se pudo conectar con Investing.com ({cat}): {e}"
             ) from e
 
         # Paso 2: interpreta el XML y localiza el nodo <channel> que contiene los ítems.
         try:
-            raiz = ET.fromstring(resp.content)
+            raiz = ET.fromstring(resp.cuerpo)
             channel = raiz.find("channel")
             if channel is None:
                 raise ErrorInvesting("El feed RSS de Investing.com no devolvió un canal válido.")

@@ -20,7 +20,8 @@ permanentes y fallos con reintento temporizado.
 import re
 import threading
 import time
-import urllib.request
+
+from herramientas import descarga_segura
 
 # Tablas de bolsas, plantilla de URL de logos y excepciones RIC -> ticker.
 from componentes_plataforma.iconografia.datos import (BOLSA_SUFIJO, BOLSAS_CLASE, BOLSAS_MENOS_UNA, LOGO_ACCION,
@@ -95,13 +96,12 @@ def url_existe(url: str, clave: str) -> str:
 # TITULO COMPROBAR
 
 def _comprobar(url: str, clave: str) -> None:
-    """Comprueba por red (HEAD, timeout 6 s) que `url` exista y sea una imagen; anota el acierto o el instante del fallo en las cachés."""
+    """Comprueba por red (HEAD, timeout 6 s) que `url` exista y sea una imagen, con `descarga_segura` (sin llegar a redes internas ni por redirecciones); anota el acierto o el instante del fallo."""
     try:
-        req = urllib.request.Request(url, method="HEAD", headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=6) as r:
-            if r.status == 200 and "image" in r.headers.get("Content-Type", ""):
-                _LOGO_CORRECTO[clave] = url
-                return
+        r = descarga_segura.abrir(url, metodo="HEAD", cabeceras={"User-Agent": "Mozilla/5.0"}, espera=6)
+        if r.estado == 200 and "image" in r.cabeceras.get("Content-Type", ""):
+            _LOGO_CORRECTO[clave] = url
+            return
     except Exception:
         # Cualquier error de red cuenta como fallo.
         pass
