@@ -27,4 +27,4 @@ def redir(host, d):
 for dest in ["http://127.0.0.1:28501/", "http://127.0.0.1/", "http://169.254.169.254/latest/meta-data/", "http://[::1]/"]:
     t("4 redireccion real httpbingo -> " + dest[7:36], lambda d=dest: redir("httpbingo.org", d))
 t("5 redireccion real httpbingo -> example.com (permitida)", lambda: redir("httpbingo.org", "http://www.example.com/"))
-t("6 salto real publico->publico http://github.com/", lambda: (lambda r: (r.estado, r.url_final))(ds.abrir("http://github.com/", cabeceras=cab)))
+t("6 salto real publico->publico (http->https en pyj.rmcabogados.cl)", lambda: (lambda r: (r.estado, r.url_final))(ds.abrir("http://pyj.rmcabogados.cl/", cabeceras=cab, espera=8)))
