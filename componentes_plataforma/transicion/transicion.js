@@ -27,6 +27,19 @@ Transportes y Servicios Ltda.
   // Pausa (ms) sin ejecución antes de dar la sección por lista; evita descubrirla entre dos pasadas seguidas.
   var REPOSO = 70;
   var reloj = null;
+  // Vistas que comparten el mismo armado (Trading y Cartera): pasar de una a otra no necesita cortina.
+  var VISTAS_OPERAR = ['trading', 'portafolio'];
+  // TITULO CLAVE NAVEGACION
+
+  /**
+   * Devuelve la vista que abre un botón de la barra lateral (la parte final de su clave navegacion_boton_X), o '' si no es uno de ellos.
+   * Recibe el botón (o null).
+   */
+  function claveNavegacion(boton){
+    var c = boton && boton.closest && boton.closest('[class*="st-key-navegacion_boton_"]');
+    var m = c && /st-key-navegacion_boton_(\w+)/.exec(c.className);
+    return m ? m[1] : '';
+  }
   // TITULO EJECUTANDO
 
   /**
@@ -76,6 +89,10 @@ Transportes y Servicios Ltda.
     if (!b) return;
     // Pulsar la sección que ya está abierta no cambia nada: no se cubre.
     if (b.getAttribute('data-testid') === 'stBaseButton-primary' && b.closest('[class*="st-key-navegacion_boton_"]')) return;
+    // Trading y Cartera comparten la misma vista (gráfico, ticket y paneles del agente) y solo cambia la lista de la izquierda:
+    // entre ellas no se cubre, para que el gráfico y el resto queden a la vista y solo se redibuje esa lista.
+    var destino = claveNavegacion(b), actual = claveNavegacion(D.querySelector('[class*="st-key-navegacion_boton_"] button[data-testid="stBaseButton-primary"]'));
+    if (destino && actual && VISTAS_OPERAR.indexOf(destino) >= 0 && VISTAS_OPERAR.indexOf(actual) >= 0) return;
     cubrir();
   };
   // Captura (true) para enterarse del clic antes que los manejadores de Streamlit.
