@@ -28,6 +28,8 @@ Diseño de seguridad:
   si hay cuenta conectada y si es demo o real, nunca los secretos.
 - El servidor debe usar la clave `service_role` de Supabase y la tabla tiene RLS activo sin políticas,
   así una clave pública (anon) no puede leerla.
+- Cada fila lleva una VERSIÓN (`credencial_version`, texto aleatorio que la base renueva en cada guardado; herramientas/sql/credenciales_version.sql). Los procesos del servidor la comparan
+  para enterarse de que el usuario reemplazó o quitó su API y descartar las credenciales anteriores (V18 de la auditoría).
 """
 import os
 from typing import Optional
@@ -66,6 +68,20 @@ def _cifrador() -> MultiFernet:
         return MultiFernet([Fernet(c.encode()) for c in claves])
     except Exception as error:
         raise RuntimeError("CREDENCIALES_CLAVES contiene una clave Fernet inválida.") from error
+
+
+# TITULO CIFRAR TEXTO PUBLICO
+
+def cifrar_texto(texto: str) -> str:
+    """Cifra un texto con la clave maestra vigente (para guardar en disco algo que no debe quedar en claro, como la sesión compartida con Capital.com). Lanza RuntimeError si no hay clave configurada."""
+    return _cifrar(texto)
+
+
+# TITULO DESCIFRAR TEXTO PUBLICO
+
+def descifrar_texto(token: str) -> str:
+    """Descifra un texto hecho con `cifrar_texto`; lanza InvalidToken si ninguna clave configurada lo abre."""
+    return _descifrar(token)
 
 
 # TITULO CIFRAR TEXTO
@@ -137,6 +153,7 @@ def obtener_credenciales(usuario_id: int, es_demo: bool) -> Optional[dict]:
         "api_key": _descifrar(fila["api_key_cifrada"]),
         "api_contrasena": _descifrar(fila["api_contrasena_cifrada"]),
         "es_demo": bool(fila["es_demo"]),
+        "version": fila.get("credencial_version"),
     }
 
 
@@ -169,6 +186,21 @@ def existen_credenciales(usuario_id: int, es_demo: bool) -> Optional[bool]:
     except Exception:
         return None
     return bool(respuesta.data)
+
+
+# TITULO VERSION DE LAS CREDENCIALES
+
+def version_credenciales(usuario_id: int, es_demo: bool) -> tuple:
+    """Estado actual de las credenciales de ese modo en la base: ("ok", versión), ("ausente", None) si el usuario no las tiene o ("error", None) si no se pudo consultar. Nunca lanza.
+
+    La versión cambia cada vez que la fila se guarda o se reemplaza (y es otra si se quita y se vuelve a crear): quien tenga en memoria una versión distinta tiene credenciales obsoletas."""
+    try:
+        respuesta = _cliente().table(_TABLA).select("credencial_version").eq("usuario_id", usuario_id).eq("es_demo", bool(es_demo)).limit(1).execute()
+    except Exception:
+        return ("error", None)
+    if not respuesta.data:
+        return ("ausente", None)
+    return ("ok", respuesta.data[0].get("credencial_version"))
 
 
 # TITULO ELIMINAR CREDENCIALES

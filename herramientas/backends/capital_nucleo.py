@@ -244,6 +244,13 @@ _INTERVALO_GUARDADO_S = 30
 _RAIZ = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _ARCHIVO_SESION = os.path.join(_RAIZ, "data", "capital_sesion.json")   # data/*.json no se sube al repositorio
 _ARCHIVO_CANDADO = _ARCHIVO_SESION + ".lock"
+# Credenciales de esta copia (V18): la clave del registro (usuario, modo) y la VERSIÓN con la que se cargaron, que fija `sesiones_capital`. La sesión compartida entre procesos solo se adopta si lleva
+# esa misma versión (una sesión abierta con credenciales anteriores no sirve), y las órdenes nuevas verifican la versión con la base antes de salir (`_bloqueo_apertura`).
+_CLAVE_REGISTRO = None
+_VERSION_CREDENCIALES = None
+_VERIFICAR_CREDENCIALES = False
+# Prefijo de un archivo de sesión cifrado con la clave maestra (CREDENCIALES_CLAVES).
+_PREFIJO_CIFRADO = "pj1:"
 _marcas_peticion: list = []
 _marcas_fondo: list = []
 _CANDADO_RITMO = threading.Lock()
@@ -259,14 +266,55 @@ def _aviso(mensaje: str) -> None:
         print(mensaje)
 
 
+# TITULO PROTEGER
+
+def _proteger(datos: dict) -> str:
+    """Texto que se guarda en el archivo de sesión: los datos cifrados con la clave maestra (prefijo `pj1:`). Sin clave maestra (modo de un solo usuario de desarrollo) quedan en JSON, pero el archivo
+    se crea con permisos solo del propietario."""
+    texto = json.dumps(datos)
+    try:
+        from herramientas import credenciales_bolsa
+        return _PREFIJO_CIFRADO + credenciales_bolsa.cifrar_texto(texto)
+    except Exception:
+        return texto
+
+
+# TITULO ABRIR PROTEGIDO
+
+def _abrir_protegido(texto: str) -> dict:
+    """Lee el contenido de un archivo de sesión (cifrado o en JSON) y devuelve el diccionario; lanza una excepción si no se puede descifrar o interpretar."""
+    if texto.startswith(_PREFIJO_CIFRADO):
+        from herramientas import credenciales_bolsa
+        texto = credenciales_bolsa.descifrar_texto(texto[len(_PREFIJO_CIFRADO):])
+    d = json.loads(texto)
+    return d if isinstance(d, dict) else {}
+
+
+# TITULO ESCRIBIR PRIVADO
+
+def _escribir_privado(ruta: str, texto: str) -> None:
+    """Escribe el archivo de forma atómica y con permisos solo del propietario (0600); la carpeta de sesiones por usuario queda en 0700."""
+    carpeta = os.path.dirname(ruta)
+    os.makedirs(carpeta, exist_ok=True)
+    if os.path.basename(carpeta) == "sesiones_capital":
+        try:
+            os.chmod(carpeta, 0o700)
+        except OSError:
+            pass
+    tmp = ruta + f".{os.getpid()}.tmp"
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write(texto)
+    os.replace(tmp, ruta)
+
+
 # TITULO LEER ARCHIVO
 
 def _leer_archivo() -> dict:
-    """Lee la sesión compartida entre procesos; {} si no existe o no se puede leer."""
+    """Lee la sesión compartida entre procesos; {} si no existe, no se puede descifrar o no se puede leer."""
     try:
         with open(_ARCHIVO_SESION, "r", encoding="utf-8") as fh:
-            d = json.load(fh)
-        return d if isinstance(d, dict) else {}
+            return _abrir_protegido(fh.read())
     except Exception:
         return {}
 
@@ -274,16 +322,12 @@ def _leer_archivo() -> dict:
 # TITULO GUARDAR ARCHIVO
 
 def _guardar_archivo() -> None:
-    """Guarda la sesión y la espera actuales para que otros procesos las reutilicen (escritura atómica)."""
+    """Guarda la sesión y la espera actuales para que otros procesos las reutilicen (escritura atómica, cifrada, con permisos solo del propietario y marcada con la versión de las credenciales)."""
     global _ultimo_guardado
     _ultimo_guardado = time.time()
     try:
-        os.makedirs(os.path.dirname(_ARCHIVO_SESION), exist_ok=True)
-        tmp = _ARCHIVO_SESION + f".{os.getpid()}.tmp"
-        with open(tmp, "w", encoding="utf-8") as fh:
-            json.dump({"CST": _tokens["CST"], "X-SECURITY-TOKEN": _tokens["X-SECURITY-TOKEN"], "ts": _ultimo_uso,
-                       "cuenta": _cuenta_activa_id, "espera_hasta": _espera_hasta}, fh)
-        os.replace(tmp, _ARCHIVO_SESION)
+        _escribir_privado(_ARCHIVO_SESION, _proteger({"CST": _tokens["CST"], "X-SECURITY-TOKEN": _tokens["X-SECURITY-TOKEN"], "ts": _ultimo_uso, "cuenta": _cuenta_activa_id,
+                                                      "espera_hasta": _espera_hasta, "v": _VERSION_CREDENCIALES}))
     except Exception:
         pass
 
@@ -297,6 +341,8 @@ def _adoptar_archivo(excluir_cst: str = "") -> bool:
     global _ultimo_uso, _cuenta_activa_id, _espera_hasta
     d = _leer_archivo()
     if not d:
+        return False
+    if d.get("v") != _VERSION_CREDENCIALES:       # la sesión se abrió con otras credenciales (el usuario las reemplazó): no sirve ni su pausa
         return False
     if float(d.get("espera_hasta", 0) or 0) > _espera_hasta:
         _espera_hasta = float(d["espera_hasta"])
@@ -1666,9 +1712,11 @@ def _enviar_orden(tipo: str, ruta: str, cuerpo: dict, epic: str, extra: dict) ->
 # TITULO EJECUTAR ORDEN MERCADO
 
 def _bloqueo_apertura():
-    """Motivo por el que NO se puede abrir ahora (parada global, sin usuario, parada de la persona o cuenta real deshabilitada), o None; ver herramientas/politica_apertura.py. Se importa al usarlo para evitar ciclos."""
+    """Motivo por el que NO se puede abrir ahora (parada global, sin usuario, parada de la persona, cuenta real deshabilitada o credenciales que ya no son las vigentes), o None; ver herramientas/politica_apertura.py. Se importa al usarlo para evitar ciclos.
+
+    Una copia con cuenta de usuario pasa su versión de credenciales: la política la verifica con la base justo antes de abrir y, si no coincide o no se puede comprobar, rechaza (cerrar sigue permitido)."""
     from herramientas import politica_apertura
-    return politica_apertura.motivo_de_bloqueo()
+    return politica_apertura.motivo_de_bloqueo((_CLAVE_REGISTRO, _VERSION_CREDENCIALES) if _VERIFICAR_CREDENCIALES else None)
 
 
 def ejecutar_orden_mercado(symbol: str, tipo: str, volumen: float, stop_loss: float = 0.0, take_profit: float = 0.0) -> dict:

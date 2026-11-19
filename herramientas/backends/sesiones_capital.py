@@ -32,6 +32,12 @@ Cómo se decide el usuario actual (en este orden):
 
 Las credenciales salen de `credenciales_bolsa` (cifradas en Supabase) y solo viven en memoria dentro de la copia;
 nunca se escriben en logs. Se guardan como máximo `CAPITAL_MAX_SESIONES` copias; al pasar el tope se descarta la menos usada.
+
+Credenciales vigentes entre procesos (V18 de la auditoría): cada copia recuerda la VERSIÓN de las credenciales con que se cargó (`credencial_version` de la fila; la base la renueva en cada guardado).
+Cuando el usuario reemplaza o quita su API, otro proceso (el servidor de precios, el motor de copias) no se entera por memoria compartida sino comparando versiones: cada `_VIDA_VERIFICACION_S`
+segundos para las lecturas y, SIN caché, justo antes de abrir una operación (`motivo_credenciales_no_vigentes`, que llama la política de apertura). Si la versión cambió o la cuenta ya no existe, la
+copia vieja se descarta (y se cierra su sesión en Capital.com); si no se puede verificar, las lecturas siguen con lo que hay pero NO se abren operaciones nuevas (cerrar sigue permitido). La sesión que las
+copias comparten por archivo va cifrada, con permisos solo del propietario y marcada con esa versión.
 """
 import contextlib
 import contextvars
@@ -64,9 +70,10 @@ _MAX_SESIONES = max(2, int(os.getenv("CAPITAL_MAX_SESIONES", "200") or 200))
 # Segundos que se recuerda que un usuario no tiene credenciales (para no consultar Supabase en cada llamada)
 _VIDA_SIN_CREDENCIALES_S = 30.0
 
-# Cada cuántos segundos se vuelve a comprobar que el usuario sigue teniendo guardadas las claves de una copia que ya está en memoria. Así, cuando quita su API, la cuenta deja
-# de funcionar también en el servidor de precios (otro proceso, que no se entera de lo que se hace en la pantalla) en menos de este tiempo.
-_VIDA_VERIFICACION_S = 30.0
+# Cada cuántos segundos se vuelve a comprobar que las credenciales de una copia que ya está en memoria siguen siendo las vigentes (misma versión). Así, cuando el usuario reemplaza o quita su API, la
+# cuenta deja de usar las anteriores también en el servidor de precios (otro proceso, que no se entera de lo que se hace en la pantalla) en menos de este tiempo. Con la base caída se reintenta antes.
+_VIDA_VERIFICACION_S = 10.0
+_REINTENTO_VERIFICACION_S = 5.0
 
 # Claves especiales del registro
 _CLAVE_LEGADO = ("legado",)
@@ -81,6 +88,8 @@ _sin_credenciales: dict = {}
 _verificada_hasta: dict = {}
 # Número de copia, para darle a cada módulo un nombre único
 _contador = 0
+# True cuando ya se borraron los archivos de sesión antiguos (sin cifrar) de la carpeta compartida
+_barrido_hecho = False
 # Límite de peticiones por segundo que se aplica a cada copia nueva (None = el del núcleo)
 _limite_peticiones: Optional[int] = None
 
@@ -191,6 +200,10 @@ def _cargar_copia(clave: tuple, credenciales: Optional[dict]):
     modulo.BASE = _URL_DEMO if es_demo else _URL_REAL
     modulo._ARCHIVO_SESION = _ruta_sesion(clave)
     modulo._ARCHIVO_CANDADO = modulo._ARCHIVO_SESION + ".lock"
+    modulo._CLAVE_REGISTRO = clave
+    modulo._VERSION_CREDENCIALES = (credenciales or {}).get("version")
+    modulo._VERIFICAR_CREDENCIALES = bool(credenciales)      # una copia con cuenta de usuario verifica su versión con la base antes de abrir
+    _barrer_sesiones_antiguas()
     return modulo
 
 
@@ -208,15 +221,84 @@ def _leer_credenciales(clave: tuple) -> Optional[dict]:
         return None
 
 
-# TITULO SIGUEN LAS CREDENCIALES
+# TITULO ESTADO DE LAS CREDENCIALES
 
-def _siguen_las_credenciales(clave: tuple) -> bool:
-    """True si el usuario de `clave` sigue teniendo guardadas las credenciales de ese modo; ante una falla de la base de datos devuelve True, para no cortar una cuenta por un error pasajero."""
+def _estado_credenciales(clave: tuple) -> tuple:
+    """("ok", versión), ("ausente", None) o ("error", None) para las credenciales de `clave` en la base; nunca lanza."""
     try:
         from herramientas import credenciales_bolsa
-        return credenciales_bolsa.existen_credenciales(clave[0], clave[1]) is not False
+        return credenciales_bolsa.version_credenciales(clave[0], clave[1])
     except Exception:
-        return True
+        return ("error", None)
+
+
+# TITULO CERRAR EN SEGUNDO PLANO
+
+def _cerrar_en_segundo_plano(modulo) -> None:
+    """Cierra en Capital.com la sesión de una copia que se descarta (y borra su archivo compartido), sin hacer esperar a quien llama. Es de mejor esfuerzo: si falla, la sesión caduca sola."""
+    if modulo is None or getattr(modulo, "_CLAVE_REGISTRO", None) is None:
+        return
+    threading.Thread(target=getattr(modulo, "cerrar_mt5", lambda: None), daemon=True, name="cerrar-sesion-capital").start()
+
+
+# TITULO RETIRAR COPIA
+
+def _retirar_copia(clave: tuple) -> None:
+    """Descarta la copia de `clave` (sus credenciales en memoria y su sesión). Se llama con el candado del registro tomado."""
+    modulo = _copias.pop(clave, None)
+    _verificada_hasta.pop(clave, None)
+    _cerrar_en_segundo_plano(modulo)
+
+
+# TITULO BARRER SESIONES ANTIGUAS
+
+def _barrer_sesiones_antiguas() -> None:
+    """Una sola vez por proceso: borra de la carpeta compartida los archivos de sesión que quedaron en claro (de antes de V18); los nuevos van cifrados."""
+    global _barrido_hecho
+    if _barrido_hecho:
+        return
+    _barrido_hecho = True
+    try:
+        nombres = os.listdir(_CARPETA_SESIONES)
+    except OSError:
+        return
+    for nombre in nombres:
+        ruta = os.path.join(_CARPETA_SESIONES, nombre)
+        try:
+            if not (nombre.endswith(".json") and os.path.isfile(ruta)):
+                continue
+            with open(ruta, "r", encoding="utf-8", errors="ignore") as fh:
+                inicio = fh.read(4)
+            if inicio != "pj1:":          # se borra con el archivo ya cerrado (en Windows no se puede borrar uno abierto)
+                os.remove(ruta)
+        except OSError:
+            continue
+
+
+# TITULO MOTIVO CREDENCIALES NO VIGENTES
+
+def motivo_credenciales_no_vigentes(clave, version) -> str | None:
+    """Texto con el motivo por el que NO se debe abrir una operación con una copia cargada con `version`, o None si sus credenciales siguen siendo las vigentes.
+
+    Consulta la base SIN caché (es la verificación previa a una orden nueva, la política de apertura). Rechaza si el usuario quitó la cuenta, si la reemplazó (la versión cambió: descarta la copia vieja
+    para que la próxima llamada cargue las nuevas) o si la base no responde y por tanto no se puede comprobar. No aplica a la cuenta del .env ni a las copias sin cuenta."""
+    if clave is None or clave in (_CLAVE_LEGADO, _CLAVE_ANONIMO):
+        return None
+    estado, actual = _estado_credenciales(tuple(clave))
+    if estado == "ok" and actual == version:
+        return None
+    if estado == "error":
+        return ("No se pudo verificar la cuenta conectada (la base de datos no responde): por seguridad no se abren operaciones nuevas hasta poder comprobarla. "
+                "Cerrar posiciones y mover SL/TP sigue disponible.")
+    with _CANDADO:
+        modulo = _copias.get(tuple(clave))
+        if modulo is not None and getattr(modulo, "_VERSION_CREDENCIALES", None) != actual:
+            _retirar_copia(tuple(clave))
+        if estado == "ausente":
+            _sin_credenciales[tuple(clave)] = time.time() + _VIDA_SIN_CREDENCIALES_S
+    if estado == "ausente":
+        return "Esta cuenta ya no está conectada: no se pueden abrir operaciones con ella."
+    return "Las credenciales de esta cuenta cambiaron: vuelve a intentarlo en un momento."
 
 
 # TITULO MODULO DE UNA CLAVE
@@ -229,16 +311,21 @@ def modulo_de(clave: tuple):
     el usuario cambia sus credenciales."""
     with _CANDADO:
         modulo = _copias.get(clave)
-        if modulo is not None:
-            if clave not in (_CLAVE_LEGADO, _CLAVE_ANONIMO) and time.time() >= _verificada_hasta.get(clave, 0.0):
-                if _siguen_las_credenciales(clave):
-                    _verificada_hasta[clave] = time.time() + _VIDA_VERIFICACION_S
-                else:
-                    # El usuario quitó su API: la copia (con sus claves en memoria) se descarta y esa cuenta queda sin conexión
-                    _copias.pop(clave, None)
-                    _verificada_hasta.pop(clave, None)
+        if modulo is not None and clave not in (_CLAVE_LEGADO, _CLAVE_ANONIMO) and time.time() >= _verificada_hasta.get(clave, 0.0):
+            estado, version = _estado_credenciales(clave)
+            if estado == "ok" and version == getattr(modulo, "_VERSION_CREDENCIALES", None):
+                _verificada_hasta[clave] = time.time() + _VIDA_VERIFICACION_S
+            elif estado == "error":
+                # La base no responde: las lecturas siguen con lo que hay (una falla pasajera no corta la cuenta); las órdenes nuevas se verifican aparte y se rechazan mientras no se pueda comprobar
+                _verificada_hasta[clave] = time.time() + _REINTENTO_VERIFICACION_S
+            else:
+                # El usuario quitó su API o la reemplazó: la copia (con las credenciales anteriores en memoria) se descarta
+                _retirar_copia(clave)
+                if estado == "ausente":
                     _sin_credenciales[clave] = time.time() + _VIDA_SIN_CREDENCIALES_S
                     return _modulo_sin_cuenta()
+                modulo = None      # reemplazó: más abajo se cargan las nuevas
+        if modulo is not None:
             _copias.move_to_end(clave)
             return modulo
         if clave not in (_CLAVE_LEGADO, _CLAVE_ANONIMO) and time.time() < _sin_credenciales.get(clave, 0.0):
@@ -251,6 +338,8 @@ def modulo_de(clave: tuple):
                 return _modulo_sin_cuenta()
         modulo = _cargar_copia(clave, credenciales)
         _copias[clave] = modulo
+        if clave not in (_CLAVE_LEGADO, _CLAVE_ANONIMO):
+            _verificada_hasta[clave] = time.time() + _VIDA_VERIFICACION_S     # acaba de leerse de la base: no hace falta volver a preguntar de inmediato
         _descartar_sobrantes()
         return modulo
 
@@ -341,9 +430,12 @@ def olvidar_usuario(usuario_id: int) -> None:
     with _CANDADO:
         for es_demo in (True, False):
             clave = (int(usuario_id), es_demo)
-            _copias.pop(clave, None)
+            _retirar_copia(clave)
             _sin_credenciales.pop(clave, None)
-            _verificada_hasta.pop(clave, None)
+            try:
+                os.remove(_ruta_sesion(clave))        # la sesión compartida con otros procesos deja de existir
+            except OSError:
+                pass
 
 
 # -------------------------------------------------------------------------------------------------------
