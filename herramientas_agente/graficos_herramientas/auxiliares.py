@@ -21,7 +21,6 @@ importarse antes que ``matplotlib.pyplot``.
 """
 from __future__ import annotations
 
-import os
 from datetime import datetime
 from typing import Any
 
@@ -33,13 +32,7 @@ from matplotlib.patches import Rectangle
 matplotlib.use("Agg")  # Backend no interactivo para entornos de servidor/dashboard
 
 
-# Directorio de salida (ruta absoluta: así el dashboard encuentra el archivo
-# aunque Streamlit se lance desde otra carpeta que la terminal).
-OUTPUT_DIR = os.path.abspath(os.path.join("static", "graficos"))
-
-
-# Crea la carpeta de salida al importar el módulo si aún no existe.
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+# Los gráficos ya no se guardan en una carpeta común (`static/graficos`) sino en la carpeta privada de cada usuario (herramientas/archivos_privados.py).
 
 
 # Tipos de gráfico aceptados por la herramienta (también alimentan el enum del esquema).

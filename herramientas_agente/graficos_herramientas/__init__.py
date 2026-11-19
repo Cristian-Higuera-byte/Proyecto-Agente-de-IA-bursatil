@@ -18,7 +18,7 @@ NOMBRE DEL ARCHIVO: herramientas_agente/graficos_herramientas
 Archivos: herramientas.py (registro de las herramientas), auxiliares.py.
 
 Este paquete es una fachada: reexporta las constantes y helpers de
-``auxiliares`` (directorio de salida, tipos válidos, mapeo de símbolos,
+``auxiliares`` (tipos válidos, mapeo de símbolos,
 etiquetas de fecha y dibujo de velas) y la herramienta
 ``generar_grafico_financiero`` de ``herramientas``. Importar el paquete
 también registra la herramienta en el catálogo del agente, y permite que el
@@ -26,7 +26,6 @@ resto del proyecto use ``herramientas_agente.graficos_herramientas.<nombre>``
 sin conocer la división interna en archivos.
 """
 from herramientas_agente.graficos_herramientas.auxiliares import (
-    OUTPUT_DIR,
     TIPOS_VALIDOS,
     _mapear_simbolo_yf,
     _etiqueta_fecha,

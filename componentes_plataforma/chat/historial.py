@@ -14,7 +14,7 @@
 """Historial del chat: une el turno en segundo plano con la conversación de la sesión y pinta los mensajes.
 
 La conversación visible vive en st.session_state.mensajes_ui (lista de diccionarios con
-role, content y opcionalmente herramientas, imagenes y pie). El turno del agente corre en
+role, content y opcionalmente herramientas, imagenes, archivos y pie). El turno del agente corre en
 un hilo aparte (nucleo_agente.turnos); este módulo sincroniza ambos y dibuja el resultado.
 """
 from __future__ import annotations
@@ -25,7 +25,11 @@ import streamlit as st
 
 from componentes_plataforma.chat.sesion import SALUDO
 from componentes_plataforma.chat.turno_vivo import burbuja_en_vivo
+from herramientas import archivos_privados
 from nucleo_agente import turnos
+
+# Tipo de archivo (MIME) con el que se ofrece cada reporte para descargar.
+_TIPOS_MIME = {".csv": "text/csv", ".html": "text/html", ".md": "text/markdown"}
 
 
 # TITULO INICIAR CONVERSACION
@@ -72,7 +76,7 @@ def sincronizar_turno(uid: str):
         # Terminó mientras estabas en otra sección: la respuesta pasa al chat y su aviso queda leído.
         st.session_state.mensajes_ui.append({
             "role": "assistant", "content": turno.respuesta_final(),
-            "herramientas": list(turno.herramientas), "imagenes": list(turno.imagenes), "pie": turno.pie,
+            "herramientas": list(turno.herramientas), "imagenes": list(turno.imagenes), "archivos": list(turno.archivos), "pie": turno.pie,
         })
         turnos.recoger(uid, turno.id)
     return turno, en_curso, vistos
@@ -91,12 +95,20 @@ def pintar_mensajes(uid: str, turno, en_curso: bool, sufijo: str = "", altura: i
     contenedor_chat_central = st.container(height=altura, border=False, key=f"agente_chat_desplazamiento{sufijo}")
     with contenedor_chat_central:
         # Mensajes ya guardados, con sus imágenes (solo si el archivo todavía existe) y pie.
-        for mensaje in st.session_state.mensajes_ui:
+        for n_mensaje, mensaje in enumerate(st.session_state.mensajes_ui):
             with st.chat_message(mensaje["role"]):
                 st.markdown(mensaje["content"])
+                # Solo se muestra una imagen o se ofrece un reporte si el archivo está en la carpeta privada de ESTE usuario (se vuelve a comprobar aquí: nunca se confía en la ruta guardada).
                 for ruta in mensaje.get("imagenes", []):
-                    if os.path.isfile(ruta):
-                        st.image(ruta, use_container_width=True)
+                    autorizada = archivos_privados.ruta_autorizada(ruta, uid, archivos_privados.EXTENSIONES_IMAGEN)
+                    if autorizada is not None:
+                        st.image(str(autorizada), width="stretch")
+                for n_archivo, ruta in enumerate(mensaje.get("archivos", [])):
+                    contenido = archivos_privados.leer(ruta, uid, archivos_privados.EXTENSIONES_REPORTE)
+                    if contenido is not None:
+                        extension = os.path.splitext(str(ruta))[1].lower()
+                        st.download_button(f"Descargar reporte ({extension[1:].upper()})", contenido, file_name=f"reporte{extension}", mime=_TIPOS_MIME.get(extension, "application/octet-stream"),
+                                           key=f"descarga_reporte{sufijo}_{n_mensaje}_{n_archivo}")
                 if mensaje.get("pie"):
                     st.caption(mensaje["pie"])
         # Respuesta en construcción, que se refresca sola cada segundo.

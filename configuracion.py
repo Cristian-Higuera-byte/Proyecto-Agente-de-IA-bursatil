@@ -138,6 +138,9 @@ COPYTRADING: dict = {"dias_minimos": 30, "operaciones_minimas": 20, "max_estrate
                      "categorias": ["Forex", "Índices", "Criptomonedas", "Materias primas", "Metales", "Acciones", "Mixta"],
                      "max_copias_por_inversor": 5, "espera_motor_s": 15, "pendiente_vence_s": 120, "liquidacion_dias": 30,
                      "cierre_plazo_s": 900}   # tiempo que el motor reintenta cerrar las posiciones de una copia antes de pedir intervención manual
+# Archivos que el agente genera para cada usuario (reportes y gráficos), en su carpeta privada (herramientas/archivos_privados.py): días que se conservan, cantidad máxima por usuario y tamaño máximo de
+# un archivo para mostrarlo o descargarlo (MB).
+ARCHIVOS_USUARIO: dict = {"retencion_dias": 7, "maximo_por_usuario": 200, "tamano_maximo_mb": 10}
 # Porcentaje de uso desde el cual la barra se pone en ámbar (aviso) y desde el que se pone en rojo.
 UMBRAL_AVISO_PCT = 70
 UMBRAL_CRITICO_PCT = 90

@@ -17,10 +17,9 @@ NOMBRE DEL ARCHIVO: herramientas_agente/tablas_herramientas
 
 Archivos: herramientas.py (registro de las herramientas), auxiliares.py, esquemas.json.
 
-Este paquete es una fachada: reexporta ``OUTPUT_DIR`` (carpeta donde se guardan
-los reportes) y la herramienta ``generar_tabla_reporte``.
+Este paquete es una fachada: reexporta la herramienta ``generar_tabla_reporte``. Los reportes se
+guardan en la carpeta privada del usuario (herramientas/archivos_privados.py).
 """
-from herramientas_agente.tablas_herramientas.auxiliares import OUTPUT_DIR
 from herramientas_agente.tablas_herramientas.herramientas import generar_tabla_reporte
 
 

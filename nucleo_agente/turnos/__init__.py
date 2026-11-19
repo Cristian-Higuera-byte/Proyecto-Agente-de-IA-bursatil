@@ -39,7 +39,7 @@ Archivos: turno.py (Turno), registro.py (iniciar/cancelar/recoger), hilo.py, avi
 from nucleo_agente.turnos.avisos import _avisar  # noqa: F401
 from nucleo_agente.turnos.formato import formatear_duracion, formatear_reloj
 from nucleo_agente.turnos.hilo import _correr  # noqa: F401
-from nucleo_agente.turnos.imagenes import _EXT_IMAGEN, _buscar_rutas_imagen, imagenes_de_resultado  # noqa: F401
+from nucleo_agente.turnos.imagenes import _EXT_IMAGEN, _buscar_rutas_imagen, archivos_de_resultado, imagenes_de_resultado  # noqa: F401
 from nucleo_agente.turnos.registro import (
     _AGENTES, _CANDADO, _TURNOS, agente_de, cancelar, hay_turno_en_curso, iniciar, recoger, registrar_agente, turno_de,
 )  # noqa: F401

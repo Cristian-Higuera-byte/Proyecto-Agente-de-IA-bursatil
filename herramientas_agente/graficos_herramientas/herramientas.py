@@ -19,16 +19,14 @@ imagen PNG en disco para que el chat la muestre.
 """
 from __future__ import annotations
 
-import os
-from datetime import datetime
 from typing import Any
 
 from fuentes import mt5_fuentes as mt5_fuente
 from fuentes import yfinance_fuente as yf_fuente
+from herramientas import archivos_privados
 from herramientas_agente import analisis_herramientas
 from herramientas_agente.base import herramienta
 from herramientas_agente.graficos_herramientas.auxiliares import (
-    OUTPUT_DIR,
     TIPOS_VALIDOS,
     _dibujar_velas,
     _etiqueta_fecha,
@@ -93,7 +91,7 @@ def generar_grafico_financiero(
     y un panel RSI(14) (salvo en el comparativo, que muestra rendimiento % relativo).
 
     Efectos secundarios: consulta MT5 y/o yfinance y escribe un PNG en
-    ``OUTPUT_DIR``. Devuelve un diccionario con la fuente, el símbolo, el
+    la carpeta privada del usuario (nombre aleatorio). Devuelve un diccionario con la fuente, el símbolo, el
     tipo, la temporalidad real, las velas graficadas, el último cierre, la
     ruta del archivo y un mensaje; o ``{"error": ...}`` si algo falla.
     """
@@ -148,9 +146,8 @@ def generar_grafico_financiero(
     fig = plt.figure(figsize=(12, 7), dpi=120)
     fig.patch.set_facecolor("#12141D")
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"chart_{simbolo_clean}_{tipo_grafico}_{timestamp}.png"
-    filepath = os.path.join(OUTPUT_DIR, filename)
+    # Archivo NUEVO en la carpeta privada del usuario, con nombre aleatorio (no se pisa con otra exportación ni se puede adivinar).
+    filepath = str(archivos_privados.nuevo_archivo("graficos", ".png"))
 
     # ──────────────────────────────────────────────────────────
     # 1. Gráfico Comparativo de Rendimiento % Relativo

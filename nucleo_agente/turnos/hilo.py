@@ -20,7 +20,7 @@ from typing import Any
 from herramientas import cuota_ia, permisos_plan
 from nucleo_agente import contexto
 from nucleo_agente.turnos.avisos import _avisar
-from nucleo_agente.turnos.imagenes import imagenes_de_resultado
+from nucleo_agente.turnos.imagenes import archivos_de_resultado, imagenes_de_resultado
 from nucleo_agente.turnos.turno import Turno
 
 
@@ -63,10 +63,14 @@ def _correr(turno: Turno, agente: Any) -> None:
                     turno.hubo_orden = True
                 elif evento.texto == "proponer_vigilancia" and "VIGILANCIA_PENDIENTE" in str((evento.datos or {}).get("resultado", "")):
                     turno.hubo_vigilancia = True
-                # Las imágenes guardadas en disco por la herramienta se acumulan sin repetir.
-                for ruta in imagenes_de_resultado((evento.datos or {}).get("resultado")):
+                # Las imágenes y los reportes que la herramienta guardó para ESTE usuario se acumulan sin repetir; cualquier ruta fuera de su carpeta privada se ignora.
+                resultado = (evento.datos or {}).get("resultado")
+                for ruta in imagenes_de_resultado(resultado, turno.usuario_id):
                     if ruta not in turno.imagenes:
                         turno.imagenes.append(ruta)
+                for ruta in archivos_de_resultado(resultado, turno.usuario_id):
+                    if ruta not in turno.archivos:
+                        turno.archivos.append(ruta)
             elif evento.tipo == "fin":
                 # Al terminar se guardan los tokens consumidos y el perfil usado (para el pie del turno).
                 d = evento.datos or {}

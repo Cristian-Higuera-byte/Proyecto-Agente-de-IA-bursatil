@@ -40,6 +40,7 @@ class Turno:
     texto: str = ""                  # respuesta acumulada (se va llenando mientras llega)
     herramientas: list = field(default_factory=list)
     imagenes: list = field(default_factory=list)
+    archivos: list = field(default_factory=list)   # reportes (.md, .html, .csv) que el usuario puede descargar desde el chat
     hubo_orden: bool = False         # el agente llamó a proponer_orden / proponer_cierre_posicion
     hubo_vigilancia: bool = False    # el agente preparó una vigilancia automática (pendiente de autorizar)
     error: str = ""

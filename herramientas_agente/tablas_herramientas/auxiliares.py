@@ -11,18 +11,17 @@
 # ---------------------------------- INICIO Piña y Jara auxiliares .PY ----------------------------------
 # -------------------------------------------------------------------------------------------------------
 
-"""Constantes auxiliares de las herramientas de tablas (sin registrar nada)."""
+"""Constantes auxiliares de las herramientas de tablas (sin registrar nada).
+
+Los reportes ya no se guardan en una carpeta común sino en la carpeta privada de cada usuario (`herramientas/archivos_privados.py`)."""
 from __future__ import annotations
 
-import os
-
-
-# Carpeta (relativa al directorio de trabajo) donde se guardan los reportes generados; se sirve como /static/reportes.
-OUTPUT_DIR = os.path.join("static", "reportes")
-
-
-# Crea la carpeta de reportes al importar el módulo si no existe.
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+# Tipos de reporte aceptados (los mismos del enum del esquema).
+TIPOS_DE_REPORTE = ("posiciones_abiertas", "riesgo_cartera", "datos_personalizados")
+# Formatos aceptados y la extensión con la que se guarda cada uno.
+EXTENSION_DE_FORMATO = {"markdown": ".md", "html": ".html", "csv": ".csv"}
+# Topes para que unos datos enormes no llenen el disco ni la memoria: filas, columnas, largo de una celda y largo del JSON de entrada.
+LIMITES = {"filas": 2000, "columnas": 30, "celda": 1000, "json": 1_000_000}
 
 
 # -------------------------------------------------------------------------------------------------------
