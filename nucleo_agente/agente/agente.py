@@ -23,6 +23,8 @@ from typing import Any, Iterator
 
 import configuracion
 import herramientas_agente  # noqa: F401  (importarlo registra todas las herramientas)
+from herramientas.backends import sesiones_capital
+from nucleo_agente import contexto
 from herramientas import consumo_ia, cuota_ia, permisos_plan
 from nucleo_agente.agente.ciclo import _CicloMixin
 from nucleo_agente.agente.eventos import EventoAgente
@@ -137,6 +139,9 @@ class Agente(_CicloMixin):
         """
         # Sin preguntas disponibles esta semana no se empieza: se avisa antes de tocar el historial (lanza ErrorCuota con el mensaje para el usuario).
         # Los análisis de las vigilancias automáticas no cuentan como preguntas del usuario.
+        # La memoria y las herramientas deben ser de la MISMA persona: con varios usuarios, si el turno corre bajo otra identidad no se responde (V19).
+        if self.memoria is not None and sesiones_capital.MULTIUSUARIO and contexto.usuario_actual() != self.memoria.usuario_id:
+            raise ErrorMemoria("La identidad de esta conversación no coincide con la del usuario en curso; vuelve a abrir la sesión.")
         es_pregunta = consumo_ia.origen_actual() != "vigilancia"
         if es_pregunta:
             cuota_ia.exigir()

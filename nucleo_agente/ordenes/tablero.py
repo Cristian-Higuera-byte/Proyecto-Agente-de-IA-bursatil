@@ -116,16 +116,24 @@ def confirmar_orden(id_orden: str) -> dict[str, Any]:
     Solo confirma propuestas del usuario y la cuenta actuales: el dueño y la cuenta van en la misma sentencia atómica que reclama la propuesta, así que la de otro
     usuario, o la creada en la otra cuenta (demo/real), responde «La orden no existe» y no llega al bróker. La orden se envía con la cuenta con la que se creó."""
     dueno, valores = condicion_dueno()
-    # Paso 1: se "reclama" la propuesta de forma atómica: si ya se ejecutó, venció o fue rechazada, no se repite.
+    # Paso 1: se "reclama" la propuesta de forma atómica: si ya se ejecutó, venció o fue rechazada, no se repite. Una orden AUTOMÁTICA solo se reclama si su vigilancia sigue activa y vigente
+    # (V19): se comprueba en la misma sentencia, así que detener la vigilancia entre la propuesta y el envío cancela el envío.
     reclamada = _ejecutar(
-        "UPDATE ordenes SET estado = 'EJECUTANDO' WHERE id = ? AND ((estado = 'PENDIENTE' AND expira > ?) OR estado = 'VERIFICANDO')" + dueno,
-        (id_orden, _ahora(), *valores),
+        "UPDATE ordenes SET estado = 'EJECUTANDO' WHERE id = ? AND ((estado = 'PENDIENTE' AND expira > ?) OR estado = 'VERIFICANDO')"
+        " AND (COALESCE(origen, 'agente') <> 'automatica' OR vigilancia_id IN "
+        "(SELECT id FROM vigilancias WHERE estado = 'ACTIVA' AND (vence IS NULL OR vence > ?)))" + dueno,
+        (id_orden, _ahora(), _ahora(), *valores),
     )
     if reclamada == 0:
         # No se pudo reclamar: se averigua por qué para dar un mensaje preciso (solo entre las propias: una ajena es «no existe»).
-        filas = _consultar("SELECT estado FROM ordenes WHERE id = ?" + dueno, (id_orden, *valores))
+        filas = _consultar("SELECT estado, expira FROM ordenes WHERE id = ?" + dueno, (id_orden, *valores))
         if not filas:
             return {"ok": False, "mensaje": "La orden no existe."}
+        if filas[0]["estado"] == "PENDIENTE" and filas[0]["expira"] > _ahora():
+            # Vigente pero no reclamable: es una orden automática y su vigilancia ya no está activa (V19). No se envía y no queda colgada.
+            _ejecutar("UPDATE ordenes SET estado = 'RECHAZADA_USUARIO', detalle = ? WHERE id = ? AND estado = 'PENDIENTE'" + dueno,
+                      ("La vigilancia que la generó ya no estaba activa: no se envió.", id_orden, *valores))
+            return {"ok": False, "mensaje": "La vigilancia que generó esta orden ya no está activa: no se envió."}
         if filas[0]["estado"] == "PENDIENTE":
             # Seguía PENDIENTE pero vencida: se marca EXPIRADA.
             _ejecutar("UPDATE ordenes SET estado = 'EXPIRADA' WHERE id = ? AND estado = 'PENDIENTE'" + dueno, (id_orden, *valores))

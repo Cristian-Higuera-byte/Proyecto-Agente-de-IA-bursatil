@@ -39,6 +39,7 @@ class _ConversacionesMixin:
         if not filas:
             raise ErrorMemoria("La base de datos no devolvió la conversación creada.")
         self.chat_id = filas[0]["id"]
+        self._chat_verificado = self.chat_id       # lo acaba de crear este usuario
         self._tiene_titulo = False
         if self.chat_id is None:
             raise ErrorMemoria("La conversación creada no tiene id válido.")
@@ -59,6 +60,7 @@ class _ConversacionesMixin:
         if not filas:
             return False
         self.chat_id = filas[0]["id"]
+        self._chat_verificado = self.chat_id       # salió de una consulta filtrada por este usuario
         self._tiene_titulo = bool(filas[0].get("titulo"))
         return True
 
@@ -81,6 +83,7 @@ class _ConversacionesMixin:
         """Últimos turnos COMPLETOS del chat activo, listos para enviar al modelo."""
         if not self.chat_id:
             return []
+        self._exigir_chat_propio()
         # El último turno guardado define desde cuál empezar a leer (los últimos max_turnos).
         ultimo = self._ultimo_registro()
         if ultimo is None:
@@ -107,6 +110,7 @@ class _ConversacionesMixin:
             raise ErrorMemoria("El turno es inconsistente (tool_calls sin resultado o similar); no se guarda.")
         if not self.chat_id:
             self.iniciar_chat()
+        self._exigir_chat_propio()
 
         # Numeración: el turno y el orden continúan desde el último registro del chat.
         ultimo = self._ultimo_registro()

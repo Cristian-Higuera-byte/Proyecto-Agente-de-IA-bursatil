@@ -78,6 +78,7 @@ PERFIL_POR_DEFECTO = "analisis"
 # ──────────────────────────────────────────────────────────────
 # Comportamiento del agente
 # ──────────────────────────────────────────────────────────────
+MAX_LLAMADAS_HERRAMIENTAS_TURNO = 24   # tope TOTAL de llamadas a herramientas en un turno (el modelo puede pedir muchas en paralelo en cada ciclo)
 MAX_ITERACIONES_HERRAMIENTAS = 8   # tope de ciclos "llamar herramienta → razonar" por consulta
 TIEMPO_ESPERA_LLM_SEGUNDOS = 120              # segundos máximos de espera por cada respuesta del modelo
 REINTENTOS_LLM = 3                 # reintentos automáticos ante fallos de red o del servicio

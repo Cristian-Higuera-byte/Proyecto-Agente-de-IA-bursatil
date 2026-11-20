@@ -39,6 +39,7 @@ class _CicloMixin:
         # Esquemas de herramientas para el modelo (None si no hay ninguna) y acumuladores de tokens del turno.
         esquemas = self.registro.esquemas() or None
         tokens = {"tokens_entrada": 0, "tokens_salida": 0}
+        ejecutadas = 0       # llamadas a herramientas de este turno (tope total, V19)
 
         # Cada vuelta del bucle es una llamada al modelo; el tope evita ciclos infinitos de herramientas.
         for _ in range(configuracion.MAX_ITERACIONES_HERRAMIENTAS):
@@ -66,8 +67,11 @@ class _CicloMixin:
             # Se ejecuta cada herramienta pedida; un JSON inválido se devuelve al modelo como error.
             for llamada in final.llamadas:
                 yield EventoAgente("herramienta", llamada.nombre, llamada.argumentos)
+                ejecutadas += 1
                 if llamada.error:
                     resultado = json.dumps({"error": llamada.error}, ensure_ascii=False)
+                elif ejecutadas > configuracion.MAX_LLAMADAS_HERRAMIENTAS_TURNO:
+                    resultado = json.dumps({"error": "Se superó el máximo de llamadas a herramientas de este turno; no se ejecutó. Responde con lo que ya tienes."}, ensure_ascii=False)
                 else:
                     resultado = self.registro.ejecutar(llamada.nombre, llamada.argumentos)
                 # El resultado se añade como mensaje "tool" enlazado por tool_call_id.

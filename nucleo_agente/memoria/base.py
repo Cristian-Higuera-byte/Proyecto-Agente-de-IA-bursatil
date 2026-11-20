@@ -14,14 +14,30 @@
 """Base de la clase Memoria: usuario, cliente de Supabase y utilidades internas.
 
 Los mixins de conversaciones, datos y contexto se apoyan en lo que define _BaseMemoria.
+
+Identidad (V19 de la auditoría): la memoria se ata a un id de usuario NUMÉRICO (el de la base de datos), nunca a un texto libre ni a una identidad fija. Solo el modo de un solo usuario
+(sin CAPITAL_MULTIUSUARIO) acepta "local". Y antes de leer o escribir un chat se comprueba que ese chat pertenece al usuario de la memoria.
 """
 from __future__ import annotations
 
 from typing import Any
 
 from nucleo_agente.memoria.cliente import _obtener_cliente
-from nucleo_agente.memoria.constantes import TABLA_MENSAJES
+from nucleo_agente.memoria.constantes import TABLA_CHATS, TABLA_MENSAJES
 from nucleo_agente.memoria.errores import ErrorMemoria
+from herramientas.backends import sesiones_capital
+
+
+# TITULO NORMALIZAR USUARIO
+
+def normalizar_usuario(usuario_id: Any) -> str:
+    """Id de usuario válido para la memoria: un entero positivo (como texto). "local" solo se acepta con el modo multiusuario apagado. Cualquier otro valor lanza ErrorMemoria."""
+    texto = str(usuario_id if usuario_id is not None else "").strip()
+    if texto.isascii() and texto.isdigit() and int(texto) > 0:
+        return str(int(texto))
+    if texto == "local" and not sesiones_capital.MULTIUSUARIO:
+        return texto
+    raise ErrorMemoria("Se necesita el id numérico de un usuario identificado para usar la memoria.")
 
 
 # TITULO BASE MEMORIA
@@ -36,11 +52,10 @@ class _BaseMemoria:
 
         `cliente` permite inyectar un doble en pruebas; con None se crea al primer uso (ver `_db`).
         """
-        if not usuario_id or not str(usuario_id).strip():
-            raise ErrorMemoria("Se necesita un usuario_id para usar la memoria.")
-        self.usuario_id = str(usuario_id).strip()
+        self.usuario_id = normalizar_usuario(usuario_id)
         # Conversación activa (None hasta iniciar o retomar una) y si ya tiene título asignado.
         self.chat_id: str | None = None
+        self._chat_verificado: str | None = None     # último chat cuyo dueño ya se comprobó
         self._tiene_titulo = False
         self._cli = cliente  # None = se crea al primer uso
 
@@ -68,6 +83,22 @@ class _BaseMemoria:
             return consulta.execute().data or []
         except Exception as e:  # noqa: BLE001
             raise ErrorMemoria(f"La base de datos falló al {accion}: {e}") from e
+
+    # TITULO EXIGIR CHAT PROPIO
+
+    def _exigir_chat_propio(self) -> None:
+        """Comprueba que el chat activo pertenece a este usuario antes de leerlo o escribirlo; si no, lo suelta y lanza ErrorMemoria. Cada chat se verifica una sola vez."""
+        if not self.chat_id or self.chat_id == self._chat_verificado:
+            return
+        filas = self._ejecutar(
+            self._db.table(TABLA_CHATS).select("id").eq("id", self.chat_id).eq("usuario_id", self.usuario_id).limit(1),
+            "comprobar la conversación",
+        )
+        if not filas:
+            self.chat_id = None
+            self._tiene_titulo = False
+            raise ErrorMemoria("La conversación no pertenece a este usuario.")
+        self._chat_verificado = self.chat_id
 
     # TITULO ULTIMO REGISTRO
 
