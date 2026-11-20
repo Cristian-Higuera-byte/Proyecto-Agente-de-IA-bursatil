@@ -1,21 +1,31 @@
-# requirements.txt
+# requirements.txt: dependencias de la plataforma, una por línea (solo paquetes: nada de comandos `pip install`).
+# Instalación limpia:  python -m pip install -r requirements.txt
+# Las versiones de Streamlit y sus componentes van fijas (el hallazgo de SSRF de Streamlit en Windows se corrigió en 1.54.0); el resto
+# lleva un mínimo. Para fijar TODO tal como está en producción: `pip freeze > requirements.lock.txt` en el servidor y guardarlo.
+streamlit==1.64.0
+streamlit-lightweight-charts==0.7.20
+streamlit-option-menu==0.4.0
+streamlit-shadcn-ui==1.4.0
 yfinance>=0.2.40
-tzdata>=2024.1          # zonas horarias en Windows (reinicio semanal de la cuota de la IA)
 pandas>=2.0.0
 numpy>=1.24.0
 requests>=2.31.0
 websockets>=12.0
-
-# Pip Instalaciones
-pip install python-dotenv
-pip install yfinance
-pip install pandas
-pip install numpy
-pip install groq
-pip install openai
-python -m pip install supabase
-python -m pip install curl_cffi
-python -m pip install matplotlib
-pip install --upgrade openai
-pip install MetaTrader5
-pip install plotly
+python-dotenv
+cryptography
+curl_cffi
+matplotlib
+plotly
+groq
+openai
+supabase
+uvicorn
+starlette
+httpx
+beautifulsoup4
+lxml
+python-multipart
+PyJWT
+Authlib>=1.3.2
+tzdata>=2024.1 ; sys_platform == "win32"
+# Solo con el puente de MetaTrader 5 (Windows con el terminal instalado): python -m pip install MetaTrader5

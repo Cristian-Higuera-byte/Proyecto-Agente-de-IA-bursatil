@@ -78,7 +78,20 @@ def anotar(mensaje: str) -> None:
 # TITULO PUERTO DEL SERVIDOR DE PRECIOS
 
 def leer_puerto_precios(ruta: Optional[str] = None) -> int:
-    """Lee el puerto del servidor de precios de servidor_precios/constantes.py (línea `PUERTO = n`); si no se puede, usa el de fábrica."""
+    """Puerto del servidor de precios: la variable SERVIDOR_PUERTO (entorno o .env del proyecto); si no está, la línea `PUERTO = n` de servidor_precios/constantes.py (forma antigua); si no, el de fábrica."""
+    if ruta is None:
+        valor = os.environ.get("SERVIDOR_PUERTO", "").strip()
+        if not valor:
+            try:
+                with open(os.path.join(RAIZ, ".env"), encoding="utf-8") as env:
+                    for linea in env:
+                        clave, _, texto = linea.partition("=")
+                        if clave.strip() == "SERVIDOR_PUERTO":
+                            valor = texto.strip().strip("\"'")
+            except OSError:
+                pass
+        if valor.isdigit() and 1024 <= int(valor) <= 65535:
+            return int(valor)
     ruta = ruta or os.path.join(RAIZ, "servidor_precios", "constantes.py")
     try:
         with open(ruta, encoding="utf-8") as archivo:

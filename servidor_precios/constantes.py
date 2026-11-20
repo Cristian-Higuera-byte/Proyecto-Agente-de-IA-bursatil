@@ -22,8 +22,27 @@ import threading
 from herramientas.puente_mt5 import PROVEEDOR
 from proveedores.selector_mt5 import mt5  # type: ignore[import-untyped]
 
+# TITULO PUERTO CONFIGURADO
+
+def _puerto_configurado() -> int:
+    """Puerto del servidor de datos: la variable SERVIDOR_PUERTO (del entorno o de la línea `SERVIDOR_PUERTO=n` del .env del proyecto) o 8000 si no está o no es válida.
+
+    Cada entorno fija el suyo (en el hosting, 28000) sin editar el código, así un `git pull` no pisa ni desajusta nada (V20 de la auditoría)."""
+    valor = os.environ.get("SERVIDOR_PUERTO", "").strip()
+    if not valor:
+        try:
+            with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"), encoding="utf-8") as archivo:
+                for linea in archivo:
+                    clave, _, texto = linea.partition("=")
+                    if clave.strip() == "SERVIDOR_PUERTO":
+                        valor = texto.strip().strip("\"'")
+        except OSError:
+            pass
+    return int(valor) if valor.isdigit() and 1024 <= int(valor) <= 65535 else 8000
+
+
 # Puerto TCP local (127.0.0.1) en el que escucha el servidor de datos
-PUERTO = 8000
+PUERTO = _puerto_configurado()
 # Versión de la API. Se sube cuando cambian rutas o datos que usa el navegador:
 # el gráfico la compara (GET /salud) y avisa si este proceso quedó desactualizado.
 # 3 = órdenes pendientes con caducidad (POST /orden/modificar con "caducidad").

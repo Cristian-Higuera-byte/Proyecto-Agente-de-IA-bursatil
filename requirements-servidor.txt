@@ -1,0 +1,3 @@
+# requirements-servidor.txt: dependencias para el hosting (cPanel). Es la misma lista que requirements.txt, que es la única fuente.
+# Instalación:  python -m pip install -r requirements-servidor.txt
+-r requirements.txt

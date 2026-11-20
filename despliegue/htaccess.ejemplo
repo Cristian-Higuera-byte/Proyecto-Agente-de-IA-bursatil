@@ -14,9 +14,9 @@
 # Plantilla del .htaccess que usa el hosting cPanel (pyj.rmcabogados.cl). En el servidor se copia como `.htaccess` en la carpeta del proyecto;
 # ese archivo no está en el repositorio, así que esta copia sirve para recuperarlo si el servidor se pierde.
 #
-# Puertos: Streamlit escucha en 28501 y el servidor de precios en 28000 (los fija revivir_procesos.py y servidor_precios/constantes.py).
-# OJO: en el servidor, servidor_precios/constantes.py tiene PUERTO = 28000 (cambio local, el repositorio dice 8000). No descartarlo con
-# `git checkout` ni `git stash`: sin él el servidor de precios arranca en otro puerto y esta configuración no lo encuentra.
+# Puertos: Streamlit escucha en 28501 y el servidor de precios en 28000. El del servidor de precios se fija en el .env del servidor con la línea
+# `SERVIDOR_PUERTO=28000` (el código lo lee de ahí; sin la variable usa 8000). Ya no se edita servidor_precios/constantes.py a mano: un `git pull` no desajusta nada.
+# Si se cambia SERVIDOR_PUERTO, cambiar también los números 28000 de las reglas de abajo.
 
 # ENDURECIMIENTO (auditoría 09-11-2026: V04 y secciones 11 y 12). Orden de las reglas: archivos sensibles, HTTPS, métodos, cabeceras, límites, WebSocket, proxy.
 # Antes de reemplazar el .htaccess del servidor guardar una copia (`cp .htaccess .htaccess.bak`): si algo falla, se vuelve con `cp .htaccess.bak .htaccess`
