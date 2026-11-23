@@ -19,6 +19,7 @@ plotly
 groq
 openai
 supabase
+psycopg2-binary
 uvicorn
 starlette
 httpx
