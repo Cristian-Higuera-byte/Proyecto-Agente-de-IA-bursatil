@@ -18,7 +18,8 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Any
 
-from herramientas import permisos_plan
+from herramientas import aceptaciones_legales, permisos_plan
+from herramientas.backends import sesiones_capital
 from nucleo_agente import ordenes
 from nucleo_agente.vigilancia.caducidad import _caducar_autorizaciones
 from nucleo_agente.vigilancia.configuracion import (
@@ -145,6 +146,11 @@ def autorizar(vid: str, usuario_id: str) -> dict[str, Any]:
     v = obtener(vid)
     if not v or v["usuario_id"] != usuario_id:
         return {"ok": False, "mensaje": "La vigilancia no existe."}
+    if sesiones_capital.MULTIUSUARIO:     # V22: sin la constancia vigente de la aceptación de ESTA vigilancia (usuario, versión, alcance demo) no se activa, aunque se llame directo a la función
+        try:
+            aceptaciones_legales.exigir(int(usuario_id), "vigilancia", detalle=vid)
+        except (aceptaciones_legales.AceptacionPendiente, TypeError, ValueError):
+            return {"ok": False, "mensaje": "Falta la constancia de tu aceptación de las condiciones de esta vigilancia: acéptalas de nuevo para activarla."}
     _, motivo = ordenes.cuenta_demo()
     if motivo:
         return {"ok": False, "mensaje": motivo}

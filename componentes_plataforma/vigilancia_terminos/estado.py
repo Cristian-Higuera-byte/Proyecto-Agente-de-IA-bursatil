@@ -20,7 +20,9 @@ propuestas» muestra y consume.
 import streamlit as st
 
 from componentes_plataforma.agente_paneles.datos import CLAVE_AVISO
+from herramientas.backends import sesiones_capital
 from componentes_plataforma.vigilancia_terminos.registro import registrar
+from herramientas import aceptaciones_legales
 from nucleo_agente import vigilancia
 
 # Clave de session_state con el id de la vigilancia que espera aceptación; si no existe, no hay ventana abierta.
@@ -61,6 +63,14 @@ def aceptar() -> None:
     v = vigilancia.obtener(vid)
     if v:
         registrar(v)
+        # Constancia en la base (V22): usuario, versión, alcance demo (el motor opera solo en demo) y qué vigilancia; si no se guarda, no se autoriza.
+        try:
+            guardada = aceptaciones_legales.registrar(int(_usuario_id()), ["vigilancia"], aceptaciones_legales.VERSIONES_FUNCION["vigilancia"], alcance="demo", detalle=vid)
+        except ValueError:
+            guardada = False
+        if not guardada and sesiones_capital.MULTIUSUARIO:
+            st.session_state[CLAVE_AVISO] = ("error", "No pudimos guardar la constancia de tu aceptación: la vigilancia NO se activó. Inténtalo de nuevo.")
+            return
     resultado = vigilancia.autorizar(vid, _usuario_id())
     st.session_state[CLAVE_AVISO] = ("ok" if resultado["ok"] else "error", resultado["mensaje"])
 

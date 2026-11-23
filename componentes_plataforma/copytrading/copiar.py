@@ -22,7 +22,7 @@ import streamlit as st
 
 from componentes_plataforma.copytrading import perfil_copia
 import configuracion
-from herramientas import billetera, copiador, gestor_autenticacion, gestor_estrategias, metricas_estrategia
+from herramientas import aceptaciones_legales, billetera, copiador, gestor_autenticacion, gestor_estrategias, metricas_estrategia
 from herramientas.puente_mt5 import obtener_info_cuenta
 
 # Texto resumido de los términos de la cuenta de inversor
@@ -111,6 +111,11 @@ def _formulario(uid, e: dict) -> None:
             for cambio in propuesta["cambios"]:
                 st.caption(f"{cambio['etiqueta']}: {cambio['antes']} → **{cambio['despues']}**")
     if st.button("Copiar", type="primary", width="stretch", key="copiar_confirmar"):
+        # Constancia de la aceptación (V22): usuario, versión, alcance (demo o real de la estrategia) y estrategia; si no se guarda, no se copia.
+        if not aceptaciones_legales.registrar(int(uid), ["copytrading"], aceptaciones_legales.VERSIONES_FUNCION["copytrading"],
+                                              alcance=(e.get("cuenta_tipo") or "demo") if (e.get("cuenta_tipo") or "demo") in ("demo", "real") else "demo", detalle=str(int(e["id"]))):
+            st.error("No pudimos guardar la constancia de tu aceptación: la copia NO se creó. Inténtalo de nuevo.")
+            return
         try:
             copiador.crear_copia(uid, int(e["id"]), "importe" if por_importe else "multiplicador", importe if por_importe else None, None if por_importe else multiplicador,
                                  abiertas, tp if por_importe else None, sl if por_importe else None, equity_cuenta=equity or None,

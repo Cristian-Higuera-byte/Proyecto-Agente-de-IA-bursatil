@@ -35,6 +35,7 @@ from .calentamiento import calentar
 from .dialogos import renderizar_dialogos
 from .estilos import css_global, html_pantalla_carga
 from componentes_plataforma.legal import pie_legal
+from componentes_plataforma.legal.puerta import requerir_aceptacion
 from componentes_plataforma.refresco_fragmentos import iniciar_pasada
 from .fragmentos import crear_fragmentos
 from .precarga import iniciar_precargas
@@ -72,6 +73,7 @@ def ejecutar(consola) -> None:
     # Login (Supabase): protege el acceso al dashboard y devuelve los datos del usuario.
     registrar_resolvedor()   # el backend de Capital averigua el usuario y su modo (demo/real) desde la sesión
     usuario_actual = requerir_login()
+    requerir_aceptacion(usuario_actual)   # sin la aceptación vigente de los documentos legales no se muestra nada más (V22)
     requerir_cuenta(usuario_actual)   # sin cuenta de Capital conectada se muestra la pantalla para conectarla
     rendimiento.marca("estilos y acceso")
     # Mercados precargado en segundo plano desde el arranque (una vez por proceso): sin esperas al abrir pestañas.

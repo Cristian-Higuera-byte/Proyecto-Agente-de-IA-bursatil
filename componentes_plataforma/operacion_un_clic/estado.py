@@ -50,6 +50,18 @@ def pedir_terminos_si_corresponde():
 def aceptar():
     """Callback del botón "Acepto": registra la aceptación en disco, activa el interruptor y cierra la ventana."""
     registrar()
+    # Constancia en la base (V22): usuario, versión y alcance (demo o real según la cuenta que se está viendo).
+    try:
+        from componentes_plataforma.conectar_cuenta.modo import usuario_id_actual
+        from herramientas import aceptaciones_legales
+        from herramientas.backends import sesiones_capital
+        uid = usuario_id_actual()
+        if uid is not None:
+            clave = sesiones_capital.clave_actual()
+            alcance = "real" if isinstance(clave, tuple) and len(clave) == 2 and clave[1] is False else "demo"
+            aceptaciones_legales.registrar(uid, ["one_click"], aceptaciones_legales.VERSIONES_FUNCION["one_click"], alcance=alcance)
+    except Exception:  # noqa: BLE001 - One-Click ya se acepta y se registra en el JSON; la constancia en la base es adicional
+        pass
     st.session_state.orden_un_clic = True
     st.session_state.terminos_un_clic_terminos = False
 

@@ -41,7 +41,7 @@ import traceback
 from datetime import datetime, timedelta, timezone
 
 import configuracion
-from herramientas import comisiones, gestor_autenticacion, idempotencia_ordenes
+from herramientas import aceptaciones_legales, comisiones, gestor_autenticacion, idempotencia_ordenes
 from herramientas.backends import sesiones_capital
 from herramientas.puente_mt5 import PROVEEDOR, cerrar_posicion, ejecutar_orden_mercado, obtener_info_cuenta, obtener_posiciones
 
@@ -171,6 +171,10 @@ def crear_copia(usuario_id, estrategia_id, modo: str, importe=None, multiplicado
     cliente, cfg = _cliente(), configuracion.COPYTRADING
     if not cuenta_inversor(usuario_id):
         raise ErrorCopia("Primero abre tu cuenta de inversor.")
+    try:       # V22: la constancia vigente de la aceptación del copy trading para ESTA estrategia es condición del servidor
+        aceptaciones_legales.exigir(int(usuario_id), "copytrading", detalle=str(int(estrategia_id)), cliente=cliente)
+    except aceptaciones_legales.AceptacionPendiente:
+        raise ErrorCopia("Falta la constancia de tu aceptación de las condiciones del copy trading para esta estrategia: acéptalas para copiar.") from None
     estrategia = (cliente.table("estrategias").select("*").eq("id", int(estrategia_id)).eq("estado", "publicada").limit(1).execute().data or [None])[0]
     if not estrategia:
         raise ErrorCopia("Esa estrategia ya no está disponible para copiar.")
