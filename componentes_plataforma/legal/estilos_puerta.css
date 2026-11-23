@@ -1,0 +1,64 @@
+/*
+Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+Dirección: José Joaquín Prieto #5373 -
+San Miguel - Santiago - Chile
+contacto.pinayjara@gmail.com
+https://www.pinayjara.cl
+Creado, Programado y Diseñado por Piña y Jara
+Transportes y Servicios Ltda.
+*/
+
+
+/* -------------------------------------------------------------------------------------------------------
+   ------------------------------- INICIO Piña y Jara estilos_puerta .CSS --------------------------------
+   ------------------------------------------------------------------------------------------------------- */
+
+/* TITULO PUERTA DE ACEPTACION (legal/puerta.py): mismo estilo que el inicio de sesión y «Conectar mi cuenta». Se inyecta solo mientras se dibuja esa pantalla. Prefijo pa-. */
+
+/* TITULO FONDO Y ANCHO */
+.stApp:has(.st-key-puerta_aceptacion) { background: radial-gradient(900px 520px at 16% 0%, rgba(255, 107, 53, .14), transparent 62%), radial-gradient(800px 560px at 96% 34%, rgba(88, 166, 255, .07), transparent 60%), #0a0e17 !important; }
+[data-testid="stMainBlockContainer"].block-container:has(.st-key-puerta_aceptacion) { max-width: 620px; margin-left: auto; margin-right: auto; padding: 8vh 24px 40px !important; box-sizing: border-box; }
+
+/* TITULO CABECERA */
+.pa-cabecera { text-align: center; margin: 0 0 26px; }
+.pa-logo { font-size: 38px; font-weight: 800; letter-spacing: 1px; color: #ff6b35; }
+.pa-titulo { margin: 10px 0 8px; font-size: 28px; line-height: 1.15; font-weight: 800; letter-spacing: -.5px; color: #fff; }
+.pa-sub { margin: 0 auto; font-size: 15px; line-height: 1.55; color: #9aa4b2; }
+.pa-sub b { color: #e6edf3; }
+
+/* TITULO TARJETA */
+.st-key-puerta_aceptacion { padding: 26px 26px 22px; border-radius: 22px; box-sizing: border-box; background: linear-gradient(180deg, #121a27 0%, #0d131d 100%); border: 1px solid #263041;
+    box-shadow: 0 28px 70px rgba(0, 0, 0, .5), 0 0 0 1px rgba(255, 255, 255, .02) inset; }
+.st-key-puerta_aceptacion [data-testid="stMarkdownContainer"] p { font-size: 14px; line-height: 1.55; color: #9aa4b2; }
+.st-key-puerta_aceptacion [data-testid="stMarkdownContainer"] a { color: #58a6ff; }
+.st-key-puerta_aceptacion [data-testid="stCheckbox"] label p { font-size: 14px; color: #c9d1d9; }
+.st-key-puerta_aceptacion [data-testid="stAlert"] { border-radius: 14px; }
+.st-key-puerta_aceptacion div.stButton > button { min-height: 50px; border-radius: 14px; font-size: 15px; font-weight: 800; background: transparent; border: 1px solid #ff8f00; color: #ffb067;
+    transition: transform .15s ease, background .15s ease, box-shadow .15s ease, filter .15s ease; }
+.st-key-puerta_aceptacion div.stButton > button[kind="primary"] { border: 0; color: #fff; background: linear-gradient(135deg, #ff4b4b, #ff8f00); box-shadow: 0 12px 28px rgba(255, 107, 53, .4); }
+.st-key-puerta_aceptacion div.stButton > button[kind="primary"]:hover:not(:disabled) { color: #fff; transform: translateY(-2px); filter: brightness(1.08); box-shadow: 0 16px 36px rgba(255, 107, 53, .55); }
+
+/* TITULO PIE */
+.pa-pie { margin: 18px 0 0; text-align: center; font-size: 14px; color: #8b949e; }
+.pa-pie a { color: #8b949e; }
+
+/* TITULO PANTALLAS ANGOSTAS */
+@media (max-width: 640px) {
+    .pa-titulo { font-size: 24px; }
+    .st-key-puerta_aceptacion { padding: 20px 16px 18px; }
+}
+
+
+/* -------------------------------------------------------------------------------------------------------
+   -------------------------------- FIN Piña y Jara estilos_puerta .CSS ----------------------------------
+   ------------------------------------------------------------------------------------------------------- */
+
+/*
+Sitio Web Creado por Piña y Jara Transportes y Servicios Ltda.
+Dirección: José Joaquín Prieto #5373 -
+San Miguel - Santiago - Chile
+contacto.pinayjara@gmail.com
+https://www.pinayjara.cl
+Creado, Programado y Diseñado por Piña y Jara
+Transportes y Servicios Ltda.
+*/
