@@ -33,6 +33,7 @@ Transportes y Servicios Ltda.
 .st-key-puerta_aceptacion [data-testid="stMarkdownContainer"] a { color: #58a6ff; }
 .st-key-puerta_aceptacion [data-testid="stCheckbox"] label p { font-size: 14px; color: #c9d1d9; }
 .st-key-puerta_aceptacion [data-testid="stAlert"] { border-radius: 14px; }
+.st-key-puerta_aceptacion div.stButton p { color: inherit; font-size: 15px; font-weight: 800; }
 .st-key-puerta_aceptacion div.stButton > button { min-height: 50px; border-radius: 14px; font-size: 15px; font-weight: 800; background: transparent; border: 1px solid #ff8f00; color: #ffb067;
     transition: transform .15s ease, background .15s ease, box-shadow .15s ease, filter .15s ease; }
 .st-key-puerta_aceptacion div.stButton > button[kind="primary"] { border: 0; color: #fff; background: linear-gradient(135deg, #ff4b4b, #ff8f00); box-shadow: 0 12px 28px rgba(255, 107, 53, .4); }
